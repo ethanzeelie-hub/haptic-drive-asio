@@ -43,3 +43,14 @@ Audio owns concrete output device implementations:
 - `AsioAudioOutputDevice`: ASIO abstraction/stub with graceful unavailable-driver handling.
 
 ASIO driver discovery is isolated behind `IAsioDriverCatalog` so automated tests can use a fake catalog and later stages can add real driver enumeration without changing the output contract.
+
+## Stage 03 F1 25 Spec Extraction
+
+The official F1 25 v3 PDF has been converted into concise implementation notes in `docs/F1_25_PACKET_SPEC_IMPLEMENTATION.md`.
+
+The parser boundary remains unchanged:
+
+- F1-specific binary parsing belongs in `HapticDrive.Asio.Telemetry.F1_25`.
+- Shared effect logic must consume a later `VehicleState` model, not raw F1 packet classes.
+- Raw UDP bytes must be preserved for forwarding, recording, and replay.
+- Packet parsing must validate format, year, ID, version, and exact byte length before body reads.

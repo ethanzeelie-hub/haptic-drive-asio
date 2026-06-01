@@ -8,13 +8,13 @@ Physical shaker hardware is not available yet. Development must work without it 
 
 ## Current Stage
 
-Stage 02: output abstractions and hardware-absent mode complete. Next stage is Stage 03, F1 25 spec extraction.
+Stage 03: F1 25 spec extraction complete. Next stage is Stage 04, UDP listener.
 
 The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute placeholder, dark theme default, light theme scaffolding, and a close/minimize-to-tray setting placeholder.
 
 The selected output mode is `NullAudioOutputDevice` by default, so the app can open and tests can run without ASIO hardware or shaker hardware.
 
-It does not yet implement telemetry parsing, UDP receive, audio generation, recording, replay, real WASAPI output, real ASIO streaming, or haptic effects.
+The official F1 25 v3 PDF has been extracted into implementation notes under `docs/`. It does not yet implement telemetry parsing, UDP receive, audio generation, recording, replay, real WASAPI output, real ASIO streaming, or haptic effects.
 
 ## Solution Layout
 

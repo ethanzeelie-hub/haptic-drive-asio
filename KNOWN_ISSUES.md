@@ -23,3 +23,11 @@
 - The default ASIO driver catalog reports no drivers until a real discovery implementation is added.
 - Manual hardware tests are present only as skipped markers.
 - The app still has no telemetry, parser, recording, replay, mixer, safety processor, or haptic effect behavior.
+
+## Stage 03
+
+- The F1 25 PDF has been summarized into implementation notes, but no parser code exists yet.
+- Packet field offsets beyond `PacketHeader` have not been encoded in code yet.
+- Parser tests listed in `docs/F1_25_PACKET_SPEC_IMPLEMENTATION.md` are not implemented yet.
+- The PDF remains outside the repository; future work depends on the extracted notes unless the source PDF is supplied again.
+- The app still has no UDP listener, packet parser, recording, replay, mixer, safety processor, or haptic effect behavior.
