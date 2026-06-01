@@ -12,6 +12,7 @@ public partial class MainWindow : Window
 {
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
+    private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
     {
         Interval = TimeSpan.FromMilliseconds(500)
@@ -23,10 +24,11 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 04 raw UDP listener status",
+            "Stage 05 raw UDP forwarding status",
             [
                 "UDP listener starts on port 20778 by default.",
-                "Packets are counted and preserved as raw datagrams only.",
+                "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
+                "Forwarding is byte-preserving and parser-independent.",
                 "NullAudioOutputDevice is the default safe output.",
                 "No F1 25 parser or haptic effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
@@ -66,13 +68,14 @@ public partial class MainWindow : Window
         new(
             "Telemetry / UDP Router",
             "Telemetry / UDP Router",
-            "Raw F1 25 UDP input status. Forwarding is still planned for Stage 05.",
-            "UDP listener active",
+            "Raw F1 25 UDP input and byte-preserving forwarding status.",
+            "UDP listener and forwarder active",
             [
-                "Default listen port will be 20778.",
+                "Default listen port is 20778.",
                 "Raw packets are counted and timestamped.",
-                "No parser is attached in Stage 04.",
-                "UDP forwarding is scheduled for Stage 05.",
+                "Forwarding sends exact packet bytes to enabled destinations.",
+                "No forwarding destinations are configured in the shell yet.",
+                "No parser is attached in Stage 05.",
                 "F1 25 parsing must come from the official v3 PDF, not guessed layouts."
             ]),
         new(
@@ -123,6 +126,7 @@ public partial class MainWindow : Window
             [
                 "Output status is available for the selected safe output device.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
+                "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
                 "Diagnostics become more meaningful as telemetry, parser, audio, and replay stages are implemented.",
                 "Logging must not block telemetry, UI, disk, or audio paths.",
                 "A copy diagnostics report action is planned for Stage 14."
@@ -133,6 +137,7 @@ public partial class MainWindow : Window
     private bool _emergencyMuted;
     private bool _lightTheme;
     private string? _telemetryStartError;
+    private string? _forwardingError;
 
     public MainWindow()
     {
@@ -173,7 +178,7 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 04 UDP listener";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 05 UDP forwarding";
             UpdateTelemetryStatus();
         }
     }
@@ -251,7 +256,22 @@ public partial class MainWindow : Window
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
     {
+        _ = ForwardTelemetryPacketAsync(e.Packet);
         Dispatcher.InvokeAsync(UpdateTelemetryStatus);
+    }
+
+    private async Task ForwardTelemetryPacketAsync(UdpTelemetryPacket packet)
+    {
+        try
+        {
+            await _telemetryForwarder.ForwardAsync(packet);
+        }
+        catch (Exception ex)
+        {
+            _forwardingError = ex.Message;
+        }
+
+        await Dispatcher.InvokeAsync(UpdateTelemetryStatus);
     }
 
     private void UpdateTelemetryStatus()
@@ -263,6 +283,7 @@ public partial class MainWindow : Window
             UdpListenerDetailText.Text = _telemetryStartError;
             PacketCountValueText.Text = "0";
             PacketRateDetailText.Text = "0.00 packets/s";
+            UpdateForwardingStatus();
             return;
         }
 
@@ -282,17 +303,39 @@ public partial class MainWindow : Window
             : $"Last packet {snapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago.";
         PacketCountValueText.Text = snapshot.PacketCount.ToString("N0");
         PacketRateDetailText.Text = $"{snapshot.PacketRatePerSecond:0.00} packets/s";
+        UpdateForwardingStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
         {
-            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}";
+            var forwardingSnapshot = _telemetryForwarder.GetSnapshot();
+            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams";
         }
+    }
+
+    private void UpdateForwardingStatus()
+    {
+        var snapshot = _telemetryForwarder.GetSnapshot();
+
+        if (_forwardingError is not null)
+        {
+            ForwardingValueText.Text = "Error";
+            ForwardingDetailText.Text = _forwardingError;
+            return;
+        }
+
+        ForwardingValueText.Text = snapshot.IsEnabled
+            ? $"{snapshot.EnabledDestinationCount} enabled"
+            : "Disabled";
+        ForwardingDetailText.Text = snapshot.IsEnabled
+            ? $"{snapshot.ForwardedDatagramCount:N0} datagrams, {snapshot.ForwardedByteCount:N0} bytes."
+            : $"{snapshot.DestinationCount} destinations configured; {snapshot.InputPacketCount:N0} packets observed.";
     }
 
     protected override void OnClosed(EventArgs e)
     {
         _telemetryStatusTimer.Stop();
         _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _telemetryForwarder.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _selectedOutputDevice.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.OnClosed(e);
     }

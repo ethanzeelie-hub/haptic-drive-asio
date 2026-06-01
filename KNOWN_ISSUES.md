@@ -40,3 +40,11 @@
 - The app defaults to port `20778`; startup reports an unavailable listener if the port is already in use.
 - Listen port, bind address, and no-packet warning threshold are not configurable through the UI yet.
 - The app still has no recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, or haptic effect behavior.
+
+## Stage 05
+
+- The UDP forwarder is implemented in Core, but the shell does not yet provide UI controls for adding or editing destinations.
+- The shell currently starts with zero forwarding destinations configured, so forwarding status is visible but disabled by default.
+- Forwarding counters are in memory only and reset when the app restarts.
+- Forwarding is raw-byte only and does not validate whether packets are real F1 25 packets yet.
+- Parser work, packet ID diagnostics, recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.

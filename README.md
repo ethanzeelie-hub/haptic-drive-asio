@@ -8,15 +8,15 @@ Physical shaker hardware is not available yet. Development must work without it 
 
 ## Current Stage
 
-Stage 04: UDP listener complete. Next stage is Stage 05, byte-preserving UDP forwarding.
+Stage 05: byte-preserving UDP forwarding complete. Next stage is Stage 06, F1 25 packet header parser.
 
 The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute placeholder, dark theme default, light theme scaffolding, and a close/minimize-to-tray setting placeholder.
 
 The selected output mode is `NullAudioOutputDevice` by default, so the app can open and tests can run without ASIO hardware or shaker hardware.
 
-The official F1 25 v3 PDF has been extracted into implementation notes under `docs/`. The app now starts a raw UDP listener on port `20778` by default, counts incoming datagrams, tracks packet rate, and shows a no-packet warning in the dashboard.
+The official F1 25 v3 PDF has been extracted into implementation notes under `docs/`. The app now starts a raw UDP listener on port `20778` by default, counts incoming datagrams, tracks packet rate, shows a no-packet warning in the dashboard, and offers each raw packet to the UDP forwarder.
 
-Telemetry packets are still raw bytes only. It does not yet implement F1 25 packet parsing, UDP forwarding, audio generation, recording, replay, real WASAPI output, real ASIO streaming, or haptic effects.
+Telemetry packets are still raw bytes only. Forwarding preserves exact packet payload bytes and does not depend on parser success. It does not yet implement F1 25 packet parsing, forwarding destination configuration in the UI, audio generation, recording, replay, real WASAPI output, real ASIO streaming, or haptic effects.
 
 ## Solution Layout
 

@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 04 UDP listener - raw telemetry only, no parser yet" />
+                               Text="Stage 05 UDP forwarding - raw telemetry only, no parser yet" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -201,6 +201,26 @@
                                            Margin="0,6,0,0"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="0.00 packets/s" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,12,0"
+                                Padding="18"
+                                Background="{DynamicResource AppSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Forwarding" />
+                                <TextBlock x:Name="ForwardingValueText"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Text="Disabled" />
+                                <TextBlock x:Name="ForwardingDetailText"
+                                           Margin="0,6,0,0"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="No destinations configured." />
                             </StackPanel>
                         </Border>
                     </UniformGrid>

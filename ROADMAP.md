@@ -7,7 +7,8 @@
 - Stage 02: Output abstractions and hardware-absent mode complete.
 - Stage 03: F1 25 spec extraction complete.
 - Stage 04: UDP listener complete.
-- Next: Stage 05 UDP forwarding.
+- Stage 05: UDP forwarding complete.
+- Next: Stage 06 F1 25 packet header parser.
 
 ## Planned Stages
 
@@ -15,7 +16,7 @@
 2. Stage 02: Output abstractions and hardware-absent mode. Complete.
 3. Stage 03: F1 25 spec extraction. Complete.
 4. Stage 04: UDP listener. Complete.
-5. Stage 05: UDP forwarding.
+5. Stage 05: UDP forwarding. Complete.
 6. Stage 06: F1 25 packet header parser.
 7. Stage 07: F1 25 core packet parser.
 8. Stage 08: VehicleState model.

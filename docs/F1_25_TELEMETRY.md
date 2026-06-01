@@ -15,7 +15,7 @@ F1 25 can enable UDP telemetry through the in-game telemetry settings. PC users 
 
 The PDF examples use port `20777`. Haptic Drive ASIO defaults to listening on `20778` because another tool, router, or Simagic software may already consume `20777`.
 
-Stage 04 implements the raw listener only. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for later forwarding, recording, replay, and parsing. It does not parse packet headers or packet bodies yet.
+Stage 05 implements raw listening plus byte-preserving forwarding. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding sends exact raw payload bytes to enabled destinations and does not depend on parser success. It does not parse packet headers or packet bodies yet.
 
 Supported input modes planned:
 

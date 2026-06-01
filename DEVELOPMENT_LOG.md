@@ -149,3 +149,33 @@ Self-review:
 - Stage 04 stayed limited to raw UDP receive and status visibility.
 - The listener preserves raw bytes for future forwarding, recording, replay, and parser stages.
 - No F1 25 parser, recording, replay, mixer, safety chain, generated audio, real WASAPI output, or real ASIO streaming was added.
+
+## Stage 05 - UDP Forwarding
+
+Date: 2026-06-01
+
+Status: Complete.
+
+Goal: Add byte-preserving UDP forwarding that works from raw listener packets without F1 25 parser code, audio output, or physical haptic hardware.
+
+Notes:
+
+- Added `IUdpTelemetryForwarder` and `UdpTelemetryForwarder` in Core.
+- Added forwarding destinations with friendly name, endpoint, and enabled state.
+- Forwarding sends exact received payload bytes to each enabled destination.
+- Forwarding diagnostics track configured destinations, enabled destinations, input packet count, forwarded datagrams, forwarded bytes, errors, last error, and last successful forward time.
+- Wired the WPF shell to offer each received raw packet to the forwarder and show forwarding status on the dashboard and Telemetry / UDP Router page.
+- Added loopback UDP tests for no-destination mode, exact-payload forwarding, multiple destinations, and disabled destinations.
+- Kept destination editing, persistence, packet parsing, and haptic behavior out of scope for this stage.
+
+Verification:
+
+- `dotnet build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test HapticDrive.Asio.sln --no-build` passed with 18 passing tests and 1 skipped manual hardware test.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 05 stayed limited to byte-preserving forwarding and diagnostics.
+- Forwarding remains independent of parser success and output device state.
+- No F1 25 parser, recording, replay, mixer, safety chain, generated audio, real WASAPI output, real ASIO streaming, or haptic effects were added.

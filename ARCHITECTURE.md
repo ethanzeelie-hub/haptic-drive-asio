@@ -69,3 +69,18 @@ The listener:
 The WPF shell starts the listener on app load and surfaces high-level status on the dashboard and Telemetry / UDP Router page.
 
 Parsing remains outside Stage 04. F1-specific binary parsing still belongs in `HapticDrive.Asio.Telemetry.F1_25`, and UDP forwarding is scheduled for Stage 05.
+
+## Stage 05 UDP Forwarding
+
+Core owns `IUdpTelemetryForwarder` and `UdpTelemetryForwarder`, a byte-preserving relay path that accepts `UdpTelemetryPacket` values from the raw listener.
+
+The forwarder:
+
+- Sends the exact received packet payload to each enabled destination.
+- Keeps forwarding independent of F1 25 parser success, haptic output state, and audio hardware state.
+- Tracks configured destinations, enabled destinations, input packet count, forwarded datagram count, forwarded bytes, forwarding errors, and last successful forward time.
+- Skips disabled destinations and continues to later destinations if one send fails.
+
+The WPF shell offers every received raw packet to the forwarder and surfaces forwarding status on the dashboard. Destination editing is intentionally not implemented in the shell yet.
+
+Stage 06 should add the F1 25 packet header parser without changing the raw forwarding behavior.
