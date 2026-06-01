@@ -223,6 +223,24 @@ Pause, garage, and mute:
 - Collision event `COLL` exposes both vehicle indices.
 - Restricted telemetry zero values remain zero and are not synthesized.
 
+## Stage 06 Implementation Status
+
+Implemented:
+
+- `PacketHeader` model with all fields at documented offsets.
+- Packet ID, size, version, and V1-required metadata for IDs 0 through 15.
+- Header parser validation for minimum header length, packet format `2025`, game year `25`, known packet ID, packet version `1`, and exact documented packet length.
+- Unknown packet IDs return an ignored result.
+- Malformed known packets return failure results.
+- Raw datagram bytes are copied on parse results for diagnostics/replay handoff.
+
+Not implemented yet:
+
+- Packet body structs.
+- Event union parsing.
+- Per-packet body validation beyond exact datagram size.
+- VehicleState mapping.
+
 ## Stage 03 Scope Boundary
 
 This stage creates implementation notes only. Parser code begins in later stages.

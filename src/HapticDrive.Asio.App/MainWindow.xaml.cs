@@ -1,6 +1,7 @@
 using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
+using HapticDrive.Asio.Telemetry.F1_25;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,6 +11,7 @@ namespace HapticDrive.Asio.App;
 
 public partial class MainWindow : Window
 {
+    private readonly object _headerParserGate = new();
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
@@ -24,13 +26,14 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 05 raw UDP forwarding status",
+            "Stage 06 F1 25 packet header status",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
                 "Forwarding is byte-preserving and parser-independent.",
+                "The F1 25 header parser validates packet format, year, ID, version, and exact length.",
                 "NullAudioOutputDevice is the default safe output.",
-                "No F1 25 parser or haptic effects are implemented yet.",
+                "No F1 25 packet bodies or haptic effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
         new(
@@ -68,15 +71,15 @@ public partial class MainWindow : Window
         new(
             "Telemetry / UDP Router",
             "Telemetry / UDP Router",
-            "Raw F1 25 UDP input and byte-preserving forwarding status.",
-            "UDP listener and forwarder active",
+            "Raw F1 25 UDP input, byte-preserving forwarding, and packet header status.",
+            "UDP listener, forwarder, and header parser active",
             [
                 "Default listen port is 20778.",
                 "Raw packets are counted and timestamped.",
                 "Forwarding sends exact packet bytes to enabled destinations.",
+                "Packet headers are parsed and validated from the official F1 25 v3 spec.",
                 "No forwarding destinations are configured in the shell yet.",
-                "No parser is attached in Stage 05.",
-                "F1 25 parsing must come from the official v3 PDF, not guessed layouts."
+                "Packet bodies are not parsed in Stage 06."
             ]),
         new(
             "Recordings",
@@ -127,6 +130,7 @@ public partial class MainWindow : Window
                 "Output status is available for the selected safe output device.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
+                "F1 25 header success, ignored, and failure counts are available.",
                 "Diagnostics become more meaningful as telemetry, parser, audio, and replay stages are implemented.",
                 "Logging must not block telemetry, UI, disk, or audio paths.",
                 "A copy diagnostics report action is planned for Stage 14."
@@ -138,6 +142,10 @@ public partial class MainWindow : Window
     private bool _lightTheme;
     private string? _telemetryStartError;
     private string? _forwardingError;
+    private long _headerParseSuccessCount;
+    private long _headerParseIgnoredCount;
+    private long _headerParseFailureCount;
+    private string _lastHeaderParserMessage = "Waiting for F1 25 packets.";
 
     public MainWindow()
     {
@@ -178,7 +186,7 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 05 UDP forwarding";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 06 F1 25 packet header parser";
             UpdateTelemetryStatus();
         }
     }
@@ -256,8 +264,50 @@ public partial class MainWindow : Window
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
     {
+        ParseTelemetryHeader(e.Packet);
         _ = ForwardTelemetryPacketAsync(e.Packet);
         Dispatcher.InvokeAsync(UpdateTelemetryStatus);
+    }
+
+    private void ParseTelemetryHeader(UdpTelemetryPacket packet)
+    {
+        F125PacketHeaderParseResult result;
+
+        try
+        {
+            result = F125PacketHeaderParser.Parse(packet.Payload);
+        }
+        catch (Exception ex)
+        {
+            Interlocked.Increment(ref _headerParseFailureCount);
+
+            lock (_headerParserGate)
+            {
+                _lastHeaderParserMessage = $"Header parser error: {ex.Message}";
+            }
+
+            return;
+        }
+
+        switch (result.Status)
+        {
+            case F125PacketHeaderParseStatus.Success:
+                Interlocked.Increment(ref _headerParseSuccessCount);
+                break;
+            case F125PacketHeaderParseStatus.Ignored:
+                Interlocked.Increment(ref _headerParseIgnoredCount);
+                break;
+            case F125PacketHeaderParseStatus.Failure:
+                Interlocked.Increment(ref _headerParseFailureCount);
+                break;
+        }
+
+        lock (_headerParserGate)
+        {
+            _lastHeaderParserMessage = result.Succeeded && result.Definition is not null
+                ? $"{result.Definition.Name} header accepted."
+                : result.Message;
+        }
     }
 
     private async Task ForwardTelemetryPacketAsync(UdpTelemetryPacket packet)
@@ -284,6 +334,7 @@ public partial class MainWindow : Window
             PacketCountValueText.Text = "0";
             PacketRateDetailText.Text = "0.00 packets/s";
             UpdateForwardingStatus();
+            UpdateHeaderParserStatus();
             return;
         }
 
@@ -304,11 +355,13 @@ public partial class MainWindow : Window
         PacketCountValueText.Text = snapshot.PacketCount.ToString("N0");
         PacketRateDetailText.Text = $"{snapshot.PacketRatePerSecond:0.00} packets/s";
         UpdateForwardingStatus();
+        UpdateHeaderParserStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
         {
             var forwardingSnapshot = _telemetryForwarder.GetSnapshot();
-            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams";
+            var parsedHeaders = Interlocked.Read(ref _headerParseSuccessCount);
+            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams; parsed {parsedHeaders:N0} headers";
         }
     }
 
@@ -329,6 +382,26 @@ public partial class MainWindow : Window
         ForwardingDetailText.Text = snapshot.IsEnabled
             ? $"{snapshot.ForwardedDatagramCount:N0} datagrams, {snapshot.ForwardedByteCount:N0} bytes."
             : $"{snapshot.DestinationCount} destinations configured; {snapshot.InputPacketCount:N0} packets observed.";
+    }
+
+    private void UpdateHeaderParserStatus()
+    {
+        var successCount = Interlocked.Read(ref _headerParseSuccessCount);
+        var ignoredCount = Interlocked.Read(ref _headerParseIgnoredCount);
+        var failureCount = Interlocked.Read(ref _headerParseFailureCount);
+        string lastMessage;
+
+        lock (_headerParserGate)
+        {
+            lastMessage = _lastHeaderParserMessage;
+        }
+
+        HeaderParserValueText.Text = successCount == 0 && ignoredCount == 0 && failureCount == 0
+            ? "Waiting"
+            : $"{successCount:N0} valid";
+        HeaderParserDetailText.Text = successCount == 0 && ignoredCount == 0 && failureCount == 0
+            ? "Validates format 2025, year 25, ID, version, and size."
+            : $"Ignored {ignoredCount:N0}, failed {failureCount:N0}. {lastMessage}";
     }
 
     protected override void OnClosed(EventArgs e)

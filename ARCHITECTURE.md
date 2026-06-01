@@ -84,3 +84,16 @@ The forwarder:
 The WPF shell offers every received raw packet to the forwarder and surfaces forwarding status on the dashboard. Destination editing is intentionally not implemented in the shell yet.
 
 Stage 06 should add the F1 25 packet header parser without changing the raw forwarding behavior.
+
+## Stage 06 F1 25 Packet Header Parser
+
+`HapticDrive.Asio.Telemetry.F1_25` owns the first parser implementation:
+
+- `F125PacketHeader` models the 29-byte official header.
+- `F125PacketDefinitions` records packet IDs, packet names, exact packet sizes, packet version, and V1-required packet flags from the v3 PDF notes.
+- `F125PacketHeaderParser` reads little-endian fields and validates packet format `2025`, game year `25`, known packet ID, packet version `1`, and exact datagram length.
+- Unknown packet IDs return an ignored result instead of throwing.
+- Malformed datagrams return failure results instead of throwing.
+- Successful results preserve a copy of the raw datagram bytes.
+
+The WPF shell parses headers from incoming UDP packets for diagnostics while forwarding still uses the original raw UDP payload. Packet body parsing and `VehicleState` mapping remain scheduled for later stages.

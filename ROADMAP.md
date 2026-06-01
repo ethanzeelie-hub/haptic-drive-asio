@@ -8,7 +8,8 @@
 - Stage 03: F1 25 spec extraction complete.
 - Stage 04: UDP listener complete.
 - Stage 05: UDP forwarding complete.
-- Next: Stage 06 F1 25 packet header parser.
+- Stage 06: F1 25 packet header parser complete.
+- Next: Stage 07 F1 25 core packet parser.
 
 ## Planned Stages
 
@@ -17,7 +18,7 @@
 3. Stage 03: F1 25 spec extraction. Complete.
 4. Stage 04: UDP listener. Complete.
 5. Stage 05: UDP forwarding. Complete.
-6. Stage 06: F1 25 packet header parser.
+6. Stage 06: F1 25 packet header parser. Complete.
 7. Stage 07: F1 25 core packet parser.
 8. Stage 08: VehicleState model.
 9. Stage 09: Recording and replay.

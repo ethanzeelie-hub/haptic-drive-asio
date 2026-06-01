@@ -48,3 +48,11 @@
 - Forwarding counters are in memory only and reset when the app restarts.
 - Forwarding is raw-byte only and does not validate whether packets are real F1 25 packets yet.
 - Parser work, packet ID diagnostics, recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.
+
+## Stage 06
+
+- The F1 25 parser validates packet headers only; packet bodies are not parsed yet.
+- Header parser diagnostics count valid, ignored, and failed datagrams in memory only.
+- Unknown packet IDs are ignored safely, but there is no per-packet-ID dashboard breakdown yet.
+- Known packet IDs with valid headers are not converted into vehicle state yet.
+- Recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.

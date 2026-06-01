@@ -18,6 +18,7 @@ Forwarding rules:
 - Allow one or more destination endpoints.
 - Count forwarded packets and forwarding errors separately from receive errors.
 - Keep forwarding independent of haptic output device state.
+- Keep forwarding independent of F1 25 header parser success.
 - Do not crash the listener if one forwarding destination fails.
 
 Planned later work:

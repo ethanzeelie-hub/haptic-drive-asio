@@ -179,3 +179,34 @@ Self-review:
 - Stage 05 stayed limited to byte-preserving forwarding and diagnostics.
 - Forwarding remains independent of parser success and output device state.
 - No F1 25 parser, recording, replay, mixer, safety chain, generated audio, real WASAPI output, real ASIO streaming, or haptic effects were added.
+
+## Stage 06 - F1 25 Packet Header Parser
+
+Date: 2026-06-01
+
+Status: Complete.
+
+Goal: Add the first official F1 25 parser layer by reading and validating packet headers from the v3 PDF notes without parsing packet bodies.
+
+Notes:
+
+- Added `F125PacketHeader`, `F125PacketKind`, packet definitions, parse status, parse result, and `F125PacketHeaderParser`.
+- Implemented little-endian reads for the 29-byte `PacketHeader`.
+- Added validation for minimum header length, packet format `2025`, game year `25`, known packet ID, packet version `1`, and exact documented packet length.
+- Unknown packet IDs return ignored results instead of throwing.
+- Malformed packets return failure results instead of throwing.
+- Successful parse results preserve a copy of raw datagram bytes for later recording/replay handoff.
+- Wired the WPF shell to parse incoming UDP packet headers for diagnostics while preserving Stage 05 forwarding behavior.
+- Kept packet body parsing, event unions, and VehicleState mapping out of scope for this stage.
+
+Verification:
+
+- `dotnet build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test HapticDrive.Asio.sln --no-build` passed with 45 passing tests and 1 skipped manual hardware test.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 06 stayed limited to packet header parsing and diagnostics.
+- The parser uses the extracted F1 25 v3 PDF notes and does not reuse older F1 specs.
+- No packet body parser, recording, replay, mixer, safety chain, generated audio, real WASAPI output, real ASIO streaming, or haptic effects were added.
