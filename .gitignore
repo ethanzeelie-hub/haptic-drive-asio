@@ -1,0 +1,26 @@
+# Build output
+bin/
+obj/
+TestResults/
+
+# User and IDE state
+.vs/
+.vscode/
+*.user
+*.suo
+*.rsuser
+
+# Local toolchain installed by Codex for this workspace
+.dotnet/
+.dotnet-home/
+.tools/
+.nuget/
+
+# Logs and generated runtime artifacts
+logs/
+recordings/
+*.log
+
+# OS files
+Thumbs.db
+Desktop.ini
