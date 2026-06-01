@@ -28,3 +28,33 @@ Self-review:
 
 - Stage 00 stayed limited to solution structure, placeholders, documentation, and smoke tests.
 - No telemetry parsing, UDP listener, audio output, effect engine, or hardware behavior was implemented.
+
+## Stage 01 - App Shell
+
+Date: 2026-06-01
+
+Status: Complete.
+
+Goal: Create the clean WPF shell without implementing telemetry, audio, replay, parser, or effect behavior.
+
+Notes:
+
+- Replaced the default empty WPF window with a usable Haptic Drive ASIO shell.
+- Added sidebar navigation for Dashboard, Effects, Mixer / Routing, Devices, Telemetry / UDP Router, Recordings, Test Bench, Profiles, Settings, and Diagnostics.
+- Added dashboard status cards for output mode, haptics state, and safety state.
+- Added global Start/Stop Haptics and Emergency Mute placeholders.
+- Added dark theme default with a light theme scaffold toggle.
+- Added close/minimize-to-tray setting placeholder in the footer.
+- Kept all behavior local to shell UI state; no telemetry or audio pipeline work was added.
+
+Verification:
+
+- `dotnet build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test HapticDrive.Asio.sln --no-build` passed with 4 tests.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 01 stayed scoped to UI shell and placeholder behavior.
+- Hardware absence is still safe because no audio output path is implemented.
+- Stage 02 should introduce output abstractions and hardware-absent mode without depending on physical devices.

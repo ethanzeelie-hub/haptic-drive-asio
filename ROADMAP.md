@@ -3,11 +3,12 @@
 ## Current Stage
 
 - Stage 00: Repo Setup complete.
-- Next: Stage 01 App shell.
+- Stage 01: App Shell complete.
+- Next: Stage 02 Output abstractions and hardware-absent mode.
 
 ## Planned Stages
 
-1. Stage 01: App shell.
+1. Stage 01: App shell. Complete.
 2. Stage 02: Output abstractions and hardware-absent mode.
 3. Stage 03: F1 25 spec extraction.
 4. Stage 04: UDP listener.

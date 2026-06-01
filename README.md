@@ -8,9 +8,11 @@ Physical shaker hardware is not available yet. Development must work without it 
 
 ## Current Stage
 
-Stage 00: repository setup.
+Stage 01: app shell complete. Next stage is Stage 02, output abstractions and hardware-absent mode.
 
-This stage creates the solution, project layout, tests, documentation placeholders, and durable repository rules. It does not implement telemetry parsing, UDP receive, audio generation, or UI features.
+The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop placeholder, emergency mute placeholder, dark theme default, light theme scaffolding, and a close/minimize-to-tray setting placeholder.
+
+It does not yet implement telemetry parsing, UDP receive, audio output devices, audio generation, recording, replay, or haptic effects.
 
 ## Solution Layout
 
