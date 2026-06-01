@@ -5,8 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Haptic Drive ASIO"
-        Height="760"
-        Width="1180"
+        Height="780"
+        Width="1240"
         MinHeight="640"
         MinWidth="980"
         Background="{DynamicResource AppBackgroundBrush}"
@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 02 output abstractions - hardware absent, safe by default" />
+                               Text="Stage 04 UDP listener - raw telemetry only, no parser yet" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -47,7 +47,7 @@
                             CornerRadius="8">
                         <TextBlock x:Name="TelemetryStatusText"
                                    Foreground="{DynamicResource AppMutedTextBrush}"
-                                   Text="Telemetry: not connected" />
+                                   Text="UDP: starting" />
                     </Border>
                     <Button x:Name="StartStopButton"
                             Margin="0,0,8,0"
@@ -124,7 +124,7 @@
                                FontSize="15"
                                Foreground="{DynamicResource AppMutedTextBrush}" />
 
-                    <UniformGrid Columns="3"
+                    <UniformGrid Columns="4"
                                  Margin="0,0,0,24">
                         <Border Margin="0,0,12,0"
                                 Padding="18"
@@ -165,6 +165,26 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Margin="0,0,12,0"
+                                Padding="18"
+                                Background="{DynamicResource AppSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="UDP Listener" />
+                                <TextBlock x:Name="UdpListenerValueText"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Text="Starting" />
+                                <TextBlock x:Name="UdpListenerDetailText"
+                                           Margin="0,6,0,0"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Default port 20778." />
+                            </StackPanel>
+                        </Border>
+
                         <Border Padding="18"
                                 Background="{DynamicResource AppSurfaceBrush}"
                                 BorderBrush="{DynamicResource AppBorderBrush}"
@@ -172,14 +192,15 @@
                                 CornerRadius="8">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Safety" />
-                                <TextBlock x:Name="SafetyStateText"
+                                           Text="Packets" />
+                                <TextBlock x:Name="PacketCountValueText"
                                            FontSize="20"
                                            FontWeight="SemiBold"
-                                           Text="Normal" />
-                                <TextBlock Margin="0,6,0,0"
+                                           Text="0" />
+                                <TextBlock x:Name="PacketRateDetailText"
+                                           Margin="0,6,0,0"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Emergency mute UI is present before audio is wired." />
+                                           Text="0.00 packets/s" />
                             </StackPanel>
                         </Border>
                     </UniformGrid>

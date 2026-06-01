@@ -1,26 +1,34 @@
 using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Telemetry;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace HapticDrive.Asio.App;
 
 public partial class MainWindow : Window
 {
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
+    private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
+    private readonly DispatcherTimer _telemetryStatusTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(500)
+    };
 
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
         new(
             "Dashboard",
             "Dashboard",
-            "A safe overview for the app before telemetry, audio output, and replay are implemented.",
-            "Stage 02 hardware-absent output status",
+            "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
+            "Stage 04 raw UDP listener status",
             [
+                "UDP listener starts on port 20778 by default.",
+                "Packets are counted and preserved as raw datagrams only.",
                 "NullAudioOutputDevice is the default safe output.",
-                "Haptics start/stop drives the null output state only.",
-                "Telemetry is not connected until the UDP listener stage.",
+                "No F1 25 parser or haptic effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
         new(
@@ -58,11 +66,12 @@ public partial class MainWindow : Window
         new(
             "Telemetry / UDP Router",
             "Telemetry / UDP Router",
-            "Placeholder for F1 25 UDP input, packet status, and byte-preserving forwarding.",
-            "Telemetry and routing planned",
+            "Raw F1 25 UDP input status. Forwarding is still planned for Stage 05.",
+            "UDP listener active",
             [
                 "Default listen port will be 20778.",
-                "UDP receive is scheduled for Stage 04.",
+                "Raw packets are counted and timestamped.",
+                "No parser is attached in Stage 04.",
                 "UDP forwarding is scheduled for Stage 05.",
                 "F1 25 parsing must come from the official v3 PDF, not guessed layouts."
             ]),
@@ -83,7 +92,7 @@ public partial class MainWindow : Window
             "Test bench planned",
             [
                 "Sine, pulse, sweep, channel, and effect test signals are scheduled for Stage 11.",
-            "Safe ramp-up must be used before any real hardware output.",
+                "Safe ramp-up must be used before any real hardware output.",
                 "Null output remains the automated-test target."
             ]),
         new(
@@ -104,7 +113,7 @@ public partial class MainWindow : Window
             [
                 "Dark theme is active by default; the light theme button currently demonstrates theme scaffolding.",
                 "Close/minimize-to-tray support is represented by the disabled footer setting.",
-            "No setting should require admin rights or physical haptic hardware."
+                "No setting should require admin rights or physical haptic hardware."
             ]),
         new(
             "Diagnostics",
@@ -113,6 +122,7 @@ public partial class MainWindow : Window
             "Diagnostics planned",
             [
                 "Output status is available for the selected safe output device.",
+                "UDP packet count, packet rate, and no-packet warning are available.",
                 "Diagnostics become more meaningful as telemetry, parser, audio, and replay stages are implemented.",
                 "Logging must not block telemetry, UI, disk, or audio paths.",
                 "A copy diagnostics report action is planned for Stage 14."
@@ -122,6 +132,7 @@ public partial class MainWindow : Window
     private bool _hapticsStarted;
     private bool _emergencyMuted;
     private bool _lightTheme;
+    private string? _telemetryStartError;
 
     public MainWindow()
     {
@@ -130,6 +141,8 @@ public partial class MainWindow : Window
         NavigationList.ItemsSource = _pages;
         NavigationList.SelectedIndex = 0;
         ApplyTheme(lightTheme: false);
+        _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
+        _telemetryStatusTimer.Tick += TelemetryStatusTimer_Tick;
         Loaded += MainWindow_Loaded;
     }
 
@@ -138,6 +151,18 @@ public partial class MainWindow : Window
         var result = await _selectedOutputDevice.OpenAsync(AudioOutputConfiguration.Default);
         UpdateOutputStatus(result.Status);
         FooterStatusText.Text = result.Message;
+
+        try
+        {
+            await _telemetryReceiver.StartAsync();
+            _telemetryStatusTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            _telemetryStartError = ex.Message;
+        }
+
+        UpdateTelemetryStatus();
     }
 
     private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -148,7 +173,8 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 01 shell only";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 04 UDP listener";
+            UpdateTelemetryStatus();
         }
     }
 
@@ -177,7 +203,6 @@ public partial class MainWindow : Window
     private void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
     {
         _emergencyMuted = !_emergencyMuted;
-        SafetyStateText.Text = _emergencyMuted ? "Muted" : "Normal";
         EmergencyMuteButton.Content = _emergencyMuted ? "Clear Mute" : "Emergency Mute";
         FooterStatusText.Text = _emergencyMuted
             ? "Emergency mute placeholder is active"
@@ -217,11 +242,57 @@ public partial class MainWindow : Window
     {
         OutputModeValueText.Text = status.DisplayName;
         OutputModeDetailText.Text = status.StatusMessage;
-        TelemetryStatusText.Text = $"Output: {status.State}";
+    }
+
+    private void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
+    {
+        UpdateTelemetryStatus();
+    }
+
+    private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
+    {
+        Dispatcher.InvokeAsync(UpdateTelemetryStatus);
+    }
+
+    private void UpdateTelemetryStatus()
+    {
+        if (_telemetryStartError is not null)
+        {
+            TelemetryStatusText.Text = "UDP: unavailable";
+            UdpListenerValueText.Text = "Unavailable";
+            UdpListenerDetailText.Text = _telemetryStartError;
+            PacketCountValueText.Text = "0";
+            PacketRateDetailText.Text = "0.00 packets/s";
+            return;
+        }
+
+        var snapshot = _telemetryReceiver.GetSnapshot();
+        var status = snapshot.HasNoPacketWarning
+            ? "No packets yet"
+            : snapshot.IsRunning
+                ? "Listening"
+                : "Stopped";
+
+        TelemetryStatusText.Text = $"UDP: {status}";
+        UdpListenerValueText.Text = snapshot.IsRunning
+            ? $"Listening {snapshot.BoundPort}"
+            : "Stopped";
+        UdpListenerDetailText.Text = snapshot.LastPacketAtUtc is null
+            ? $"Default port {UdpTelemetryReceiverOptions.DefaultPort}; waiting for packets."
+            : $"Last packet {snapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago.";
+        PacketCountValueText.Text = snapshot.PacketCount.ToString("N0");
+        PacketRateDetailText.Text = $"{snapshot.PacketRatePerSecond:0.00} packets/s";
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
+        {
+            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}";
+        }
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _telemetryStatusTimer.Stop();
+        _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _selectedOutputDevice.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.OnClosed(e);
     }

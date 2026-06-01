@@ -54,3 +54,18 @@ The parser boundary remains unchanged:
 - Shared effect logic must consume a later `VehicleState` model, not raw F1 packet classes.
 - Raw UDP bytes must be preserved for forwarding, recording, and replay.
 - Packet parsing must validate format, year, ID, version, and exact byte length before body reads.
+
+## Stage 04 UDP Listener
+
+Core owns `IUdpTelemetryReceiver` and `UdpTelemetryReceiver`, a raw datagram listener that binds to port `20778` by default.
+
+The listener:
+
+- Preserves packet payload bytes exactly as received.
+- Emits packet events with sequence number, remote endpoint, and receive timestamp.
+- Tracks listener state, bound port, packet count, packet rate, last packet time, no-packet warning, and receive errors.
+- Allows tests to bind an ephemeral port with `Port = 0`.
+
+The WPF shell starts the listener on app load and surfaces high-level status on the dashboard and Telemetry / UDP Router page.
+
+Parsing remains outside Stage 04. F1-specific binary parsing still belongs in `HapticDrive.Asio.Telemetry.F1_25`, and UDP forwarding is scheduled for Stage 05.

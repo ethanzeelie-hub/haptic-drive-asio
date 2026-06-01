@@ -6,14 +6,15 @@
 - Stage 01: App Shell complete.
 - Stage 02: Output abstractions and hardware-absent mode complete.
 - Stage 03: F1 25 spec extraction complete.
-- Next: Stage 04 UDP listener.
+- Stage 04: UDP listener complete.
+- Next: Stage 05 UDP forwarding.
 
 ## Planned Stages
 
 1. Stage 01: App shell. Complete.
 2. Stage 02: Output abstractions and hardware-absent mode. Complete.
 3. Stage 03: F1 25 spec extraction. Complete.
-4. Stage 04: UDP listener.
+4. Stage 04: UDP listener. Complete.
 5. Stage 05: UDP forwarding.
 6. Stage 06: F1 25 packet header parser.
 7. Stage 07: F1 25 core packet parser.

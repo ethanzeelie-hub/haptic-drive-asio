@@ -31,3 +31,12 @@
 - Parser tests listed in `docs/F1_25_PACKET_SPEC_IMPLEMENTATION.md` are not implemented yet.
 - The PDF remains outside the repository; future work depends on the extracted notes unless the source PDF is supplied again.
 - The app still has no UDP listener, packet parser, recording, replay, mixer, safety processor, or haptic effect behavior.
+
+## Stage 04
+
+- The UDP listener receives and counts raw datagrams only; no F1 25 packet parser is attached yet.
+- UDP forwarding is not implemented yet, so the listener does not currently relay packets to other tools.
+- Packet counters, packet rate, timestamps, and no-packet warning are in memory only and reset when the listener restarts.
+- The app defaults to port `20778`; startup reports an unavailable listener if the port is already in use.
+- Listen port, bind address, and no-packet warning threshold are not configurable through the UI yet.
+- The app still has no recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, or haptic effect behavior.

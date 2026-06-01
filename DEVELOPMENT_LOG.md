@@ -119,3 +119,33 @@ Self-review:
 - Stage 03 stayed scoped to spec extraction and implementation planning.
 - The notes are concise and do not copy large sections of the PDF.
 - Stage 04 can proceed to UDP listener without depending on parser implementation.
+
+## Stage 04 - UDP Listener
+
+Date: 2026-06-01
+
+Status: Complete.
+
+Goal: Add a raw UDP telemetry listener that works without F1 25, parser code, audio output, or physical haptic hardware.
+
+Notes:
+
+- Added `IUdpTelemetryReceiver` and `UdpTelemetryReceiver` in Core.
+- The listener binds to UDP port `20778` by default and supports ephemeral test ports.
+- Received datagrams are preserved as raw byte arrays and emitted with sequence number, remote endpoint, and receive timestamp.
+- Added snapshot diagnostics for running state, configured port, bound port, packet count, packet rate, last packet time, no-packet warning, error count, and last error.
+- Wired the WPF dashboard and Telemetry / UDP Router page to start the listener and show live listener status.
+- Added mock UDP sender tests.
+- Kept packet parsing and UDP forwarding out of scope for this stage.
+
+Verification:
+
+- `dotnet build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test HapticDrive.Asio.sln --no-build` passed with 14 passing tests and 1 skipped manual hardware test.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 04 stayed limited to raw UDP receive and status visibility.
+- The listener preserves raw bytes for future forwarding, recording, replay, and parser stages.
+- No F1 25 parser, recording, replay, mixer, safety chain, generated audio, real WASAPI output, or real ASIO streaming was added.
