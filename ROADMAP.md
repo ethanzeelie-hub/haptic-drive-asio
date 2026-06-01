@@ -4,12 +4,13 @@
 
 - Stage 00: Repo Setup complete.
 - Stage 01: App Shell complete.
-- Next: Stage 02 Output abstractions and hardware-absent mode.
+- Stage 02: Output abstractions and hardware-absent mode complete.
+- Next: Stage 03 F1 25 spec extraction.
 
 ## Planned Stages
 
 1. Stage 01: App shell. Complete.
-2. Stage 02: Output abstractions and hardware-absent mode.
+2. Stage 02: Output abstractions and hardware-absent mode. Complete.
 3. Stage 03: F1 25 spec extraction.
 4. Stage 04: UDP listener.
 5. Stage 05: UDP forwarding.

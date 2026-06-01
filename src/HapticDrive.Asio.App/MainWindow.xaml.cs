@@ -1,3 +1,5 @@
+using HapticDrive.Asio.Audio.Devices;
+using HapticDrive.Asio.Core.Audio;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -6,17 +8,19 @@ namespace HapticDrive.Asio.App;
 
 public partial class MainWindow : Window
 {
+    private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
+
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
         new(
             "Dashboard",
             "Dashboard",
             "A safe overview for the app before telemetry, audio output, and replay are implemented.",
-            "Stage 01 dashboard placeholders",
+            "Stage 02 hardware-absent output status",
             [
-                "Haptics start/stop is a UI placeholder only.",
+                "NullAudioOutputDevice is the default safe output.",
+                "Haptics start/stop drives the null output state only.",
                 "Telemetry is not connected until the UDP listener stage.",
-                "Output mode is intentionally not configured until Stage 02.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
         new(
@@ -43,9 +47,11 @@ public partial class MainWindow : Window
             "Devices",
             "Devices",
             "Placeholder for Null, WASAPI debug, and ASIO output device selection.",
-            "Device controls planned",
+            "Output abstractions added",
             [
-                "NullAudioOutputDevice, WasapiDebugOutputDevice, and AsioAudioOutputDevice arrive in Stage 02.",
+                "NullAudioOutputDevice is available for automated tests and safe app startup.",
+                "WasapiDebugOutputDevice exists as a manual debug placeholder only.",
+                "AsioAudioOutputDevice exists behind the same interface and fails gracefully when no driver is available.",
                 "WASAPI remains a manual debug fallback only.",
                 "ASIO absence must fail gracefully and never block automated tests."
             ]),
@@ -77,7 +83,7 @@ public partial class MainWindow : Window
             "Test bench planned",
             [
                 "Sine, pulse, sweep, channel, and effect test signals are scheduled for Stage 11.",
-                "Safe ramp-up must be used before any real hardware output.",
+            "Safe ramp-up must be used before any real hardware output.",
                 "Null output remains the automated-test target."
             ]),
         new(
@@ -98,7 +104,7 @@ public partial class MainWindow : Window
             [
                 "Dark theme is active by default; the light theme button currently demonstrates theme scaffolding.",
                 "Close/minimize-to-tray support is represented by the disabled footer setting.",
-                "No setting should require admin rights or physical haptic hardware."
+            "No setting should require admin rights or physical haptic hardware."
             ]),
         new(
             "Diagnostics",
@@ -106,7 +112,8 @@ public partial class MainWindow : Window
             "Placeholder for packet rate, parser errors, output status, peak levels, limiter activity, and reports.",
             "Diagnostics planned",
             [
-                "Diagnostics become meaningful as telemetry, parser, audio, and replay stages are implemented.",
+                "Output status is available for the selected safe output device.",
+                "Diagnostics become more meaningful as telemetry, parser, audio, and replay stages are implemented.",
                 "Logging must not block telemetry, UI, disk, or audio paths.",
                 "A copy diagnostics report action is planned for Stage 14."
             ])
@@ -123,6 +130,14 @@ public partial class MainWindow : Window
         NavigationList.ItemsSource = _pages;
         NavigationList.SelectedIndex = 0;
         ApplyTheme(lightTheme: false);
+        Loaded += MainWindow_Loaded;
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        var result = await _selectedOutputDevice.OpenAsync(AudioOutputConfiguration.Default);
+        UpdateOutputStatus(result.Status);
+        FooterStatusText.Text = result.Message;
     }
 
     private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -137,14 +152,26 @@ public partial class MainWindow : Window
         }
     }
 
-    private void StartStopButton_Click(object sender, RoutedEventArgs e)
+    private async void StartStopButton_Click(object sender, RoutedEventArgs e)
     {
+        var result = _hapticsStarted
+            ? await _selectedOutputDevice.StopAsync()
+            : await _selectedOutputDevice.StartAsync();
+
+        if (!result.Succeeded)
+        {
+            FooterStatusText.Text = result.Message;
+            UpdateOutputStatus(result.Status);
+            return;
+        }
+
         _hapticsStarted = !_hapticsStarted;
         StartStopButton.Content = _hapticsStarted ? "Stop Haptics" : "Start Haptics";
-        HapticsStateText.Text = _hapticsStarted ? "Armed placeholder" : "Stopped";
+        HapticsStateText.Text = _hapticsStarted ? "Null output running" : "Stopped";
         FooterStatusText.Text = _hapticsStarted
-            ? "Haptics start requested - no audio pipeline is implemented yet"
+            ? "Haptics started with NullAudioOutputDevice. No sound or haptic signal is generated."
             : "Haptics stopped";
+        UpdateOutputStatus(result.Status);
     }
 
     private void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
@@ -184,6 +211,19 @@ public partial class MainWindow : Window
     private static SolidColorBrush BrushFrom(string color)
     {
         return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+    }
+
+    private void UpdateOutputStatus(AudioOutputStatus status)
+    {
+        OutputModeValueText.Text = status.DisplayName;
+        OutputModeDetailText.Text = status.StatusMessage;
+        TelemetryStatusText.Text = $"Output: {status.State}";
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _selectedOutputDevice.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        base.OnClosed(e);
     }
 
     private sealed record ShellPageDefinition(

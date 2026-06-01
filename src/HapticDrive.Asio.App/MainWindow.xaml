@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 01 app shell - hardware absent, safe by default" />
+                               Text="Stage 02 output abstractions - hardware absent, safe by default" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -135,10 +135,12 @@
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Output Mode" />
-                                <TextBlock FontSize="20"
+                                <TextBlock x:Name="OutputModeValueText"
+                                           FontSize="20"
                                            FontWeight="SemiBold"
                                            Text="Not configured" />
-                                <TextBlock Margin="0,6,0,0"
+                                <TextBlock x:Name="OutputModeDetailText"
+                                           Margin="0,6,0,0"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Stage 02 adds hardware-absent output devices." />
                             </StackPanel>

@@ -14,3 +14,12 @@
 - The light theme button demonstrates theme scaffolding, but theme persistence is not implemented.
 - Close/minimize-to-tray is represented as a disabled setting placeholder.
 - No telemetry, parser, recording, replay, output device, mixer, safety processor, or haptic effect behavior exists yet.
+
+## Stage 02
+
+- `NullAudioOutputDevice` changes state but does not consume or render audio samples yet.
+- `WasapiDebugOutputDevice` is a manual debug placeholder; it does not output sound yet.
+- `AsioAudioOutputDevice` can select a driver through a catalog seam, but real ASIO streaming is not implemented.
+- The default ASIO driver catalog reports no drivers until a real discovery implementation is added.
+- Manual hardware tests are present only as skipped markers.
+- The app still has no telemetry, parser, recording, replay, mixer, safety processor, or haptic effect behavior.

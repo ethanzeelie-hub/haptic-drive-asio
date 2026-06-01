@@ -58,3 +58,35 @@ Self-review:
 - Stage 01 stayed scoped to UI shell and placeholder behavior.
 - Hardware absence is still safe because no audio output path is implemented.
 - Stage 02 should introduce output abstractions and hardware-absent mode without depending on physical devices.
+
+## Stage 02 - Output Abstractions and Hardware-Absent Mode
+
+Date: 2026-06-01
+
+Status: Complete.
+
+Goal: Add safe output abstractions and device implementations that build and test without physical haptic hardware.
+
+Notes:
+
+- Added `IAudioOutputDevice`, output configuration, status, state, kind, and operation result contracts.
+- Added `NullAudioOutputDevice` as the deterministic default output.
+- Added `WasapiDebugOutputDevice` as a manual debug placeholder only.
+- Added `AsioAudioOutputDevice` as a graceful ASIO abstraction/stub.
+- Added `IAsioDriverCatalog` so ASIO discovery can be faked in tests and implemented later.
+- Added `AudioOutputDeviceFactory` without automatic ASIO-to-WASAPI fallback.
+- Wired the app shell output status card to `NullAudioOutputDevice`.
+- Added skipped manual ASIO hardware test marker.
+- Updated hardware-absent, manual hardware test, and ASIO output docs.
+
+Verification:
+
+- `dotnet build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test HapticDrive.Asio.sln --no-build` passed with 9 passing tests and 1 skipped manual hardware test.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 02 stayed limited to output contracts, safe device state, docs, and tests.
+- No real WASAPI output, ASIO callback, mixer, generated audio, telemetry, or effects were added.
+- ASIO unavailability returns a failure result instead of throwing or falling back to WASAPI.

@@ -31,3 +31,15 @@ The app must build and test without ASIO hardware, M-Audio hardware, the Fosi am
 The WPF app shell provides navigation placeholders for Dashboard, Effects, Mixer / Routing, Devices, Telemetry / UDP Router, Recordings, Test Bench, Profiles, Settings, and Diagnostics.
 
 Global haptics start/stop, emergency mute, theme selection, and close/minimize-to-tray setting placeholders exist in the shell. They are intentionally not connected to telemetry or audio behavior yet.
+
+## Stage 02 Output Abstractions
+
+Core owns the shared `IAudioOutputDevice` contract and related status/configuration records.
+
+Audio owns concrete output device implementations:
+
+- `NullAudioOutputDevice`: deterministic, hardware-free default for tests and startup.
+- `WasapiDebugOutputDevice`: manual debug placeholder only.
+- `AsioAudioOutputDevice`: ASIO abstraction/stub with graceful unavailable-driver handling.
+
+ASIO driver discovery is isolated behind `IAsioDriverCatalog` so automated tests can use a fake catalog and later stages can add real driver enumeration without changing the output contract.
