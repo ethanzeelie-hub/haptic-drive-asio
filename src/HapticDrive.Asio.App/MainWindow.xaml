@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 11 test bench" />
+                               Text="Stage 12 gear shift and engine effects" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -288,6 +288,65 @@
                             </StackPanel>
                         </Border>
                     </UniformGrid>
+
+                    <Border x:Name="EffectsPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Stage 12 Effects" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Engine vibration and gear shift are synthesized from VehicleState telemetry, then rendered through the mixer, safety chain, and Null output." />
+
+                            <UniformGrid Columns="2"
+                                         Margin="0,18,0,0">
+                                <StackPanel Margin="0,0,24,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Engine Vibration" />
+                                    <TextBlock x:Name="EngineEffectStateText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Idle" />
+                                    <TextBlock x:Name="EngineEffectDetailText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Waiting for RPM telemetry." />
+                                    <TextBlock x:Name="EngineEffectDefaultsText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Conservative defaults pending." />
+                                </StackPanel>
+
+                                <StackPanel>
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Gear Shift" />
+                                    <TextBlock x:Name="GearShiftEffectStateText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Idle" />
+                                    <TextBlock x:Name="GearShiftEffectDetailText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Waiting for gear telemetry." />
+                                    <TextBlock x:Name="GearShiftEffectDefaultsText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Conservative defaults pending." />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <TextBlock Margin="0,16,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="These defaults are not physical shaker calibration; final feel, safe gain, latency, and tuning require local hardware testing." />
+                        </StackPanel>
+                    </Border>
 
                     <Border x:Name="TestBenchPanel"
                             Margin="0,0,0,24"

@@ -15,7 +15,7 @@ F1 25 can enable UDP telemetry through the in-game telemetry settings. PC users 
 
 The PDF examples use port `20777`. Haptic Drive ASIO defaults to listening on `20778` because another tool, router, or Simagic software may already consume `20777`.
 
-Stage 09 implements raw listening, byte-preserving forwarding, raw packet recording, deterministic replay, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, and mapping into shared `VehicleState`. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding and recording use exact raw payload bytes and do not depend on parser success.
+Stage 12 implements raw listening, byte-preserving forwarding, raw packet recording, deterministic replay, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, mapping into shared `VehicleState`, and the first two generated haptic effects. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding and recording use exact raw payload bytes and do not depend on parser or effect success.
 
 Supported input modes planned:
 
@@ -45,12 +45,14 @@ Gear shift:
 - Primary: Car Telemetry packet.
 - Trigger from player `m_gear` changes.
 - Use `m_engineRPM`, `m_throttle`, `m_speed`, and `m_suggestedGear` for shaping later.
+- F1 25 does not output a dedicated gear-shift haptic event; Stage 12 synthesizes a short pulse from valid forward-gear transitions.
 
 Engine vibration:
 
 - Primary: Car Telemetry packet.
 - Secondary: Car Status packet.
-- Use RPM, throttle, gear, speed, max RPM, idle RPM, and available engine power fields.
+- Stage 12 uses RPM, throttle, max RPM, idle RPM, pause/status gates, and safe fallbacks. Gear, speed, and available engine power fields remain available for later shaping if needed.
+- F1 25 does not output a direct engine-vibration signal; Stage 12 synthesizes vibration frequency and intensity from RPM, throttle, idle RPM, max RPM, and status gates.
 
 Road texture:
 

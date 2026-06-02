@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Audio.Devices;
+using HapticDrive.Asio.Audio.Effects;
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Safety;
@@ -21,6 +22,7 @@ public partial class MainWindow : Window
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
     private readonly AudioRenderPipeline _audioPipeline = new(AudioSampleFormat.FromConfiguration(AudioOutputConfiguration.Default));
     private readonly AudioSampleBuffer _audioOutputBuffer = AudioSampleBuffer.Allocate(AudioOutputConfiguration.Default);
+    private readonly HapticEffectEngine _hapticEffectEngine = new(AudioSampleFormat.FromConfiguration(AudioOutputConfiguration.Default));
     private readonly AudioTestBench _testBench = new();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
@@ -45,7 +47,7 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 11 test bench status",
+            "Stage 12 effect status",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
@@ -55,19 +57,23 @@ public partial class MainWindow : Window
                 "Stage 08 maps parsed packets into shared last-known VehicleState samples.",
                 "Stage 10 adds a deterministic mixer, conservative safety chain, and null-output sample consumption.",
                 "Stage 11 adds deterministic synthetic test signals for hardware-absent audio path validation.",
+                "Stage 12 adds conservative engine vibration and gear shift effect generators from VehicleState.",
                 "NullAudioOutputDevice is the default safe output.",
-                "No driving haptic effects are implemented yet.",
+                "No Stage 13 road, kerb, slip, impact, traction, or ABS effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
         new(
             "Effects",
             "Effects",
-            "Placeholder home for gear shift, engine, kerb, road texture, impact, and slip tuning.",
-            "Effect controls planned",
+            "Hardware-safe gear shift and engine effect diagnostics.",
+            "Stage 12 effects available",
             [
-                "Gear shift and engine effects are scheduled for Stage 12.",
+                "Gear shift is synthesized from valid forward gear changes in VehicleState telemetry.",
+                "Engine vibration is synthesized from RPM, throttle, idle RPM, max RPM, gear, speed, and pause/status gates where available.",
+                "Defaults are conservative and inspired by SimHub-style frequency, gain, pulse-duration, and debounce controls.",
+                "The current shell renders deterministic validation buffers through the mixer, safety chain, and Null output; it is not a real audio callback.",
                 "Kerb, impact, road texture, and slip effects are scheduled for Stage 13.",
-                "Per-effect strength, frequency, priority, and test buttons are not implemented yet."
+                "A full tuning editor, effect profiles, live graphs, and physical calibration are deferred."
             ]),
         new(
             "Mixer / Routing",
@@ -77,6 +83,7 @@ public partial class MainWindow : Window
             [
                 "The Stage 10 mixer can combine source buffers with source gain, master gain, mute, and emergency mute.",
                 "The safety chain sanitises invalid samples, applies conservative output gain, limits peaks, and hard-clips overflow.",
+                "Stage 12 effect buffers feed this same mixer and safety path.",
                 "Null output can consume final sample buffers deterministically without hardware.",
                 "Mono BST-1 routing is the first hardware target.",
                 "Future output adapters can be added without coupling effects to a specific device."
@@ -105,6 +112,7 @@ public partial class MainWindow : Window
                 "Forwarding sends exact packet bytes to enabled destinations.",
                 "Stage 07 packet bodies are parsed from the official F1 25 v3 spec.",
                 "Stage 08 selects the player car from packet headers and keeps last-known VehicleState slices.",
+                "Stage 12 effects consume VehicleState only and do not read parser packet bodies directly.",
                 "No forwarding destinations are configured in the shell yet.",
                 "Replay is implemented in the Recording project for deterministic tests."
             ]),
@@ -116,6 +124,7 @@ public partial class MainWindow : Window
             [
                 "Use Start Recording to capture raw incoming UDP packets to a versioned file.",
                 "Replay service emits recorded packets through the same parser and VehicleState path used by live packets.",
+                "Deterministic VehicleState sequences can drive Stage 12 effects in tests.",
                 "Replay tests do not require F1 25, UDP sockets, audio output, ASIO hardware, or shaker hardware.",
                 "A polished recording library UI is deferred."
             ]),
@@ -160,6 +169,7 @@ public partial class MainWindow : Window
             [
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
+                "Stage 12 reports engine active state, RPM-derived frequency, gear pulse state, last gear, and last shift frame.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -184,6 +194,7 @@ public partial class MainWindow : Window
     private string _lastPacketParserMessage = "Waiting for F1 25 packets.";
     private string _lastVehicleStateMessage = "Waiting for parsed F1 25 packets.";
     private AudioRenderPipelineSnapshot? _lastAudioPipelineSnapshot;
+    private HapticEffectEngineSnapshot? _lastHapticEffectSnapshot;
 
     public MainWindow()
     {
@@ -227,11 +238,15 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
+            EffectsPanel.Visibility = page.NavigationLabel == "Effects"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             TestBenchPanel.Visibility = page.NavigationLabel == "Test Bench"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 11 test bench";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 12 effects";
             UpdateTelemetryStatus();
+            UpdateEffectStatus();
             UpdateTestBenchStatus();
         }
     }
@@ -252,7 +267,7 @@ public partial class MainWindow : Window
         var starting = !_hapticsStarted;
         if (starting)
         {
-            var submitResult = await ProcessAndSubmitSilenceBufferAsync();
+            var submitResult = await ProcessAndSubmitHapticBufferAsync();
             if (!submitResult.Succeeded)
             {
                 FooterStatusText.Text = submitResult.Message;
@@ -264,9 +279,10 @@ public partial class MainWindow : Window
         StartStopButton.Content = _hapticsStarted ? "Stop Haptics" : "Start Haptics";
         UpdateHapticsStateText();
         FooterStatusText.Text = _hapticsStarted
-            ? "Haptics started with the Stage 10 mixer/safety pipeline feeding NullAudioOutputDevice silence."
+            ? "Haptics started with the Stage 12 effect engine feeding the mixer/safety pipeline and NullAudioOutputDevice."
             : "Haptics stopped";
         UpdateOutputStatus(result.Status);
+        UpdateEffectStatus();
     }
 
     private async void StartRecordingButton_Click(object sender, RoutedEventArgs e)
@@ -322,7 +338,7 @@ public partial class MainWindow : Window
 
         if (_hapticsStarted)
         {
-            var submitResult = await ProcessAndSubmitSilenceBufferAsync();
+            var submitResult = await ProcessAndSubmitHapticBufferAsync();
             if (!submitResult.Succeeded)
             {
                 FooterStatusText.Text = submitResult.Message;
@@ -344,15 +360,22 @@ public partial class MainWindow : Window
         FooterStatusText.Text = _emergencyMuted
             ? "Emergency mute is active in the mixer, safety chain, and test bench."
             : "Emergency mute cleared in the mixer, safety chain, and test bench.";
+        UpdateEffectStatus();
         UpdateTestBenchStatus();
     }
 
-    private async Task<AudioOutputDeviceResult> ProcessAndSubmitSilenceBufferAsync()
+    private async Task<AudioOutputDeviceResult> ProcessAndSubmitHapticBufferAsync()
     {
+        var effectRender = _hapticEffectEngine.RenderNextBuffer();
+        _audioPipeline.MixerSettings = _audioPipeline.MixerSettings with { EmergencyMute = _emergencyMuted };
+        _audioPipeline.SafetyOptions = _audioPipeline.SafetyOptions with { EmergencyMute = _emergencyMuted };
+        _lastHapticEffectSnapshot = effectRender.Snapshot;
         _lastAudioPipelineSnapshot = _audioPipeline.Process(
-            Array.Empty<AudioMixerInput>(),
+            effectRender.MixerInputs,
             _audioOutputBuffer);
-        return await _selectedOutputDevice.SubmitBufferAsync(_audioOutputBuffer);
+        var result = await _selectedOutputDevice.SubmitBufferAsync(_audioOutputBuffer);
+        UpdateEffectStatus();
+        return result;
     }
 
     private void UpdateHapticsStateText()
@@ -369,9 +392,10 @@ public partial class MainWindow : Window
             return;
         }
 
+        var effectSnapshot = _lastHapticEffectSnapshot ?? _hapticEffectEngine.GetSnapshot();
         HapticsStateText.Text = _lastAudioPipelineSnapshot is null
             ? "Mixer idle"
-            : $"Mixer idle; peak {_lastAudioPipelineSnapshot.OutputPeakLevel:0.000}";
+            : $"{effectSnapshot.ActiveEffectCount} effect(s); peak {_lastAudioPipelineSnapshot.OutputPeakLevel:0.000}";
     }
 
     private void ThemeButton_Click(object sender, RoutedEventArgs e)
@@ -543,6 +567,7 @@ public partial class MainWindow : Window
         if (vehicleStateUpdate.WasApplied)
         {
             Interlocked.Increment(ref _vehicleStateUpdateCount);
+            _hapticEffectEngine.Update(vehicleStateUpdate.State);
         }
 
         lock (_headerParserGate)
@@ -577,6 +602,7 @@ public partial class MainWindow : Window
             UpdateForwardingStatus();
             UpdateHeaderParserStatus();
             UpdateVehicleStateStatus();
+            UpdateEffectStatus();
             UpdateRecordingStatus();
             return;
         }
@@ -600,6 +626,7 @@ public partial class MainWindow : Window
         UpdateForwardingStatus();
         UpdateHeaderParserStatus();
         UpdateVehicleStateStatus();
+        UpdateEffectStatus();
         UpdateRecordingStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
@@ -683,6 +710,28 @@ public partial class MainWindow : Window
         VehicleStateDetailText.Text = updateCount == 0
             ? "Maps parsed Stage 07 packet bodies into shared VehicleState samples."
             : lastMessage;
+    }
+
+    private void UpdateEffectStatus()
+    {
+        var snapshot = _lastHapticEffectSnapshot ?? _hapticEffectEngine.GetSnapshot();
+
+        EngineEffectStateText.Text = snapshot.Engine.IsActive ? "Active" : "Idle";
+        EngineEffectDetailText.Text = snapshot.Engine.LastRpm is null
+            ? "Waiting for RPM telemetry."
+            : $"{snapshot.Engine.LastRpm:N0} RPM -> {snapshot.Engine.CurrentFrequencyHz:0.0} Hz, peak {snapshot.Engine.PeakLevel:0.000}.";
+        EngineEffectDefaultsText.Text = $"Gain {EngineVibrationEffectOptions.Default.Gain:P0}; base {EngineVibrationEffectOptions.Default.MinimumFrequencyHz:0}-{EngineVibrationEffectOptions.Default.MaximumFrequencyHz:0} Hz; high {EngineVibrationEffectOptions.Default.HighFrequencyHz:0} Hz.";
+
+        GearShiftEffectStateText.Text = snapshot.GearShift.IsActive ? "Pulse active" : "Idle";
+        GearShiftEffectDetailText.Text = snapshot.GearShift.LastObservedGear is null
+            ? "Waiting for gear telemetry."
+            : $"Last gear {snapshot.GearShift.LastObservedGear}; last shift frame {snapshot.GearShift.LastShiftFrameIdentifier?.ToString("N0") ?? "none"}; peak {snapshot.GearShift.PeakLevel:0.000}.";
+        GearShiftEffectDefaultsText.Text = $"Gain {GearShiftEffectOptions.Default.Gain:P0}; {GearShiftEffectOptions.Default.PulseFrequencyHz:0} Hz pulse; {GearShiftEffectOptions.Default.PulseDuration.TotalMilliseconds:0} ms; {GearShiftEffectOptions.Default.EngagingDebounceDuration.TotalMilliseconds:0} ms debounce.";
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Effects" })
+        {
+            PageStatusText.Text = $"{snapshot.ActiveEffectCount} active effect source(s); engine {EngineEffectStateText.Text.ToLowerInvariant()}, gear {GearShiftEffectStateText.Text.ToLowerInvariant()}; peak {snapshot.PeakLevel:0.000}.";
+        }
     }
 
     private void UpdateRecordingStatus()

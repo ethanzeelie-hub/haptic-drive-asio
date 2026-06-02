@@ -350,6 +350,40 @@ Not implemented yet:
 
 - Stage 11 test bench signals, generated haptic effects, real WASAPI output, ASIO streaming, or physical hardware behavior.
 
+## Stage 11 Implementation Status
+
+Implemented:
+
+- Deterministic synthetic test-bench signals for validating the Stage 10 mixer, safety chain, and null-output path without F1 25, live telemetry, ASIO hardware, WASAPI hardware, or shaker hardware.
+
+Parser impact:
+
+- No F1 25 packet layouts, offsets, enum values, packet lengths, packet versions, parser behavior, raw UDP forwarding, or recording/replay byte-preservation behavior changed in Stage 11.
+
+Not implemented yet:
+
+- Generated driving haptic effects, real WASAPI output, ASIO streaming, or physical hardware behavior.
+
+## Stage 12 Implementation Status
+
+Implemented:
+
+- `VehicleState`-driven engine vibration effect generation from direct F1 25 RPM, throttle, idle RPM, max RPM, and pause/status fields.
+- `VehicleState`-driven gear shift transient generation from valid forward `m_gear` transitions.
+- Conservative SimHub-inspired default effect options for gain, frequency, pulse duration, debounce, high-frequency engine component, and optional RPM modulation.
+- Deterministic source buffers that feed the existing Stage 10 mixer, safety chain, and `NullAudioOutputDevice` test path.
+- Minimal app diagnostics for engine active state, RPM-derived frequency, gear pulse state, last gear, and last shift frame.
+
+Parser impact:
+
+- No F1 25 packet layouts, offsets, enum values, packet lengths, packet versions, parser behavior, raw UDP forwarding, or recording/replay byte-preservation behavior changed in Stage 12.
+- The effect layer consumes shared `VehicleState` only and does not read F1 25 parser packet bodies directly.
+
+Not implemented yet:
+
+- Stage 13 kerb, impact, road texture, slip, traction loss, ABS, suspension, or surface-specific haptics.
+- Real WASAPI output, ASIO streaming, Simagic P-HPR output, profile editing, live graphs, continuous real-time audio callback, or physical shaker calibration.
+
 ## Stage 03 Scope Boundary
 
 This stage creates implementation notes only. Parser code begins in later stages.

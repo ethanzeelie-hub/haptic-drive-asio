@@ -97,4 +97,14 @@
 - The WPF Test Bench page is minimal and does not include graphs, routing controls, calibration, profile editing, or hardware setup workflows.
 - `NullAudioOutputDevice` remains the automated-test output; `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` still do not stream sample buffers to real hardware.
 - Physical shaker feel, safe gain, latency, and frequency tuning remain unvalidated until the real hardware chain is tested locally.
-- Gear shift and engine effects, kerb/impact/road/slip effects, real WASAPI output, real ASIO streaming, and physical hardware readiness remain future stages.
+- Kerb/impact/road/slip effects, real WASAPI output, real ASIO streaming, and physical hardware readiness remain future stages.
+
+## Stage 12
+
+- Gear shift and engine vibration effects are implemented with conservative defaults, but they render deterministic validation buffers only; there is still no continuous real-time audio callback loop.
+- Engine vibration is synthesized from F1 25 RPM, throttle, gear, speed, idle RPM, max RPM, and status gates. F1 25 does not output a direct engine-vibration telemetry signal.
+- Gear shift is synthesized from valid forward gear changes. F1 25 does not output a dedicated gear-shift haptic event.
+- The app shows minimal Stage 12 diagnostics, but there is no full SimHub-style tuning UI, profile editor, live graphing, routing editor, or per-channel assignment UI yet.
+- `NullAudioOutputDevice` remains the automated-test output; `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` still do not stream sample buffers to real hardware.
+- Physical shaker feel, safe gain, latency, effect priority, and final frequency tuning remain unvalidated until the real hardware chain is tested locally.
+- Stage 13 road texture, kerb, impact, slip, traction loss, ABS, suspension, and surface-specific haptics are not implemented yet.

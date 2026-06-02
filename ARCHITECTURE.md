@@ -5,9 +5,9 @@ Haptic Drive ASIO is organized around clear boundaries between telemetry input, 
 ## Initial Project Boundaries
 
 - `HapticDrive.Asio.App`: WPF app shell and presentation layer.
-- `HapticDrive.Asio.Core`: shared models, interfaces, effect contracts, and domain rules.
+- `HapticDrive.Asio.Core`: shared models, audio/output interfaces, and domain rules.
 - `HapticDrive.Asio.Telemetry.F1_25`: official F1 25 UDP packet parsing and mapping into shared state.
-- `HapticDrive.Asio.Audio`: output device abstractions, mixer, safety processors, and debug output paths.
+- `HapticDrive.Asio.Audio`: output device abstractions, mixer, safety processors, test bench, haptic effect generation, and debug output paths.
 - `HapticDrive.Asio.Recording`: raw packet recording and deterministic replay.
 
 ## Target Flow
@@ -142,6 +142,22 @@ The test bench:
 - Exposes diagnostics for selected signal, active state, sample format, output peak, limiter/clipping counts, rendered buffers, and output mode.
 
 The WPF Test Bench page adds minimal controls for selecting a synthetic signal and rendering deterministic validation buffers. It does not implement a real-time audio callback, hardware calibration, frequency response graphs, profile editing, real WASAPI output, real ASIO streaming, or driving haptic effects.
+
+## Stage 12 Gear Shift and Engine Effects
+
+Audio owns the Stage 12 effect layer under `HapticDrive.Asio.Audio.Effects`.
+
+The effect layer:
+
+- Defines small renderable effect sources that consume shared `VehicleState` snapshots.
+- Keeps F1 25 packet bodies out of the audio/effect layer.
+- Synthesizes engine vibration from RPM, throttle, idle RPM, max RPM, and available pause/driver/pit/result status gates.
+- Synthesizes gear shift pulses from valid forward gear changes.
+- Renders deterministic `AudioSampleBuffer` sources that are wrapped as `AudioMixerInput` values.
+- Feeds the existing Stage 10 mixer, safety processor, emergency mute, limiter, clipping protection, and output handoff.
+- Defaults to conservative software gains and `NullAudioOutputDevice` validation.
+
+The WPF Effects page adds minimal diagnostics for engine active state, RPM-derived frequency, gear pulse state, last observed gear, last shift frame, and default settings. It does not implement a full tuning UI, profile editor, live graphs, per-channel routing, physical calibration, real WASAPI output, real ASIO streaming, or Stage 13 road/kerb/slip/impact effects.
 
 ## Stage 06 F1 25 Packet Header Parser
 
