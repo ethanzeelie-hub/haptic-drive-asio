@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 13 kerb, impact, road texture, and slip effects" />
+                               Text="Stage 14 UI tuning, profiles, and diagnostics" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -300,10 +300,167 @@
                         <StackPanel>
                             <TextBlock FontSize="18"
                                        FontWeight="SemiBold"
-                                       Text="Stage 13 Effects" />
+                                       Text="Stage 14 Effect Tuning" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
                                        Text="Engine, gear shift, kerb, impact, road texture, and slip effects are synthesized from VehicleState telemetry, then rendered through the mixer, safety chain, and Null output." />
+
+                            <UniformGrid Columns="2"
+                                         Margin="0,18,0,0">
+                                <StackPanel Margin="0,0,24,18">
+                                    <CheckBox x:Name="EngineEnabledCheckBox"
+                                              Checked="TuningControl_Changed"
+                                              Content="Engine vibration enabled"
+                                              Unchecked="TuningControl_Changed" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Gain" />
+                                    <Slider x:Name="EngineGainSlider"
+                                            Maximum="0.4"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="EngineGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="RPM frequency bounds" />
+                                    <Slider x:Name="EngineMinimumFrequencySlider"
+                                            Maximum="80"
+                                            Minimum="15"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <Slider x:Name="EngineMaximumFrequencySlider"
+                                            Maximum="120"
+                                            Minimum="20"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="EngineFrequencyValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,18">
+                                    <CheckBox x:Name="GearShiftEnabledCheckBox"
+                                              Checked="TuningControl_Changed"
+                                              Content="Gear shift enabled"
+                                              Unchecked="TuningControl_Changed" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Gain" />
+                                    <Slider x:Name="GearShiftGainSlider"
+                                            Maximum="0.4"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="GearShiftGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Pulse duration" />
+                                    <Slider x:Name="GearShiftDurationSlider"
+                                            Maximum="250"
+                                            Minimum="10"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="GearShiftDurationValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,24,18">
+                                    <CheckBox x:Name="KerbEnabledCheckBox"
+                                              Checked="TuningControl_Changed"
+                                              Content="Kerb enabled"
+                                              Unchecked="TuningControl_Changed" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Gain" />
+                                    <Slider x:Name="KerbGainSlider"
+                                            Maximum="0.4"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="KerbGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Base frequency" />
+                                    <Slider x:Name="KerbBaseFrequencySlider"
+                                            Maximum="120"
+                                            Minimum="5"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="KerbFrequencyValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,18">
+                                    <CheckBox x:Name="ImpactEnabledCheckBox"
+                                              Checked="TuningControl_Changed"
+                                              Content="Impact enabled"
+                                              Unchecked="TuningControl_Changed" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Gain" />
+                                    <Slider x:Name="ImpactGainSlider"
+                                            Maximum="0.4"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="ImpactGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Pulse duration" />
+                                    <Slider x:Name="ImpactDurationSlider"
+                                            Maximum="300"
+                                            Minimum="10"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="ImpactDurationValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,24,0">
+                                    <CheckBox x:Name="RoadTextureEnabledCheckBox"
+                                              Checked="TuningControl_Changed"
+                                              Content="Road texture enabled"
+                                              Unchecked="TuningControl_Changed" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Gain" />
+                                    <Slider x:Name="RoadTextureGainSlider"
+                                            Maximum="0.25"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="RoadTextureGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Minimum speed gate" />
+                                    <Slider x:Name="RoadTextureMinimumSpeedSlider"
+                                            Maximum="80"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="RoadTextureMinimumSpeedValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel>
+                                    <CheckBox x:Name="SlipEnabledCheckBox"
+                                              Checked="TuningControl_Changed"
+                                              Content="Slip / traction loss enabled"
+                                              Unchecked="TuningControl_Changed" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Gain" />
+                                    <Slider x:Name="SlipGainSlider"
+                                            Maximum="0.3"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="SlipGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Slip ratio threshold" />
+                                    <Slider x:Name="SlipThresholdSlider"
+                                            Maximum="1"
+                                            Minimum="0.01"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="SlipThresholdValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                </StackPanel>
+                            </UniformGrid>
 
                             <UniformGrid Columns="2"
                                          Margin="0,18,0,0">
@@ -494,6 +651,230 @@
                         </StackPanel>
                     </Border>
 
+                    <Border x:Name="MixerPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Mixer And Safety" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="These controls feed the Stage 10 mixer and safety chain. They are normalized software levels, not physical shaker calibration." />
+                            <UniformGrid Columns="2"
+                                         Margin="0,18,0,0">
+                                <StackPanel Margin="0,0,24,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Master gain" />
+                                    <Slider x:Name="MasterGainSlider"
+                                            Maximum="1"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="MasterGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <CheckBox x:Name="MixerMuteCheckBox"
+                                              Margin="0,12,0,0"
+                                              Checked="TuningControl_Changed"
+                                              Content="Normal mute"
+                                              Unchecked="TuningControl_Changed" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Safety output gain" />
+                                    <Slider x:Name="SafetyOutputGainSlider"
+                                            Maximum="0.5"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="SafetyOutputGainValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Conservative output ceiling" />
+                                    <Slider x:Name="SafetyOutputCeilingSlider"
+                                            Maximum="0.75"
+                                            Minimum="0.05"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="SafetyOutputCeilingValueText"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <CheckBox x:Name="LimiterEnabledCheckBox"
+                                              Margin="0,12,0,0"
+                                              Checked="TuningControl_Changed"
+                                              Content="Limiter enabled"
+                                              Unchecked="TuningControl_Changed" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="DevicesPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Safe Output Status" />
+                            <TextBlock x:Name="CurrentOutputStatusText"
+                                       Margin="0,12,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                            <TextBlock x:Name="NullOutputStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                            <TextBlock x:Name="WasapiDebugStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                            <TextBlock x:Name="AsioStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="RecordingsPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Recording And Replay" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Recording captures raw UDP payload bytes before parser validation. Replay status is diagnostic-only in this shell slice." />
+                            <Button x:Name="RecordingsStartStopButton"
+                                    Width="150"
+                                    Margin="0,16,0,0"
+                                    HorizontalAlignment="Left"
+                                    Click="StartRecordingButton_Click"
+                                    Content="Start Recording" />
+                            <TextBlock x:Name="RecordingsDetailText"
+                                       Margin="0,14,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                            <TextBlock x:Name="ReplayDetailText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="ProfilesPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Profiles" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Profiles are versioned JSON tuning snapshots stored under local app data. Emergency mute is runtime-only and is not saved." />
+                            <TextBlock Margin="0,16,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Profile name" />
+                            <TextBox x:Name="ProfileNameTextBox"
+                                     MaxWidth="360"
+                                     HorizontalAlignment="Left" />
+                            <WrapPanel Margin="0,14,0,0">
+                                <Button Width="120"
+                                        Margin="0,0,8,0"
+                                        Click="SaveProfileButton_Click"
+                                        Content="Save Profile" />
+                                <Button Width="120"
+                                        Margin="0,0,8,0"
+                                        Click="LoadProfileButton_Click"
+                                        Content="Load Profile" />
+                                <Button Width="150"
+                                        Click="ResetProfileButton_Click"
+                                        Content="Reset Defaults" />
+                            </WrapPanel>
+                            <TextBlock x:Name="ProfileStatusText"
+                                       Margin="0,14,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                            <TextBlock x:Name="ProfilePathText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                            <TextBlock x:Name="ProfileValidationText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="SettingsPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Settings" />
+                            <CheckBox x:Name="SettingsLightThemeCheckBox"
+                                      Margin="0,12,0,0"
+                                      Checked="ThemeSettingCheckBox_Changed"
+                                      Content="Use light theme"
+                                      Unchecked="ThemeSettingCheckBox_Changed" />
+                            <Button Width="190"
+                                    Margin="0,14,0,0"
+                                    HorizontalAlignment="Left"
+                                    Click="ResetProfileButton_Click"
+                                    Content="Reset Conservative Defaults" />
+                            <TextBlock x:Name="SettingsStatusText"
+                                       Margin="0,14,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="DiagnosticsPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Runtime Diagnostics" />
+                            <Button Width="150"
+                                    Margin="0,14,0,0"
+                                    HorizontalAlignment="Left"
+                                    Click="RefreshDiagnosticsButton_Click"
+                                    Content="Refresh Diagnostics" />
+                            <TextBlock x:Name="DiagnosticsSummaryText"
+                                       Margin="0,14,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                            <ItemsControl x:Name="DiagnosticsItemsControl"
+                                          Margin="0,14,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,0,0,8"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   Text="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
                     <Border Padding="22"
                             Background="{DynamicResource AppSurfaceBrush}"
                             BorderBrush="{DynamicResource AppBorderBrush}"
@@ -542,7 +923,7 @@
                 <TextBlock x:Name="FooterStatusText"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource AppMutedTextBrush}"
-                           Text="Ready - Stage 01 shell only" />
+                           Text="Ready - Stage 14 tuning and diagnostics" />
                 <CheckBox Grid.Column="1"
                           Content="Minimize to tray on close"
                           IsEnabled="False" />

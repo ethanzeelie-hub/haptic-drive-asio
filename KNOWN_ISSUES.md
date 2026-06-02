@@ -119,3 +119,14 @@
 - The app shows read-only Stage 13 diagnostics, but there is no full SimHub-style tuning UI, profile editor, live graphing, routing editor, per-channel assignment UI, calibration UI, or persistence yet.
 - `NullAudioOutputDevice` remains the automated-test output; `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` still do not stream sample buffers to real hardware.
 - Physical shaker feel, safe gain, latency, effect priority, and final frequency tuning remain unvalidated until the real hardware chain is tested locally.
+
+## Stage 14
+
+- The WPF shell now exposes practical tuning controls, mixer/safety controls, versioned JSON profile save/load/reset, and runtime diagnostics, but it still uses simple code-behind shell wiring rather than a full MVVM architecture.
+- Profiles cover existing effect, mixer, and safety settings only. They do not save emergency mute, output-device selection, forwarding destinations, recording files, hardware calibration, or physical gain data.
+- Profile files are user-generated under local app data and are not committed. Missing, corrupt, unsupported-version, and partially invalid profiles fail or repair safely through result objects.
+- Diagnostics are read-only snapshots and manual/periodic UI refreshes. There is no heavy graphing, charting, long-term diagnostics log, or copy-report workflow yet.
+- The Recordings page still has only minimal recording status/control and replay status diagnostics; a file picker and polished recordings library remain deferred.
+- Mixer/routing controls expose master mute/gain and safety output settings only. Advanced routing matrices, per-channel assignments, effect priority, and ducking remain deferred.
+- `NullAudioOutputDevice` remains the default automated-test output. Real WASAPI output, real ASIO streaming, hardware readiness checks, and physical shaker calibration are still not implemented.
+- Physical shaker feel, safe physical gain, latency, effect priority, and final frequency tuning remain unvalidated until real hardware testing.

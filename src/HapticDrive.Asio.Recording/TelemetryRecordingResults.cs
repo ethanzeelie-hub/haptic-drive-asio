@@ -125,3 +125,9 @@ public sealed record TelemetryRecordingSnapshot(
     long PacketCount,
     TimeSpan? LastPacketRelativeTime,
     string? LastErrorMessage);
+
+public sealed record TelemetryReplaySnapshot(
+    bool IsReplaying,
+    string? SourceFilePath,
+    long PacketsReplayed,
+    string StatusMessage);

@@ -1,7 +1,9 @@
 using HapticDrive.Asio.Audio.Devices;
+using HapticDrive.Asio.Audio.Diagnostics;
 using HapticDrive.Asio.Audio.Effects;
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
+using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.Safety;
 using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
@@ -27,6 +29,8 @@ public partial class MainWindow : Window
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
     private readonly TelemetryRecordingService _recordingService = new();
+    private readonly TelemetryReplayService _replayService = new();
+    private readonly HapticProfileStore _profileStore = new();
     private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
     {
@@ -47,7 +51,7 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 13 effect status",
+            "Stage 14 tuning and diagnostics",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
@@ -59,6 +63,7 @@ public partial class MainWindow : Window
                 "Stage 11 adds deterministic synthetic test signals for hardware-absent audio path validation.",
                 "Stage 12 adds conservative engine vibration and gear shift effect generators from VehicleState.",
                 "Stage 13 adds conservative kerb, impact, road texture, and slip / brake-lock effect generators from VehicleState.",
+                "Stage 14 exposes safe tuning controls, profile save/load/reset, and practical runtime diagnostics.",
                 "NullAudioOutputDevice is the default safe output.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
@@ -66,7 +71,7 @@ public partial class MainWindow : Window
             "Effects",
             "Effects",
             "Hardware-safe generated effect diagnostics.",
-            "Stage 13 effects available",
+            "Stage 14 effect tuning available",
             [
                 "Gear shift is synthesized from valid forward gear changes in VehicleState telemetry.",
                 "Engine vibration is synthesized from RPM, throttle, idle RPM, max RPM, gear, speed, and pause/status gates where available.",
@@ -76,13 +81,13 @@ public partial class MainWindow : Window
                 "Slip and minimal brake-lock vibration are synthesized from wheel slip ratio/angle, wheel speed, throttle, brake, speed, TC, and ABS fields.",
                 "Defaults are conservative and inspired by SimHub-style frequency, gain, pulse-duration, speed, and threshold controls.",
                 "The current shell renders deterministic validation buffers through the mixer, safety chain, and Null output; it is not a real audio callback.",
-                "A full tuning editor, effect profiles, live graphs, and physical calibration are deferred."
+                "Advanced live graphs, routing matrices, and physical calibration remain deferred."
             ]),
         new(
             "Mixer / Routing",
             "Mixer / Routing",
-            "Placeholder for mono output routing, mixer level controls, priority, ducking, and safety-chain visibility.",
-            "Mixer and safety chain available",
+            "Hardware-safe mixer level controls and safety-chain visibility.",
+            "Mixer and safety controls available",
             [
                 "The Stage 10 mixer can combine source buffers with source gain, master gain, mute, and emergency mute.",
                 "The safety chain sanitises invalid samples, applies conservative output gain, limits peaks, and hard-clips overflow.",
@@ -94,8 +99,8 @@ public partial class MainWindow : Window
         new(
             "Devices",
             "Devices",
-            "Placeholder for Null, WASAPI debug, and ASIO output device selection.",
-            "Output abstractions added",
+            "Safe status for Null, WASAPI debug, and ASIO output abstractions.",
+            "Output status available",
             [
                 "NullAudioOutputDevice is available for automated tests and safe app startup.",
                 "WasapiDebugOutputDevice exists as a manual debug placeholder only.",
@@ -129,7 +134,7 @@ public partial class MainWindow : Window
                 "Replay service emits recorded packets through the same parser and VehicleState path used by live packets.",
                 "Deterministic VehicleState sequences can drive Stage 12 and Stage 13 effects in tests.",
                 "Replay tests do not require F1 25, UDP sockets, audio output, ASIO hardware, or shaker hardware.",
-                "A polished recording library UI is deferred."
+                "A polished recording library UI and file picker are deferred."
             ]),
         new(
             "Test Bench",
@@ -147,18 +152,20 @@ public partial class MainWindow : Window
         new(
             "Profiles",
             "Profiles",
-            "Placeholder for versioned JSON tuning profiles and presets.",
-            "Profiles planned",
+            "Versioned JSON tuning profiles for existing effects, mixer, and safety settings.",
+            "Profiles available",
             [
-                "Profiles are per game and human-readable JSON.",
-                "Built-in presets will include Immersion, Performance, Strong, Night / Quiet, and Testing / Debug.",
-                "Device settings should remain separate from effect profiles."
+                "The default profile uses conservative hardware-safe values.",
+                "Profiles save and load as versioned JSON under local app data.",
+                "Profile values are validated and repaired to safe software ranges on load.",
+                "Emergency mute remains runtime-only and is not saved in profiles.",
+                "Device settings remain separate from effect profiles."
             ]),
         new(
             "Settings",
             "Settings",
-            "Placeholder for app preferences, theme selection, close behavior, and safe defaults.",
-            "Settings planned",
+            "Safe app preferences, theme selection, and conservative reset.",
+            "Settings available",
             [
                 "Dark theme is active by default; the light theme button currently demonstrates theme scaffolding.",
                 "Close/minimize-to-tray support is represented by the disabled footer setting.",
@@ -167,12 +174,12 @@ public partial class MainWindow : Window
         new(
             "Diagnostics",
             "Diagnostics",
-            "Placeholder for packet rate, parser errors, output status, peak levels, limiter activity, and reports.",
-            "Diagnostics partially available",
+            "Packet rate, parser errors, output status, peak levels, limiter activity, and status snapshots.",
+            "Diagnostics available",
             [
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
-                "Stage 13 reports engine, gear, kerb, impact, road texture, and slip effect state with conservative read-only diagnostics.",
+                "Stage 14 reports engine, gear, kerb, impact, road texture, and slip effect state with tuned values and conservative read-only diagnostics.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -180,7 +187,7 @@ public partial class MainWindow : Window
                 "VehicleState update count, player index, speed, and gear are available when telemetry packets arrive.",
                 "Diagnostics become more meaningful as telemetry, parser, audio, and replay stages are implemented.",
                 "Logging must not block telemetry, UI, disk, or audio paths.",
-                "A copy diagnostics report action is planned for Stage 14."
+                "Diagnostics can be refreshed manually and remain safe without telemetry or hardware."
             ])
     ];
 
@@ -198,6 +205,9 @@ public partial class MainWindow : Window
     private string _lastVehicleStateMessage = "Waiting for parsed F1 25 packets.";
     private AudioRenderPipelineSnapshot? _lastAudioPipelineSnapshot;
     private HapticEffectEngineSnapshot? _lastHapticEffectSnapshot;
+    private HapticDriveProfile _currentProfile = HapticDriveProfile.Default;
+    private bool _updatingTuningUi;
+    private bool _updatingSettingsUi;
 
     public MainWindow()
     {
@@ -208,6 +218,9 @@ public partial class MainWindow : Window
         TestBenchSignalComboBox.ItemsSource = _testBenchSignals;
         TestBenchSignalComboBox.SelectedIndex = 1;
         ApplyTheme(lightTheme: false);
+        ApplyProfileToControls(_currentProfile);
+        ApplyProfileToRuntime(_currentProfile);
+        UpdateProfileStatus("Default conservative profile loaded.", []);
         _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick += TelemetryStatusTimer_Tick;
         Loaded += MainWindow_Loaded;
@@ -230,7 +243,11 @@ public partial class MainWindow : Window
         }
 
         UpdateTelemetryStatus();
+        UpdateMixerStatus();
+        UpdateDeviceStatus();
+        UpdateProfileStatus();
         UpdateTestBenchStatus();
+        UpdateDiagnosticsStatus();
     }
 
     private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -244,13 +261,35 @@ public partial class MainWindow : Window
             EffectsPanel.Visibility = page.NavigationLabel == "Effects"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+            MixerPanel.Visibility = page.NavigationLabel == "Mixer / Routing"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            DevicesPanel.Visibility = page.NavigationLabel == "Devices"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            RecordingsPanel.Visibility = page.NavigationLabel == "Recordings"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             TestBenchPanel.Visibility = page.NavigationLabel == "Test Bench"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 13 effects";
+            ProfilesPanel.Visibility = page.NavigationLabel == "Profiles"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            SettingsPanel.Visibility = page.NavigationLabel == "Settings"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            DiagnosticsPanel.Visibility = page.NavigationLabel == "Diagnostics"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 14 tuning";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
+            UpdateMixerStatus();
+            UpdateDeviceStatus();
+            UpdateProfileStatus();
             UpdateTestBenchStatus();
+            UpdateDiagnosticsStatus();
         }
     }
 
@@ -282,7 +321,7 @@ public partial class MainWindow : Window
         StartStopButton.Content = _hapticsStarted ? "Stop Haptics" : "Start Haptics";
         UpdateHapticsStateText();
         FooterStatusText.Text = _hapticsStarted
-            ? "Haptics started with the Stage 13 effect engine feeding the mixer/safety pipeline and NullAudioOutputDevice."
+            ? "Haptics started with the tuned effect engine feeding the mixer/safety pipeline and NullAudioOutputDevice."
             : "Haptics stopped";
         UpdateOutputStatus(result.Status);
         UpdateEffectStatus();
@@ -294,7 +333,6 @@ public partial class MainWindow : Window
         if (snapshot.IsRecording)
         {
             var stopResult = await _recordingService.StopAsync();
-            StartRecordingButton.Content = "Start Recording";
             FooterStatusText.Text = stopResult.Message;
             if (!stopResult.Succeeded)
             {
@@ -312,7 +350,6 @@ public partial class MainWindow : Window
             if (startResult.Succeeded)
             {
                 _recordingError = null;
-                StartRecordingButton.Content = "Stop Recording";
                 FooterStatusText.Text = $"Recording raw UDP packets to {Path.GetFileName(path)}.";
             }
             else
@@ -409,6 +446,7 @@ public partial class MainWindow : Window
 
     private void ApplyTheme(bool lightTheme)
     {
+        _lightTheme = lightTheme;
         var palette = lightTheme
             ? new ThemePalette("#F5F7FA", "#FFFFFF", "#E9EEF4", "#CBD5E1", "#17212B", "#5F6C7B", "#187CA8", "#C23B35", "#1D8A60")
             : new ThemePalette("#0B0F14", "#111820", "#17212B", "#263241", "#E8EEF6", "#99A8B8", "#3BAFDA", "#E5534B", "#39B980");
@@ -423,6 +461,242 @@ public partial class MainWindow : Window
         Resources["AppDangerBrush"] = BrushFrom(palette.Danger);
         Resources["AppSuccessBrush"] = BrushFrom(palette.Success);
         ThemeButton.Content = lightTheme ? "Theme: Light" : "Theme: Dark";
+
+        _updatingSettingsUi = true;
+        SettingsLightThemeCheckBox.IsChecked = lightTheme;
+        _updatingSettingsUi = false;
+    }
+
+    private async void TuningControl_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingTuningUi)
+        {
+            return;
+        }
+
+        var profile = BuildProfileFromControls();
+        ApplyProfileToRuntime(profile);
+        UpdateProfileControlText(profile);
+        UpdateMixerStatus();
+        UpdateEffectStatus();
+        UpdateDiagnosticsStatus();
+
+        if (_hapticsStarted)
+        {
+            var submitResult = await ProcessAndSubmitHapticBufferAsync();
+            FooterStatusText.Text = submitResult.Succeeded
+                ? "Tuning applied to the effect engine, mixer, and safety chain."
+                : submitResult.Message;
+        }
+        else
+        {
+            FooterStatusText.Text = "Tuning applied; haptics are still stopped.";
+        }
+    }
+
+    private void ThemeSettingCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingSettingsUi)
+        {
+            return;
+        }
+
+        ApplyTheme(SettingsLightThemeCheckBox.IsChecked == true);
+        UpdateProfileStatus();
+    }
+
+    private HapticDriveProfile BuildProfileFromControls()
+    {
+        var name = string.IsNullOrWhiteSpace(ProfileNameTextBox.Text)
+            ? _currentProfile.Name
+            : ProfileNameTextBox.Text.Trim();
+        var effects = _currentProfile.Effects;
+        var engineMinimumFrequency = (float)EngineMinimumFrequencySlider.Value;
+        var engineMaximumFrequency = Math.Max(engineMinimumFrequency, (float)EngineMaximumFrequencySlider.Value);
+
+        return HapticProfileValidator.Validate(_currentProfile with
+        {
+            Name = name,
+            Effects = effects with
+            {
+                Engine = effects.Engine with
+                {
+                    IsEnabled = EngineEnabledCheckBox.IsChecked == true,
+                    Gain = (float)EngineGainSlider.Value,
+                    MinimumFrequencyHz = engineMinimumFrequency,
+                    MaximumFrequencyHz = engineMaximumFrequency
+                },
+                GearShift = effects.GearShift with
+                {
+                    IsEnabled = GearShiftEnabledCheckBox.IsChecked == true,
+                    Gain = (float)GearShiftGainSlider.Value,
+                    PulseDurationMilliseconds = (int)Math.Round(GearShiftDurationSlider.Value)
+                },
+                Kerb = effects.Kerb with
+                {
+                    IsEnabled = KerbEnabledCheckBox.IsChecked == true,
+                    Gain = (float)KerbGainSlider.Value,
+                    BaseFrequencyHz = (float)KerbBaseFrequencySlider.Value
+                },
+                Impact = effects.Impact with
+                {
+                    IsEnabled = ImpactEnabledCheckBox.IsChecked == true,
+                    Gain = (float)ImpactGainSlider.Value,
+                    PulseDurationMilliseconds = (int)Math.Round(ImpactDurationSlider.Value)
+                },
+                RoadTexture = effects.RoadTexture with
+                {
+                    IsEnabled = RoadTextureEnabledCheckBox.IsChecked == true,
+                    Gain = (float)RoadTextureGainSlider.Value,
+                    MinimumSpeedKph = (float)RoadTextureMinimumSpeedSlider.Value
+                },
+                Slip = effects.Slip with
+                {
+                    IsEnabled = SlipEnabledCheckBox.IsChecked == true,
+                    Gain = (float)SlipGainSlider.Value,
+                    SlipRatioThreshold = (float)SlipThresholdSlider.Value
+                }
+            },
+            Mixer = _currentProfile.Mixer with
+            {
+                MasterGain = (float)MasterGainSlider.Value,
+                IsMuted = MixerMuteCheckBox.IsChecked == true
+            },
+            Safety = _currentProfile.Safety with
+            {
+                OutputGain = (float)SafetyOutputGainSlider.Value,
+                OutputGainCeiling = (float)SafetyOutputCeilingSlider.Value,
+                LimiterEnabled = LimiterEnabledCheckBox.IsChecked == true
+            }
+        }).Profile;
+    }
+
+    private void ApplyProfileToRuntime(HapticDriveProfile profile)
+    {
+        var validation = HapticProfileValidator.Validate(profile);
+        _currentProfile = validation.Profile;
+        _hapticEffectEngine.UpdateOptions(_currentProfile.ToEffectOptions());
+        _audioPipeline.MixerSettings = _currentProfile.ToMixerSettings(_emergencyMuted);
+        _audioPipeline.SafetyOptions = _currentProfile.ToSafetyOptions(_emergencyMuted);
+        _testBench.MasterGain = _currentProfile.Mixer.MasterGain;
+        _testBench.IsMuted = _currentProfile.Mixer.IsMuted;
+        _testBench.SafetyOptions = _currentProfile.ToSafetyOptions(_emergencyMuted);
+        _testBench.EmergencyMute = _emergencyMuted;
+        _lastHapticEffectSnapshot = _hapticEffectEngine.GetSnapshot();
+    }
+
+    private void ApplyProfileToControls(HapticDriveProfile profile)
+    {
+        var validation = HapticProfileValidator.Validate(profile);
+        var safeProfile = validation.Profile;
+        _updatingTuningUi = true;
+
+        ProfileNameTextBox.Text = safeProfile.Name;
+        EngineEnabledCheckBox.IsChecked = safeProfile.Effects.Engine.IsEnabled;
+        EngineGainSlider.Value = safeProfile.Effects.Engine.Gain;
+        EngineMinimumFrequencySlider.Value = safeProfile.Effects.Engine.MinimumFrequencyHz;
+        EngineMaximumFrequencySlider.Value = safeProfile.Effects.Engine.MaximumFrequencyHz;
+        GearShiftEnabledCheckBox.IsChecked = safeProfile.Effects.GearShift.IsEnabled;
+        GearShiftGainSlider.Value = safeProfile.Effects.GearShift.Gain;
+        GearShiftDurationSlider.Value = safeProfile.Effects.GearShift.PulseDurationMilliseconds;
+        KerbEnabledCheckBox.IsChecked = safeProfile.Effects.Kerb.IsEnabled;
+        KerbGainSlider.Value = safeProfile.Effects.Kerb.Gain;
+        KerbBaseFrequencySlider.Value = safeProfile.Effects.Kerb.BaseFrequencyHz;
+        ImpactEnabledCheckBox.IsChecked = safeProfile.Effects.Impact.IsEnabled;
+        ImpactGainSlider.Value = safeProfile.Effects.Impact.Gain;
+        ImpactDurationSlider.Value = safeProfile.Effects.Impact.PulseDurationMilliseconds;
+        RoadTextureEnabledCheckBox.IsChecked = safeProfile.Effects.RoadTexture.IsEnabled;
+        RoadTextureGainSlider.Value = safeProfile.Effects.RoadTexture.Gain;
+        RoadTextureMinimumSpeedSlider.Value = safeProfile.Effects.RoadTexture.MinimumSpeedKph;
+        SlipEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.IsEnabled;
+        SlipGainSlider.Value = safeProfile.Effects.Slip.Gain;
+        SlipThresholdSlider.Value = safeProfile.Effects.Slip.SlipRatioThreshold;
+        MasterGainSlider.Value = safeProfile.Mixer.MasterGain;
+        MixerMuteCheckBox.IsChecked = safeProfile.Mixer.IsMuted;
+        SafetyOutputGainSlider.Value = safeProfile.Safety.OutputGain;
+        SafetyOutputCeilingSlider.Value = safeProfile.Safety.OutputGainCeiling;
+        LimiterEnabledCheckBox.IsChecked = safeProfile.Safety.LimiterEnabled;
+
+        _updatingTuningUi = false;
+        UpdateProfileControlText(safeProfile);
+    }
+
+    private void UpdateProfileControlText(HapticDriveProfile profile)
+    {
+        EngineGainValueText.Text = $"{profile.Effects.Engine.Gain:P0}";
+        EngineFrequencyValueText.Text = $"{profile.Effects.Engine.MinimumFrequencyHz:0}-{profile.Effects.Engine.MaximumFrequencyHz:0} Hz";
+        GearShiftGainValueText.Text = $"{profile.Effects.GearShift.Gain:P0}";
+        GearShiftDurationValueText.Text = $"{profile.Effects.GearShift.PulseDurationMilliseconds} ms";
+        KerbGainValueText.Text = $"{profile.Effects.Kerb.Gain:P0}";
+        KerbFrequencyValueText.Text = $"{profile.Effects.Kerb.BaseFrequencyHz:0} Hz";
+        ImpactGainValueText.Text = $"{profile.Effects.Impact.Gain:P0}";
+        ImpactDurationValueText.Text = $"{profile.Effects.Impact.PulseDurationMilliseconds} ms";
+        RoadTextureGainValueText.Text = $"{profile.Effects.RoadTexture.Gain:P0}";
+        RoadTextureMinimumSpeedValueText.Text = $"{profile.Effects.RoadTexture.MinimumSpeedKph:0} km/h";
+        SlipGainValueText.Text = $"{profile.Effects.Slip.Gain:P0}";
+        SlipThresholdValueText.Text = $"{profile.Effects.Slip.SlipRatioThreshold:0.00}";
+        MasterGainValueText.Text = $"{profile.Mixer.MasterGain:P0}";
+        SafetyOutputGainValueText.Text = $"{profile.Safety.OutputGain:P0}";
+        SafetyOutputCeilingValueText.Text = $"{profile.Safety.OutputGainCeiling:0.00}";
+    }
+
+    private async void SaveProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        var profile = BuildProfileFromControls();
+        var result = await _profileStore.SaveAsync(profile, HapticProfileStore.GetDefaultProfilePath());
+
+        if (result.Succeeded)
+        {
+            _currentProfile = HapticProfileValidator.Validate(profile).Profile;
+            ApplyProfileToControls(_currentProfile);
+            ApplyProfileToRuntime(_currentProfile);
+        }
+
+        UpdateProfileStatus(result.Message, result.ValidationMessages);
+        FooterStatusText.Text = result.Succeeded
+            ? $"Saved profile {Path.GetFileName(result.Path)}."
+            : result.Message;
+    }
+
+    private async void LoadProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = await _profileStore.LoadAsync(HapticProfileStore.GetDefaultProfilePath());
+        if (result.Succeeded && result.Profile is not null)
+        {
+            ApplyProfileToControls(result.Profile);
+            ApplyProfileToRuntime(result.Profile);
+            UpdateEffectStatus();
+            UpdateMixerStatus();
+        }
+
+        UpdateProfileStatus(result.Message, result.ValidationMessages);
+        FooterStatusText.Text = result.Message;
+    }
+
+    private async void ResetProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyProfileToControls(HapticDriveProfile.Default);
+        ApplyProfileToRuntime(HapticDriveProfile.Default);
+        UpdateEffectStatus();
+        UpdateMixerStatus();
+        UpdateProfileStatus("Reset to conservative defaults.", []);
+
+        if (_hapticsStarted)
+        {
+            var submitResult = await ProcessAndSubmitHapticBufferAsync();
+            FooterStatusText.Text = submitResult.Succeeded
+                ? "Reset tuning to conservative defaults."
+                : submitResult.Message;
+            return;
+        }
+
+        FooterStatusText.Text = "Reset tuning to conservative defaults.";
+    }
+
+    private void RefreshDiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Diagnostics refreshed.";
     }
 
     private async void TestBenchSignalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -487,9 +761,11 @@ public partial class MainWindow : Window
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Test Bench" })
         {
             PageStatusText.Text = snapshot.IsActive
-                ? $"{snapshot.SelectedSignalName}; {snapshot.RenderedBufferCount:N0} buffer(s); peak {snapshot.OutputPeakLevel:0.000}; limiter {snapshot.LimitedSampleCount:N0} sample(s)."
-                : "Test bench idle; select a synthetic signal and start a hardware-absent validation buffer.";
+                ? $"{snapshot.SelectedSignalName}; {snapshot.RenderedBufferCount:N0} buffer(s); peak {snapshot.OutputPeakLevel:0.000}; limiter {snapshot.LimitedSampleCount:N0} sample(s); mute {(snapshot.IsMuted ? "on" : "off")}; emergency {snapshot.EmergencyMute}."
+                : $"Test bench idle; output {snapshot.OutputDisplayName}; mute {(snapshot.IsMuted ? "on" : "off")}; emergency {snapshot.EmergencyMute}.";
         }
+
+        UpdateDiagnosticsStatus();
     }
 
     private static SolidColorBrush BrushFrom(string color)
@@ -501,6 +777,113 @@ public partial class MainWindow : Window
     {
         OutputModeValueText.Text = status.DisplayName;
         OutputModeDetailText.Text = status.StatusMessage;
+        UpdateDeviceStatus();
+    }
+
+    private void UpdateMixerStatus()
+    {
+        var mixer = _audioPipeline.MixerSettings;
+        var safety = _audioPipeline.SafetyOptions;
+        MasterGainValueText.Text = $"{mixer.MasterGain:P0}";
+        SafetyOutputGainValueText.Text = $"{safety.OutputGain:P0}";
+        SafetyOutputCeilingValueText.Text = $"{safety.OutputGainCeiling:0.00}";
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Mixer / Routing" })
+        {
+            var peak = _lastAudioPipelineSnapshot?.OutputPeakLevel ?? 0f;
+            PageStatusText.Text = $"Master {mixer.MasterGain:P0}; mute {(mixer.IsMuted ? "on" : "off")}; emergency mute {(_emergencyMuted ? "on" : "off")}; output peak {peak:0.000}.";
+        }
+    }
+
+    private void UpdateDeviceStatus()
+    {
+        var status = _selectedOutputDevice.GetStatus();
+        CurrentOutputStatusText.Text = $"Current output: {status.DisplayName} ({status.State}); {status.StatusMessage}";
+        NullOutputStatusText.Text = "Null output: default automated-test and hardware-absent target; produces no physical sound.";
+        WasapiDebugStatusText.Text = "WASAPI debug: manual placeholder only; no real streaming is enabled in Stage 14.";
+        AsioStatusText.Text = "ASIO: final intended low-latency path, but real ASIO streaming and hardware readiness remain deferred.";
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
+        {
+            PageStatusText.Text = status.RequiresPhysicalHardware
+                ? "Selected output requires physical hardware; this is not the Stage 14 default."
+                : "Hardware-absent mode active; NullAudioOutputDevice remains the safe default.";
+        }
+    }
+
+    private void UpdateProfileStatus(string? message = null, IReadOnlyList<string>? validationMessages = null)
+    {
+        var path = HapticProfileStore.GetDefaultProfilePath();
+        ProfileStatusText.Text = message ?? $"Active profile: {_currentProfile.Name}.";
+        ProfilePathText.Text = $"Default profile path: {path}";
+        ProfileValidationText.Text = validationMessages is { Count: > 0 }
+            ? string.Join(" ", validationMessages)
+            : "Profile values are clamped to conservative software ranges on load and save.";
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Default output remains NullAudioOutputDevice.";
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Profiles" })
+        {
+            PageStatusText.Text = $"Active profile {_currentProfile.Name}; JSON version {HapticDriveProfile.CurrentVersion}; emergency mute is not saved.";
+        }
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Settings" })
+        {
+            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; conservative defaults available; profile storage is local app data.";
+        }
+    }
+
+    private void UpdateDiagnosticsStatus()
+    {
+        if (DiagnosticsPanel.Visibility != Visibility.Visible
+            && NavigationList.SelectedItem is not ShellPageDefinition { NavigationLabel: "Diagnostics" })
+        {
+            return;
+        }
+
+        var outputStatus = _selectedOutputDevice.GetStatus();
+        var effectSnapshot = _lastHapticEffectSnapshot ?? _hapticEffectEngine.GetSnapshot();
+        var testBenchSnapshot = _testBench.GetSnapshot();
+        var audioDiagnostics = AudioRuntimeDiagnosticsSnapshot.Create(
+            outputStatus,
+            effectSnapshot,
+            _lastAudioPipelineSnapshot,
+            testBenchSnapshot);
+        var receiverSnapshot = _telemetryReceiver.GetSnapshot();
+        var forwarderSnapshot = _telemetryForwarder.GetSnapshot();
+        var recordingSnapshot = _recordingService.GetSnapshot();
+        var replaySnapshot = _replayService.GetSnapshot();
+        var parserSuccess = Interlocked.Read(ref _packetParseSuccessCount);
+        var parserIgnored = Interlocked.Read(ref _packetParseIgnoredCount);
+        var parserFailed = Interlocked.Read(ref _packetParseFailureCount);
+        var vehicleUpdates = Interlocked.Read(ref _vehicleStateUpdateCount);
+        string parserMessage;
+        string vehicleMessage;
+
+        lock (_headerParserGate)
+        {
+            parserMessage = _lastPacketParserMessage;
+            vehicleMessage = _lastVehicleStateMessage;
+        }
+
+        DiagnosticsSummaryText.Text = $"UDP {receiverSnapshot.PacketCount:N0} packet(s), parser {parserSuccess:N0} valid / {parserFailed:N0} failed, effects {audioDiagnostics.ActiveEffectCount}, output peak {audioDiagnostics.OutputPeakLevel:0.000}.";
+        DiagnosticsItemsControl.ItemsSource = new[]
+        {
+            $"UDP listener: {(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}.",
+            $"UDP forwarding: {forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; {forwarderSnapshot.ErrorCount:N0} error(s).",
+            $"Parser: {parserSuccess:N0} valid, {parserIgnored:N0} ignored, {parserFailed:N0} failed. {parserMessage}",
+            $"VehicleState: {vehicleUpdates:N0} update(s). {vehicleMessage}",
+            $"Recording: {(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
+            $"Replay: {(replaySnapshot.IsReplaying ? "active" : "inactive")}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
+            $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
+            $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
+            $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
+            $"Output: {outputStatus.DisplayName} ({outputStatus.State}); hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}."
+        };
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
+        {
+            PageStatusText.Text = DiagnosticsSummaryText.Text;
+        }
     }
 
     private void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
@@ -607,6 +990,7 @@ public partial class MainWindow : Window
             UpdateVehicleStateStatus();
             UpdateEffectStatus();
             UpdateRecordingStatus();
+            UpdateDiagnosticsStatus();
             return;
         }
 
@@ -631,6 +1015,7 @@ public partial class MainWindow : Window
         UpdateVehicleStateStatus();
         UpdateEffectStatus();
         UpdateRecordingStatus();
+        UpdateDiagnosticsStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
         {
@@ -718,57 +1103,64 @@ public partial class MainWindow : Window
     private void UpdateEffectStatus()
     {
         var snapshot = _lastHapticEffectSnapshot ?? _hapticEffectEngine.GetSnapshot();
+        var options = _hapticEffectEngine.Options;
 
         EngineEffectStateText.Text = snapshot.Engine.IsActive ? "Active" : "Idle";
         EngineEffectDetailText.Text = snapshot.Engine.LastRpm is null
             ? "Waiting for RPM telemetry."
             : $"{snapshot.Engine.LastRpm:N0} RPM -> {snapshot.Engine.CurrentFrequencyHz:0.0} Hz, peak {snapshot.Engine.PeakLevel:0.000}.";
-        EngineEffectDefaultsText.Text = $"Gain {EngineVibrationEffectOptions.Default.Gain:P0}; base {EngineVibrationEffectOptions.Default.MinimumFrequencyHz:0}-{EngineVibrationEffectOptions.Default.MaximumFrequencyHz:0} Hz; high {EngineVibrationEffectOptions.Default.HighFrequencyHz:0} Hz.";
+        EngineEffectDefaultsText.Text = $"Tuned gain {options.Engine.Gain:P0}; base {options.Engine.MinimumFrequencyHz:0}-{options.Engine.MaximumFrequencyHz:0} Hz; enabled {options.Engine.IsEnabled}.";
 
         GearShiftEffectStateText.Text = snapshot.GearShift.IsActive ? "Pulse active" : "Idle";
         GearShiftEffectDetailText.Text = snapshot.GearShift.LastObservedGear is null
             ? "Waiting for gear telemetry."
             : $"Last gear {snapshot.GearShift.LastObservedGear}; last shift frame {snapshot.GearShift.LastShiftFrameIdentifier?.ToString("N0") ?? "none"}; peak {snapshot.GearShift.PeakLevel:0.000}.";
-        GearShiftEffectDefaultsText.Text = $"Gain {GearShiftEffectOptions.Default.Gain:P0}; {GearShiftEffectOptions.Default.PulseFrequencyHz:0} Hz pulse; {GearShiftEffectOptions.Default.PulseDuration.TotalMilliseconds:0} ms; {GearShiftEffectOptions.Default.EngagingDebounceDuration.TotalMilliseconds:0} ms debounce.";
+        GearShiftEffectDefaultsText.Text = $"Tuned gain {options.GearShift.Gain:P0}; {options.GearShift.PulseFrequencyHz:0} Hz pulse; {options.GearShift.PulseDuration.TotalMilliseconds:0} ms; enabled {options.GearShift.IsEnabled}.";
 
         KerbEffectStateText.Text = snapshot.Kerb.IsActive ? "Active" : "Idle";
         KerbEffectDetailText.Text = snapshot.Kerb.DominantSurfaceTypeId is null
             ? "Waiting for rumble strip / ridged surface telemetry."
             : $"{snapshot.Kerb.DominantSurfaceName}; {snapshot.Kerb.ActiveWheelCount} wheel(s); {snapshot.Kerb.CurrentFrequencyHz:0.0} Hz; peak {snapshot.Kerb.PeakLevel:0.000}.";
-        KerbEffectDefaultsText.Text = $"Gain {KerbEffectOptions.Default.Gain:P0}; {KerbEffectOptions.Default.BaseFrequencyHz:0} Hz + {KerbEffectOptions.Default.HighFrequencyHz:0} Hz; {KerbEffectOptions.Default.MinimumSpeedKph:0}-{KerbEffectOptions.Default.FullIntensitySpeedKph:0} km/h.";
+        KerbEffectDefaultsText.Text = $"Tuned gain {options.Kerb.Gain:P0}; {options.Kerb.BaseFrequencyHz:0} Hz + {options.Kerb.HighFrequencyHz:0} Hz; enabled {options.Kerb.IsEnabled}.";
 
         ImpactEffectStateText.Text = snapshot.Impact.IsActive ? "Pulse active" : "Idle";
         ImpactEffectDetailText.Text = snapshot.Impact.LastImpactFrameIdentifier is null
             ? "Waiting for collision, vertical-G, force, or suspension spikes."
             : $"Last impact frame {snapshot.Impact.LastImpactFrameIdentifier:N0}; intensity {snapshot.Impact.CurrentIntensity:0.00}; peak {snapshot.Impact.PeakLevel:0.000}.";
-        ImpactEffectDefaultsText.Text = $"Gain {ImpactEffectOptions.Default.Gain:P0}; {ImpactEffectOptions.Default.PulseFrequencyHz:0} Hz; {ImpactEffectOptions.Default.PulseDuration.TotalMilliseconds:0} ms; {ImpactEffectOptions.Default.CooldownDuration.TotalMilliseconds:0} ms cooldown.";
+        ImpactEffectDefaultsText.Text = $"Tuned gain {options.Impact.Gain:P0}; {options.Impact.PulseFrequencyHz:0} Hz; {options.Impact.PulseDuration.TotalMilliseconds:0} ms; enabled {options.Impact.IsEnabled}.";
 
         RoadTextureEffectStateText.Text = snapshot.RoadTexture.IsActive ? "Active" : "Idle";
         RoadTextureEffectDetailText.Text = snapshot.RoadTexture.DominantSurfaceTypeId is null
             ? "Waiting for speed and surface telemetry."
             : $"{snapshot.RoadTexture.DominantSurfaceName}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; peak {snapshot.RoadTexture.PeakLevel:0.000}.";
-        RoadTextureEffectDefaultsText.Text = $"Gain {RoadTextureEffectOptions.Default.Gain:P0}; {RoadTextureEffectOptions.Default.MinimumSpeedKph:0}-{RoadTextureEffectOptions.Default.FullIntensitySpeedKph:0} km/h; tarmac is low-level.";
+        RoadTextureEffectDefaultsText.Text = $"Tuned gain {options.RoadTexture.Gain:P0}; {options.RoadTexture.MinimumSpeedKph:0}-{options.RoadTexture.FullIntensitySpeedKph:0} km/h; enabled {options.RoadTexture.IsEnabled}.";
 
         SlipEffectStateText.Text = snapshot.Slip.IsActive ? "Active" : "Idle";
         SlipEffectDetailText.Text = snapshot.Slip.CurrentSlipIntensity <= 0f && snapshot.Slip.CurrentLockIntensity <= 0f
             ? "Waiting for Motion Ex slip ratio / angle telemetry."
             : $"Slip {snapshot.Slip.CurrentSlipIntensity:0.00}; lock {snapshot.Slip.CurrentLockIntensity:0.00}; {snapshot.Slip.CurrentFrequencyHz:0.0} Hz; peak {snapshot.Slip.PeakLevel:0.000}.";
-        SlipEffectDefaultsText.Text = $"Gain {SlipEffectOptions.Default.Gain:P0}; {SlipEffectOptions.Default.BaseFrequencyHz:0} Hz slip; {SlipEffectOptions.Default.BrakeLockFrequencyHz:0} Hz lock; min {SlipEffectOptions.Default.MinimumSpeedKph:0} km/h.";
+        SlipEffectDefaultsText.Text = $"Tuned gain {options.Slip.Gain:P0}; {options.Slip.BaseFrequencyHz:0} Hz slip; threshold {options.Slip.SlipRatioThreshold:0.00}; enabled {options.Slip.IsEnabled}.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Effects" })
         {
             PageStatusText.Text = $"{snapshot.ActiveEffectCount} active effect source(s); engine {EngineEffectStateText.Text.ToLowerInvariant()}, gear {GearShiftEffectStateText.Text.ToLowerInvariant()}, kerb {KerbEffectStateText.Text.ToLowerInvariant()}, impact {ImpactEffectStateText.Text.ToLowerInvariant()}, road {RoadTextureEffectStateText.Text.ToLowerInvariant()}, slip {SlipEffectStateText.Text.ToLowerInvariant()}; peak {snapshot.PeakLevel:0.000}.";
         }
+
+        UpdateDiagnosticsStatus();
     }
 
     private void UpdateRecordingStatus()
     {
         var snapshot = _recordingService.GetSnapshot();
+        var buttonText = snapshot.IsRecording ? "Stop Recording" : "Start Recording";
+        StartRecordingButton.Content = buttonText;
+        RecordingsStartStopButton.Content = buttonText;
 
         if (_recordingError is not null)
         {
             RecordingValueText.Text = "Error";
             RecordingDetailText.Text = _recordingError;
+            RecordingsDetailText.Text = _recordingError;
             return;
         }
 
@@ -780,10 +1172,23 @@ public partial class MainWindow : Window
             RecordingDetailText.Text = snapshot.LastPacketRelativeTime is null
                 ? $"Writing {Path.GetFileName(snapshot.FilePath)}; waiting for first packet."
                 : $"Writing {Path.GetFileName(snapshot.FilePath)}; last packet {snapshot.LastPacketRelativeTime.Value.TotalSeconds:0.000}s.";
+            RecordingsDetailText.Text = RecordingDetailText.Text;
+            ReplayDetailText.Text = BuildReplayStatusText();
             return;
         }
 
         RecordingDetailText.Text = "Ready to capture raw UDP packets to versioned replay files.";
+        RecordingsDetailText.Text = RecordingDetailText.Text;
+        ReplayDetailText.Text = BuildReplayStatusText();
+        UpdateDiagnosticsStatus();
+    }
+
+    private string BuildReplayStatusText()
+    {
+        var snapshot = _replayService.GetSnapshot();
+        return snapshot.IsReplaying
+            ? $"Replay active from {Path.GetFileName(snapshot.SourceFilePath)}; {snapshot.PacketsReplayed:N0} packet(s)."
+            : $"Replay inactive; {snapshot.PacketsReplayed:N0} packet(s) last replayed. {snapshot.StatusMessage}";
     }
 
     private static string CreateDefaultRecordingPath()

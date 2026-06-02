@@ -1,0 +1,218 @@
+using System.Text.Json;
+
+namespace HapticDrive.Asio.Audio.Profiles;
+
+public enum HapticProfileLoadStatus
+{
+    Success,
+    FileNotFound,
+    UnsupportedVersion,
+    Corrupt,
+    Failure
+}
+
+public enum HapticProfileSaveStatus
+{
+    Success,
+    Failure
+}
+
+public sealed record HapticProfileLoadResult(
+    HapticProfileLoadStatus Status,
+    HapticDriveProfile? Profile,
+    string Message,
+    bool WasRepaired,
+    IReadOnlyList<string> ValidationMessages)
+{
+    public bool Succeeded => Status == HapticProfileLoadStatus.Success;
+
+    public static HapticProfileLoadResult Success(
+        HapticDriveProfile profile,
+        bool wasRepaired,
+        IReadOnlyList<string> validationMessages)
+    {
+        return new(
+            HapticProfileLoadStatus.Success,
+            profile,
+            wasRepaired ? "Profile loaded with safe repairs." : "Profile loaded.",
+            wasRepaired,
+            validationMessages);
+    }
+
+    public static HapticProfileLoadResult FileNotFound(string message)
+    {
+        return new(HapticProfileLoadStatus.FileNotFound, null, message, WasRepaired: false, []);
+    }
+
+    public static HapticProfileLoadResult UnsupportedVersion(string message)
+    {
+        return new(HapticProfileLoadStatus.UnsupportedVersion, null, message, WasRepaired: false, []);
+    }
+
+    public static HapticProfileLoadResult Corrupt(string message)
+    {
+        return new(HapticProfileLoadStatus.Corrupt, null, message, WasRepaired: false, []);
+    }
+
+    public static HapticProfileLoadResult Failure(string message)
+    {
+        return new(HapticProfileLoadStatus.Failure, null, message, WasRepaired: false, []);
+    }
+}
+
+public sealed record HapticProfileSaveResult(
+    HapticProfileSaveStatus Status,
+    string Path,
+    string Message,
+    bool WasRepaired,
+    IReadOnlyList<string> ValidationMessages)
+{
+    public bool Succeeded => Status == HapticProfileSaveStatus.Success;
+
+    public static HapticProfileSaveResult Success(
+        string path,
+        bool wasRepaired,
+        IReadOnlyList<string> validationMessages)
+    {
+        return new(
+            HapticProfileSaveStatus.Success,
+            path,
+            wasRepaired ? "Profile saved with safe repairs." : "Profile saved.",
+            wasRepaired,
+            validationMessages);
+    }
+
+    public static HapticProfileSaveResult Failure(string path, string message)
+    {
+        return new(HapticProfileSaveStatus.Failure, path, message, WasRepaired: false, []);
+    }
+}
+
+public sealed class HapticProfileStore
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
+
+    public static string GetDefaultProfileDirectory()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "HapticDrive.Asio",
+            "Profiles");
+    }
+
+    public static string GetDefaultProfilePath()
+    {
+        return Path.Combine(GetDefaultProfileDirectory(), "default.hdprofile.json");
+    }
+
+    public async ValueTask<HapticProfileSaveResult> SaveAsync(
+        HapticDriveProfile profile,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return HapticProfileSaveResult.Failure(path, "Profile path is required.");
+        }
+
+        var validation = HapticProfileValidator.Validate(profile);
+        if (!validation.IsSupportedVersion)
+        {
+            return HapticProfileSaveResult.Failure(path, "Profile version is not supported.");
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await using var stream = new FileStream(
+                fullPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.Read,
+                bufferSize: 16 * 1024,
+                useAsync: true);
+            await JsonSerializer.SerializeAsync(
+                    stream,
+                    validation.Profile,
+                    JsonOptions,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+            return HapticProfileSaveResult.Success(
+                fullPath,
+                validation.WasRepaired,
+                validation.Messages);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            return HapticProfileSaveResult.Failure(path, $"Profile could not be saved: {ex.Message}");
+        }
+    }
+
+    public async ValueTask<HapticProfileLoadResult> LoadAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return HapticProfileLoadResult.FileNotFound("Profile path is required.");
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            if (!File.Exists(fullPath))
+            {
+                return HapticProfileLoadResult.FileNotFound("Profile file was not found.");
+            }
+
+            await using var stream = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 16 * 1024,
+                useAsync: true);
+            var profile = await JsonSerializer.DeserializeAsync<HapticDriveProfile>(
+                    stream,
+                    JsonOptions,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (profile is null)
+            {
+                return HapticProfileLoadResult.Corrupt("Profile file did not contain a profile.");
+            }
+
+            if (profile.Version != HapticDriveProfile.CurrentVersion)
+            {
+                return HapticProfileLoadResult.UnsupportedVersion($"Profile version {profile.Version} is not supported.");
+            }
+
+            var validation = HapticProfileValidator.Validate(profile);
+            return HapticProfileLoadResult.Success(
+                validation.Profile,
+                validation.WasRepaired,
+                validation.Messages);
+        }
+        catch (JsonException ex)
+        {
+            return HapticProfileLoadResult.Corrupt($"Profile JSON is corrupt: {ex.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            return HapticProfileLoadResult.Failure($"Profile could not be loaded: {ex.Message}");
+        }
+    }
+}

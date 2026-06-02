@@ -27,6 +27,8 @@ public interface ITelemetryReplayService
 {
     event EventHandler<TelemetryReplayPacketEventArgs>? PacketReplayed;
 
+    TelemetryReplaySnapshot GetSnapshot();
+
     ValueTask<TelemetryReplayResult> ReplayAsync(
         TelemetryRecording recording,
         TelemetryReplayOptions? options = null,
@@ -46,6 +48,9 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
     private readonly TimeProvider _timeProvider;
     private readonly int _maxPayloadLength;
     private CancellationTokenSource? _activeReplayCts;
+    private string? _activeReplaySourceFilePath;
+    private string _statusMessage = "Replay idle.";
+    private long _packetsReplayed;
 
     public TelemetryReplayService(
         TimeProvider? timeProvider = null,
@@ -62,6 +67,18 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
 
     public event EventHandler<TelemetryReplayPacketEventArgs>? PacketReplayed;
 
+    public TelemetryReplaySnapshot GetSnapshot()
+    {
+        lock (_gate)
+        {
+            return new TelemetryReplaySnapshot(
+                _activeReplayCts is not null,
+                _activeReplaySourceFilePath,
+                Interlocked.Read(ref _packetsReplayed),
+                _statusMessage);
+        }
+    }
+
     public async ValueTask<TelemetryReplayResult> ReplayFileAsync(
         string path,
         TelemetryReplayOptions? options = null,
@@ -73,7 +90,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             return TelemetryReplayResult.Failure(0, loadResult.Message);
         }
 
-        return await ReplayAsync(loadResult.Recording, options, cancellationToken).ConfigureAwait(false);
+        return await ReplayCoreAsync(loadResult.Recording, options, fullPath: path, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<TelemetryReplayResult> ReplayAsync(
@@ -81,12 +98,23 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         TelemetryReplayOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        return await ReplayCoreAsync(recording, options, fullPath: null, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<TelemetryReplayResult> ReplayCoreAsync(
+        TelemetryRecording recording,
+        TelemetryReplayOptions? options,
+        string? fullPath,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(recording);
         options ??= TelemetryReplayOptions.Fast;
 
         if (options.Speed <= 0 || double.IsNaN(options.Speed) || double.IsInfinity(options.Speed))
         {
-            return TelemetryReplayResult.Failure(0, "Replay speed must be a positive finite value.");
+            var failure = TelemetryReplayResult.Failure(0, "Replay speed must be a positive finite value.");
+            SetStatus(failure);
+            return failure;
         }
 
         using var replayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -99,9 +127,12 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             }
 
             _activeReplayCts = replayCts;
+            _activeReplaySourceFilePath = fullPath;
+            _statusMessage = "Replay active.";
+            Interlocked.Exchange(ref _packetsReplayed, 0);
         }
 
-        var packetsReplayed = 0L;
+        TelemetryReplayResult result;
         var previousRelativeTime = TimeSpan.Zero;
 
         try
@@ -128,19 +159,19 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                 PacketReplayed?.Invoke(
                     this,
                     new TelemetryReplayPacketEventArgs(replayedPacket, recordedPacket));
-                packetsReplayed++;
+                Interlocked.Increment(ref _packetsReplayed);
                 previousRelativeTime = recordedPacket.RelativeTime;
             }
 
-            return TelemetryReplayResult.Success(packetsReplayed);
+            result = TelemetryReplayResult.Success(Interlocked.Read(ref _packetsReplayed));
         }
         catch (OperationCanceledException)
         {
-            return TelemetryReplayResult.Cancelled(packetsReplayed);
+            result = TelemetryReplayResult.Cancelled(Interlocked.Read(ref _packetsReplayed));
         }
         catch (Exception ex)
         {
-            return TelemetryReplayResult.Failure(packetsReplayed, $"Replay failed: {ex.Message}");
+            result = TelemetryReplayResult.Failure(Interlocked.Read(ref _packetsReplayed), $"Replay failed: {ex.Message}");
         }
         finally
         {
@@ -149,9 +180,13 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                 if (ReferenceEquals(_activeReplayCts, replayCts))
                 {
                     _activeReplayCts = null;
+                    _activeReplaySourceFilePath = null;
                 }
             }
         }
+
+        SetStatus(result);
+        return result;
     }
 
     public async ValueTask StopAsync()
@@ -177,5 +212,14 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
 
         var scaledTicks = (long)Math.Max(0, Math.Round(delay.Ticks / speed));
         return TimeSpan.FromTicks(scaledTicks);
+    }
+
+    private void SetStatus(TelemetryReplayResult result)
+    {
+        lock (_gate)
+        {
+            _statusMessage = result.Message;
+            Interlocked.Exchange(ref _packetsReplayed, result.PacketsReplayed);
+        }
     }
 }

@@ -1,6 +1,6 @@
 # Haptic Effects
 
-Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock.
+Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock. Stage 14 adds practical UI tuning and profile persistence for those existing effects.
 
 ## Source Data
 
@@ -92,7 +92,7 @@ Default assumptions:
 - Enabled by default with conservative gain `0.09`.
 - Wheel slip ratio and wheel slip angle determine slip intensity.
 - Speed below `8 km/h` suppresses output to avoid low-speed telemetry noise.
-- Throttle and brake thresholds are inspired by SimHub-style trigger controls, but no full tuning UI is implemented yet.
+- Throttle and brake thresholds are inspired by SimHub-style trigger controls. Stage 14 exposes a practical slip ratio threshold and conservative gain control; a full tyre/ABS tuning model remains deferred.
 - TC and ABS state reduce intensity conservatively when active.
 - Brake-lock shaping uses brake input, high slip ratio, and wheel speed much lower than vehicle speed.
 - Invalid, missing, stale, NaN, infinity, negative, or unrealistic values are sanitized, bounded, or silenced.
@@ -104,6 +104,8 @@ Stage 13 does not implement a separate advanced ABS effect, advanced tyre model,
 
 The `HapticEffectEngine` renders active effect buffers as `AudioMixerInput` sources. The Stage 10 mixer and safety processor still handle source summing, master gain, normal mute, emergency mute, invalid sample sanitisation, limiting, clipping, and final submission to `NullAudioOutputDevice` in automated tests.
 
-The WPF shell adds read-only diagnostics for the Stage 13 effects. It does not add tuning controls, profiles, persistence, routing UI, calibration UI, live graphs, real WASAPI output, real ASIO streaming, Simagic P-HPR output, or physical calibration.
+The WPF shell adds Stage 14 controls for per-effect enabled state and gain, selected existing effect parameters, mixer/safety settings, versioned JSON profiles, and read-only diagnostics. The effect engine can retune by replacing immutable option records under a short lock, then continues to feed the same mixer, safety processor, emergency mute, limiter, clipping protection, and `NullAudioOutputDevice` path.
+
+Stage 14 does not add new effect categories, routing matrices, calibration UI, live graphs, real WASAPI output, real ASIO streaming, Simagic P-HPR output, or physical calibration.
 
 These defaults are not physical shaker calibration and must not be treated as final safe gain, final feel, final latency, or final frequency tuning. Those remain unvalidated until the real hardware chain is tested locally.

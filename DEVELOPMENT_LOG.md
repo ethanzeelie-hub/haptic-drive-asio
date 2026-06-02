@@ -483,3 +483,49 @@ Self-review:
 - Emergency mute remains controlled by the existing mixer/safety path and is test-covered.
 - Invalid and unsafe sample values are sanitized, gated, bounded, or silenced before final output.
 - Physical shaker feel, safe gain, latency, and final frequency tuning remain unvalidated until real hardware testing.
+
+## Stage 14 - UI Tuning, Profiles, and Diagnostics
+
+Date: 2026-06-03
+
+Status: Complete.
+
+Goal: Add practical UI tuning, basic profile management, and useful diagnostics for the existing haptic engine without adding new haptic effects, real hardware output, ASIO streaming, or physical shaker calibration.
+
+Notes:
+
+- Verified Stage 13 was complete, tested, and committed as `2bf87c8 stage-13-kerb-impact-road-slip-effects` before beginning Stage 14.
+- Added a versioned JSON profile model for existing effect, mixer, and safety settings.
+- Profile save/load/reset now supports a conservative default profile, safe validation, unsupported-version rejection, corrupt/missing file failures, and repair/clamping of partially invalid values.
+- Emergency mute remains runtime-only and is not saved in profiles.
+- Added effect-engine retuning by replacing immutable effect option records under the existing engine lock.
+- Wired WPF tuning controls for per-effect enabled/gain state plus selected existing parameters for engine frequency bounds, gear/impact pulse duration, kerb frequency, road texture speed gate, and slip threshold.
+- Wired WPF mixer/safety controls for master gain, normal mute, safety output gain, conservative output ceiling, and limiter enabled state.
+- Added device, recording/replay, profiles, settings, and diagnostics panels while keeping the default output as `NullAudioOutputDevice`.
+- Added read-only diagnostics for UDP listener, forwarding, parser counts, VehicleState, recording, replay, effects, mixer/safety, test bench, and output status.
+- Added replay snapshots for inactive/active/completed replay status without changing raw packet replay order or byte preservation.
+- Added `docs/PROFILES_AND_DIAGNOSTICS.md` and updated existing docs for Stage 14 status and limitations.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed. NuGet emitted `NU1900` warnings because restricted network access prevented vulnerability-feed metadata from loading.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 errors and the same 4 `NU1900` warnings.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 156 passing tests and 1 skipped manual ASIO hardware test.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed. The formatter reported workspace-load warnings but no required formatting changes.
+
+Self-review:
+
+- Stage 14 stayed within UI tuning, profiles, and diagnostics scope.
+- No Stage 15 playable milestone work was implemented.
+- No Stage 16 ASIO hardware readiness work was implemented.
+- No new haptic effect categories were implemented.
+- No real ASIO or WASAPI hardware streaming was implemented.
+- No physical shaker tuning or calibration was implemented.
+- Default output remains hardware-safe through `NullAudioOutputDevice`.
+- Profile values are validated/clamped safely, and emergency mute remains simple, runtime-only, and reliable.
+- Unsafe sample values still pass through the Stage 10 mixer/safety chain before output.
+- UDP forwarding and recording/replay raw byte guarantees were not changed.
+- Parser and VehicleState behavior were not changed unnecessarily.
+- No guessed parser fields, packet offsets, packet layouts, packet lengths, enum values, or versions were introduced.
+- No Simagic P-HPR work was added.
+- Tests cover profile defaults, save/load, missing/corrupt/unsupported files, invalid-value repair, effect/mixer/safety mapping, emergency mute preservation, diagnostics snapshots without hardware or telemetry, and replay inactive/completed status.

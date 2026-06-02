@@ -7,12 +7,12 @@ namespace HapticDrive.Asio.Audio.Effects;
 public sealed class HapticEffectEngine
 {
     private readonly object _gate = new();
-    private readonly EngineVibrationEffect _engineEffect;
-    private readonly GearShiftEffect _gearShiftEffect;
-    private readonly KerbEffect _kerbEffect;
-    private readonly ImpactEffect _impactEffect;
-    private readonly RoadTextureEffect _roadTextureEffect;
-    private readonly SlipEffect _slipEffect;
+    private EngineVibrationEffect _engineEffect;
+    private GearShiftEffect _gearShiftEffect;
+    private KerbEffect _kerbEffect;
+    private ImpactEffect _impactEffect;
+    private RoadTextureEffect _roadTextureEffect;
+    private SlipEffect _slipEffect;
     private readonly AudioSampleBuffer _engineBuffer;
     private readonly AudioSampleBuffer _gearShiftBuffer;
     private readonly AudioSampleBuffer _kerbBuffer;
@@ -56,7 +56,32 @@ public sealed class HapticEffectEngine
 
     public AudioSampleFormat Format { get; }
 
-    public HapticEffectEngineOptions Options { get; }
+    public HapticEffectEngineOptions Options { get; private set; }
+
+    public void UpdateOptions(HapticEffectEngineOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        lock (_gate)
+        {
+            Options = options;
+            _engineEffect = new EngineVibrationEffect(Options.Engine);
+            _gearShiftEffect = new GearShiftEffect(Options.GearShift);
+            _kerbEffect = new KerbEffect(Options.Kerb);
+            _impactEffect = new ImpactEffect(Options.Impact);
+            _roadTextureEffect = new RoadTextureEffect(Options.RoadTexture);
+            _slipEffect = new SlipEffect(Options.Slip);
+            _snapshot = CreateSnapshot(
+                _engineEffect.Snapshot,
+                _gearShiftEffect.Snapshot,
+                _kerbEffect.Snapshot,
+                _impactEffect.Snapshot,
+                _roadTextureEffect.Snapshot,
+                _slipEffect.Snapshot,
+                activeEffectCount: 0,
+                peakLevel: 0f);
+        }
+    }
 
     public void Reset()
     {

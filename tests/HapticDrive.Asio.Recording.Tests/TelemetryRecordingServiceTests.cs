@@ -185,6 +185,39 @@ public sealed class TelemetryRecordingServiceTests
     }
 
     [Fact]
+    public void ReplaySnapshot_DefaultStateIsInactiveAndSafe()
+    {
+        var replay = new TelemetryReplayService();
+
+        var snapshot = replay.GetSnapshot();
+
+        Assert.False(snapshot.IsReplaying);
+        Assert.Null(snapshot.SourceFilePath);
+        Assert.Equal(0, snapshot.PacketsReplayed);
+        Assert.Equal("Replay idle.", snapshot.StatusMessage);
+    }
+
+    [Fact]
+    public async Task ReplaySnapshot_ReportsCompletedPacketCount()
+    {
+        var recording = new TelemetryRecording(
+            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 30, 0, TimeSpan.Zero)),
+            [
+                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
+                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(1), [0x02])
+            ]);
+        var replay = new TelemetryReplayService();
+
+        var result = await replay.ReplayAsync(recording, TelemetryReplayOptions.Fast);
+        var snapshot = replay.GetSnapshot();
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.False(snapshot.IsReplaying);
+        Assert.Equal(2, snapshot.PacketsReplayed);
+        Assert.Contains("Replayed", snapshot.StatusMessage);
+    }
+
+    [Fact]
     public async Task Replay_StopCancelsSafely()
     {
         var recording = new TelemetryRecording(
