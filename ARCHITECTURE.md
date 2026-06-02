@@ -111,6 +111,23 @@ The replay service loads `.hdrec` files and emits `UdpTelemetryPacket` values in
 
 The WPF shell adds only a minimal Start/Stop Recording control and status card. Replay controls, recording library management, profile snapshots, graphing, mixer work, safety processors, audio generation, and hardware output remain outside Stage 09.
 
+## Stage 10 Audio Mixer and Safety Chain
+
+Core owns the shared Stage 10 audio sample contracts:
+
+- `AudioSampleFormat` records sample rate, channel count, frame count, and interleaved sample count.
+- `AudioSampleBuffer` stores interleaved `float` samples and validates buffer shape.
+- `IAudioOutputDevice.SubmitBufferAsync` is the narrow output handoff for final sample buffers.
+
+Audio owns the deterministic processing implementation:
+
+- `AudioMixer` combines explicit source buffers with per-source gain, master gain, normal mute, emergency mute, and invalid sample/gain sanitisation.
+- `AudioSafetyProcessor` sanitises NaN/infinity values, applies conservative output gain, peak-limits buffers to the configured normalized ceiling, hard-clips any remaining overflow, and forces silence on emergency mute.
+- `AudioRenderPipeline` keeps a reusable mix buffer, applies mixer and safety processing, and hands the final buffer to an `IAudioOutputDevice`.
+- `NullAudioOutputDevice` consumes matching sample buffers after start and discards them deterministically for hardware-absent tests.
+
+The WPF shell connects Start Haptics and Emergency Mute to the Stage 10 pipeline only by submitting safe silence to `NullAudioOutputDevice`. There is no continuous audio callback, generated haptic effect, Stage 11 test signal, real WASAPI output, or real ASIO streaming in Stage 10.
+
 ## Stage 06 F1 25 Packet Header Parser
 
 `HapticDrive.Asio.Telemetry.F1_25` owns the first parser implementation:

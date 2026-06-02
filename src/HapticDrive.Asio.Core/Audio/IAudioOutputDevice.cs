@@ -19,4 +19,8 @@ public interface IAudioOutputDevice : IAsyncDisposable
     ValueTask<AudioOutputDeviceResult> StartAsync(CancellationToken cancellationToken = default);
 
     ValueTask<AudioOutputDeviceResult> StopAsync(CancellationToken cancellationToken = default);
+
+    ValueTask<AudioOutputDeviceResult> SubmitBufferAsync(
+        AudioSampleBuffer buffer,
+        CancellationToken cancellationToken = default);
 }

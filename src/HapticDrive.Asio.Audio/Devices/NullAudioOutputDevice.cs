@@ -4,6 +4,11 @@ namespace HapticDrive.Asio.Audio.Devices;
 
 public sealed class NullAudioOutputDevice : AudioOutputDeviceBase
 {
+    private long _submittedBufferCount;
+    private long _submittedFrameCount;
+    private long _submittedSampleCount;
+    private float _lastPeakLevel;
+
     public NullAudioOutputDevice()
         : base(AudioOutputDeviceKind.Null, "Null Output")
     {
@@ -23,4 +28,53 @@ public sealed class NullAudioOutputDevice : AudioOutputDeviceBase
         StatusMessage = "Null output ready. Audio samples are discarded deterministically.";
         return SuccessAsync(StatusMessage);
     }
+
+    public override ValueTask<AudioOutputDeviceResult> SubmitBufferAsync(
+        AudioSampleBuffer buffer,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (State != AudioOutputDeviceState.Started)
+        {
+            return FailureAsync("Null output must be started before it can consume audio sample buffers.");
+        }
+
+        ValidateBufferMatchesConfiguration(buffer, Configuration);
+
+        var peakLevel = 0f;
+        foreach (var sample in buffer.Samples)
+        {
+            if (!float.IsFinite(sample))
+            {
+                continue;
+            }
+
+            peakLevel = Math.Max(peakLevel, Math.Abs(sample));
+        }
+
+        Interlocked.Increment(ref _submittedBufferCount);
+        Interlocked.Add(ref _submittedFrameCount, buffer.FrameCount);
+        Interlocked.Add(ref _submittedSampleCount, buffer.SampleCount);
+        Volatile.Write(ref _lastPeakLevel, peakLevel);
+
+        StatusMessage = $"Null output consumed {buffer.FrameCount:N0} frame(s).";
+        return SuccessAsync(StatusMessage);
+    }
+
+    public NullAudioOutputDeviceSnapshot GetSampleSinkSnapshot()
+    {
+        return new NullAudioOutputDeviceSnapshot(
+            Interlocked.Read(ref _submittedBufferCount),
+            Interlocked.Read(ref _submittedFrameCount),
+            Interlocked.Read(ref _submittedSampleCount),
+            Volatile.Read(ref _lastPeakLevel));
+    }
 }
+
+public sealed record NullAudioOutputDeviceSnapshot(
+    long SubmittedBufferCount,
+    long SubmittedFrameCount,
+    long SubmittedSampleCount,
+    float LastPeakLevel);

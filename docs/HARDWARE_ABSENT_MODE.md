@@ -2,21 +2,22 @@
 
 Hardware-absent mode is the default development and automated-test posture until the real M-Audio interface, amplifier, and Dayton BST-1 chain is available.
 
-## Stage 02 Behavior
+## Current Behavior
 
 - The app starts with `NullAudioOutputDevice`.
 - `NullAudioOutputDevice` opens, starts, and stops without audio hardware.
-- Null output discards audio deterministically and produces no sound.
+- Null output consumes Stage 10 sample buffers deterministically, discards them, and produces no sound.
 - `WasapiDebugOutputDevice` exists as a manual debug placeholder only.
 - `AsioAudioOutputDevice` exists behind the same `IAudioOutputDevice` interface.
 - ASIO open attempts fail gracefully when no matching driver is available.
 - No automated test requires an ASIO driver, M-Audio interface, Fosi amplifier, or Dayton BST-1.
+- The Stage 10 mixer and safety chain are covered by automated tests using null output only.
 
 ## Output Modes
 
 | Mode | Automated tests | Manual use | Hardware required | Notes |
 | --- | --- | --- | --- | --- |
-| Null | Yes | Yes | No | Default safe output. Produces no sound. |
+| Null | Yes | Yes | No | Default safe output. Consumes and discards sample buffers. |
 | WASAPI Debug | No | Later manual debug only | Normal Windows audio endpoint later | Must not be selected automatically if ASIO fails. |
 | ASIO | No | Later manual hardware path | Yes | Intended low-latency target. Fails gracefully when unavailable. |
 

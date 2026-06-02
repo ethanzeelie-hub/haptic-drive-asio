@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 09 recording and replay" />
+                               Text="Stage 10 mixer and safety chain" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -165,7 +165,7 @@
                                            Text="Stopped" />
                                 <TextBlock Margin="0,6,0,0"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Controls are placeholders until the pipeline exists." />
+                                           Text="Stage 10 feeds safe silence through Null output." />
                             </StackPanel>
                         </Border>
 

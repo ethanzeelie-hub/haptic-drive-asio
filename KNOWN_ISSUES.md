@@ -80,3 +80,12 @@
 - Recording files do not yet include profile snapshots, route configuration, or effect settings.
 - Recording uses a background writer queue; advanced backpressure/drop diagnostics are deferred.
 - Mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, haptic effects, and physical shaker validation remain unimplemented.
+
+## Stage 10
+
+- The mixer combines explicit source buffers only; no haptic effect generators are implemented yet.
+- The app shell submits safe silence through the Stage 10 pipeline to `NullAudioOutputDevice`, but it does not run a continuous audio callback or timing-sensitive render loop yet.
+- `NullAudioOutputDevice` consumes sample buffers deterministically for tests and diagnostics, but still produces no sound.
+- `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` do not stream sample buffers yet; real output remains deferred.
+- Safety defaults limit normalized floating-point samples, but they are not physical shaker gain calibration and must not be treated as final hardware safety limits.
+- Stage 11 test bench signals, generated haptic effects, real WASAPI output, real ASIO streaming, and physical shaker validation remain unimplemented.

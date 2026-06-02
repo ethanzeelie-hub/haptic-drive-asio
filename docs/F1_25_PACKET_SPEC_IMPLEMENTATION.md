@@ -333,7 +333,22 @@ Implemented:
 
 Not implemented yet:
 
-- Recording library UI, replay controls in the app, profile snapshots, mixer, generated audio, haptic effects, WASAPI output, ASIO streaming, or physical hardware behavior.
+- Recording library UI, replay controls in the app, profile snapshots, generated audio, haptic effects, WASAPI output, ASIO streaming, or physical hardware behavior.
+
+## Stage 10 Implementation Status
+
+Implemented:
+
+- Interleaved floating-point sample buffers and a deterministic audio mixer/safety pipeline outside the F1 25 parser.
+- Null-output sample buffer consumption for hardware-absent tests.
+
+Parser impact:
+
+- No F1 25 packet layouts, offsets, enum values, packet lengths, packet versions, parser behavior, raw UDP forwarding, or recording/replay byte-preservation behavior changed in Stage 10.
+
+Not implemented yet:
+
+- Stage 11 test bench signals, generated haptic effects, real WASAPI output, ASIO streaming, or physical hardware behavior.
 
 ## Stage 03 Scope Boundary
 

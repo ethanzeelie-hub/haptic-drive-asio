@@ -98,6 +98,22 @@ public abstract class AudioOutputDeviceBase : IAudioOutputDevice
         return ValueTask.CompletedTask;
     }
 
+    public virtual ValueTask<AudioOutputDeviceResult> SubmitBufferAsync(
+        AudioSampleBuffer buffer,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (State != AudioOutputDeviceState.Started)
+        {
+            return FailureAsync("Output device must be started before it can consume audio sample buffers.");
+        }
+
+        ValidateBufferMatchesConfiguration(buffer, Configuration);
+        return FailureAsync("Sample buffer streaming is not implemented for this output device.");
+    }
+
     protected ValueTask<AudioOutputDeviceResult> SuccessAsync(string message)
     {
         return ValueTask.FromResult(AudioOutputDeviceResult.Success(message, GetStatus()));
@@ -126,6 +142,35 @@ public abstract class AudioOutputDeviceBase : IAudioOutputDevice
         if (configuration.BufferSize <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(configuration), "Buffer size must be positive.");
+        }
+    }
+
+    protected static void ValidateBufferMatchesConfiguration(
+        AudioSampleBuffer buffer,
+        AudioOutputConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        ValidateConfiguration(configuration);
+
+        if (buffer.SampleRate != configuration.SampleRate)
+        {
+            throw new ArgumentException(
+                $"Audio buffer sample rate {buffer.SampleRate} does not match output sample rate {configuration.SampleRate}.",
+                nameof(buffer));
+        }
+
+        if (buffer.ChannelCount != configuration.ChannelCount)
+        {
+            throw new ArgumentException(
+                $"Audio buffer channel count {buffer.ChannelCount} does not match output channel count {configuration.ChannelCount}.",
+                nameof(buffer));
+        }
+
+        if (buffer.FrameCount != configuration.BufferSize)
+        {
+            throw new ArgumentException(
+                $"Audio buffer frame count {buffer.FrameCount} does not match output buffer size {configuration.BufferSize}.",
+                nameof(buffer));
         }
     }
 }

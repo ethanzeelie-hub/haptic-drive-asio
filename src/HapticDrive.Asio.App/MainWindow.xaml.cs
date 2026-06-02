@@ -1,4 +1,7 @@
 using HapticDrive.Asio.Audio.Devices;
+using HapticDrive.Asio.Audio.Mixing;
+using HapticDrive.Asio.Audio.Pipeline;
+using HapticDrive.Asio.Audio.Safety;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
@@ -15,6 +18,8 @@ public partial class MainWindow : Window
 {
     private readonly object _headerParserGate = new();
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
+    private readonly AudioRenderPipeline _audioPipeline = new(AudioSampleFormat.FromConfiguration(AudioOutputConfiguration.Default));
+    private readonly AudioSampleBuffer _audioOutputBuffer = AudioSampleBuffer.Allocate(AudioOutputConfiguration.Default);
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
     private readonly TelemetryRecordingService _recordingService = new();
@@ -30,7 +35,7 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 09 recording and replay status",
+            "Stage 10 mixer and safety-chain status",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
@@ -38,6 +43,7 @@ public partial class MainWindow : Window
                 "Forwarding is byte-preserving and parser-independent.",
                 "The F1 25 parser validates packet format, year, ID, version, exact length, and Stage 07 packet bodies.",
                 "Stage 08 maps parsed packets into shared last-known VehicleState samples.",
+                "Stage 10 adds a deterministic mixer, conservative safety chain, and null-output sample consumption.",
                 "NullAudioOutputDevice is the default safe output.",
                 "No haptic effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
@@ -56,9 +62,11 @@ public partial class MainWindow : Window
             "Mixer / Routing",
             "Mixer / Routing",
             "Placeholder for mono output routing, mixer level controls, priority, ducking, and safety-chain visibility.",
-            "Mixer and routing planned",
+            "Mixer and safety chain available",
             [
-                "The audio mixer and safety processors are scheduled for Stage 10.",
+                "The Stage 10 mixer can combine source buffers with source gain, master gain, mute, and emergency mute.",
+                "The safety chain sanitises invalid samples, applies conservative output gain, limits peaks, and hard-clips overflow.",
+                "Null output can consume final sample buffers deterministically without hardware.",
                 "Mono BST-1 routing is the first hardware target.",
                 "Future output adapters can be added without coupling effects to a specific device."
             ]),
@@ -134,9 +142,10 @@ public partial class MainWindow : Window
             "Diagnostics",
             "Diagnostics",
             "Placeholder for packet rate, parser errors, output status, peak levels, limiter activity, and reports.",
-            "Diagnostics planned",
+            "Diagnostics partially available",
             [
                 "Output status is available for the selected safe output device.",
+                "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
                 "F1 25 packet parser success, ignored, and failure counts are available.",
@@ -159,6 +168,7 @@ public partial class MainWindow : Window
     private long _vehicleStateUpdateCount;
     private string _lastPacketParserMessage = "Waiting for F1 25 packets.";
     private string _lastVehicleStateMessage = "Waiting for parsed F1 25 packets.";
+    private AudioRenderPipelineSnapshot? _lastAudioPipelineSnapshot;
 
     public MainWindow()
     {
@@ -199,7 +209,7 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 09 recording and replay";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 10 mixer and safety chain";
             UpdateTelemetryStatus();
         }
     }
@@ -217,11 +227,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        var starting = !_hapticsStarted;
+        if (starting)
+        {
+            var submitResult = await ProcessAndSubmitSilenceBufferAsync();
+            if (!submitResult.Succeeded)
+            {
+                FooterStatusText.Text = submitResult.Message;
+                return;
+            }
+        }
+
         _hapticsStarted = !_hapticsStarted;
         StartStopButton.Content = _hapticsStarted ? "Stop Haptics" : "Start Haptics";
-        HapticsStateText.Text = _hapticsStarted ? "Null output running" : "Stopped";
+        UpdateHapticsStateText();
         FooterStatusText.Text = _hapticsStarted
-            ? "Haptics started with NullAudioOutputDevice. No sound or haptic signal is generated."
+            ? "Haptics started with the Stage 10 mixer/safety pipeline feeding NullAudioOutputDevice silence."
             : "Haptics stopped";
         UpdateOutputStatus(result.Status);
     }
@@ -268,13 +289,54 @@ public partial class MainWindow : Window
         UpdateRecordingStatus();
     }
 
-    private void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
+    private async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
     {
         _emergencyMuted = !_emergencyMuted;
+        _audioPipeline.MixerSettings = _audioPipeline.MixerSettings with { EmergencyMute = _emergencyMuted };
+        _audioPipeline.SafetyOptions = _audioPipeline.SafetyOptions with { EmergencyMute = _emergencyMuted };
         EmergencyMuteButton.Content = _emergencyMuted ? "Clear Mute" : "Emergency Mute";
+        UpdateHapticsStateText();
+
+        if (_hapticsStarted)
+        {
+            var submitResult = await ProcessAndSubmitSilenceBufferAsync();
+            if (!submitResult.Succeeded)
+            {
+                FooterStatusText.Text = submitResult.Message;
+                return;
+            }
+        }
+
         FooterStatusText.Text = _emergencyMuted
-            ? "Emergency mute placeholder is active"
-            : "Emergency mute placeholder cleared";
+            ? "Emergency mute is active in the Stage 10 mixer and safety chain."
+            : "Emergency mute cleared in the Stage 10 mixer and safety chain.";
+    }
+
+    private async Task<AudioOutputDeviceResult> ProcessAndSubmitSilenceBufferAsync()
+    {
+        _lastAudioPipelineSnapshot = _audioPipeline.Process(
+            Array.Empty<AudioMixerInput>(),
+            _audioOutputBuffer);
+        return await _selectedOutputDevice.SubmitBufferAsync(_audioOutputBuffer);
+    }
+
+    private void UpdateHapticsStateText()
+    {
+        if (_emergencyMuted)
+        {
+            HapticsStateText.Text = "Emergency muted";
+            return;
+        }
+
+        if (!_hapticsStarted)
+        {
+            HapticsStateText.Text = "Stopped";
+            return;
+        }
+
+        HapticsStateText.Text = _lastAudioPipelineSnapshot is null
+            ? "Mixer idle"
+            : $"Mixer idle; peak {_lastAudioPipelineSnapshot.OutputPeakLevel:0.000}";
     }
 
     private void ThemeButton_Click(object sender, RoutedEventArgs e)

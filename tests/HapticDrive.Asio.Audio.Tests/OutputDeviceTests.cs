@@ -25,6 +25,26 @@ public sealed class OutputDeviceTests
     }
 
     [Fact]
+    public async Task NullOutputDevice_ConsumesSampleBuffersWithoutHardware()
+    {
+        await using var device = new NullAudioOutputDevice();
+        var buffer = AudioSampleBuffer.Allocate(AudioOutputConfiguration.Default);
+        buffer.Samples[0] = 0.25f;
+        buffer.Samples[1] = -0.5f;
+
+        Assert.True((await device.OpenAsync(AudioOutputConfiguration.Default)).Succeeded);
+        Assert.True((await device.StartAsync()).Succeeded);
+        var submitResult = await device.SubmitBufferAsync(buffer);
+        var snapshot = device.GetSampleSinkSnapshot();
+
+        Assert.True(submitResult.Succeeded, submitResult.Message);
+        Assert.Equal(1, snapshot.SubmittedBufferCount);
+        Assert.Equal(AudioOutputConfiguration.Default.BufferSize, snapshot.SubmittedFrameCount);
+        Assert.Equal(AudioOutputConfiguration.Default.BufferSize, snapshot.SubmittedSampleCount);
+        Assert.Equal(0.5f, snapshot.LastPeakLevel, precision: 6);
+    }
+
+    [Fact]
     public async Task WasapiDebugOutputDevice_IsManualDebugOnly()
     {
         await using var device = new WasapiDebugOutputDevice();
