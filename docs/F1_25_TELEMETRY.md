@@ -15,7 +15,7 @@ F1 25 can enable UDP telemetry through the in-game telemetry settings. PC users 
 
 The PDF examples use port `20777`. Haptic Drive ASIO defaults to listening on `20778` because another tool, router, or Simagic software may already consume `20777`.
 
-Stage 07 implements raw listening, byte-preserving forwarding, F1 25 packet header validation, and core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding sends exact raw payload bytes to enabled destinations and does not depend on parser success. VehicleState mapping is not implemented yet.
+Stage 08 implements raw listening, byte-preserving forwarding, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, and mapping into shared `VehicleState`. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding sends exact raw payload bytes to enabled destinations and does not depend on parser success.
 
 Supported input modes planned:
 
@@ -27,13 +27,15 @@ Supported input modes planned:
 
 When connected as the game begins sending telemetry, the first frame includes enough data to initialize consumers. The PDF lists Session, Participants, Car Setups, Lap Data, Motion, Car Telemetry, Car Status, Car Damage, and Motion Ex on the first frame.
 
-The app must tolerate packets arriving in any order and must maintain last-known packet state per packet type.
+The app tolerates packets arriving in any order and maintains last-known `VehicleState` samples per mapped packet slice. Missing slices remain null until their source packet arrives, and populated slices carry packet stamps so later timeout and safety stages can distinguish missing/stale data from real zero values.
 
 ## Player Car Selection
 
 Use `m_header.m_playerCarIndex` for packets that contain 22-car arrays.
 
 Do not assume player index `0`. Do not use secondary player data unless a later stage explicitly implements split-screen behavior.
+
+Motion Ex contains player-car-only data and is mapped directly.
 
 ## Effect Mapping
 
@@ -80,6 +82,7 @@ Pause, garage, and mute:
 - Preserve raw UDP bytes for recording, replay, and forwarding.
 - Forwarding must not depend on parser success.
 - Parser failures must be counted for diagnostics without crashing the app.
+- VehicleState mapping must not synthesize restricted telemetry values; zero values are preserved as received.
 
 ## Diagnostics To Add Later
 

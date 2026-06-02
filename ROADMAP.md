@@ -10,7 +10,8 @@
 - Stage 05: UDP forwarding complete.
 - Stage 06: F1 25 packet header parser complete.
 - Stage 07: F1 25 core packet parser complete.
-- Next: Stage 08 VehicleState model.
+- Stage 08: VehicleState model complete.
+- Next: Stage 09 Recording and replay.
 
 ## Planned Stages
 
@@ -21,7 +22,7 @@
 5. Stage 05: UDP forwarding. Complete.
 6. Stage 06: F1 25 packet header parser. Complete.
 7. Stage 07: F1 25 core packet parser. Complete.
-8. Stage 08: VehicleState model.
+8. Stage 08: VehicleState model. Complete.
 9. Stage 09: Recording and replay.
 10. Stage 10: Audio mixer and safety chain.
 11. Stage 11: Test bench.

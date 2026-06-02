@@ -248,3 +248,38 @@ Self-review:
 - No Simagic P-HPR work was added.
 - No guessed packet fields or offsets were introduced; parser layouts came from the official F1 25 v3 PDF.
 - Tests cover valid body parsing, exact length validation, truncated and malformed datagrams, ignored packet IDs, player index handling, wheel order, raw byte preservation, Stage 06 header behavior, and parser-independent forwarding.
+
+## Stage 08 - VehicleState Model
+
+Date: 2026-06-02
+
+Status: Complete.
+
+Goal: Add the shared `VehicleState` model and F1 25 adapter layer without implementing recording, replay, audio, haptic effects, WASAPI output, ASIO streaming, or hardware behavior.
+
+Notes:
+
+- Added Core `VehicleState` records for motion, session, lap, participant, car telemetry, car status, damage, Motion Ex, and last event state.
+- Added per-sample packet stamps so later stages can distinguish missing packet slices from real telemetry zeros and evaluate stale data.
+- Added `F125VehicleStateAdapter` to map parsed Stage 07 F1 25 packets into shared last-known VehicleState samples.
+- Player car selection uses `m_header.m_playerCarIndex` for 22-car packet arrays.
+- Motion Ex is mapped as player-car-only data.
+- Wheel arrays preserve official RL, RR, FL, FR order.
+- Surface type IDs are preserved raw in VehicleState.
+- Failed parser results and invalid player indices are ignored safely without crashing or mutating VehicleState.
+- Wired the WPF diagnostics to show VehicleState update count, player index, speed, and gear while keeping forwarding parser-independent.
+- Updated README, architecture notes, F1 25 telemetry notes, packet implementation notes, roadmap, and known issues for Stage 08.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 65 passing tests and 1 skipped manual ASIO hardware test.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 08 stayed within shared model and F1 25 adapter scope.
+- No recording or replay was implemented.
+- No audio, haptic, WASAPI, ASIO streaming, or physical hardware output was implemented.
+- No Simagic P-HPR work was added.
+- No new packet offsets or layouts were guessed; Stage 08 maps fields already parsed from the official F1 25 v3 PDF-derived Stage 07 parser models.

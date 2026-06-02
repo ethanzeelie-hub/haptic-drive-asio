@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 07 F1 25 core packet parser" />
+                               Text="Stage 08 VehicleState model" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -241,6 +241,26 @@
                                            Margin="0,6,0,0"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="No packets parsed yet." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,12,0"
+                                Padding="18"
+                                Background="{DynamicResource AppSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="VehicleState" />
+                                <TextBlock x:Name="VehicleStateValueText"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Text="Waiting" />
+                                <TextBlock x:Name="VehicleStateDetailText"
+                                           Margin="0,6,0,0"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="No vehicle samples mapped yet." />
                             </StackPanel>
                         </Border>
                     </UniformGrid>

@@ -302,6 +302,26 @@ Not implemented yet:
 - Last-known-packet state aggregation across packet types.
 - Recording, replay, audio, haptic effects, WASAPI output, ASIO streaming, or physical hardware behavior.
 
+## Stage 08 Implementation Status
+
+Implemented:
+
+- Shared Core `VehicleState` records for motion, session, lap, participant, car telemetry, car status, damage, Motion Ex, and last event samples.
+- `VehicleStateSample<T>` packet stamps that preserve source packet name, session UID, session time, frame identifiers, and player car index.
+- F1 25 adapter mapping from parsed Stage 07 packet bodies into shared `VehicleState`.
+- Last-known sample aggregation that tolerates packet arrival in any order.
+- Player-car selection from `m_header.m_playerCarIndex` for 22-car packet arrays.
+- Direct player-only mapping for Motion Ex.
+- Raw surface type ID preservation in `VehicleState`.
+- Wheel-order preservation as RL, RR, FL, FR.
+- Safe ignores for failed parser results and invalid player indices.
+
+Not implemented yet:
+
+- Recording and replay.
+- Timeout-based stale sample policy or safety mute behavior.
+- Haptic effects, mixer, generated audio, WASAPI output, ASIO streaming, or physical hardware behavior.
+
 ## Stage 03 Scope Boundary
 
 This stage creates implementation notes only. Parser code begins in later stages.

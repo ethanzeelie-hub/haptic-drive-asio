@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
+    private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
     {
         Interval = TimeSpan.FromMilliseconds(500)
@@ -26,14 +27,15 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 07 F1 25 core packet parser status",
+            "Stage 08 VehicleState model status",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
                 "Forwarding is byte-preserving and parser-independent.",
                 "The F1 25 parser validates packet format, year, ID, version, exact length, and Stage 07 packet bodies.",
+                "Stage 08 maps parsed packets into shared last-known VehicleState samples.",
                 "NullAudioOutputDevice is the default safe output.",
-                "No VehicleState mapping or haptic effects are implemented yet.",
+                "No haptic effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
         new(
@@ -72,14 +74,15 @@ public partial class MainWindow : Window
             "Telemetry / UDP Router",
             "Telemetry / UDP Router",
             "Raw F1 25 UDP input, byte-preserving forwarding, and packet parser status.",
-            "UDP listener, forwarder, and core packet parser active",
+            "UDP listener, forwarder, parser, and VehicleState adapter active",
             [
                 "Default listen port is 20778.",
                 "Raw packets are counted and timestamped.",
                 "Forwarding sends exact packet bytes to enabled destinations.",
                 "Stage 07 packet bodies are parsed from the official F1 25 v3 spec.",
+                "Stage 08 selects the player car from packet headers and keeps last-known VehicleState slices.",
                 "No forwarding destinations are configured in the shell yet.",
-                "VehicleState mapping is scheduled for Stage 08."
+                "Recording and replay are scheduled for Stage 09."
             ]),
         new(
             "Recordings",
@@ -131,6 +134,7 @@ public partial class MainWindow : Window
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
                 "F1 25 packet parser success, ignored, and failure counts are available.",
+                "VehicleState update count, player index, speed, and gear are available when telemetry packets arrive.",
                 "Diagnostics become more meaningful as telemetry, parser, audio, and replay stages are implemented.",
                 "Logging must not block telemetry, UI, disk, or audio paths.",
                 "A copy diagnostics report action is planned for Stage 14."
@@ -145,7 +149,9 @@ public partial class MainWindow : Window
     private long _packetParseSuccessCount;
     private long _packetParseIgnoredCount;
     private long _packetParseFailureCount;
+    private long _vehicleStateUpdateCount;
     private string _lastPacketParserMessage = "Waiting for F1 25 packets.";
+    private string _lastVehicleStateMessage = "Waiting for parsed F1 25 packets.";
 
     public MainWindow()
     {
@@ -186,7 +192,7 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 07 F1 25 core packet parser";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 08 VehicleState model";
             UpdateTelemetryStatus();
         }
     }
@@ -308,6 +314,18 @@ public partial class MainWindow : Window
                 ? $"{result.Definition.Name} packet parsed."
                 : result.Message;
         }
+
+        var vehicleStateUpdate = _vehicleStateAdapter.Apply(result);
+
+        if (vehicleStateUpdate.WasApplied)
+        {
+            Interlocked.Increment(ref _vehicleStateUpdateCount);
+        }
+
+        lock (_headerParserGate)
+        {
+            _lastVehicleStateMessage = vehicleStateUpdate.Message;
+        }
     }
 
     private async Task ForwardTelemetryPacketAsync(UdpTelemetryPacket packet)
@@ -335,6 +353,7 @@ public partial class MainWindow : Window
             PacketRateDetailText.Text = "0.00 packets/s";
             UpdateForwardingStatus();
             UpdateHeaderParserStatus();
+            UpdateVehicleStateStatus();
             return;
         }
 
@@ -356,12 +375,14 @@ public partial class MainWindow : Window
         PacketRateDetailText.Text = $"{snapshot.PacketRatePerSecond:0.00} packets/s";
         UpdateForwardingStatus();
         UpdateHeaderParserStatus();
+        UpdateVehicleStateStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
         {
             var forwardingSnapshot = _telemetryForwarder.GetSnapshot();
             var parsedPackets = Interlocked.Read(ref _packetParseSuccessCount);
-            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams; parsed {parsedPackets:N0} packets";
+            var vehicleStateUpdates = Interlocked.Read(ref _vehicleStateUpdateCount);
+            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams; parsed {parsedPackets:N0} packets; VehicleState {vehicleStateUpdates:N0} updates";
         }
     }
 
@@ -402,6 +423,32 @@ public partial class MainWindow : Window
         HeaderParserDetailText.Text = successCount == 0 && ignoredCount == 0 && failureCount == 0
             ? "Validates headers and parses Stage 07 packet bodies."
             : $"Ignored {ignoredCount:N0}, failed {failureCount:N0}. {lastMessage}";
+    }
+
+    private void UpdateVehicleStateStatus()
+    {
+        var updateCount = Interlocked.Read(ref _vehicleStateUpdateCount);
+        var state = _vehicleStateAdapter.Current;
+        string lastMessage;
+
+        lock (_headerParserGate)
+        {
+            lastMessage = _lastVehicleStateMessage;
+        }
+
+        VehicleStateValueText.Text = updateCount == 0
+            ? "Waiting"
+            : $"{updateCount:N0} updates";
+
+        if (state.Telemetry is not null)
+        {
+            VehicleStateDetailText.Text = $"Player {state.Frame.PlayerCarIndex}, {state.Telemetry.Value.SpeedKph} km/h, gear {state.Telemetry.Value.Gear}.";
+            return;
+        }
+
+        VehicleStateDetailText.Text = updateCount == 0
+            ? "Maps parsed Stage 07 packet bodies into shared VehicleState samples."
+            : lastMessage;
     }
 
     protected override void OnClosed(EventArgs e)

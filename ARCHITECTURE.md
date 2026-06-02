@@ -85,6 +85,22 @@ The WPF shell offers every received raw packet to the forwarder and surfaces for
 
 Stage 06 should add the F1 25 packet header parser without changing the raw forwarding behavior.
 
+## Stage 08 VehicleState Model
+
+Core owns the shared `VehicleState` records under `HapticDrive.Asio.Core.Vehicle`.
+
+`VehicleState` is a last-known snapshot with nullable samples for packet slices that have not arrived yet. Each populated sample carries a packet stamp with source packet name, session UID, session time, frame identifiers, and player car index. This lets later stages distinguish a real telemetry zero from data that is missing or stale.
+
+`HapticDrive.Asio.Telemetry.F1_25` owns `F125VehicleStateAdapter`, which maps parsed Stage 07 packet bodies into shared state:
+
+- Array-based packets select the player car through `PacketHeader.PlayerCarIndex`.
+- Motion Ex remains player-car-only.
+- Wheel arrays preserve official RL, RR, FL, FR order.
+- Car Telemetry preserves raw surface type IDs instead of collapsing unknown future values.
+- Failed or ignored parser results do not update `VehicleState`.
+
+The WPF shell surfaces only high-level VehicleState diagnostics for now. Recording, replay, haptic effects, mixer, safety processors, real WASAPI output, and real ASIO streaming remain later stages.
+
 ## Stage 06 F1 25 Packet Header Parser
 
 `HapticDrive.Asio.Telemetry.F1_25` owns the first parser implementation:

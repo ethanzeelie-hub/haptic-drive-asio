@@ -65,3 +65,10 @@
 - Parser diagnostics count valid, ignored, and failed datagrams in memory only.
 - There is still no per-packet-ID dashboard breakdown or detailed body-field UI.
 - Recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.
+
+## Stage 08
+
+- `VehicleState` is populated from parsed F1 25 packets, but it is still in memory only and resets when the app restarts.
+- Missing packet slices are represented by null samples and received packet slices include packet stamps; timeout-based stale/mute policy is not implemented yet.
+- The shell shows high-level VehicleState update count, player index, speed, and gear only; detailed per-field diagnostics are still planned.
+- Recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.
