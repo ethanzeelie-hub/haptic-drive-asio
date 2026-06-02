@@ -1,6 +1,6 @@
 # F1 25 Packet Spec Implementation
 
-Stage 03 source: `C:\Users\ethan\Downloads\Data Output from F1 25 v3.pdf`.
+Stage 03 source: official EA F1 25 UDP Data Output v3 PDF.
 
 The PDF is the parser source of truth. Do not guess layouts from memory, older F1 specs, or unofficial structs. The PDF itself is not committed in this repo.
 
@@ -73,6 +73,50 @@ Implement these first:
 - ID 13: Motion Ex
 
 Other packet IDs should still be recognized for metadata validation and safe ignoring.
+
+## Stage 07 Core Body Parser Slice
+
+Stage 07 implements strongly typed body parsing for the V1 required packet IDs listed above. It does not map packets to shared `VehicleState`, recording/replay, audio, haptic effects, WASAPI, ASIO, or hardware output.
+
+Fixed counts and body sizes extracted from the official v3 PDF:
+
+| Structure | Size | Count / Use |
+| --- | ---: | --- |
+| `CarMotionData` | 60 | 22 entries in Motion |
+| `MarshalZone` | 5 | 21 entries in Session |
+| `WeatherForecastSample` | 8 | 64 entries in Session |
+| `LapData` | 57 | 22 entries in Lap Data |
+| `EventDataDetails` | 12 | Union storage in Event |
+| `LiveryColour` | 3 | 4 entries in each Participant |
+| `ParticipantData` | 57 | 22 entries in Participants |
+| `CarTelemetryData` | 60 | 22 entries in Car Telemetry |
+| `CarStatusData` | 55 | 22 entries in Car Status |
+| `CarDamageData` | 46 | 22 entries in Car Damage |
+| `PacketMotionExData` body | 244 | Player-car-only Motion Ex data |
+
+Field order for Stage 07 parser models:
+
+- `CarMotionData`: `float` `m_worldPositionX`, `m_worldPositionY`, `m_worldPositionZ`, `m_worldVelocityX`, `m_worldVelocityY`, `m_worldVelocityZ`; `int16` `m_worldForwardDirX`, `m_worldForwardDirY`, `m_worldForwardDirZ`, `m_worldRightDirX`, `m_worldRightDirY`, `m_worldRightDirZ`; `float` `m_gForceLateral`, `m_gForceLongitudinal`, `m_gForceVertical`, `m_yaw`, `m_pitch`, `m_roll`.
+- `PacketSessionData` body: scalar fields from `m_weather` through `m_numMarshalZones`; `MarshalZone[21]`; `m_safetyCarStatus`, `m_networkGame`, `m_numWeatherForecastSamples`; `WeatherForecastSample[64]`; scalar fields from `m_forecastAccuracy` through `m_numSessionsInWeekend`; `uint8 m_weekendStructure[12]`; `float m_sector2LapDistanceStart`, `m_sector3LapDistanceStart`.
+- `LapData`: scalar fields from `m_lastLapTimeInMS` through `m_speedTrapFastestLap` in the official struct order. `PacketLapData` appends `uint8 m_timeTrialPBCarIdx` and `uint8 m_timeTrialRivalCarIdx`.
+- `PacketEventData`: `uint8 m_eventStringCode[4]`, followed by a 12-byte `EventDataDetails` union. Stage 07 interprets official event codes `SSTA`, `SEND`, `FTLP`, `RTMT`, `DRSE`, `DRSD`, `TMPT`, `CHQF`, `RCWN`, `PENA`, `SPTP`, `STLG`, `LGOT`, `DTSV`, `SGSV`, `FLBK`, `BUTN`, `RDFL`, `OVTK`, `SCAR`, and `COLL`; unknown codes preserve raw detail bytes.
+- `ParticipantData`: `uint8` fields `m_aiControlled` through `m_nationality`; `char m_name[32]` as null-terminated UTF-8 bytes; `uint8 m_yourTelemetry`, `m_showOnlineNames`; `uint16 m_techLevel`; `uint8 m_platform`, `m_numColours`; `LiveryColour[4]`. The PDF text extraction misses the visible closing brace, but these fields reconcile exactly to the documented 57-byte struct and 1284-byte packet.
+- `CarTelemetryData`: `uint16 m_speed`; `float m_throttle`, `m_steer`, `m_brake`; `uint8 m_clutch`; `int8 m_gear`; `uint16 m_engineRPM`; `uint8 m_drs`, `m_revLightsPercent`; `uint16 m_revLightsBitValue`; wheel arrays `m_brakesTemperature[4]`, `m_tyresSurfaceTemperature[4]`, `m_tyresInnerTemperature[4]`; `uint16 m_engineTemperature`; wheel arrays `m_tyresPressure[4]`, `m_surfaceType[4]`. `PacketCarTelemetryData` appends `m_mfdPanelIndex`, `m_mfdPanelIndexSecondaryPlayer`, and `int8 m_suggestedGear`.
+- `CarStatusData`: scalar fields from `m_tractionControl` through `m_networkPaused` in the official struct order.
+- `CarDamageData`: wheel arrays `m_tyresWear[4]`, `m_tyresDamage[4]`, `m_brakesDamage[4]`, `m_tyreBlisters[4]`, followed by scalar damage and fault fields from `m_frontLeftWingDamage` through `m_engineSeized`.
+- `PacketMotionExData` body: player-car-only wheel arrays `m_suspensionPosition[4]`, `m_suspensionVelocity[4]`, `m_suspensionAcceleration[4]`, `m_wheelSpeed[4]`, `m_wheelSlipRatio[4]`, `m_wheelSlipAngle[4]`, `m_wheelLatForce[4]`, `m_wheelLongForce[4]`; scalar motion fields from `m_heightOfCOGAboveGround` through `m_chassisPitch`; wheel arrays `m_wheelCamber[4]`, `m_wheelCamberGain[4]`.
+
+Stage 07 unsupported but known packet IDs:
+
+- ID 5: Car Setups
+- ID 8: Final Classification
+- ID 9: Lobby Info
+- ID 11: Session History
+- ID 12: Tyre Sets
+- ID 14: Time Trial
+- ID 15: Lap Positions
+
+The Stage 07 parser validates their headers and exact packet length through the existing Stage 06 definitions, then returns an ignored result without reading unsupported bodies.
 
 ## Validation Rules
 
@@ -240,6 +284,23 @@ Not implemented yet:
 - Event union parsing.
 - Per-packet body validation beyond exact datagram size.
 - VehicleState mapping.
+
+## Stage 07 Implementation Status
+
+Implemented:
+
+- Packet body models for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex.
+- A full packet parser that reuses Stage 06 header validation before body reads.
+- Safe ignored results for unknown packet IDs and known packets outside the Stage 07 body slice.
+- Event union interpretation for official event string codes, including collision vehicle indices.
+- Explicit RL, RR, FL, FR wheel ordering in typed wheel data.
+- Raw datagram preservation on successful packet parses.
+
+Not implemented yet:
+
+- Mapping packet bodies to shared `VehicleState`.
+- Last-known-packet state aggregation across packet types.
+- Recording, replay, audio, haptic effects, WASAPI output, ASIO streaming, or physical hardware behavior.
 
 ## Stage 03 Scope Boundary
 

@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 06 F1 25 packet header parser - no packet bodies yet" />
+                               Text="Stage 07 F1 25 core packet parser" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -232,7 +232,7 @@
                                 CornerRadius="8">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="F1 25 Header" />
+                                           Text="F1 25 Parser" />
                                 <TextBlock x:Name="HeaderParserValueText"
                                            FontSize="20"
                                            FontWeight="SemiBold"

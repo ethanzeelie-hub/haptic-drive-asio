@@ -3,6 +3,15 @@ namespace HapticDrive.Asio.Telemetry.F1_25;
 public static class F125PacketDefinitions
 {
     public const int HeaderSize = 29;
+    public const int CarCount = 22;
+    public const int WheelCount = 4;
+    public const int MarshalZoneCount = 21;
+    public const int WeatherForecastSampleCount = 64;
+    public const int WeekendStructureCount = 12;
+    public const int ParticipantNameLength = 32;
+    public const int LiveryColourCount = 4;
+    public const int EventCodeLength = 4;
+    public const int EventDetailsLength = 12;
     public const ushort PacketFormat = 2025;
     public const byte GameYear = 25;
     public const byte PacketVersion = 1;

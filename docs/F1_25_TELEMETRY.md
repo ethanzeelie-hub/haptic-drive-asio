@@ -4,7 +4,7 @@ This document captures setup and behavior notes for F1 25 telemetry integration.
 
 ## Source Of Truth
 
-- Official local PDF: `C:\Users\ethan\Downloads\Data Output from F1 25 v3.pdf`.
+- Official EA F1 25 UDP Data Output v3 PDF.
 - UDP format: `2025`.
 - Do not use F1 23/F1 24 specs as substitutes.
 - Do not commit the PDF unless licensing is explicitly cleared.
@@ -15,7 +15,7 @@ F1 25 can enable UDP telemetry through the in-game telemetry settings. PC users 
 
 The PDF examples use port `20777`. Haptic Drive ASIO defaults to listening on `20778` because another tool, router, or Simagic software may already consume `20777`.
 
-Stage 06 implements raw listening, byte-preserving forwarding, and F1 25 packet header validation. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding sends exact raw payload bytes to enabled destinations and does not depend on parser success. Packet bodies are not parsed yet.
+Stage 07 implements raw listening, byte-preserving forwarding, F1 25 packet header validation, and core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding sends exact raw payload bytes to enabled destinations and does not depend on parser success. VehicleState mapping is not implemented yet.
 
 Supported input modes planned:
 

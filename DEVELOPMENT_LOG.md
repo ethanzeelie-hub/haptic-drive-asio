@@ -210,3 +210,41 @@ Self-review:
 - Stage 06 stayed limited to packet header parsing and diagnostics.
 - The parser uses the extracted F1 25 v3 PDF notes and does not reuse older F1 specs.
 - No packet body parser, recording, replay, mixer, safety chain, generated audio, real WASAPI output, real ASIO streaming, or haptic effects were added.
+
+## Stage 07 - F1 25 Core Packet Parser
+
+Date: 2026-06-02
+
+Status: Complete.
+
+Goal: Implement the F1 25 core packet body parser layer using the official F1 25 v3 PDF data output specification as the source of truth.
+
+Notes:
+
+- Added Stage 07 packet body implementation notes for the core parser slice.
+- Added typed packet body models for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex.
+- Added a full packet parser that reuses Stage 06 header validation before any body reads.
+- Known non-Stage-07 packet IDs are validated by header, version, and exact length, then safely ignored.
+- Unknown packet IDs remain safely ignored.
+- Event union parsing now interprets official event string codes, including `COLL` collision vehicle indices.
+- Wheel arrays are exposed as explicit RL, RR, FL, FR typed data.
+- Raw datagram bytes remain preserved on successful packet parses.
+- Updated the WPF diagnostics wording and counters to report Stage 07 packet parser status while keeping forwarding parser-independent.
+- Used an ignored local copy of the official PDF for reference and did not commit the PDF.
+
+Verification:
+
+- `dotnet restore HapticDrive.Asio.sln --configfile NuGet.Config` passed with the repo-local SDK after allowing NuGet access.
+- `dotnet build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test HapticDrive.Asio.sln --no-build` passed with 60 passing tests and 1 skipped manual ASIO hardware test.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 07 stayed within parser-body scope.
+- No VehicleState mapping was implemented.
+- No recording or replay was implemented.
+- No audio, haptic, WASAPI, ASIO streaming, or physical hardware output was implemented.
+- No Simagic P-HPR work was added.
+- No guessed packet fields or offsets were introduced; parser layouts came from the official F1 25 v3 PDF.
+- Tests cover valid body parsing, exact length validation, truncated and malformed datagrams, ignored packet IDs, player index handling, wheel order, raw byte preservation, Stage 06 header behavior, and parser-independent forwarding.

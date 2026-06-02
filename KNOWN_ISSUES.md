@@ -56,3 +56,12 @@
 - Unknown packet IDs are ignored safely, but there is no per-packet-ID dashboard breakdown yet.
 - Known packet IDs with valid headers are not converted into vehicle state yet.
 - Recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.
+
+## Stage 07
+
+- The F1 25 parser now parses the Stage 07 core packet bodies, but it does not yet aggregate last-known packet state across packet types.
+- Parsed packet bodies are not mapped into shared `VehicleState` yet; that is Stage 08.
+- Known packet IDs outside the Stage 07 parser slice are validated at the header/length layer and then safely ignored.
+- Parser diagnostics count valid, ignored, and failed datagrams in memory only.
+- There is still no per-packet-ID dashboard breakdown or detailed body-field UI.
+- Recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.

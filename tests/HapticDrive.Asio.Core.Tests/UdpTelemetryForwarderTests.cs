@@ -54,6 +54,29 @@ public sealed class UdpTelemetryForwarderTests
     }
 
     [Fact]
+    public async Task Forwarder_ForwardsMalformedF125LookingPayloadWithoutParsing()
+    {
+        using var destination = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        var destinationEndPoint = (IPEndPoint)destination.Client.LocalEndPoint!;
+        await using var forwarder = new UdpTelemetryForwarder(
+        [
+            new UdpTelemetryForwardingDestination("Local malformed packet sink", destinationEndPoint)
+        ]);
+        var malformedF125Payload = new byte[] { 0xE9, 0x07, 25, 1, 0, 1, 6, 0xAA, 0xBB };
+
+        await forwarder.ForwardAsync(CreatePacket(malformedF125Payload));
+
+        var received = await WaitForAsync(destination.ReceiveAsync(), TimeSpan.FromSeconds(3));
+        var snapshot = forwarder.GetSnapshot();
+
+        Assert.Equal(malformedF125Payload, received.Buffer);
+        Assert.Equal(1, snapshot.InputPacketCount);
+        Assert.Equal(1, snapshot.ForwardedDatagramCount);
+        Assert.Equal(malformedF125Payload.Length, snapshot.ForwardedByteCount);
+        Assert.Equal(0, snapshot.ErrorCount);
+    }
+
+    [Fact]
     public async Task Forwarder_ForwardsToMultipleEnabledDestinations()
     {
         using var firstDestination = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
