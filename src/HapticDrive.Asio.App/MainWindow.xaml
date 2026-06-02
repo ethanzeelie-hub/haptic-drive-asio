@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 08 VehicleState model" />
+                               Text="Stage 09 recording and replay" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -53,6 +53,10 @@
                             Margin="0,0,8,0"
                             Click="StartStopButton_Click"
                             Content="Start Haptics" />
+                    <Button x:Name="StartRecordingButton"
+                            Margin="0,0,8,0"
+                            Click="StartRecordingButton_Click"
+                            Content="Start Recording" />
                     <Button x:Name="EmergencyMuteButton"
                             Margin="0,0,8,0"
                             Background="{DynamicResource AppDangerBrush}"
@@ -261,6 +265,26 @@
                                            Margin="0,6,0,0"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="No vehicle samples mapped yet." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,0,0"
+                                Padding="18"
+                                Background="{DynamicResource AppSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Recording" />
+                                <TextBlock x:Name="RecordingValueText"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Text="Idle" />
+                                <TextBlock x:Name="RecordingDetailText"
+                                           Margin="0,6,0,0"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Ready to capture raw UDP packets." />
                             </StackPanel>
                         </Border>
                     </UniformGrid>

@@ -318,9 +318,22 @@ Implemented:
 
 Not implemented yet:
 
-- Recording and replay.
 - Timeout-based stale sample policy or safety mute behavior.
 - Haptic effects, mixer, generated audio, WASAPI output, ASIO streaming, or physical hardware behavior.
+
+## Stage 09 Implementation Status
+
+Implemented:
+
+- Versioned raw UDP recording files with metadata, packet order, relative timing, payload length, and raw payload bytes.
+- Background recording writer queue so disk IO is kept out of the UDP receive callback.
+- Deterministic fast replay and optional time-preserving replay that emits `UdpTelemetryPacket` values without UDP sockets.
+- Replay tests that feed recorded packets through `F125PacketParser` and `F125VehicleStateAdapter`.
+- Safe failures for corrupt headers, unsupported versions, truncated packet records, and unreasonable payload lengths.
+
+Not implemented yet:
+
+- Recording library UI, replay controls in the app, profile snapshots, mixer, generated audio, haptic effects, WASAPI output, ASIO streaming, or physical hardware behavior.
 
 ## Stage 03 Scope Boundary
 

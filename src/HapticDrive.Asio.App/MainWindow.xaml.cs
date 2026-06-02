@@ -1,7 +1,9 @@
 using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
+using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Telemetry.F1_25;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -15,6 +17,7 @@ public partial class MainWindow : Window
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
+    private readonly TelemetryRecordingService _recordingService = new();
     private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
     {
@@ -27,10 +30,11 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 08 VehicleState model status",
+            "Stage 09 recording and replay status",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
+                "Recording captures raw incoming UDP payload bytes to a versioned replay file.",
                 "Forwarding is byte-preserving and parser-independent.",
                 "The F1 25 parser validates packet format, year, ID, version, exact length, and Stage 07 packet bodies.",
                 "Stage 08 maps parsed packets into shared last-known VehicleState samples.",
@@ -74,25 +78,27 @@ public partial class MainWindow : Window
             "Telemetry / UDP Router",
             "Telemetry / UDP Router",
             "Raw F1 25 UDP input, byte-preserving forwarding, and packet parser status.",
-            "UDP listener, forwarder, parser, and VehicleState adapter active",
+            "UDP listener, forwarder, recorder, parser, and VehicleState adapter active",
             [
                 "Default listen port is 20778.",
                 "Raw packets are counted and timestamped.",
+                "Active recordings receive raw packet bytes before parser validation.",
                 "Forwarding sends exact packet bytes to enabled destinations.",
                 "Stage 07 packet bodies are parsed from the official F1 25 v3 spec.",
                 "Stage 08 selects the player car from packet headers and keeps last-known VehicleState slices.",
                 "No forwarding destinations are configured in the shell yet.",
-                "Recording and replay are scheduled for Stage 09."
+                "Replay is implemented in the Recording project for deterministic tests."
             ]),
         new(
             "Recordings",
             "Recordings",
             "Placeholder for telemetry capture and deterministic replay without running F1 25.",
-            "Recording and replay planned",
+            "Recording and replay service available",
             [
-                "Recording and replay are scheduled for Stage 09.",
-                "Replay mode is required before physical hardware validation.",
-                "Raw UDP bytes must be preserved for replay and forwarding."
+                "Use Start Recording to capture raw incoming UDP packets to a versioned file.",
+                "Replay service emits recorded packets through the same parser and VehicleState path used by live packets.",
+                "Replay tests do not require F1 25, UDP sockets, audio output, ASIO hardware, or shaker hardware.",
+                "A polished recording library UI is deferred."
             ]),
         new(
             "Test Bench",
@@ -146,6 +152,7 @@ public partial class MainWindow : Window
     private bool _lightTheme;
     private string? _telemetryStartError;
     private string? _forwardingError;
+    private string? _recordingError;
     private long _packetParseSuccessCount;
     private long _packetParseIgnoredCount;
     private long _packetParseFailureCount;
@@ -192,7 +199,7 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 08 VehicleState model";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 09 recording and replay";
             UpdateTelemetryStatus();
         }
     }
@@ -217,6 +224,48 @@ public partial class MainWindow : Window
             ? "Haptics started with NullAudioOutputDevice. No sound or haptic signal is generated."
             : "Haptics stopped";
         UpdateOutputStatus(result.Status);
+    }
+
+    private async void StartRecordingButton_Click(object sender, RoutedEventArgs e)
+    {
+        var snapshot = _recordingService.GetSnapshot();
+        if (snapshot.IsRecording)
+        {
+            var stopResult = await _recordingService.StopAsync();
+            StartRecordingButton.Content = "Start Recording";
+            FooterStatusText.Text = stopResult.Message;
+            if (!stopResult.Succeeded)
+            {
+                _recordingError = stopResult.Message;
+            }
+
+            UpdateRecordingStatus();
+            return;
+        }
+
+        try
+        {
+            var path = CreateDefaultRecordingPath();
+            var startResult = await _recordingService.StartAsync(path);
+            if (startResult.Succeeded)
+            {
+                _recordingError = null;
+                StartRecordingButton.Content = "Stop Recording";
+                FooterStatusText.Text = $"Recording raw UDP packets to {Path.GetFileName(path)}.";
+            }
+            else
+            {
+                _recordingError = startResult.Message;
+                FooterStatusText.Text = startResult.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            _recordingError = ex.Message;
+            FooterStatusText.Text = $"Recording could not start: {ex.Message}";
+        }
+
+        UpdateRecordingStatus();
     }
 
     private void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
@@ -270,9 +319,19 @@ public partial class MainWindow : Window
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
     {
+        RecordTelemetryPacket(e.Packet);
         ParseTelemetryPacket(e.Packet);
         _ = ForwardTelemetryPacketAsync(e.Packet);
         Dispatcher.InvokeAsync(UpdateTelemetryStatus);
+    }
+
+    private void RecordTelemetryPacket(UdpTelemetryPacket packet)
+    {
+        var result = _recordingService.RecordPacket(packet);
+        if (result.Status == TelemetryRecordingOperationStatus.Failure)
+        {
+            _recordingError = result.Message;
+        }
     }
 
     private void ParseTelemetryPacket(UdpTelemetryPacket packet)
@@ -354,6 +413,7 @@ public partial class MainWindow : Window
             UpdateForwardingStatus();
             UpdateHeaderParserStatus();
             UpdateVehicleStateStatus();
+            UpdateRecordingStatus();
             return;
         }
 
@@ -376,13 +436,23 @@ public partial class MainWindow : Window
         UpdateForwardingStatus();
         UpdateHeaderParserStatus();
         UpdateVehicleStateStatus();
+        UpdateRecordingStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
         {
             var forwardingSnapshot = _telemetryForwarder.GetSnapshot();
             var parsedPackets = Interlocked.Read(ref _packetParseSuccessCount);
             var vehicleStateUpdates = Interlocked.Read(ref _vehicleStateUpdateCount);
-            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams; parsed {parsedPackets:N0} packets; VehicleState {vehicleStateUpdates:N0} updates";
+            var recordingSnapshot = _recordingService.GetSnapshot();
+            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams; recording {recordingSnapshot.PacketCount:N0} packets; parsed {parsedPackets:N0} packets; VehicleState {vehicleStateUpdates:N0} updates";
+        }
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Recordings" })
+        {
+            var recordingSnapshot = _recordingService.GetSnapshot();
+            PageStatusText.Text = recordingSnapshot.IsRecording
+                ? $"Recording {recordingSnapshot.PacketCount:N0} raw packets to {Path.GetFileName(recordingSnapshot.FilePath)}"
+                : "Recording idle; replay services are available for deterministic tests.";
         }
     }
 
@@ -451,9 +521,48 @@ public partial class MainWindow : Window
             : lastMessage;
     }
 
+    private void UpdateRecordingStatus()
+    {
+        var snapshot = _recordingService.GetSnapshot();
+
+        if (_recordingError is not null)
+        {
+            RecordingValueText.Text = "Error";
+            RecordingDetailText.Text = _recordingError;
+            return;
+        }
+
+        RecordingValueText.Text = snapshot.IsRecording
+            ? $"{snapshot.PacketCount:N0} packets"
+            : "Idle";
+        if (snapshot.IsRecording)
+        {
+            RecordingDetailText.Text = snapshot.LastPacketRelativeTime is null
+                ? $"Writing {Path.GetFileName(snapshot.FilePath)}; waiting for first packet."
+                : $"Writing {Path.GetFileName(snapshot.FilePath)}; last packet {snapshot.LastPacketRelativeTime.Value.TotalSeconds:0.000}s.";
+            return;
+        }
+
+        RecordingDetailText.Text = "Ready to capture raw UDP packets to versioned replay files.";
+    }
+
+    private static string CreateDefaultRecordingPath()
+    {
+        var recordingsDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "HapticDrive.Asio",
+            "Recordings");
+        Directory.CreateDirectory(recordingsDirectory);
+
+        return Path.Combine(
+            recordingsDirectory,
+            $"f1-25-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.hdrec");
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         _telemetryStatusTimer.Stop();
+        _recordingService.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _telemetryForwarder.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _selectedOutputDevice.DisposeAsync().AsTask().GetAwaiter().GetResult();

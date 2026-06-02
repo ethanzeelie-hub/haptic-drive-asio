@@ -72,3 +72,11 @@
 - Missing packet slices are represented by null samples and received packet slices include packet stamps; timeout-based stale/mute policy is not implemented yet.
 - The shell shows high-level VehicleState update count, player index, speed, and gear only; detailed per-field diagnostics are still planned.
 - Recording, replay, mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, and haptic effects remain unimplemented.
+
+## Stage 09
+
+- Recording captures raw UDP payload bytes and relative timing, but the app has only a minimal Start/Stop Recording control and status card.
+- Replay is implemented as a deterministic service and covered by tests, but the app does not yet provide a recordings browser or replay controls.
+- Recording files do not yet include profile snapshots, route configuration, or effect settings.
+- Recording uses a background writer queue; advanced backpressure/drop diagnostics are deferred.
+- Mixer, safety processor, generated audio, real WASAPI output, real ASIO streaming, haptic effects, and physical shaker validation remain unimplemented.

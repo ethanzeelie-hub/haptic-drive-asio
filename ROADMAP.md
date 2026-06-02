@@ -11,7 +11,8 @@
 - Stage 06: F1 25 packet header parser complete.
 - Stage 07: F1 25 core packet parser complete.
 - Stage 08: VehicleState model complete.
-- Next: Stage 09 Recording and replay.
+- Stage 09: Recording and replay complete.
+- Next: Stage 10 Audio mixer and safety chain.
 
 ## Planned Stages
 
@@ -23,7 +24,7 @@
 6. Stage 06: F1 25 packet header parser. Complete.
 7. Stage 07: F1 25 core packet parser. Complete.
 8. Stage 08: VehicleState model. Complete.
-9. Stage 09: Recording and replay.
+9. Stage 09: Recording and replay. Complete.
 10. Stage 10: Audio mixer and safety chain.
 11. Stage 11: Test bench.
 12. Stage 12: Gear shift and engine effects.

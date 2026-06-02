@@ -101,6 +101,16 @@ Core owns the shared `VehicleState` records under `HapticDrive.Asio.Core.Vehicle
 
 The WPF shell surfaces only high-level VehicleState diagnostics for now. Recording, replay, haptic effects, mixer, safety processors, real WASAPI output, and real ASIO streaming remain later stages.
 
+## Stage 09 Recording and Replay
+
+`HapticDrive.Asio.Recording` owns the raw telemetry capture and replay layer.
+
+The recorder accepts `UdpTelemetryPacket` values, copies their payload bytes, stores packet sequence and relative receive timing, and writes a versioned `.hdrec` file through a background writer queue. Recording is intentionally parser-independent, so malformed or unsupported packets can still be captured exactly.
+
+The replay service loads `.hdrec` files and emits `UdpTelemetryPacket` values in recorded order. Tests and later runtime paths can feed those packets through the same `F125PacketParser.Parse(packet.Payload)` and `F125VehicleStateAdapter.Apply(parseResult)` sequence used for live UDP packets.
+
+The WPF shell adds only a minimal Start/Stop Recording control and status card. Replay controls, recording library management, profile snapshots, graphing, mixer work, safety processors, audio generation, and hardware output remain outside Stage 09.
+
 ## Stage 06 F1 25 Packet Header Parser
 
 `HapticDrive.Asio.Telemetry.F1_25` owns the first parser implementation:

@@ -21,7 +21,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\HapticDrive.Asio.Core\HapticDrive.Asio.Core.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Asio.Recording\HapticDrive.Asio.Recording.csproj" />
+    <ProjectReference Include="..\..\src\HapticDrive.Asio.Telemetry.F1_25\HapticDrive.Asio.Telemetry.F1_25.csproj" />
   </ItemGroup>
 
 </Project>

@@ -15,12 +15,13 @@ F1 25 can enable UDP telemetry through the in-game telemetry settings. PC users 
 
 The PDF examples use port `20777`. Haptic Drive ASIO defaults to listening on `20778` because another tool, router, or Simagic software may already consume `20777`.
 
-Stage 08 implements raw listening, byte-preserving forwarding, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, and mapping into shared `VehicleState`. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding sends exact raw payload bytes to enabled destinations and does not depend on parser success.
+Stage 09 implements raw listening, byte-preserving forwarding, raw packet recording, deterministic replay, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, and mapping into shared `VehicleState`. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding and recording use exact raw payload bytes and do not depend on parser success.
 
 Supported input modes planned:
 
 - Direct F1 25 UDP input.
 - Forwarded UDP input from another telemetry consumer.
+- Recorded `.hdrec` replay through the same parser and VehicleState path.
 - Multiple forwarding destinations independent of haptic output.
 
 ## Initial Packet Expectations

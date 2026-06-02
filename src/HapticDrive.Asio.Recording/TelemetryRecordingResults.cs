@@ -1,0 +1,127 @@
+namespace HapticDrive.Asio.Recording;
+
+public enum TelemetryRecordingOperationStatus
+{
+    Success,
+    NotRecording,
+    AlreadyRecording,
+    Cancelled,
+    Failure
+}
+
+public sealed record TelemetryRecordingOperationResult(
+    TelemetryRecordingOperationStatus Status,
+    string Message)
+{
+    public bool Succeeded => Status == TelemetryRecordingOperationStatus.Success;
+
+    public static TelemetryRecordingOperationResult Success(string message)
+    {
+        return new(TelemetryRecordingOperationStatus.Success, message);
+    }
+
+    public static TelemetryRecordingOperationResult NotRecording(string message)
+    {
+        return new(TelemetryRecordingOperationStatus.NotRecording, message);
+    }
+
+    public static TelemetryRecordingOperationResult AlreadyRecording(string message)
+    {
+        return new(TelemetryRecordingOperationStatus.AlreadyRecording, message);
+    }
+
+    public static TelemetryRecordingOperationResult Cancelled(string message)
+    {
+        return new(TelemetryRecordingOperationStatus.Cancelled, message);
+    }
+
+    public static TelemetryRecordingOperationResult Failure(string message)
+    {
+        return new(TelemetryRecordingOperationStatus.Failure, message);
+    }
+}
+
+public enum TelemetryRecordingLoadStatus
+{
+    Success,
+    FileNotFound,
+    UnsupportedVersion,
+    Cancelled,
+    Corrupt,
+    Failure
+}
+
+public sealed record TelemetryRecordingLoadResult(
+    TelemetryRecordingLoadStatus Status,
+    TelemetryRecording? Recording,
+    string Message)
+{
+    public bool Succeeded => Status == TelemetryRecordingLoadStatus.Success;
+
+    public static TelemetryRecordingLoadResult Success(TelemetryRecording recording)
+    {
+        return new(TelemetryRecordingLoadStatus.Success, recording, "Recording loaded.");
+    }
+
+    public static TelemetryRecordingLoadResult FileNotFound(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.FileNotFound, null, message);
+    }
+
+    public static TelemetryRecordingLoadResult UnsupportedVersion(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.UnsupportedVersion, null, message);
+    }
+
+    public static TelemetryRecordingLoadResult Cancelled(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.Cancelled, null, message);
+    }
+
+    public static TelemetryRecordingLoadResult Corrupt(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.Corrupt, null, message);
+    }
+
+    public static TelemetryRecordingLoadResult Failure(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.Failure, null, message);
+    }
+}
+
+public enum TelemetryReplayStatus
+{
+    Success,
+    Cancelled,
+    Failure
+}
+
+public sealed record TelemetryReplayResult(
+    TelemetryReplayStatus Status,
+    long PacketsReplayed,
+    string Message)
+{
+    public bool Succeeded => Status == TelemetryReplayStatus.Success;
+
+    public static TelemetryReplayResult Success(long packetsReplayed)
+    {
+        return new(TelemetryReplayStatus.Success, packetsReplayed, $"Replayed {packetsReplayed:N0} packets.");
+    }
+
+    public static TelemetryReplayResult Cancelled(long packetsReplayed)
+    {
+        return new(TelemetryReplayStatus.Cancelled, packetsReplayed, $"Replay cancelled after {packetsReplayed:N0} packets.");
+    }
+
+    public static TelemetryReplayResult Failure(long packetsReplayed, string message)
+    {
+        return new(TelemetryReplayStatus.Failure, packetsReplayed, message);
+    }
+}
+
+public sealed record TelemetryRecordingSnapshot(
+    bool IsRecording,
+    string? FilePath,
+    long PacketCount,
+    TimeSpan? LastPacketRelativeTime,
+    string? LastErrorMessage);
