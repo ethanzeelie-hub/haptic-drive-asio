@@ -47,7 +47,7 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 12 effect status",
+            "Stage 13 effect status",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
@@ -58,21 +58,24 @@ public partial class MainWindow : Window
                 "Stage 10 adds a deterministic mixer, conservative safety chain, and null-output sample consumption.",
                 "Stage 11 adds deterministic synthetic test signals for hardware-absent audio path validation.",
                 "Stage 12 adds conservative engine vibration and gear shift effect generators from VehicleState.",
+                "Stage 13 adds conservative kerb, impact, road texture, and slip / brake-lock effect generators from VehicleState.",
                 "NullAudioOutputDevice is the default safe output.",
-                "No Stage 13 road, kerb, slip, impact, traction, or ABS effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
         new(
             "Effects",
             "Effects",
-            "Hardware-safe gear shift and engine effect diagnostics.",
-            "Stage 12 effects available",
+            "Hardware-safe generated effect diagnostics.",
+            "Stage 13 effects available",
             [
                 "Gear shift is synthesized from valid forward gear changes in VehicleState telemetry.",
                 "Engine vibration is synthesized from RPM, throttle, idle RPM, max RPM, gear, speed, and pause/status gates where available.",
-                "Defaults are conservative and inspired by SimHub-style frequency, gain, pulse-duration, and debounce controls.",
+                "Kerb vibration is synthesized from rumble strip / ridged surface IDs, speed, and optional suspension/contact data.",
+                "Impact pulses are synthesized from player collision events and abrupt vertical-G, wheel-force, or suspension-acceleration spikes.",
+                "Road texture is synthesized from surface IDs, speed, and optional suspension / vertical-G motion.",
+                "Slip and minimal brake-lock vibration are synthesized from wheel slip ratio/angle, wheel speed, throttle, brake, speed, TC, and ABS fields.",
+                "Defaults are conservative and inspired by SimHub-style frequency, gain, pulse-duration, speed, and threshold controls.",
                 "The current shell renders deterministic validation buffers through the mixer, safety chain, and Null output; it is not a real audio callback.",
-                "Kerb, impact, road texture, and slip effects are scheduled for Stage 13.",
                 "A full tuning editor, effect profiles, live graphs, and physical calibration are deferred."
             ]),
         new(
@@ -83,7 +86,7 @@ public partial class MainWindow : Window
             [
                 "The Stage 10 mixer can combine source buffers with source gain, master gain, mute, and emergency mute.",
                 "The safety chain sanitises invalid samples, applies conservative output gain, limits peaks, and hard-clips overflow.",
-                "Stage 12 effect buffers feed this same mixer and safety path.",
+                "Stage 12 and Stage 13 effect buffers feed this same mixer and safety path.",
                 "Null output can consume final sample buffers deterministically without hardware.",
                 "Mono BST-1 routing is the first hardware target.",
                 "Future output adapters can be added without coupling effects to a specific device."
@@ -112,7 +115,7 @@ public partial class MainWindow : Window
                 "Forwarding sends exact packet bytes to enabled destinations.",
                 "Stage 07 packet bodies are parsed from the official F1 25 v3 spec.",
                 "Stage 08 selects the player car from packet headers and keeps last-known VehicleState slices.",
-                "Stage 12 effects consume VehicleState only and do not read parser packet bodies directly.",
+                "Stage 12 and Stage 13 effects consume VehicleState only and do not read parser packet bodies directly.",
                 "No forwarding destinations are configured in the shell yet.",
                 "Replay is implemented in the Recording project for deterministic tests."
             ]),
@@ -124,7 +127,7 @@ public partial class MainWindow : Window
             [
                 "Use Start Recording to capture raw incoming UDP packets to a versioned file.",
                 "Replay service emits recorded packets through the same parser and VehicleState path used by live packets.",
-                "Deterministic VehicleState sequences can drive Stage 12 effects in tests.",
+                "Deterministic VehicleState sequences can drive Stage 12 and Stage 13 effects in tests.",
                 "Replay tests do not require F1 25, UDP sockets, audio output, ASIO hardware, or shaker hardware.",
                 "A polished recording library UI is deferred."
             ]),
@@ -169,7 +172,7 @@ public partial class MainWindow : Window
             [
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
-                "Stage 12 reports engine active state, RPM-derived frequency, gear pulse state, last gear, and last shift frame.",
+                "Stage 13 reports engine, gear, kerb, impact, road texture, and slip effect state with conservative read-only diagnostics.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -244,7 +247,7 @@ public partial class MainWindow : Window
             TestBenchPanel.Visibility = page.NavigationLabel == "Test Bench"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 12 effects";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 13 effects";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
             UpdateTestBenchStatus();
@@ -279,7 +282,7 @@ public partial class MainWindow : Window
         StartStopButton.Content = _hapticsStarted ? "Stop Haptics" : "Start Haptics";
         UpdateHapticsStateText();
         FooterStatusText.Text = _hapticsStarted
-            ? "Haptics started with the Stage 12 effect engine feeding the mixer/safety pipeline and NullAudioOutputDevice."
+            ? "Haptics started with the Stage 13 effect engine feeding the mixer/safety pipeline and NullAudioOutputDevice."
             : "Haptics stopped";
         UpdateOutputStatus(result.Status);
         UpdateEffectStatus();
@@ -728,9 +731,33 @@ public partial class MainWindow : Window
             : $"Last gear {snapshot.GearShift.LastObservedGear}; last shift frame {snapshot.GearShift.LastShiftFrameIdentifier?.ToString("N0") ?? "none"}; peak {snapshot.GearShift.PeakLevel:0.000}.";
         GearShiftEffectDefaultsText.Text = $"Gain {GearShiftEffectOptions.Default.Gain:P0}; {GearShiftEffectOptions.Default.PulseFrequencyHz:0} Hz pulse; {GearShiftEffectOptions.Default.PulseDuration.TotalMilliseconds:0} ms; {GearShiftEffectOptions.Default.EngagingDebounceDuration.TotalMilliseconds:0} ms debounce.";
 
+        KerbEffectStateText.Text = snapshot.Kerb.IsActive ? "Active" : "Idle";
+        KerbEffectDetailText.Text = snapshot.Kerb.DominantSurfaceTypeId is null
+            ? "Waiting for rumble strip / ridged surface telemetry."
+            : $"{snapshot.Kerb.DominantSurfaceName}; {snapshot.Kerb.ActiveWheelCount} wheel(s); {snapshot.Kerb.CurrentFrequencyHz:0.0} Hz; peak {snapshot.Kerb.PeakLevel:0.000}.";
+        KerbEffectDefaultsText.Text = $"Gain {KerbEffectOptions.Default.Gain:P0}; {KerbEffectOptions.Default.BaseFrequencyHz:0} Hz + {KerbEffectOptions.Default.HighFrequencyHz:0} Hz; {KerbEffectOptions.Default.MinimumSpeedKph:0}-{KerbEffectOptions.Default.FullIntensitySpeedKph:0} km/h.";
+
+        ImpactEffectStateText.Text = snapshot.Impact.IsActive ? "Pulse active" : "Idle";
+        ImpactEffectDetailText.Text = snapshot.Impact.LastImpactFrameIdentifier is null
+            ? "Waiting for collision, vertical-G, force, or suspension spikes."
+            : $"Last impact frame {snapshot.Impact.LastImpactFrameIdentifier:N0}; intensity {snapshot.Impact.CurrentIntensity:0.00}; peak {snapshot.Impact.PeakLevel:0.000}.";
+        ImpactEffectDefaultsText.Text = $"Gain {ImpactEffectOptions.Default.Gain:P0}; {ImpactEffectOptions.Default.PulseFrequencyHz:0} Hz; {ImpactEffectOptions.Default.PulseDuration.TotalMilliseconds:0} ms; {ImpactEffectOptions.Default.CooldownDuration.TotalMilliseconds:0} ms cooldown.";
+
+        RoadTextureEffectStateText.Text = snapshot.RoadTexture.IsActive ? "Active" : "Idle";
+        RoadTextureEffectDetailText.Text = snapshot.RoadTexture.DominantSurfaceTypeId is null
+            ? "Waiting for speed and surface telemetry."
+            : $"{snapshot.RoadTexture.DominantSurfaceName}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; peak {snapshot.RoadTexture.PeakLevel:0.000}.";
+        RoadTextureEffectDefaultsText.Text = $"Gain {RoadTextureEffectOptions.Default.Gain:P0}; {RoadTextureEffectOptions.Default.MinimumSpeedKph:0}-{RoadTextureEffectOptions.Default.FullIntensitySpeedKph:0} km/h; tarmac is low-level.";
+
+        SlipEffectStateText.Text = snapshot.Slip.IsActive ? "Active" : "Idle";
+        SlipEffectDetailText.Text = snapshot.Slip.CurrentSlipIntensity <= 0f && snapshot.Slip.CurrentLockIntensity <= 0f
+            ? "Waiting for Motion Ex slip ratio / angle telemetry."
+            : $"Slip {snapshot.Slip.CurrentSlipIntensity:0.00}; lock {snapshot.Slip.CurrentLockIntensity:0.00}; {snapshot.Slip.CurrentFrequencyHz:0.0} Hz; peak {snapshot.Slip.PeakLevel:0.000}.";
+        SlipEffectDefaultsText.Text = $"Gain {SlipEffectOptions.Default.Gain:P0}; {SlipEffectOptions.Default.BaseFrequencyHz:0} Hz slip; {SlipEffectOptions.Default.BrakeLockFrequencyHz:0} Hz lock; min {SlipEffectOptions.Default.MinimumSpeedKph:0} km/h.";
+
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Effects" })
         {
-            PageStatusText.Text = $"{snapshot.ActiveEffectCount} active effect source(s); engine {EngineEffectStateText.Text.ToLowerInvariant()}, gear {GearShiftEffectStateText.Text.ToLowerInvariant()}; peak {snapshot.PeakLevel:0.000}.";
+            PageStatusText.Text = $"{snapshot.ActiveEffectCount} active effect source(s); engine {EngineEffectStateText.Text.ToLowerInvariant()}, gear {GearShiftEffectStateText.Text.ToLowerInvariant()}, kerb {KerbEffectStateText.Text.ToLowerInvariant()}, impact {ImpactEffectStateText.Text.ToLowerInvariant()}, road {RoadTextureEffectStateText.Text.ToLowerInvariant()}, slip {SlipEffectStateText.Text.ToLowerInvariant()}; peak {snapshot.PeakLevel:0.000}.";
         }
     }
 

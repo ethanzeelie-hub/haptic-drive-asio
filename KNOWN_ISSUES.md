@@ -97,7 +97,7 @@
 - The WPF Test Bench page is minimal and does not include graphs, routing controls, calibration, profile editing, or hardware setup workflows.
 - `NullAudioOutputDevice` remains the automated-test output; `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` still do not stream sample buffers to real hardware.
 - Physical shaker feel, safe gain, latency, and frequency tuning remain unvalidated until the real hardware chain is tested locally.
-- Kerb/impact/road/slip effects, real WASAPI output, real ASIO streaming, and physical hardware readiness remain future stages.
+- Real WASAPI output, real ASIO streaming, Stage 13 driving effects, and physical hardware readiness remain future stages.
 
 ## Stage 12
 
@@ -107,4 +107,15 @@
 - The app shows minimal Stage 12 diagnostics, but there is no full SimHub-style tuning UI, profile editor, live graphing, routing editor, or per-channel assignment UI yet.
 - `NullAudioOutputDevice` remains the automated-test output; `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` still do not stream sample buffers to real hardware.
 - Physical shaker feel, safe gain, latency, effect priority, and final frequency tuning remain unvalidated until the real hardware chain is tested locally.
-- Stage 13 road texture, kerb, impact, slip, traction loss, ABS, suspension, and surface-specific haptics are not implemented yet.
+
+## Stage 13
+
+- Kerb, impact, road texture, and slip / brake-lock effects are implemented with conservative deterministic defaults, but they still render validation buffers only; there is no continuous real-time audio callback loop yet.
+- Road texture is synthesized from surface IDs, speed, and optional suspension / vertical-G motion. F1 25 does not output a dedicated road-texture haptic signal.
+- Kerb vibration is synthesized from rumble strip and ridged surface IDs, speed, and optional suspension/contact data.
+- Impact pulses are synthesized from player collision events and abrupt vertical-G, wheel-vertical-force, or suspension-acceleration spikes. They are not crash physics or damage modelling.
+- Slip and minimal brake-lock vibration are synthesized from wheel slip ratio, wheel slip angle, wheel speed, throttle, brake, speed, TC, and ABS fields. A full ABS/lock-up tuning model is deferred.
+- Stage 13 uses packet frame stamps to reject clearly stale sample slices where possible, but a runtime wall-clock telemetry timeout/mute policy is still deferred.
+- The app shows read-only Stage 13 diagnostics, but there is no full SimHub-style tuning UI, profile editor, live graphing, routing editor, per-channel assignment UI, calibration UI, or persistence yet.
+- `NullAudioOutputDevice` remains the automated-test output; `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` still do not stream sample buffers to real hardware.
+- Physical shaker feel, safe gain, latency, effect priority, and final frequency tuning remain unvalidated until the real hardware chain is tested locally.

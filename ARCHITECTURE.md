@@ -157,7 +157,20 @@ The effect layer:
 - Feeds the existing Stage 10 mixer, safety processor, emergency mute, limiter, clipping protection, and output handoff.
 - Defaults to conservative software gains and `NullAudioOutputDevice` validation.
 
-The WPF Effects page adds minimal diagnostics for engine active state, RPM-derived frequency, gear pulse state, last observed gear, last shift frame, and default settings. It does not implement a full tuning UI, profile editor, live graphs, per-channel routing, physical calibration, real WASAPI output, real ASIO streaming, or Stage 13 road/kerb/slip/impact effects.
+The WPF Effects page adds minimal diagnostics for engine active state, RPM-derived frequency, gear pulse state, last observed gear, last shift frame, and default settings. It does not implement a full tuning UI, profile editor, live graphs, per-channel routing, physical calibration, real WASAPI output, or real ASIO streaming.
+
+## Stage 13 Kerb, Impact, Road Texture, and Slip Effects
+
+Audio extends the Stage 12 effect layer with four additional `VehicleState`-driven effect sources:
+
+- `KerbEffect` synthesizes rumble from documented rumble strip / ridged surface IDs, speed, active wheel count, and optional Motion Ex contact / suspension data.
+- `ImpactEffect` synthesizes short bounded pulses from player collision events and abrupt vertical-G, wheel-vertical-force, or suspension-acceleration changes.
+- `RoadTextureEffect` synthesizes low-level deterministic texture from documented surface IDs, speed, and optional suspension / vertical-G motion.
+- `SlipEffect` synthesizes slip, traction-loss, and minimal brake-lock vibration from wheel slip ratio, wheel slip angle, wheel speed, throttle, brake, speed, TC, and ABS state.
+
+The effect layer still consumes shared `VehicleState` only and does not read F1 25 packet bodies directly. The new sources render deterministic `AudioSampleBuffer` values and feed the same Stage 10 mixer, safety processor, emergency mute, limiter, clipping protection, and output handoff used by Stage 12.
+
+The WPF Effects page adds read-only diagnostics for kerb, impact, road texture, and slip state. It does not implement Stage 14 tuning controls, profiles, persistence, live graphs, per-channel routing, calibration, real WASAPI output, real ASIO streaming, Simagic P-HPR output, or physical hardware tuning.
 
 ## Stage 06 F1 25 Packet Header Parser
 

@@ -443,3 +443,43 @@ Self-review:
 - Parser packet layouts, offsets, enum values, versions, lengths, and VehicleState adapter behavior were not changed unnecessarily.
 - Physical shaker feel, safe gain, latency, and final frequency tuning remain unvalidated until real hardware testing.
 - Tests cover engine silence/invalid data, determinism, throttle amplitude, RPM frequency mapping, invalid values, pause/inactive gating, gear initial state, valid gear changes, unchanged gear, neutral/reverse/missing gear, transient decay, rapid changes, mixer/safety integration, emergency mute, null-output consumption, and deterministic VehicleState sequences.
+
+## Stage 13 - Kerb, Impact, Road Texture, and Slip Effects
+
+Date: 2026-06-03
+
+Status: Complete.
+
+Goal: Add conservative VehicleState-driven kerb, impact, road texture, and slip / brake-lock effect generators without requiring live telemetry, F1 25, WASAPI hardware, ASIO hardware, shaker hardware, physical calibration, or parser changes.
+
+Notes:
+
+- Added Stage 13 effect sources under `HapticDrive.Asio.Audio.Effects` for kerb, impact, road texture, and slip.
+- Kerb vibration is synthesized from raw F1 25 surface type IDs for rumble strip and ridged surfaces, speed, active wheel count, and optional Motion Ex contact / suspension data.
+- Impact pulses are synthesized from player collision events and abrupt vertical-G, wheel-vertical-force, or suspension-acceleration changes with initial-state protection, cooldown, bounded envelopes, and invalid-value guards.
+- Road texture is synthesized from documented surface IDs, speed, and optional suspension / vertical-G motion using conservative per-surface defaults and deterministic roughness.
+- Slip and minimal brake-lock vibration are synthesized from wheel slip ratio, wheel slip angle, wheel speed, throttle, brake, speed, traction control, and ABS state.
+- Added frame-stamp freshness checks so clearly stale telemetry slices are treated safely without adding a wall-clock timeout policy.
+- Extended `HapticEffectEngine` so Stage 13 source buffers feed the existing Stage 10 mixer, safety processor, emergency mute, limiter, clipping protection, and `NullAudioOutputDevice` path.
+- Wired minimal read-only WPF diagnostics for kerb, impact, road texture, and slip. No tuning UI, profile editor, routing UI, live graphs, calibration UI, persistence, real WASAPI output, or ASIO streaming was added.
+- Updated effect, architecture, F1 25 implementation, F1 25 telemetry, README, roadmap, and known-issues documentation.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 144 passing tests and 1 skipped manual ASIO hardware test.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 13 stayed within kerb, impact, road texture, slip, and minimal brake-lock scope.
+- No Stage 14 tuning/profile work was implemented.
+- No real WASAPI output, ASIO streaming, Simagic P-HPR output, profile editor, live graphing, routing editor, physical calibration, or hardware readiness work was added.
+- Effects consume shared `VehicleState`, not F1 25 packet internals.
+- No F1 25 packet layouts, parser offsets, enum values, packet lengths, or packet versions were changed or guessed.
+- UDP forwarding and recording/replay raw byte guarantees were not changed.
+- Default output remains hardware-safe through `NullAudioOutputDevice`.
+- Emergency mute remains controlled by the existing mixer/safety path and is test-covered.
+- Invalid and unsafe sample values are sanitized, gated, bounded, or silenced before final output.
+- Physical shaker feel, safe gain, latency, and final frequency tuning remain unvalidated until real hardware testing.

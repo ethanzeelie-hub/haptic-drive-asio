@@ -15,7 +15,8 @@
 - Stage 10: Audio mixer and safety chain complete.
 - Stage 11: Test bench complete.
 - Stage 12: Gear shift and engine effects complete.
-- Next: Stage 13 Kerb, impact, road texture, and slip effects.
+- Stage 13: Kerb, impact, road texture, and slip effects complete.
+- Next: Stage 14 UI tuning, profiles, and diagnostics.
 
 ## Planned Stages
 
@@ -31,7 +32,7 @@
 10. Stage 10: Audio mixer and safety chain. Complete.
 11. Stage 11: Test bench. Complete.
 12. Stage 12: Gear shift and engine effects. Complete.
-13. Stage 13: Kerb, impact, road texture, and slip effects.
+13. Stage 13: Kerb, impact, road texture, and slip effects. Complete.
 14. Stage 14: UI tuning, profiles, and diagnostics.
 15. Stage 15: First playable mock output milestone.
 16. Stage 16: Manual ASIO hardware readiness.

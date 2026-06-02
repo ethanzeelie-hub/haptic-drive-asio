@@ -64,4 +64,58 @@ internal static class HapticEffectMath
     {
         return from + ((to - from) * amount);
     }
+
+    public static double AdvancePhase(double phase, double frequencyHz, int sampleRate)
+    {
+        if (sampleRate <= 0 || double.IsNaN(frequencyHz) || double.IsInfinity(frequencyHz) || frequencyHz <= 0.0)
+        {
+            return phase;
+        }
+
+        phase += TwoPi * frequencyHz / sampleRate;
+        if (phase >= TwoPi)
+        {
+            phase %= TwoPi;
+        }
+
+        return phase;
+    }
+
+    public static float SpeedScale(float speedKph, float minimumSpeedKph, float fullSpeedKph)
+    {
+        if (!float.IsFinite(speedKph) || speedKph <= minimumSpeedKph)
+        {
+            return 0f;
+        }
+
+        if (!float.IsFinite(fullSpeedKph) || fullSpeedKph <= minimumSpeedKph)
+        {
+            return 1f;
+        }
+
+        return Clamp((speedKph - minimumSpeedKph) / (fullSpeedKph - minimumSpeedKph), 0f, 1f);
+    }
+
+    public static float SmoothingCoefficient(int sampleRate, TimeSpan smoothingTime)
+    {
+        if (sampleRate <= 0 || smoothingTime <= TimeSpan.Zero)
+        {
+            return 1f;
+        }
+
+        var coefficient = 1.0 - Math.Exp(-1.0 / (smoothingTime.TotalSeconds * sampleRate));
+        return (float)Clamp(coefficient, 0.0, 1.0);
+    }
+
+    public static double DeterministicSignedUnitNoise(long index, int seed = 0)
+    {
+        unchecked
+        {
+            var value = (ulong)index + 0x9E3779B97F4A7C15UL + ((ulong)seed * 0xBF58476D1CE4E5B9UL);
+            value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9UL;
+            value = (value ^ (value >> 27)) * 0x94D049BB133111EBUL;
+            value ^= value >> 31;
+            return ((value >> 11) * (1.0 / (1UL << 53)) * 2.0) - 1.0;
+        }
+    }
 }

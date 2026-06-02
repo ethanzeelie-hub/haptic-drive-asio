@@ -9,8 +9,16 @@ public sealed class HapticEffectEngine
     private readonly object _gate = new();
     private readonly EngineVibrationEffect _engineEffect;
     private readonly GearShiftEffect _gearShiftEffect;
+    private readonly KerbEffect _kerbEffect;
+    private readonly ImpactEffect _impactEffect;
+    private readonly RoadTextureEffect _roadTextureEffect;
+    private readonly SlipEffect _slipEffect;
     private readonly AudioSampleBuffer _engineBuffer;
     private readonly AudioSampleBuffer _gearShiftBuffer;
+    private readonly AudioSampleBuffer _kerbBuffer;
+    private readonly AudioSampleBuffer _impactBuffer;
+    private readonly AudioSampleBuffer _roadTextureBuffer;
+    private readonly AudioSampleBuffer _slipBuffer;
 
     private HapticEffectEngineSnapshot _snapshot;
 
@@ -25,11 +33,23 @@ public sealed class HapticEffectEngine
         Options = options ?? throw new ArgumentNullException(nameof(options));
         _engineEffect = new EngineVibrationEffect(Options.Engine);
         _gearShiftEffect = new GearShiftEffect(Options.GearShift);
+        _kerbEffect = new KerbEffect(Options.Kerb);
+        _impactEffect = new ImpactEffect(Options.Impact);
+        _roadTextureEffect = new RoadTextureEffect(Options.RoadTexture);
+        _slipEffect = new SlipEffect(Options.Slip);
         _engineBuffer = AudioSampleBuffer.Allocate(format);
         _gearShiftBuffer = AudioSampleBuffer.Allocate(format);
+        _kerbBuffer = AudioSampleBuffer.Allocate(format);
+        _impactBuffer = AudioSampleBuffer.Allocate(format);
+        _roadTextureBuffer = AudioSampleBuffer.Allocate(format);
+        _slipBuffer = AudioSampleBuffer.Allocate(format);
         _snapshot = CreateSnapshot(
             _engineEffect.Snapshot,
             _gearShiftEffect.Snapshot,
+            _kerbEffect.Snapshot,
+            _impactEffect.Snapshot,
+            _roadTextureEffect.Snapshot,
+            _slipEffect.Snapshot,
             activeEffectCount: 0,
             peakLevel: 0f);
     }
@@ -44,9 +64,17 @@ public sealed class HapticEffectEngine
         {
             _engineEffect.Reset();
             _gearShiftEffect.Reset();
+            _kerbEffect.Reset();
+            _impactEffect.Reset();
+            _roadTextureEffect.Reset();
+            _slipEffect.Reset();
             _snapshot = CreateSnapshot(
                 _engineEffect.Snapshot,
                 _gearShiftEffect.Snapshot,
+                _kerbEffect.Snapshot,
+                _impactEffect.Snapshot,
+                _roadTextureEffect.Snapshot,
+                _slipEffect.Snapshot,
                 activeEffectCount: 0,
                 peakLevel: 0f);
         }
@@ -60,9 +88,17 @@ public sealed class HapticEffectEngine
         {
             _engineEffect.Update(vehicleState);
             _gearShiftEffect.Update(vehicleState);
+            _kerbEffect.Update(vehicleState);
+            _impactEffect.Update(vehicleState);
+            _roadTextureEffect.Update(vehicleState);
+            _slipEffect.Update(vehicleState);
             _snapshot = CreateSnapshot(
                 _engineEffect.Snapshot,
                 _gearShiftEffect.Snapshot,
+                _kerbEffect.Snapshot,
+                _impactEffect.Snapshot,
+                _roadTextureEffect.Snapshot,
+                _slipEffect.Snapshot,
                 activeEffectCount: 0,
                 peakLevel: 0f);
         }
@@ -80,9 +116,13 @@ public sealed class HapticEffectEngine
     {
         lock (_gate)
         {
-            var inputs = new List<AudioMixerInput>(capacity: 2);
+            var inputs = new List<AudioMixerInput>(capacity: 6);
             var engineResult = _engineEffect.Render(_engineBuffer);
             var gearShiftResult = _gearShiftEffect.Render(_gearShiftBuffer);
+            var kerbResult = _kerbEffect.Render(_kerbBuffer);
+            var impactResult = _impactEffect.Render(_impactBuffer);
+            var roadTextureResult = _roadTextureEffect.Render(_roadTextureBuffer);
+            var slipResult = _slipEffect.Render(_slipBuffer);
 
             if (engineResult.IsActive)
             {
@@ -94,10 +134,38 @@ public sealed class HapticEffectEngine
                 inputs.Add(new AudioMixerInput(_gearShiftBuffer, name: _gearShiftEffect.Name));
             }
 
-            var peakLevel = Math.Max(engineResult.PeakLevel, gearShiftResult.PeakLevel);
+            if (kerbResult.IsActive)
+            {
+                inputs.Add(new AudioMixerInput(_kerbBuffer, name: _kerbEffect.Name));
+            }
+
+            if (impactResult.IsActive)
+            {
+                inputs.Add(new AudioMixerInput(_impactBuffer, name: _impactEffect.Name));
+            }
+
+            if (roadTextureResult.IsActive)
+            {
+                inputs.Add(new AudioMixerInput(_roadTextureBuffer, name: _roadTextureEffect.Name));
+            }
+
+            if (slipResult.IsActive)
+            {
+                inputs.Add(new AudioMixerInput(_slipBuffer, name: _slipEffect.Name));
+            }
+
+            var peakLevel = Math.Max(
+                Math.Max(engineResult.PeakLevel, gearShiftResult.PeakLevel),
+                Math.Max(
+                    Math.Max(kerbResult.PeakLevel, impactResult.PeakLevel),
+                    Math.Max(roadTextureResult.PeakLevel, slipResult.PeakLevel)));
             _snapshot = CreateSnapshot(
                 _engineEffect.Snapshot,
                 _gearShiftEffect.Snapshot,
+                _kerbEffect.Snapshot,
+                _impactEffect.Snapshot,
+                _roadTextureEffect.Snapshot,
+                _slipEffect.Snapshot,
                 inputs.Count,
                 peakLevel);
 
@@ -108,12 +176,20 @@ public sealed class HapticEffectEngine
     private static HapticEffectEngineSnapshot CreateSnapshot(
         EngineVibrationEffectSnapshot engine,
         GearShiftEffectSnapshot gearShift,
+        KerbEffectSnapshot kerb,
+        ImpactEffectSnapshot impact,
+        RoadTextureEffectSnapshot roadTexture,
+        SlipEffectSnapshot slip,
         int activeEffectCount,
         float peakLevel)
     {
         return new HapticEffectEngineSnapshot(
             engine,
             gearShift,
+            kerb,
+            impact,
+            roadTexture,
+            slip,
             activeEffectCount,
             peakLevel);
     }
@@ -126,5 +202,9 @@ public sealed record HapticEffectEngineRenderResult(
 public sealed record HapticEffectEngineSnapshot(
     EngineVibrationEffectSnapshot Engine,
     GearShiftEffectSnapshot GearShift,
+    KerbEffectSnapshot Kerb,
+    ImpactEffectSnapshot Impact,
+    RoadTextureEffectSnapshot RoadTexture,
+    SlipEffectSnapshot Slip,
     int ActiveEffectCount,
     float PeakLevel);

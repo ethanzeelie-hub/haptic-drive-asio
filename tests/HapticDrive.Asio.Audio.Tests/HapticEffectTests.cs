@@ -208,6 +208,233 @@ public sealed class HapticEffectTests
     }
 
     [Fact]
+    public void KerbEffect_DisabledOutputsSilence()
+    {
+        var effect = new KerbEffect(KerbEffectOptions.Default with { IsEnabled = false });
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(speed: 90, surfaceTypeIds: Wheels<byte>(1)));
+        var result = effect.Render(buffer);
+
+        Assert.False(result.IsActive);
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void KerbEffect_MissingOrUnknownSurfaceDataOutputsSilence()
+    {
+        AssertSilence(RenderKerb(VehicleState.Empty));
+        AssertSilence(RenderKerb(State(speed: 90, surfaceTypeIds: Wheels<byte>(99))));
+    }
+
+    [Fact]
+    public void KerbEffect_ActivatesForRumbleStripAndRespondsToSpeed()
+    {
+        var slow = RenderKerb(State(speed: 25, surfaceTypeIds: Wheels<byte>(1)));
+        var fast = RenderKerb(State(speed: 110, surfaceTypeIds: Wheels<byte>(1)));
+
+        Assert.True(Peak(slow) > 0f);
+        Assert.True(Peak(fast) > Peak(slow));
+    }
+
+    [Fact]
+    public void RoadTextureEffect_DisabledOutputsSilence()
+    {
+        var effect = new RoadTextureEffect(RoadTextureEffectOptions.Default with { IsEnabled = false });
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(speed: 90, surfaceTypeIds: Wheels<byte>(4)));
+        var result = effect.Render(buffer);
+
+        Assert.False(result.IsActive);
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void RoadTextureEffect_IsSilentAtVeryLowSpeed()
+    {
+        var buffer = RenderRoadTexture(State(speed: 2, surfaceTypeIds: Wheels<byte>(4)));
+
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void RoadTextureEffect_VariesBySurfaceAndIsDeterministic()
+    {
+        var firstGravel = RenderRoadTexture(State(speed: 100, surfaceTypeIds: Wheels<byte>(4)));
+        var secondGravel = RenderRoadTexture(State(speed: 100, surfaceTypeIds: Wheels<byte>(4)));
+        var tarmac = RenderRoadTexture(State(speed: 100, surfaceTypeIds: Wheels<byte>(0)));
+
+        AssertSamplesEqual(firstGravel, secondGravel);
+        Assert.True(Peak(firstGravel) > Peak(tarmac));
+    }
+
+    [Fact]
+    public void ImpactEffect_DisabledOutputsSilence()
+    {
+        var effect = new ImpactEffect(ImpactEffectOptions.Default with { IsEnabled = false });
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(includeMotion: true, gForceVertical: 1f));
+        effect.Update(State(includeMotion: true, gForceVertical: 3f, sessionTime: 1.2f, frame: 2));
+        var result = effect.Render(buffer);
+
+        Assert.False(result.IsActive);
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void ImpactEffect_DoesNotTriggerOnInitialState()
+    {
+        var effect = new ImpactEffect(ImpactOptions());
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(includeMotion: true, gForceVertical: 3f, sessionTime: 1f, frame: 1));
+        var result = effect.Render(buffer);
+
+        Assert.False(result.IsActive);
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void ImpactEffect_TriggersOnVerticalGSpike()
+    {
+        var effect = new ImpactEffect(ImpactOptions());
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(includeMotion: true, gForceVertical: 1f, sessionTime: 1f, frame: 1));
+        effect.Render(buffer);
+        effect.Update(State(includeMotion: true, gForceVertical: 3f, sessionTime: 1.2f, frame: 5));
+        var result = effect.Render(buffer);
+
+        Assert.True(result.IsActive);
+        Assert.True(Peak(buffer) > 0f);
+        Assert.Equal(5u, effect.Snapshot.LastImpactFrameIdentifier);
+    }
+
+    [Fact]
+    public void ImpactEffect_TriggersOnPlayerCollisionEvent()
+    {
+        var effect = new ImpactEffect(ImpactOptions());
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(sessionTime: 1f, frame: 1));
+        effect.Render(buffer);
+        effect.Update(State(sessionTime: 1.2f, frame: 5, eventCode: "COLL", eventInvolvesPlayer: true));
+        var result = effect.Render(buffer);
+
+        Assert.True(result.IsActive);
+        Assert.True(Peak(buffer) > 0f);
+    }
+
+    [Fact]
+    public void ImpactEffect_RespectsCooldownForRepeatedSpikes()
+    {
+        var effect = new ImpactEffect(ImpactOptions(durationMilliseconds: 4, cooldownMilliseconds: 500));
+        var buffer = AudioSampleBuffer.Allocate(new AudioSampleFormat(1_000, 1, 10));
+
+        effect.Update(State(includeMotion: true, gForceVertical: 1f, sessionTime: 1f, frame: 1));
+        effect.Render(buffer);
+        effect.Update(State(includeMotion: true, gForceVertical: 3f, sessionTime: 1.2f, frame: 5));
+        effect.Render(buffer);
+        Assert.True(Peak(buffer) > 0f);
+
+        effect.Update(State(includeMotion: true, gForceVertical: 1f, sessionTime: 1.25f, frame: 6));
+        var result = effect.Render(buffer);
+
+        Assert.False(result.IsActive);
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void ImpactEffect_TransientDecaysOverConfiguredDuration()
+    {
+        var effect = new ImpactEffect(ImpactOptions(durationMilliseconds: 40));
+        var buffer = AudioSampleBuffer.Allocate(new AudioSampleFormat(1_000, 1, 20));
+
+        effect.Update(State(includeMotion: true, gForceVertical: 1f, sessionTime: 1f, frame: 1));
+        effect.Render(buffer);
+        effect.Update(State(includeMotion: true, gForceVertical: 3f, sessionTime: 1.2f, frame: 5));
+        effect.Render(buffer);
+        var firstPeak = Peak(buffer);
+        effect.Render(buffer);
+        var secondPeak = Peak(buffer);
+
+        Assert.True(firstPeak > 0f);
+        Assert.True(secondPeak > 0f);
+        Assert.True(secondPeak < firstPeak);
+    }
+
+    [Fact]
+    public void SlipEffect_DisabledOutputsSilence()
+    {
+        var effect = new SlipEffect(SlipEffectOptions.Default with { IsEnabled = false });
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(speed: 90, wheelSlipRatio: Wheels(0.4f), wheelSlipAngle: Wheels(0.1f)));
+        var result = effect.Render(buffer);
+
+        Assert.False(result.IsActive);
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void SlipEffect_MissingMotionExOutputsSilence()
+    {
+        var buffer = RenderSlip(State(speed: 90));
+
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void SlipEffect_ActivatesForMeaningfulSlipRatioOrAngle()
+    {
+        var ratio = RenderSlip(State(speed: 90, throttle: 0.8f, wheelSlipRatio: Wheels(0.32f), wheelSlipAngle: Wheels(0f)));
+        var angle = RenderSlip(State(speed: 90, throttle: 0.8f, wheelSlipRatio: Wheels(0f), wheelSlipAngle: Wheels(0.32f)));
+
+        Assert.True(Peak(ratio) > 0f);
+        Assert.True(Peak(angle) > 0f);
+    }
+
+    [Fact]
+    public void SlipEffect_SuppressesVeryLowSpeedSlipNoise()
+    {
+        var buffer = RenderSlip(State(speed: 3, throttle: 1f, wheelSlipRatio: Wheels(1f), wheelSlipAngle: Wheels(1f)));
+
+        AssertSilence(buffer);
+    }
+
+    [Fact]
+    public void SlipEffect_BrakeLockUsesConservativeSlipPath()
+    {
+        var effect = new SlipEffect();
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(
+            speed: 120,
+            brake: 0.8f,
+            wheelSlipRatio: Wheels(0.5f),
+            wheelSlipAngle: Wheels(0f),
+            wheelSpeed: Wheels(2f)));
+        effect.Render(buffer);
+
+        Assert.True(effect.Snapshot.CurrentLockIntensity > 0f);
+        Assert.True(Peak(buffer) > 0f);
+    }
+
+    [Fact]
+    public void SlipEffect_InvalidValuesStayFiniteAndBounded()
+    {
+        var buffer = RenderSlip(State(
+            speed: 90,
+            throttle: 1f,
+            wheelSlipRatio: new VehicleWheelData<float>(float.NaN, float.PositiveInfinity, float.NegativeInfinity, -10f),
+            wheelSlipAngle: new VehicleWheelData<float>(float.NaN, 0.4f, float.PositiveInfinity, -10f)));
+
+        AssertFiniteAndBounded(buffer, 1f);
+    }
+
+    [Fact]
     public async Task EffectEngine_FlowsThroughMixerSafetyAndNullOutputWithoutHardware()
     {
         var configuration = new AudioOutputConfiguration(1_000, 1, 200);
@@ -229,6 +456,41 @@ public sealed class HapticEffectTests
 
         Assert.True(result.Succeeded, result.Message);
         Assert.True(render.Snapshot.Engine.IsActive);
+        Assert.Equal(1, sink.SubmittedBufferCount);
+        Assert.True(sink.LastPeakLevel > 0f);
+    }
+
+    [Fact]
+    public async Task EffectEngine_Stage13EffectsFlowThroughMixerSafetyAndNullOutputWithoutHardware()
+    {
+        var configuration = new AudioOutputConfiguration(1_000, 1, 200);
+        var format = AudioSampleFormat.FromConfiguration(configuration);
+        var engine = new HapticEffectEngine(format);
+        var pipeline = new AudioRenderPipeline(format)
+        {
+            SafetyOptions = UnitySafetyOptions
+        };
+        var outputBuffer = AudioSampleBuffer.Allocate(format);
+        await using var outputDevice = new NullAudioOutputDevice();
+
+        Assert.True((await outputDevice.OpenAsync(configuration)).Succeeded);
+        Assert.True((await outputDevice.StartAsync()).Succeeded);
+        engine.Update(State(
+            rpm: 0,
+            speed: 90,
+            surfaceTypeIds: Wheels<byte>(1),
+            wheelSlipRatio: Wheels(0.3f),
+            wheelSlipAngle: Wheels(0.2f),
+            wheelSpeed: Wheels(20f)));
+        var render = engine.RenderNextBuffer();
+        var result = await pipeline.ProcessAndSubmitAsync(render.MixerInputs, outputBuffer, outputDevice);
+        var sink = outputDevice.GetSampleSinkSnapshot();
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.True(render.Snapshot.Kerb.IsActive);
+        Assert.True(render.Snapshot.RoadTexture.IsActive);
+        Assert.True(render.Snapshot.Slip.IsActive);
+        Assert.True(render.Snapshot.ActiveEffectCount >= 3);
         Assert.Equal(1, sink.SubmittedBufferCount);
         Assert.True(sink.LastPeakLevel > 0f);
     }
@@ -333,27 +595,111 @@ public sealed class HapticEffectTests
         };
     }
 
+    private static ImpactEffectOptions ImpactOptions(
+        int durationMilliseconds = 80,
+        int cooldownMilliseconds = 0)
+    {
+        return ImpactEffectOptions.Default with
+        {
+            Gain = 0.25f,
+            PulseFrequencyHz = 125f,
+            PulseDuration = TimeSpan.FromMilliseconds(durationMilliseconds),
+            CooldownDuration = TimeSpan.FromMilliseconds(cooldownMilliseconds),
+            MinimumFrameGap = 0
+        };
+    }
+
+    private static AudioSampleBuffer RenderKerb(VehicleState state)
+    {
+        var effect = new KerbEffect();
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+        effect.Update(state);
+        effect.Render(buffer);
+        return buffer;
+    }
+
+    private static AudioSampleBuffer RenderRoadTexture(VehicleState state)
+    {
+        var effect = new RoadTextureEffect();
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+        effect.Update(state);
+        effect.Render(buffer);
+        return buffer;
+    }
+
+    private static AudioSampleBuffer RenderSlip(VehicleState state)
+    {
+        var effect = new SlipEffect();
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+        effect.Update(state);
+        effect.Render(buffer);
+        return buffer;
+    }
+
     private static VehicleState State(
         ushort rpm = 9_000,
         float throttle = 0.5f,
+        float brake = 0f,
         sbyte gear = 3,
         ushort speed = 140,
         ushort idleRpm = 3_000,
         ushort maxRpm = 12_000,
         byte maxGears = 8,
+        byte tractionControl = 0,
+        byte antiLockBrakes = 0,
         byte gamePaused = 0,
         byte networkPaused = 0,
         byte driverStatus = 1,
         byte resultStatus = 2,
         byte pitStatus = 0,
         float sessionTime = 1f,
-        uint frame = 1)
+        uint frame = 1,
+        VehicleWheelData<byte>? surfaceTypeIds = null,
+        bool includeMotion = false,
+        float gForceVertical = 1f,
+        VehicleWheelData<float>? suspensionPosition = null,
+        VehicleWheelData<float>? suspensionVelocity = null,
+        VehicleWheelData<float>? suspensionAcceleration = null,
+        VehicleWheelData<float>? wheelSpeed = null,
+        VehicleWheelData<float>? wheelSlipRatio = null,
+        VehicleWheelData<float>? wheelSlipAngle = null,
+        VehicleWheelData<float>? wheelLatForce = null,
+        VehicleWheelData<float>? wheelLongForce = null,
+        VehicleWheelData<float>? wheelVertForce = null,
+        string? eventCode = null,
+        bool eventInvolvesPlayer = false)
     {
         var stamp = new VehicleStateStamp("Test", 42, sessionTime, frame, frame, 0);
+        var hasMotionEx = suspensionPosition is not null
+            || suspensionVelocity is not null
+            || suspensionAcceleration is not null
+            || wheelSpeed is not null
+            || wheelSlipRatio is not null
+            || wheelSlipAngle is not null
+            || wheelLatForce is not null
+            || wheelLongForce is not null
+            || wheelVertForce is not null;
 
         return VehicleState.Empty with
         {
             Frame = new VehicleStateFrame(42, sessionTime, frame, frame, 0, "Test"),
+            Motion = includeMotion
+                ? new VehicleStateSample<VehicleMotionState>(
+                    new VehicleMotionState(
+                        WorldPositionX: 0f,
+                        WorldPositionY: 0f,
+                        WorldPositionZ: 0f,
+                        WorldVelocityX: 0f,
+                        WorldVelocityY: 0f,
+                        WorldVelocityZ: 0f,
+                        GForceLateral: 0f,
+                        GForceLongitudinal: 0f,
+                        GForceVertical: gForceVertical,
+                        Yaw: 0f,
+                        Pitch: 0f,
+                        Roll: 0f),
+                    stamp)
+                : null,
             Session = new VehicleStateSample<VehicleSessionState>(
                 new VehicleSessionState(
                     Weather: 0,
@@ -387,7 +733,7 @@ public sealed class HapticEffectTests
                     SpeedKph: speed,
                     Throttle: throttle,
                     Steer: 0f,
-                    Brake: 0f,
+                    Brake: brake,
                     Clutch: 0,
                     Gear: gear,
                     EngineRpm: rpm,
@@ -400,12 +746,12 @@ public sealed class HapticEffectTests
                     TyreSurfaceTemperatureCelsius: Wheels<byte>(90),
                     TyreInnerTemperatureCelsius: Wheels<byte>(90),
                     TyrePressurePsi: Wheels(22.5f),
-                    SurfaceTypeIds: Wheels<byte>(0)),
+                    SurfaceTypeIds: surfaceTypeIds ?? Wheels<byte>(0)),
                 stamp),
             CarStatus = new VehicleStateSample<VehicleCarStatusState>(
                 new VehicleCarStatusState(
-                    TractionControl: 0,
-                    AntiLockBrakes: 0,
+                    TractionControl: tractionControl,
+                    AntiLockBrakes: antiLockBrakes,
                     FuelMix: 0,
                     FrontBrakeBias: 55,
                     PitLimiterStatus: 0,
@@ -429,7 +775,51 @@ public sealed class HapticEffectTests
                     ErsHarvestedThisLapMguhJoules: 0f,
                     ErsDeployedThisLapJoules: 0f,
                     NetworkPaused: networkPaused),
-                stamp)
+                stamp),
+            MotionEx = hasMotionEx
+                ? new VehicleStateSample<VehicleMotionExState>(
+                    new VehicleMotionExState(
+                        SuspensionPosition: suspensionPosition ?? Wheels(0f),
+                        SuspensionVelocity: suspensionVelocity ?? Wheels(0f),
+                        SuspensionAcceleration: suspensionAcceleration ?? Wheels(0f),
+                        WheelSpeed: wheelSpeed ?? Wheels(speed / 3.6f),
+                        WheelSlipRatio: wheelSlipRatio ?? Wheels(0f),
+                        WheelSlipAngle: wheelSlipAngle ?? Wheels(0f),
+                        WheelLatForce: wheelLatForce ?? Wheels(0f),
+                        WheelLongForce: wheelLongForce ?? Wheels(0f),
+                        HeightOfCogAboveGround: 0.3f,
+                        LocalVelocityX: 0f,
+                        LocalVelocityY: 0f,
+                        LocalVelocityZ: speed / 3.6f,
+                        AngularVelocityX: 0f,
+                        AngularVelocityY: 0f,
+                        AngularVelocityZ: 0f,
+                        AngularAccelerationX: 0f,
+                        AngularAccelerationY: 0f,
+                        AngularAccelerationZ: 0f,
+                        FrontWheelsAngleRadians: 0f,
+                        WheelVertForce: wheelVertForce ?? Wheels(8_000f),
+                        FrontAeroHeight: 0f,
+                        RearAeroHeight: 0f,
+                        FrontRollAngle: 0f,
+                        RearRollAngle: 0f,
+                        ChassisYaw: 0f,
+                        ChassisPitch: 0f,
+                        WheelCamber: Wheels(0f),
+                        WheelCamberGain: Wheels(0f)),
+                    stamp)
+                : null,
+            LastEvent = eventCode is null
+                ? null
+                : new VehicleStateSample<VehicleEventState>(
+                    new VehicleEventState(
+                        eventCode,
+                        eventCode.Select(character => (byte)character).ToArray(),
+                        Array.Empty<byte>(),
+                        eventInvolvesPlayer ? (byte)0 : (byte)1,
+                        eventInvolvesPlayer ? (byte)4 : (byte)5,
+                        eventInvolvesPlayer),
+                    stamp)
         };
     }
 

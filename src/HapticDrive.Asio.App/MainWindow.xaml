@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 12 gear shift and engine effects" />
+                               Text="Stage 13 kerb, impact, road texture, and slip effects" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -300,10 +300,10 @@
                         <StackPanel>
                             <TextBlock FontSize="18"
                                        FontWeight="SemiBold"
-                                       Text="Stage 12 Effects" />
+                                       Text="Stage 13 Effects" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Engine vibration and gear shift are synthesized from VehicleState telemetry, then rendered through the mixer, safety chain, and Null output." />
+                                       Text="Engine, gear shift, kerb, impact, road texture, and slip effects are synthesized from VehicleState telemetry, then rendered through the mixer, safety chain, and Null output." />
 
                             <UniformGrid Columns="2"
                                          Margin="0,18,0,0">
@@ -336,6 +336,74 @@
                                                Foreground="{DynamicResource AppMutedTextBrush}"
                                                Text="Waiting for gear telemetry." />
                                     <TextBlock x:Name="GearShiftEffectDefaultsText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Conservative defaults pending." />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,18,24,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Kerb" />
+                                    <TextBlock x:Name="KerbEffectStateText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Idle" />
+                                    <TextBlock x:Name="KerbEffectDetailText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Waiting for surface telemetry." />
+                                    <TextBlock x:Name="KerbEffectDefaultsText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Conservative defaults pending." />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,18,0,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Impact" />
+                                    <TextBlock x:Name="ImpactEffectStateText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Idle" />
+                                    <TextBlock x:Name="ImpactEffectDetailText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Waiting for impact telemetry." />
+                                    <TextBlock x:Name="ImpactEffectDefaultsText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Conservative defaults pending." />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,18,24,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Road Texture" />
+                                    <TextBlock x:Name="RoadTextureEffectStateText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Idle" />
+                                    <TextBlock x:Name="RoadTextureEffectDetailText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Waiting for surface telemetry." />
+                                    <TextBlock x:Name="RoadTextureEffectDefaultsText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Conservative defaults pending." />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,18,0,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Slip / Lock" />
+                                    <TextBlock x:Name="SlipEffectStateText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Idle" />
+                                    <TextBlock x:Name="SlipEffectDetailText"
+                                               Margin="0,6,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Waiting for Motion Ex slip telemetry." />
+                                    <TextBlock x:Name="SlipEffectDefaultsText"
                                                Margin="0,6,0,0"
                                                Foreground="{DynamicResource AppMutedTextBrush}"
                                                Text="Conservative defaults pending." />

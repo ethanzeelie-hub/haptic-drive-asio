@@ -381,8 +381,26 @@ Parser impact:
 
 Not implemented yet:
 
-- Stage 13 kerb, impact, road texture, slip, traction loss, ABS, suspension, or surface-specific haptics.
 - Real WASAPI output, ASIO streaming, Simagic P-HPR output, profile editing, live graphs, continuous real-time audio callback, or physical shaker calibration.
+
+## Stage 13 Implementation Status
+
+Implemented:
+
+- `VehicleState`-driven kerb effect generation from raw surface type IDs, speed, and optional Motion Ex contact / suspension data.
+- `VehicleState`-driven impact effect generation from player collision events, vertical-G deltas, wheel-vertical-force deltas, and suspension-acceleration deltas.
+- `VehicleState`-driven road texture generation from raw surface type IDs, speed, and optional Motion Ex / vertical-G motion.
+- `VehicleState`-driven slip / brake-lock generation from wheel slip ratio, wheel slip angle, wheel speed, throttle, brake, speed, traction control, and ABS state.
+- Conservative default effect options, deterministic roughness/noise, frame-stamp stale-slice checks, bounded transient envelopes, and read-only WPF diagnostics.
+
+Parser impact:
+
+- No F1 25 packet layouts, offsets, enum values, packet lengths, packet versions, parser behavior, raw UDP forwarding, or recording/replay byte-preservation behavior changed in Stage 13.
+- The effect layer consumes shared `VehicleState` only and does not read F1 25 parser packet bodies directly.
+
+Not implemented yet:
+
+- Stage 14 tuning UI, profiles, persistence, advanced diagnostics, live graphs, per-channel routing, calibration, advanced ABS/lock-up modelling, real WASAPI output, ASIO streaming, Simagic P-HPR output, continuous real-time audio callback, or physical shaker calibration.
 
 ## Stage 03 Scope Boundary
 

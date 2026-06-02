@@ -1,0 +1,63 @@
+namespace HapticDrive.Asio.Audio.Effects;
+
+public sealed record SlipEffectOptions(
+    bool IsEnabled,
+    float Gain,
+    float BaseFrequencyHz,
+    bool HighFrequencyEnabled,
+    float HighFrequencyHz,
+    float HighFrequencyGain,
+    float RoughnessAmount,
+    float MinimumSpeedKph,
+    float FullIntensitySpeedKph,
+    float SlipRatioThreshold,
+    float SlipRatioFullScale,
+    float SlipAngleThresholdRadians,
+    float SlipAngleFullScaleRadians,
+    float TriggerThrottle,
+    float TriggerBrake,
+    float LowPedalInputMultiplier,
+    float AssistedSlipMultiplier,
+    float BrakeLockSlipRatioThreshold,
+    float BrakeLockWheelSpeedRatioThreshold,
+    float BrakeLockFrequencyHz,
+    float BrakeLockGainMultiplier,
+    float MaximumAmplitude,
+    TimeSpan ResponseSmoothingTime,
+    uint MaximumTelemetryFrameLag)
+{
+    public static SlipEffectOptions Default { get; } = new(
+        IsEnabled: true,
+        Gain: 0.09f,
+        BaseFrequencyHz: 40f,
+        HighFrequencyEnabled: true,
+        HighFrequencyHz: 50f,
+        HighFrequencyGain: 0.2f,
+        RoughnessAmount: 0.12f,
+        MinimumSpeedKph: 8f,
+        FullIntensitySpeedKph: 90f,
+        SlipRatioThreshold: 0.08f,
+        SlipRatioFullScale: 0.45f,
+        SlipAngleThresholdRadians: 0.08f,
+        SlipAngleFullScaleRadians: 0.45f,
+        TriggerThrottle: 0.1f,
+        TriggerBrake: 0.1f,
+        LowPedalInputMultiplier: 0.35f,
+        AssistedSlipMultiplier: 0.75f,
+        BrakeLockSlipRatioThreshold: 0.35f,
+        BrakeLockWheelSpeedRatioThreshold: 0.35f,
+        BrakeLockFrequencyHz: 30f,
+        BrakeLockGainMultiplier: 1.15f,
+        MaximumAmplitude: 0.2f,
+        ResponseSmoothingTime: TimeSpan.FromMilliseconds(18),
+        MaximumTelemetryFrameLag: 120);
+}
+
+public sealed record SlipEffectSnapshot(
+    bool IsEnabled,
+    bool IsActive,
+    float CurrentSlipIntensity,
+    float CurrentLockIntensity,
+    float CurrentFrequencyHz,
+    float CurrentAmplitude,
+    float PeakLevel);
