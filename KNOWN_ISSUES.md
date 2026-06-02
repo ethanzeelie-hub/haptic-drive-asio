@@ -89,3 +89,12 @@
 - `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` do not stream sample buffers yet; real output remains deferred.
 - Safety defaults limit normalized floating-point samples, but they are not physical shaker gain calibration and must not be treated as final hardware safety limits.
 - Stage 11 test bench signals, generated haptic effects, real WASAPI output, real ASIO streaming, and physical shaker validation remain unimplemented.
+
+## Stage 11
+
+- The test bench renders deterministic validation buffers, but it does not run a continuous real-time audio callback or timing-sensitive render loop.
+- Test signals are synthetic validation tools only; generated driving haptic effects remain unimplemented.
+- The WPF Test Bench page is minimal and does not include graphs, routing controls, calibration, profile editing, or hardware setup workflows.
+- `NullAudioOutputDevice` remains the automated-test output; `WasapiDebugOutputDevice` and `AsioAudioOutputDevice` still do not stream sample buffers to real hardware.
+- Physical shaker feel, safe gain, latency, and frequency tuning remain unvalidated until the real hardware chain is tested locally.
+- Gear shift and engine effects, kerb/impact/road/slip effects, real WASAPI output, real ASIO streaming, and physical hardware readiness remain future stages.

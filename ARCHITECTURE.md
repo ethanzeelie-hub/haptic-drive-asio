@@ -128,6 +128,21 @@ Audio owns the deterministic processing implementation:
 
 The WPF shell connects Start Haptics and Emergency Mute to the Stage 10 pipeline only by submitting safe silence to `NullAudioOutputDevice`. There is no continuous audio callback, generated haptic effect, Stage 11 test signal, real WASAPI output, or real ASIO streaming in Stage 10.
 
+## Stage 11 Test Bench
+
+Audio owns the Stage 11 synthetic test bench under `HapticDrive.Asio.Audio.TestBench`.
+
+The test bench:
+
+- Generates deterministic silence, sine tone, frequency sweep, pulse transient, and constant-value buffers.
+- Keeps test signals separate from F1 25 telemetry, `VehicleState`, and future driving haptic effects.
+- Wraps generated buffers as `AudioMixerInput` values and feeds the existing `AudioRenderPipeline`.
+- Applies the Stage 10 mixer, normal mute, emergency mute, safety processor, limiter, and clipping protection before output handoff.
+- Defaults to `NullAudioOutputDevice` so automated tests do not require ASIO, WASAPI, live telemetry, F1 25, or shaker hardware.
+- Exposes diagnostics for selected signal, active state, sample format, output peak, limiter/clipping counts, rendered buffers, and output mode.
+
+The WPF Test Bench page adds minimal controls for selecting a synthetic signal and rendering deterministic validation buffers. It does not implement a real-time audio callback, hardware calibration, frequency response graphs, profile editing, real WASAPI output, real ASIO streaming, or driving haptic effects.
+
 ## Stage 06 F1 25 Packet Header Parser
 
 `HapticDrive.Asio.Telemetry.F1_25` owns the first parser implementation:

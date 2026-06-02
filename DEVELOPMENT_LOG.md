@@ -361,3 +361,43 @@ Self-review:
 - Parser and VehicleState behavior were not changed.
 - No Simagic P-HPR work was added.
 - Tests cover mixer silence, pass-through, summing, gain, mute, emergency mute, invalid samples, safety limiting/clipping, peak diagnostics, null-output consumption, and hardware-absent pipeline operation.
+
+## Stage 11 - Test Bench
+
+Date: 2026-06-02
+
+Status: Complete.
+
+Goal: Add a deterministic test bench for validating the internal audio path, mixer, safety chain, mute behavior, and output abstraction without requiring F1 25, live telemetry, ASIO hardware, WASAPI hardware, shaker hardware, or physical output devices.
+
+Notes:
+
+- Reviewed the Stage 11 brief and the attached F1 25 v3 PDF reference before coding; Stage 11 does not change packet layouts, parser offsets, enum values, packet lengths, or versions.
+- Added deterministic synthetic test signal generators for silence, fixed-frequency sine tone, linear frequency sweep, pulse/transient, and constant-value/DC validation.
+- Added `AudioTestBench` to select signals, start/stop the bench, render explicit validation buffers, and feed the existing Stage 10 mixer/safety pipeline into `NullAudioOutputDevice` by default.
+- Test bench diagnostics include active state, selected signal, sample format, rendered buffers/frames, mixer peak, output peak, sanitized samples, limited samples, clipped samples, and output mode.
+- Normal mute and emergency mute are applied through the same mixer/safety path used by the Stage 10 audio pipeline.
+- Wired the WPF Test Bench page with minimal signal selection, start/stop, peak, limiter, output mode, and hardware warning status.
+- Added `docs/TEST_BENCH.md` and updated audio safety, hardware-absent, ASIO output, architecture, README, roadmap, and known-issues documentation.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed. NuGet emitted `NU1900` warnings because restricted sandbox network access prevented vulnerability-feed metadata from loading.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 errors. The same 4 `NU1900` warnings were reported from the restored package assets.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 105 passing tests and 1 skipped manual ASIO hardware test.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 11 stayed within test-bench scope.
+- Test signals are synthetic validation tools, not driving haptic effects.
+- No Stage 12 gear shift or engine effects were implemented.
+- No Stage 13 kerb, impact, road texture, slip, traction loss, ABS, or other driving effects were implemented.
+- No real WASAPI output, ASIO callback streaming, or physical shaker calibration was implemented.
+- Default output remains hardware-safe through `NullAudioOutputDevice`.
+- Emergency mute is simple, reliable, and test-covered through the test bench path.
+- Unsafe over-range generated samples are limited by the safety chain before output.
+- UDP forwarding and recording/replay raw byte guarantees were not changed.
+- Parser and VehicleState behavior were not changed.
+- No Simagic P-HPR work was added.
+- Tests cover test signal generation, deterministic reset/repeat behavior, test bench lifecycle, render-before-start failure, mixer/safety/null-output integration, normal mute, emergency mute, over-range limiting, and hardware-absent default output.

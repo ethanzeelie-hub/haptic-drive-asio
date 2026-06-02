@@ -12,6 +12,7 @@ Hardware-absent mode is the default development and automated-test posture until
 - ASIO open attempts fail gracefully when no matching driver is available.
 - No automated test requires an ASIO driver, M-Audio interface, Fosi amplifier, or Dayton BST-1.
 - The Stage 10 mixer and safety chain are covered by automated tests using null output only.
+- The Stage 11 test bench generates deterministic synthetic validation buffers and feeds null output by default.
 
 ## Output Modes
 

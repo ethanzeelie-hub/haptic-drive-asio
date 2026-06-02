@@ -1,6 +1,6 @@
 # ASIO Output
 
-ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption, but not real ASIO streaming.
+ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals, but not real ASIO streaming.
 
 ## Stage 02 Implementation
 
@@ -15,6 +15,7 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 
 - No NAudio ASIO callback is wired yet.
 - No audio samples are streamed to a real ASIO or WASAPI device.
+- Test bench signals render to `NullAudioOutputDevice` by default and do not prove physical latency, safe gain, or shaker response.
 - Buffer size, channel selection, and real device sample streaming are still future work.
 - ASIO failure does not select WASAPI automatically.
 
@@ -34,3 +35,9 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - `AudioRenderPipeline` makes the mixer/safety chain hand a final buffer to `IAudioOutputDevice.SubmitBufferAsync`.
 - `NullAudioOutputDevice` accepts matching sample buffers after start and discards them deterministically.
 - `AsioAudioOutputDevice` still fails safely when no driver is available and does not implement real callback streaming.
+
+## Stage 11 Test Bench
+
+- Synthetic silence, sine tone, sweep, pulse, and constant-value signals are available for internal path validation.
+- Generated buffers pass through the Stage 10 mixer and safety chain before null-output submission.
+- WASAPI remains manual/debug only and ASIO remains the later intended hardware path.

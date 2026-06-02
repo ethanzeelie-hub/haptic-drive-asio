@@ -8,7 +8,7 @@ Physical shaker hardware is not available yet. Development must work without it 
 
 ## Current Stage
 
-Stage 10: Audio mixer and safety chain complete. Next stage is Stage 11, test bench.
+Stage 11: Test bench complete. Next stage is Stage 12, gear shift and engine effects.
 
 The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute, dark theme default, light theme scaffolding, and a close/minimize-to-tray setting placeholder.
 
@@ -16,14 +16,16 @@ The selected output mode is `NullAudioOutputDevice` by default, so the app can o
 
 The official F1 25 v3 PDF has been extracted into implementation notes under `docs/`. The app now starts a raw UDP listener on port `20778` by default, counts incoming datagrams, tracks packet rate, shows a no-packet warning in the dashboard, offers each raw packet to the UDP forwarder, can record incoming raw UDP payload bytes to a versioned replay file, validates F1 25 packet headers, parses the Stage 07 core packet bodies, and maps parsed packets into shared last-known `VehicleState` samples.
 
-Forwarding and recording preserve exact packet payload bytes and do not depend on parser or VehicleState success. Replay emits recorded packets back as `UdpTelemetryPacket` values so tests can reuse the existing parser and VehicleState adapter path without live UDP traffic. Stage 10 adds interleaved floating-point audio sample buffers, a deterministic source-buffer mixer, conservative safety processing, and null-output sample consumption. The app does not yet implement forwarding destination configuration in the UI, a polished recordings library UI, Stage 11 test signals, generated haptic effects, real WASAPI output, or real ASIO streaming.
+Forwarding and recording preserve exact packet payload bytes and do not depend on parser or VehicleState success. Replay emits recorded packets back as `UdpTelemetryPacket` values so tests can reuse the existing parser and VehicleState adapter path without live UDP traffic. Stage 10 adds interleaved floating-point audio sample buffers, a deterministic source-buffer mixer, conservative safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals for validating the internal audio path through the existing mixer, safety chain, and `NullAudioOutputDevice`.
+
+The app does not yet implement forwarding destination configuration in the UI, a polished recordings library UI, generated driving haptic effects, real WASAPI output, real ASIO streaming, or physical shaker calibration.
 
 ## Solution Layout
 
 - `src/HapticDrive.Asio.App`: WPF desktop app.
 - `src/HapticDrive.Asio.Core`: shared domain models and interfaces.
 - `src/HapticDrive.Asio.Telemetry.F1_25`: F1 25 telemetry parser and adapter.
-- `src/HapticDrive.Asio.Audio`: audio output abstractions, mixer, and safety chain.
+- `src/HapticDrive.Asio.Audio`: audio output abstractions, mixer, safety chain, and test bench.
 - `src/HapticDrive.Asio.Recording`: telemetry recording and replay.
 - `tests/*`: xUnit test projects.
 

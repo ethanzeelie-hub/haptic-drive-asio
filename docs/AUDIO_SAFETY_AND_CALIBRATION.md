@@ -1,6 +1,6 @@
 # Audio Safety and Calibration
 
-Stage 10 adds the first internal audio safety chain. It is deterministic infrastructure for later haptic effects and real output devices; it is not physical shaker calibration.
+Stage 10 adds the first internal audio safety chain. Stage 11 adds deterministic test-bench signals that exercise that chain through null output. This is infrastructure for later haptic effects and real output devices; it is not physical shaker calibration.
 
 ## Stage 10 Safety Chain
 
@@ -31,10 +31,23 @@ The limiter is a simple deterministic peak limiter. If the buffer peak exceeds t
 
 Emergency mute forces the final output buffer to silence regardless of input.
 
+## Stage 11 Test Bench
+
+The current test bench can generate:
+
+- Silence.
+- Fixed-frequency sine tone.
+- Linear frequency sweep.
+- Pulse / transient signal.
+- Constant-value signal for DC and limiter checks.
+
+Each signal fills an `AudioSampleBuffer`, enters the existing `AudioMixer` as a named source, passes through `AudioSafetyProcessor`, and is submitted to `NullAudioOutputDevice` by default.
+
+The test bench reports active state, selected signal, sample format, output mode, output peak, sanitized samples, limited samples, clipped samples, and rendered buffer counts.
+
 ## Boundaries
 
-- No generated haptic effects are implemented in Stage 10.
-- No Stage 11 test bench signals are implemented in Stage 10.
-- No real ASIO or WASAPI streaming is implemented in Stage 10.
+- Stage 11 signals are synthetic validation tools only, not engine, gear shift, kerb, slip, road texture, ABS, traction loss, or impact effects.
+- No real ASIO or WASAPI streaming is implemented in Stage 11.
 - `NullAudioOutputDevice` remains the default automated-test output.
 - These normalized defaults are conservative software limits only. No final physical safety, safe gain, shaker feel, latency, or frequency tuning claims may be made until the real hardware chain is tested.

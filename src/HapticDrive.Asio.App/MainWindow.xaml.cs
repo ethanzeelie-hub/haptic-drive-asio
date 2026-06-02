@@ -2,6 +2,7 @@ using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Safety;
+using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
@@ -20,6 +21,7 @@ public partial class MainWindow : Window
     private readonly IAudioOutputDevice _selectedOutputDevice = new NullAudioOutputDevice();
     private readonly AudioRenderPipeline _audioPipeline = new(AudioSampleFormat.FromConfiguration(AudioOutputConfiguration.Default));
     private readonly AudioSampleBuffer _audioOutputBuffer = AudioSampleBuffer.Allocate(AudioOutputConfiguration.Default);
+    private readonly AudioTestBench _testBench = new();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly IUdpTelemetryForwarder _telemetryForwarder = new UdpTelemetryForwarder();
     private readonly TelemetryRecordingService _recordingService = new();
@@ -28,6 +30,14 @@ public partial class MainWindow : Window
     {
         Interval = TimeSpan.FromMilliseconds(500)
     };
+    private readonly IReadOnlyList<AudioTestSignalDefinition> _testBenchSignals =
+    [
+        AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Silence),
+        AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.SineTone),
+        AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.FrequencySweep),
+        AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Pulse),
+        AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Constant)
+    ];
 
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
@@ -35,7 +45,7 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 10 mixer and safety-chain status",
+            "Stage 11 test bench status",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
@@ -44,8 +54,9 @@ public partial class MainWindow : Window
                 "The F1 25 parser validates packet format, year, ID, version, exact length, and Stage 07 packet bodies.",
                 "Stage 08 maps parsed packets into shared last-known VehicleState samples.",
                 "Stage 10 adds a deterministic mixer, conservative safety chain, and null-output sample consumption.",
+                "Stage 11 adds deterministic synthetic test signals for hardware-absent audio path validation.",
                 "NullAudioOutputDevice is the default safe output.",
-                "No haptic effects are implemented yet.",
+                "No driving haptic effects are implemented yet.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
         new(
@@ -111,12 +122,15 @@ public partial class MainWindow : Window
         new(
             "Test Bench",
             "Test Bench",
-            "Placeholder for safe synthetic signals and effect simulations.",
-            "Test bench planned",
+            "Safe synthetic signals for validating the internal audio path.",
+            "Test bench available",
             [
-                "Sine, pulse, sweep, channel, and effect test signals are scheduled for Stage 11.",
-                "Safe ramp-up must be used before any real hardware output.",
-                "Null output remains the automated-test target."
+                "Silence, sine tone, frequency sweep, pulse transient, and constant-value signals are available.",
+                "Signals render through the existing mixer and safety chain into NullAudioOutputDevice.",
+                "Start Test Bench renders deterministic validation buffers only; it is not a real audio callback.",
+                "Emergency mute is applied through the test bench mixer and safety settings.",
+                "Null output remains the automated-test target.",
+                "Physical shaker tuning waits for later manual hardware stages."
             ]),
         new(
             "Profiles",
@@ -146,6 +160,7 @@ public partial class MainWindow : Window
             [
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
+                "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
                 "F1 25 packet parser success, ignored, and failure counts are available.",
@@ -176,6 +191,8 @@ public partial class MainWindow : Window
 
         NavigationList.ItemsSource = _pages;
         NavigationList.SelectedIndex = 0;
+        TestBenchSignalComboBox.ItemsSource = _testBenchSignals;
+        TestBenchSignalComboBox.SelectedIndex = 1;
         ApplyTheme(lightTheme: false);
         _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick += TelemetryStatusTimer_Tick;
@@ -199,6 +216,7 @@ public partial class MainWindow : Window
         }
 
         UpdateTelemetryStatus();
+        UpdateTestBenchStatus();
     }
 
     private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -209,8 +227,12 @@ public partial class MainWindow : Window
             PageSummaryText.Text = page.Summary;
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 10 mixer and safety chain";
+            TestBenchPanel.Visibility = page.NavigationLabel == "Test Bench"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 11 test bench";
             UpdateTelemetryStatus();
+            UpdateTestBenchStatus();
         }
     }
 
@@ -294,6 +316,7 @@ public partial class MainWindow : Window
         _emergencyMuted = !_emergencyMuted;
         _audioPipeline.MixerSettings = _audioPipeline.MixerSettings with { EmergencyMute = _emergencyMuted };
         _audioPipeline.SafetyOptions = _audioPipeline.SafetyOptions with { EmergencyMute = _emergencyMuted };
+        _testBench.EmergencyMute = _emergencyMuted;
         EmergencyMuteButton.Content = _emergencyMuted ? "Clear Mute" : "Emergency Mute";
         UpdateHapticsStateText();
 
@@ -307,9 +330,21 @@ public partial class MainWindow : Window
             }
         }
 
+        if (_testBench.GetSnapshot().IsActive)
+        {
+            var testBenchResult = await _testBench.RenderNextBufferAsync();
+            if (!testBenchResult.Succeeded)
+            {
+                FooterStatusText.Text = testBenchResult.Message;
+                UpdateTestBenchStatus();
+                return;
+            }
+        }
+
         FooterStatusText.Text = _emergencyMuted
-            ? "Emergency mute is active in the Stage 10 mixer and safety chain."
-            : "Emergency mute cleared in the Stage 10 mixer and safety chain.";
+            ? "Emergency mute is active in the mixer, safety chain, and test bench."
+            : "Emergency mute cleared in the mixer, safety chain, and test bench.";
+        UpdateTestBenchStatus();
     }
 
     private async Task<AudioOutputDeviceResult> ProcessAndSubmitSilenceBufferAsync()
@@ -361,6 +396,73 @@ public partial class MainWindow : Window
         Resources["AppDangerBrush"] = BrushFrom(palette.Danger);
         Resources["AppSuccessBrush"] = BrushFrom(palette.Success);
         ThemeButton.Content = lightTheme ? "Theme: Light" : "Theme: Dark";
+    }
+
+    private async void TestBenchSignalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TestBenchSignalComboBox.SelectedItem is not AudioTestSignalDefinition signal)
+        {
+            return;
+        }
+
+        _testBench.SelectSignal(signal);
+
+        if (_testBench.GetSnapshot().IsActive)
+        {
+            var renderResult = await _testBench.RenderNextBufferAsync();
+            FooterStatusText.Text = renderResult.Message;
+        }
+
+        UpdateTestBenchStatus();
+    }
+
+    private async void TestBenchStartStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        var snapshot = _testBench.GetSnapshot();
+        AudioTestBenchOperationResult result;
+
+        if (snapshot.IsActive)
+        {
+            result = await _testBench.StopAsync();
+        }
+        else
+        {
+            if (TestBenchSignalComboBox.SelectedItem is AudioTestSignalDefinition signal)
+            {
+                _testBench.SelectSignal(signal);
+            }
+
+            _testBench.EmergencyMute = _emergencyMuted;
+            var startResult = await _testBench.StartAsync();
+            result = startResult.Succeeded
+                ? await _testBench.RenderNextBufferAsync()
+                : startResult;
+        }
+
+        FooterStatusText.Text = result.Message;
+        UpdateTestBenchStatus();
+    }
+
+    private void UpdateTestBenchStatus()
+    {
+        var snapshot = _testBench.GetSnapshot();
+
+        TestBenchStartStopButton.Content = snapshot.IsActive ? "Stop Test Bench" : "Start Test Bench";
+        TestBenchStateText.Text = snapshot.EmergencyMute
+            ? "Emergency muted"
+            : snapshot.IsActive
+                ? $"Active: {snapshot.SelectedSignalName}"
+                : "Idle";
+        TestBenchPeakText.Text = snapshot.OutputPeakLevel.ToString("0.000");
+        TestBenchLimiterText.Text = $"{snapshot.LimitedSampleCount:N0} limited";
+        TestBenchOutputText.Text = $"{snapshot.OutputDisplayName} ({snapshot.OutputState})";
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Test Bench" })
+        {
+            PageStatusText.Text = snapshot.IsActive
+                ? $"{snapshot.SelectedSignalName}; {snapshot.RenderedBufferCount:N0} buffer(s); peak {snapshot.OutputPeakLevel:0.000}; limiter {snapshot.LimitedSampleCount:N0} sample(s)."
+                : "Test bench idle; select a synthetic signal and start a hardware-absent validation buffer.";
+        }
     }
 
     private static SolidColorBrush BrushFrom(string color)
@@ -624,6 +726,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _telemetryStatusTimer.Stop();
+        _testBench.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _recordingService.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _telemetryForwarder.DisposeAsync().AsTask().GetAwaiter().GetResult();

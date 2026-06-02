@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 10 mixer and safety chain" />
+                               Text="Stage 11 test bench" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -288,6 +288,84 @@
                             </StackPanel>
                         </Border>
                     </UniformGrid>
+
+                    <Border x:Name="TestBenchPanel"
+                            Margin="0,0,0,24"
+                            Padding="22"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="Synthetic Test Bench" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Render deterministic validation buffers through the Stage 10 mixer, safety chain, and Null output." />
+
+                            <WrapPanel Margin="0,16,0,0"
+                                       VerticalAlignment="Center">
+                                <StackPanel Width="240"
+                                            Margin="0,0,16,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Signal" />
+                                    <ComboBox x:Name="TestBenchSignalComboBox"
+                                              Margin="0,6,0,0"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectionChanged="TestBenchSignalComboBox_SelectionChanged" />
+                                </StackPanel>
+
+                                <Button x:Name="TestBenchStartStopButton"
+                                        MinWidth="150"
+                                        Margin="0,20,0,0"
+                                        Click="TestBenchStartStopButton_Click"
+                                        Content="Start Test Bench" />
+                            </WrapPanel>
+
+                            <UniformGrid Columns="4"
+                                         Margin="0,18,0,0">
+                                <StackPanel Margin="0,0,18,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="State" />
+                                    <TextBlock x:Name="TestBenchStateText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Idle" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,18,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Output Peak" />
+                                    <TextBlock x:Name="TestBenchPeakText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="0.000" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,18,0">
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Limiter" />
+                                    <TextBlock x:Name="TestBenchLimiterText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="0 limited" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="Output" />
+                                    <TextBlock x:Name="TestBenchOutputText"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="Null Output" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <TextBlock x:Name="TestBenchWarningText"
+                                       Margin="0,14,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Physical shaker feel, safe gain, latency, and frequency tuning are not validated until real hardware testing." />
+                        </StackPanel>
+                    </Border>
 
                     <Border Padding="22"
                             Background="{DynamicResource AppSurfaceBrush}"

@@ -13,7 +13,8 @@
 - Stage 08: VehicleState model complete.
 - Stage 09: Recording and replay complete.
 - Stage 10: Audio mixer and safety chain complete.
-- Next: Stage 11 Test bench.
+- Stage 11: Test bench complete.
+- Next: Stage 12 Gear shift and engine effects.
 
 ## Planned Stages
 
@@ -27,7 +28,7 @@
 8. Stage 08: VehicleState model. Complete.
 9. Stage 09: Recording and replay. Complete.
 10. Stage 10: Audio mixer and safety chain. Complete.
-11. Stage 11: Test bench.
+11. Stage 11: Test bench. Complete.
 12. Stage 12: Gear shift and engine effects.
 13. Stage 13: Kerb, impact, road texture, and slip effects.
 14. Stage 14: UI tuning, profiles, and diagnostics.
