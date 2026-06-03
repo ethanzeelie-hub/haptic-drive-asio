@@ -16,6 +16,15 @@ public sealed class NullAudioOutputDevice : AudioOutputDeviceBase
 
     public override bool RequiresPhysicalHardware => false;
 
+    public override AudioOutputStatus GetStatus()
+    {
+        var status = base.GetStatus();
+        return status with
+        {
+            SubmittedBufferCount = Interlocked.Read(ref _submittedBufferCount)
+        };
+    }
+
     public override ValueTask<AudioOutputDeviceResult> OpenAsync(
         AudioOutputConfiguration configuration,
         CancellationToken cancellationToken = default)
@@ -36,9 +45,21 @@ public sealed class NullAudioOutputDevice : AudioOutputDeviceBase
         ArgumentNullException.ThrowIfNull(buffer);
         cancellationToken.ThrowIfCancellationRequested();
 
+        return ValueTask.FromResult(ConsumeBuffer(buffer));
+    }
+
+    protected override AudioOutputDeviceResult SubmitStreamingBuffer(AudioSampleBuffer buffer)
+    {
+        return ConsumeBuffer(buffer);
+    }
+
+    private AudioOutputDeviceResult ConsumeBuffer(AudioSampleBuffer buffer)
+    {
         if (State != AudioOutputDeviceState.Started)
         {
-            return FailureAsync("Null output must be started before it can consume audio sample buffers.");
+            return AudioOutputDeviceResult.Failure(
+                "Null output must be started before it can consume audio sample buffers.",
+                GetStatus());
         }
 
         ValidateBufferMatchesConfiguration(buffer, Configuration);
@@ -60,7 +81,7 @@ public sealed class NullAudioOutputDevice : AudioOutputDeviceBase
         Volatile.Write(ref _lastPeakLevel, peakLevel);
 
         StatusMessage = $"Null output consumed {buffer.FrameCount:N0} frame(s).";
-        return SuccessAsync(StatusMessage);
+        return AudioOutputDeviceResult.Success(StatusMessage, GetStatus());
     }
 
     public NullAudioOutputDeviceSnapshot GetSampleSinkSnapshot()

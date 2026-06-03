@@ -616,3 +616,46 @@ Self-review:
 - No guessed parser fields, packet offsets, packet layouts, packet lengths, enum values, or versions were introduced.
 - Hardware tests are skipped/manual by default.
 - Tests cover fake ASIO discovery, fake M-Audio visibility, unavailable ASIO, invalid driver, invalid channel, arming, lifecycle, stop/dispose safety, routing, emergency mute, safety-processed output, default Null output, and hardware-absent operation.
+
+## Stage 17 - Native ASIO Streaming and Low-Latency Pre-Shaker Hardening
+
+Date: 2026-06-03
+
+Status: Complete.
+
+Goal: Add native ASIO streaming and move live haptic rendering into an output-owned low-latency path while preserving Null output defaults, explicit ASIO arming/selection, and hardware-absent automated tests.
+
+Notes:
+
+- Verified Stage 16 was complete before beginning Stage 17.
+- Added `NAudio.Asio` 2.3.0 and documented it in third-party notices.
+- Added output-owned render callback contracts to `IAudioOutputDevice`.
+- Added render/backend diagnostics for render callbacks, backend callbacks, submitted buffers, dropped buffers, underruns, render duration, callback jitter, and telemetry age.
+- Added `NativeAsioOutputBackend` behind `IAsioOutputBackend` using NAudio `AsioOut`.
+- Preserved explicit ASIO output mode, driver selection, output-channel selection, arming, and Start Haptics requirements.
+- Added a small preallocated native-ASIO queue so callback underruns and dropped buffers are counted.
+- Removed the WPF haptic render `DispatcherTimer`; the shell now starts/stops the output-owned pipeline and polls diagnostics only.
+- Kept manual deterministic render submission available for tests and the test bench.
+- Added wall-clock stale telemetry mute so old live telemetry cannot continue driving effects indefinitely.
+- Kept the render callback limited to in-memory effect rendering, mixer, safety processing, and buffer filling; UI, disk IO, logging, networking, blocking waits, and async continuations remain outside the callback.
+- Added fake-backend and Null-output tests for callback cadence, stale telemetry mute, emergency mute, channel routing, stop/dispose, and dropped-buffer diagnostics.
+- Added `docs/STAGE_17_NATIVE_ASIO_STREAMING.md` and updated README, architecture, ASIO, audio safety, hardware-absent, haptic effects, manual hardware, telemetry, recording/replay, roadmap, known issues, and Stage 16 readiness docs.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 189 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 17 stayed within native ASIO streaming, low-latency render-path hardening, telemetry timeout mute, diagnostics, and focused tests.
+- Null output remains the startup and automated-test default.
+- ASIO selection, driver selection, channel selection, arming, and Start Haptics remain explicit.
+- ASIO absence, M-Audio absence, Fosi absence, Dayton BST-1 absence, F1 25 absence, and live telemetry absence do not break startup, build, tests, or CI.
+- Emergency mute remains applied before output and is covered in the output-owned render path.
+- UDP forwarding and recording/replay raw byte guarantees were not changed.
+- Parser packet layouts, offsets, enum values, versions, lengths, and `VehicleState` mappings were not changed.
+- No Simagic P-HPR, forwarding UI, recordings library polish, broad UI rewrite, real WASAPI output, advanced routing matrix, or physical calibration work was added.
+- No final shaker feel, safe physical gain, physical latency, or final frequency tuning is claimed.

@@ -19,6 +19,7 @@
 - Stage 14: UI tuning, profiles, and diagnostics complete.
 - Stage 15: First playable mock output milestone complete.
 - Stage 16: Manual ASIO hardware readiness complete.
+- Stage 17: Native ASIO streaming and low-latency pre-shaker hardening complete.
 - Phase 1 software/manual ASIO readiness milestone complete.
 
 ## Planned Stages
@@ -39,10 +40,12 @@
 14. Stage 14: UI tuning, profiles, and diagnostics. Complete.
 15. Stage 15: First playable mock output milestone. Complete.
 16. Stage 16: Manual ASIO hardware readiness. Complete.
+17. Stage 17: Native ASIO streaming and low-latency pre-shaker hardening. Complete.
 
 ## V1 Boundary
 
 - F1 25 first.
 - Null output, WASAPI debug output, ASIO abstraction, telemetry replay, first playable mock software pipeline, and hardware-safe defaults.
 - Stage 16 ASIO readiness includes discovery, explicit selection/arming/channel routing seams, diagnostics, fake-backend tests, and manual M-Audio/Fosi/BST-1 checklist.
+- Stage 17 adds native ASIO streaming behind the backend seam, output-owned render cadence, stale telemetry mute, render/backend diagnostics, and fake-backend tests while keeping Null output as the automated-test default.
 - No Simagic P-HPR implementation in V1.

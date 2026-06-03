@@ -19,7 +19,9 @@ Hardware-absent mode is the default development and automated-test posture until
 - Stage 13 kerb, impact, road texture, and slip effects use the same null-output path.
 - Stage 15 live/replay mock pipeline orchestration uses `NullAudioOutputDevice` by default and can be validated without F1 25, UDP sockets, ASIO hardware, WASAPI hardware, M-Audio hardware, Fosi amplifier, or Dayton BST-1.
 - M-Audio / ASIO visibility diagnostics use fake catalogs in automated tests and must not be treated as proof of real ASIO streaming.
-- Native ASIO callback streaming remains isolated behind `IAsioOutputBackend`; the Stage 16 build does not claim physical output validation.
+- Native ASIO streaming is implemented behind `IAsioOutputBackend` in Stage 17, but Null output remains the default and fake backends cover automated streaming tests.
+- Output-owned rendering has replaced the WPF haptic render timer for the live pipeline.
+- Stale telemetry wall-clock mute prevents old live telemetry from continuing to drive effects indefinitely.
 
 ## Output Modes
 
@@ -27,7 +29,7 @@ Hardware-absent mode is the default development and automated-test posture until
 | --- | --- | --- | --- | --- |
 | Null | Yes | Yes | No | Default safe output. Consumes and discards sample buffers. |
 | WASAPI Debug | No | Later manual debug only | Normal Windows audio endpoint later | Must not be selected automatically if ASIO fails. |
-| ASIO | Fake only | Manual readiness path | Yes for physical use | Intended low-latency target. Requires explicit selection, driver, channel, arming, and Start Haptics. |
+| ASIO | Fake only | Manual readiness/streaming path | Yes for physical use | Intended low-latency target. Requires explicit selection, driver, channel, arming, and Start Haptics. |
 
 ## Rules
 
@@ -37,3 +39,4 @@ Hardware-absent mode is the default development and automated-test posture until
 - Do not fall back from ASIO to WASAPI automatically.
 - Keep hardware-dependent tests skipped by default.
 - Do not treat Windows sound output selector visibility as proof of ASIO usage.
+- Do not treat callback/drop/underrun diagnostics as final physical latency or safe gain measurements.

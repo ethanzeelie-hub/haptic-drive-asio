@@ -16,7 +16,7 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task Pipeline_StartsStopsAndRestartsWithoutSubmittingWhileStopped()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
 
         var stoppedRender = await coordinator.RenderNextBufferAsync();
         Assert.False(stoppedRender.Succeeded);
@@ -39,7 +39,7 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task Pipeline_NoValidTelemetryRendersSafeSilence()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
         Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
@@ -53,7 +53,7 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task LiveLikePacket_DrivesParserVehicleStateEffectsMixerSafetyAndNullOutput()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
         var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 0.8f, gear: 6));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
@@ -75,7 +75,7 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task ReplayPacket_DrivesSameParserVehicleStateAndOutputPath()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
         var recording = new TelemetryRecording(
             TelemetryRecordingMetadata.CreateDefault(DateTimeOffset.UtcNow),
             [
@@ -102,7 +102,9 @@ public sealed class HapticPipelineCoordinatorTests
     public async Task MalformedPackets_DoNotCrashOrPreventForwardingDiagnostics()
     {
         var forwarder = new FakeForwarder();
-        await using var coordinator = new HapticPipelineCoordinator(telemetryForwarder: forwarder);
+        await using var coordinator = new HapticPipelineCoordinator(
+            telemetryForwarder: forwarder,
+            options: HapticPipelineOptions.ManualRendering);
 
         var result = await coordinator.OfferLiveTelemetryPacketAsync(CreatePacket([1, 2, 3]));
         var snapshot = coordinator.GetSnapshot();
@@ -117,7 +119,7 @@ public sealed class HapticPipelineCoordinatorTests
     public async Task RecordingStillReceivesMalformedPacketsBeforeParserFailure()
     {
         var recordingPath = Path.Combine(Path.GetTempPath(), $"haptic-stage15-{Guid.NewGuid():N}.hdrec");
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
 
         try
         {
@@ -143,7 +145,7 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task NormalMuteAndEmergencyMuteForceSilenceThroughOutputPath()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
         var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
@@ -165,7 +167,7 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task DisabledEffectsDoNotProduceOutput()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
         var disabledEffects = HapticDriveProfile.Default.Effects with
         {
             Engine = HapticDriveProfile.Default.Effects.Engine with { IsEnabled = false },
@@ -191,7 +193,7 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task ReplayStopWhileActiveIsSafe()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
         var recording = new TelemetryRecording(
             TelemetryRecordingMetadata.CreateDefault(DateTimeOffset.UtcNow),
             [
@@ -205,6 +207,51 @@ public sealed class HapticPipelineCoordinatorTests
 
         Assert.True(result.Succeeded);
         Assert.False(coordinator.GetSnapshot().Replay.IsReplaying);
+    }
+
+    [Fact]
+    public async Task OutputOwnedRendering_StaleTelemetryMutesEffectsByWallClockTimeout()
+    {
+        var options = HapticPipelineOptions.Default with
+        {
+            TelemetryMuteTimeout = TimeSpan.FromMilliseconds(30)
+        };
+        await using var coordinator = new HapticPipelineCoordinator(options: options);
+        var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
+
+        Assert.True((await coordinator.StartAsync()).Succeeded);
+        Assert.Equal(F125PacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
+        await WaitUntilAsync(() => coordinator.GetSnapshot().NullOutput?.LastPeakLevel > 0f);
+        await WaitUntilAsync(() =>
+        {
+            var snapshot = coordinator.GetSnapshot();
+            return snapshot.TelemetryTimedOutMuted
+                && snapshot.NullOutput?.LastPeakLevel == 0f;
+        });
+
+        var staleSnapshot = coordinator.GetSnapshot();
+        Assert.True(staleSnapshot.TelemetryAge >= options.TelemetryMuteTimeout);
+        Assert.True(staleSnapshot.TelemetryTimedOutMuted);
+        Assert.Equal(0f, staleSnapshot.NullOutput!.LastPeakLevel);
+    }
+
+    [Fact]
+    public async Task OutputOwnedRendering_EmergencyMuteSilencesNextCallback()
+    {
+        await using var coordinator = new HapticPipelineCoordinator();
+        var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
+
+        Assert.True((await coordinator.StartAsync()).Succeeded);
+        Assert.Equal(F125PacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
+        await WaitUntilAsync(() => coordinator.GetSnapshot().NullOutput?.LastPeakLevel > 0f);
+
+        Assert.True((await coordinator.SetEmergencyMuteAsync(true)).Succeeded);
+        await WaitUntilAsync(() => coordinator.GetSnapshot().NullOutput?.LastPeakLevel == 0f);
+
+        var snapshot = coordinator.GetSnapshot();
+        Assert.True(snapshot.EmergencyMute);
+        Assert.Equal(0f, snapshot.NullOutput!.LastPeakLevel);
+        Assert.True(snapshot.Output.RenderCallbackCount > 0);
     }
 
     private static UdpTelemetryPacket CreatePacket(byte[] payload)
@@ -258,6 +305,15 @@ public sealed class HapticPipelineCoordinatorTests
             BitConverter.SingleToInt32Bits(value));
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(1_000));
+        while (!condition())
+        {
+            await Task.Delay(5, timeout.Token);
+        }
+    }
+
     private sealed class FakeForwarder : IUdpTelemetryForwarder
     {
         public IReadOnlyList<UdpTelemetryForwardingDestination> Destinations => [];
@@ -291,4 +347,3 @@ public sealed class HapticPipelineCoordinatorTests
         }
     }
 }
-

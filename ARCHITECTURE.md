@@ -172,6 +172,26 @@ The effect layer still consumes shared `VehicleState` only and does not read F1 
 
 The WPF Effects page adds read-only diagnostics for kerb, impact, road texture, and slip state. It does not implement Stage 14 tuning controls, profiles, persistence, live graphs, per-channel routing, calibration, real WASAPI output, real ASIO streaming, Simagic P-HPR output, or physical hardware tuning.
 
+## Stage 17 Native ASIO Streaming
+
+Core extends `IAudioOutputDevice` with a synchronous output render callback and diagnostics fields for render callbacks, backend callbacks, dropped buffers, underruns, render duration, callback jitter, and telemetry age.
+
+Audio owns the output cadence and backend implementation:
+
+- `AudioOutputDeviceBase` can run an output-owned render loop for hardware-absent and fake-backend tests.
+- `NullAudioOutputDevice` consumes callback-rendered buffers deterministically without physical hardware.
+- `AsioAudioOutputDevice` preserves explicit driver selection, channel selection, and arming, then routes mono safety-processed buffers to the selected ASIO output channel.
+- `NativeAsioOutputBackend` uses `NAudio.Asio`/`AsioOut` and a small preallocated queue to bridge app rendering to the driver callback.
+
+Runtime owns stale telemetry policy:
+
+- `HapticPipelineCoordinator` no longer depends on WPF `DispatcherTimer` for live rendering.
+- The render callback reads current in-memory effect state, runs the mixer and safety chain, and fills the provided buffer.
+- UI, disk IO, logging, networking, blocking waits, and async continuations stay outside the render callback.
+- If no fresh parsed `VehicleState` arrives within the wall-clock timeout, the callback renders safety silence until telemetry updates again.
+
+Automated tests still use Null output and fake ASIO backends. Stage 17 does not validate physical shaker feel, safe physical gain, physical latency, or final frequency tuning.
+
 ## Stage 06 F1 25 Packet Header Parser
 
 `HapticDrive.Asio.Telemetry.F1_25` owns the first parser implementation:

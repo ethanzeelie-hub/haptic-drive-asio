@@ -1,5 +1,6 @@
 using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Effects;
+using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Core.Audio;
@@ -12,9 +13,11 @@ namespace HapticDrive.Asio.Runtime.Pipeline;
 public sealed class HapticPipelineCoordinator : IAsyncDisposable
 {
     private readonly object _diagnosticsGate = new();
+    private readonly object _renderCallbackGate = new();
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly AudioSampleBuffer _outputBuffer;
+    private readonly HapticPipelineOptions _options;
     private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
     private readonly bool _ownsOutputDevice;
     private readonly bool _ownsForwarder;
@@ -27,6 +30,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private HapticPipelineInputSource _inputSource = HapticPipelineInputSource.None;
     private DateTimeOffset? _lastPacketAtUtc;
     private DateTimeOffset? _lastVehicleStateUpdateAtUtc;
+    private DateTimeOffset? _lastVehicleStateWallClockAtUtc;
+    private TimeSpan? _lastRenderTelemetryAge;
     private string _lastPacketMessage = "Waiting for F1 25 packets.";
     private string _lastVehicleStateMessage = "Waiting for parsed F1 25 packets.";
     private string? _lastPipelineError;
@@ -35,6 +40,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private bool _outputOpened;
     private bool _normalMuted;
     private bool _emergencyMuted;
+    private bool _telemetryTimedOutMuted;
     private long _packetsObserved;
     private long _packetParseSuccessCount;
     private long _packetParseIgnoredCount;
@@ -48,9 +54,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         IUdpTelemetryForwarder? telemetryForwarder = null,
         TelemetryRecordingService? recordingService = null,
         ITelemetryReplayService? replayService = null,
-        HapticDriveProfile? profile = null)
+        HapticDriveProfile? profile = null,
+        HapticPipelineOptions? options = null)
     {
         Configuration = configuration ?? AudioOutputConfiguration.Default;
+        _options = options ?? HapticPipelineOptions.Default;
         Format = AudioSampleFormat.FromConfiguration(Configuration);
         OutputDevice = outputDevice ?? new NullAudioOutputDevice();
         TelemetryForwarder = telemetryForwarder ?? new UdpTelemetryForwarder();
@@ -111,14 +119,17 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 _outputOpened = true;
             }
 
-            var startResult = await OutputDevice.StartAsync(cancellationToken).ConfigureAwait(false);
+            _isRunning = true;
+            var startResult = _options.UseOutputOwnedRendering
+                ? await OutputDevice.StartStreamingAsync(RenderOutputBuffer, cancellationToken).ConfigureAwait(false)
+                : await OutputDevice.StartAsync(cancellationToken).ConfigureAwait(false);
             if (!startResult.Succeeded)
             {
+                _isRunning = false;
                 SetPipelineError(startResult.Message);
                 return HapticPipelineOperationResult.Failure(startResult.Message, startResult);
             }
 
-            _isRunning = true;
             SetPipelineError(null);
             return HapticPipelineOperationResult.Success(
                 "Haptic pipeline started with the selected output device.",
@@ -197,6 +208,14 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 emergencyMuted
                     ? "Emergency mute enabled while the haptic pipeline is stopped."
                     : "Emergency mute cleared while the haptic pipeline is stopped.");
+        }
+
+        if (_options.UseOutputOwnedRendering)
+        {
+            return HapticPipelineOperationResult.Success(
+                emergencyMuted
+                    ? "Emergency mute enabled for the output-owned render path."
+                    : "Emergency mute cleared for the output-owned render path.");
         }
 
         return await RenderNextBufferAsync(cancellationToken).ConfigureAwait(false);
@@ -285,6 +304,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             return HapticPipelineOperationResult.Failure("Haptic pipeline is stopped; no output buffer was submitted.");
         }
 
+        if (_options.UseOutputOwnedRendering)
+        {
+            return HapticPipelineOperationResult.Failure("Haptic pipeline is using output-owned rendering; manual render submission is disabled.");
+        }
+
         await _renderGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
@@ -304,14 +328,17 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 EmergencyMute = _emergencyMuted
             };
 
-            var effectRender = EffectEngine.RenderNextBuffer();
-            _lastEffectSnapshot = effectRender.Snapshot;
-            _lastAudioSnapshot = AudioPipeline.Process(effectRender.MixerInputs, _outputBuffer);
+            var renderResult = RenderIntoBuffer(_outputBuffer, DateTimeOffset.UtcNow);
+            if (!renderResult.Succeeded)
+            {
+                SetPipelineError(renderResult.Message);
+                return HapticPipelineOperationResult.Failure(renderResult.Message);
+            }
+
             var outputResult = await OutputDevice.SubmitBufferAsync(_outputBuffer, cancellationToken).ConfigureAwait(false);
 
             if (outputResult.Succeeded)
             {
-                Interlocked.Increment(ref _renderedBufferCount);
                 SetPipelineError(null);
                 return HapticPipelineOperationResult.Success(outputResult.Message, outputResult);
             }
@@ -333,6 +360,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         string lastVehicleStateMessage;
         string? lastPipelineError;
         HapticPipelineInputSource inputSource;
+        TimeSpan? telemetryAge;
+        bool telemetryTimedOutMuted;
 
         lock (_diagnosticsGate)
         {
@@ -342,6 +371,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lastVehicleStateMessage = _lastVehicleStateMessage;
             lastPipelineError = _lastPipelineError;
             inputSource = _inputSource;
+            telemetryAge = _lastRenderTelemetryAge;
+            telemetryTimedOutMuted = _telemetryTimedOutMuted;
         }
 
         return new HapticPipelineSnapshot(
@@ -355,6 +386,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             Interlocked.Read(ref _packetParseFailureCount),
             Interlocked.Read(ref _vehicleStateUpdateCount),
             Interlocked.Read(ref _renderedBufferCount),
+            telemetryAge,
+            _options.TelemetryMuteTimeout,
+            telemetryTimedOutMuted,
             _normalMuted,
             _emergencyMuted,
             lastPacketMessage,
@@ -475,6 +509,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lock (_diagnosticsGate)
             {
                 _lastVehicleStateUpdateAtUtc = packet.ReceivedAtUtc;
+                _lastVehicleStateWallClockAtUtc = DateTimeOffset.UtcNow;
+                _telemetryTimedOutMuted = false;
             }
         }
 
@@ -494,6 +530,95 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         lock (_diagnosticsGate)
         {
             _lastPipelineError = message;
+        }
+    }
+
+    private AudioOutputRenderCallbackResult RenderOutputBuffer(
+        AudioSampleBuffer destination,
+        AudioOutputRenderContext context)
+    {
+        if (!_isRunning)
+        {
+            destination.Clear();
+            return AudioOutputRenderCallbackResult.Failure("Haptic pipeline is stopped; render callback produced silence.");
+        }
+
+        if (!Monitor.TryEnter(_renderCallbackGate))
+        {
+            destination.Clear();
+            return AudioOutputRenderCallbackResult.Failure("Haptic render callback skipped because the previous render is still active.");
+        }
+
+        try
+        {
+            return RenderIntoBuffer(destination, context.CallbackStartedAtUtc);
+        }
+        finally
+        {
+            Monitor.Exit(_renderCallbackGate);
+        }
+    }
+
+    private AudioOutputRenderCallbackResult RenderIntoBuffer(
+        AudioSampleBuffer destination,
+        DateTimeOffset renderStartedAtUtc)
+    {
+        AudioSampleBuffer.EnsureSameFormat(Format, destination.Format);
+
+        var telemetryAge = CalculateTelemetryAge(renderStartedAtUtc);
+        var hasVehicleState = Interlocked.Read(ref _vehicleStateUpdateCount) > 0;
+        var telemetryTimedOut = hasVehicleState
+            && telemetryAge is not null
+            && telemetryAge.Value > _options.TelemetryMuteTimeout;
+        var shouldRenderEffects = hasVehicleState
+            && !telemetryTimedOut
+            && !_normalMuted
+            && !_emergencyMuted;
+        IReadOnlyList<AudioMixerInput> mixerInputs = [];
+
+        if (shouldRenderEffects)
+        {
+            var effectRender = EffectEngine.RenderNextBuffer();
+            _lastEffectSnapshot = effectRender.Snapshot;
+            mixerInputs = effectRender.MixerInputs;
+        }
+
+        AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
+        {
+            IsMuted = _normalMuted || telemetryTimedOut,
+            EmergencyMute = _emergencyMuted
+        };
+        AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
+        {
+            EmergencyMute = _emergencyMuted
+        };
+
+        _lastAudioSnapshot = AudioPipeline.Process(mixerInputs, destination);
+        Interlocked.Increment(ref _renderedBufferCount);
+        lock (_diagnosticsGate)
+        {
+            _lastRenderTelemetryAge = telemetryAge;
+            _telemetryTimedOutMuted = telemetryTimedOut;
+            if (telemetryTimedOut)
+            {
+                _lastVehicleStateMessage = $"Telemetry stale for {telemetryAge!.Value.TotalMilliseconds:0} ms; effects muted until fresh VehicleState arrives.";
+            }
+        }
+
+        SetPipelineError(null);
+        return AudioOutputRenderCallbackResult.Success(
+            telemetryTimedOut ? "Telemetry stale; rendered safety silence." : "Rendered haptic buffer.",
+            telemetryAge,
+            telemetryTimedOut);
+    }
+
+    private TimeSpan? CalculateTelemetryAge(DateTimeOffset nowUtc)
+    {
+        lock (_diagnosticsGate)
+        {
+            return _lastVehicleStateWallClockAtUtc is null
+                ? null
+                : nowUtc - _lastVehicleStateWallClockAtUtc.Value;
         }
     }
 

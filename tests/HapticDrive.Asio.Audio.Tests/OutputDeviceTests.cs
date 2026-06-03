@@ -146,14 +146,19 @@ public sealed class OutputDeviceTests
         public AsioOutputBackendSnapshot GetSnapshot()
         {
             return new AsioOutputBackendSnapshot(
-                _isOpen,
+                IsOpen: _isOpen,
                 IsRunning: false,
                 DriverName: null,
-                AudioOutputConfiguration.Default.SampleRate,
-                AudioOutputConfiguration.Default.BufferSize,
-                _outputChannelCount,
+                SampleRate: AudioOutputConfiguration.Default.SampleRate,
+                BufferSize: AudioOutputConfiguration.Default.BufferSize,
+                OutputChannelCount: _outputChannelCount,
                 SubmittedBufferCount: 0,
                 DroppedBufferCount: 0,
+                CallbackCount: 0,
+                UnderrunCount: 0,
+                QueuedBufferCount: 0,
+                LastCallbackJitter: null,
+                MaximumCallbackJitter: null,
                 LastError: null);
         }
 
@@ -183,15 +188,13 @@ public sealed class OutputDeviceTests
             return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Stopped."));
         }
 
-        public ValueTask<AsioOutputBackendOperationResult> SubmitAsync(
+        public AsioOutputBackendOperationResult Submit(
             ReadOnlyMemory<float> interleavedSamples,
             int sampleRate,
             int frameCount,
-            int outputChannelCount,
-            CancellationToken cancellationToken = default)
+            int outputChannelCount)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Submitted."));
+            return AsioOutputBackendOperationResult.Success("Submitted.");
         }
 
         public ValueTask DisposeAsync()

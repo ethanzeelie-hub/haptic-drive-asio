@@ -17,12 +17,12 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
     private string? _lastError;
 
     public AsioAudioOutputDevice()
-        : this(new WindowsRegistryAsioDriverCatalog(), new UnavailableAsioOutputBackend())
+        : this(new WindowsRegistryAsioDriverCatalog(), new NativeAsioOutputBackend())
     {
     }
 
     public AsioAudioOutputDevice(IAsioDriverCatalog driverCatalog)
-        : this(driverCatalog, new UnavailableAsioOutputBackend())
+        : this(driverCatalog, new NativeAsioOutputBackend())
     {
     }
 
@@ -44,11 +44,15 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
         return baseStatus with
         {
             DeviceOutputChannelCount = _driverOutputChannelCount == 0 ? backendSnapshot.OutputChannelCount : _driverOutputChannelCount,
-            DroppedBufferCount = Interlocked.Read(ref _droppedBufferCount) + backendSnapshot.DroppedBufferCount,
+            DroppedBufferCount = baseStatus.DroppedBufferCount + Interlocked.Read(ref _droppedBufferCount) + backendSnapshot.DroppedBufferCount,
             IsHardwareArmed = Configuration.IsHardwareArmed,
             LastError = _lastError ?? backendSnapshot.LastError,
             SelectedOutputChannel = _selectedOutputChannel ?? Configuration.SelectedOutputChannel,
-            SubmittedBufferCount = Interlocked.Read(ref _submittedBufferCount) + backendSnapshot.SubmittedBufferCount
+            SubmittedBufferCount = Interlocked.Read(ref _submittedBufferCount),
+            BackendCallbackCount = backendSnapshot.CallbackCount,
+            UnderrunCount = baseStatus.UnderrunCount + backendSnapshot.UnderrunCount,
+            LastCallbackJitter = backendSnapshot.LastCallbackJitter ?? baseStatus.LastCallbackJitter,
+            MaximumCallbackJitter = backendSnapshot.MaximumCallbackJitter ?? baseStatus.MaximumCallbackJitter
         };
     }
 
@@ -171,6 +175,7 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
     public override async ValueTask<AudioOutputDeviceResult> StopAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await StopStreamingLoopAsync().ConfigureAwait(false);
 
         var stopResult = await _backend.StopAsync(cancellationToken).ConfigureAwait(false);
         if (!stopResult.Succeeded)
@@ -190,16 +195,28 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
         return await FailureAsync("ASIO output is not open.").ConfigureAwait(false);
     }
 
-    public override async ValueTask<AudioOutputDeviceResult> SubmitBufferAsync(
+    public override ValueTask<AudioOutputDeviceResult> SubmitBufferAsync(
         AudioSampleBuffer buffer,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(buffer);
         cancellationToken.ThrowIfCancellationRequested();
 
+        return ValueTask.FromResult(SubmitRoutedBuffer(buffer));
+    }
+
+    protected override AudioOutputDeviceResult SubmitStreamingBuffer(AudioSampleBuffer buffer)
+    {
+        return SubmitRoutedBuffer(buffer);
+    }
+
+    private AudioOutputDeviceResult SubmitRoutedBuffer(AudioSampleBuffer buffer)
+    {
         if (State != AudioOutputDeviceState.Started)
         {
-            return await FailureAsync("ASIO output must be started before it can consume audio sample buffers.").ConfigureAwait(false);
+            return AudioOutputDeviceResult.Failure(
+                "ASIO output must be started before it can consume audio sample buffers.",
+                GetStatus());
         }
 
         ValidateBufferMatchesConfiguration(buffer, Configuration);
@@ -208,28 +225,28 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
         {
             Interlocked.Increment(ref _droppedBufferCount);
             _lastError = "ASIO output channel routing is not configured.";
-            return await FailureAsync(_lastError).ConfigureAwait(false);
+            return AudioOutputDeviceResult.Failure(_lastError, GetStatus());
         }
 
         RouteMonoBuffer(buffer, _selectedOutputChannel.Value, _driverOutputChannelCount, _routedSamples);
-        var submitResult = await _backend.SubmitAsync(
+        var submitResult = _backend.Submit(
             _routedSamples,
             Configuration.SampleRate,
             Configuration.BufferSize,
-            _driverOutputChannelCount,
-            cancellationToken).ConfigureAwait(false);
+            _driverOutputChannelCount);
 
         if (!submitResult.Succeeded)
         {
-            Interlocked.Increment(ref _droppedBufferCount);
             _lastError = submitResult.ErrorMessage ?? submitResult.Message;
-            return await FailureAsync($"ASIO output dropped a buffer: {submitResult.Message}").ConfigureAwait(false);
+            return AudioOutputDeviceResult.Failure(
+                $"ASIO output dropped a buffer: {submitResult.Message}",
+                GetStatus());
         }
 
         Interlocked.Increment(ref _submittedBufferCount);
         _lastError = null;
         StatusMessage = $"ASIO output accepted {buffer.FrameCount:N0} safety-processed frame(s).";
-        return await SuccessAsync(StatusMessage).ConfigureAwait(false);
+        return AudioOutputDeviceResult.Success(StatusMessage, GetStatus());
     }
 
     public override async ValueTask DisposeAsync()

@@ -20,9 +20,9 @@ Windows sound output visibility only proves that Windows sees an audio endpoint.
 - Stage 16 mono routing maps the safety-processed mono source to one selected ASIO output channel and clears all other routed channels.
 - Invalid driver selection, missing driver selection, missing channel selection, invalid channel selection, backend open failure, backend start failure, stop, and dispose are handled safely.
 
-## Current Streaming Limitation
+## Stage 17 Follow-Up
 
-Native ASIO callback streaming is isolated behind `IAsioOutputBackend`. This Stage 16 build includes the readiness seam, fake backend tests, real driver-name discovery, UI selection, diagnostics, routing validation, and manual checklist. It does not yet include a native ASIO streaming backend capable of energizing hardware. Local Windows validation with the M-Audio driver should confirm driver visibility and readiness first; native streaming backend integration remains the next hardware-validation step.
+Native ASIO streaming is now implemented in Stage 17 behind `IAsioOutputBackend`. This Stage 16 checklist remains the readiness prerequisite: confirm driver visibility, deliberate ASIO selection, channel selection, and arming before using the Stage 17 streaming checklist. Stage 17 still does not validate physical shaker feel, safe physical gain, physical latency, or final frequency tuning.
 
 ## Manual M-Audio Checklist
 

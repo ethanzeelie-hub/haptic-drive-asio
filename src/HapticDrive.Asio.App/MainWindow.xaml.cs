@@ -31,10 +31,6 @@ public partial class MainWindow : Window
     {
         Interval = TimeSpan.FromMilliseconds(500)
     };
-    private readonly DispatcherTimer _hapticRenderTimer = new()
-    {
-        Interval = TimeSpan.FromMilliseconds(30)
-    };
     private readonly IReadOnlyList<AudioTestSignalDefinition> _testBenchSignals =
     [
         AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Silence),
@@ -57,7 +53,7 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 15 playable mock pipeline",
+            "Stage 17 output-owned streaming pipeline",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
@@ -70,7 +66,8 @@ public partial class MainWindow : Window
                 "Stage 12 adds conservative engine vibration and gear shift effect generators from VehicleState.",
                 "Stage 13 adds conservative kerb, impact, road texture, and slip / brake-lock effect generators from VehicleState.",
                 "Stage 14 exposes safe tuning controls, profile save/load/reset, and practical runtime diagnostics.",
-                "Stage 15 wires live UDP and replayed packets into the parser, VehicleState adapter, effects, mixer, safety chain, and Null output.",
+                "Stage 17 wires live UDP and replayed packets into the parser, VehicleState adapter, effects, mixer, safety chain, and output-owned renderer.",
+                "Stale telemetry is muted by wall-clock timeout.",
                 "NullAudioOutputDevice is the default safe output.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
             ]),
@@ -78,7 +75,7 @@ public partial class MainWindow : Window
             "Effects",
             "Effects",
             "Hardware-safe generated effect diagnostics.",
-            "Stage 15 effect tuning drives the mock pipeline",
+            "Stage 17 effect tuning drives the output-owned render path",
             [
                 "Gear shift is synthesized from valid forward gear changes in VehicleState telemetry.",
                 "Engine vibration is synthesized from RPM, throttle, idle RPM, max RPM, gear, speed, and pause/status gates where available.",
@@ -87,7 +84,7 @@ public partial class MainWindow : Window
                 "Road texture is synthesized from surface IDs, speed, and optional suspension / vertical-G motion.",
                 "Slip and minimal brake-lock vibration are synthesized from wheel slip ratio/angle, wheel speed, throttle, brake, speed, TC, and ABS fields.",
                 "Defaults are conservative and inspired by SimHub-style frequency, gain, pulse-duration, speed, and threshold controls.",
-                "The current shell renders deterministic validation buffers through the mixer, safety chain, and Null output; it is not a real audio callback.",
+                "Live haptics render through an output-owned callback path; the test bench remains deterministic validation only.",
                 "Advanced live graphs, routing matrices, and physical calibration remain deferred."
             ]),
         new(
@@ -186,7 +183,7 @@ public partial class MainWindow : Window
             [
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
-                "Stage 15 reports pipeline, engine, gear, kerb, impact, road texture, slip, mixer, safety, output, replay, and optional ASIO visibility state.",
+                "Stage 17 reports pipeline, engine, gear, kerb, impact, road texture, slip, mixer, safety, output, replay, ASIO visibility, callback, drop, underrun, jitter, and telemetry-age state.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -201,7 +198,6 @@ public partial class MainWindow : Window
     private bool _hapticsStarted;
     private bool _emergencyMuted;
     private bool _lightTheme;
-    private bool _hapticRenderInFlight;
     private bool _updatingOutputUi;
     private AudioOutputDeviceKind _selectedOutputKind = AudioOutputDeviceKind.Null;
     private string? _selectedAsioDriverName;
@@ -240,7 +236,6 @@ public partial class MainWindow : Window
         UpdateProfileStatus("Default conservative profile loaded.", []);
         _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick += TelemetryStatusTimer_Tick;
-        _hapticRenderTimer.Tick += HapticRenderTimer_Tick;
         Loaded += MainWindow_Loaded;
     }
 
@@ -299,7 +294,7 @@ public partial class MainWindow : Window
             DiagnosticsPanel.Visibility = page.NavigationLabel == "Diagnostics"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 15 mock pipeline";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 17 streaming pipeline";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
             UpdateMixerStatus();
@@ -377,7 +372,6 @@ public partial class MainWindow : Window
 
     private async Task RebuildHapticPipelineForOutputSelectionAsync(string footerMessage)
     {
-        _hapticRenderTimer.Stop();
         if (_hapticsStarted || _hapticPipeline.GetSnapshot().IsRunning)
         {
             await _hapticPipeline.StopAsync();
@@ -449,30 +443,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        var starting = !_hapticsStarted;
-        if (starting)
-        {
-            var submitResult = await ProcessAndSubmitHapticBufferAsync();
-            if (!submitResult.Succeeded)
-            {
-                await _hapticPipeline.StopAsync();
-                FooterStatusText.Text = submitResult.Message;
-                UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
-                return;
-            }
-
-            _hapticRenderTimer.Start();
-        }
-        else
-        {
-            _hapticRenderTimer.Stop();
-        }
-
         _hapticsStarted = !_hapticsStarted;
         StartStopButton.Content = _hapticsStarted ? "Stop Haptics" : "Start Haptics";
         UpdateHapticsStateText();
         FooterStatusText.Text = _hapticsStarted
-            ? "Haptics started with live/replay telemetry feeding the tuned mock pipeline and NullAudioOutputDevice."
+            ? "Haptics started with output-owned low-latency rendering; Null output remains the default unless ASIO was selected, routed, and armed."
             : "Haptics stopped";
         UpdateOutputStatus(result.OutputResult?.Status ?? _hapticPipeline.GetSnapshot().Output);
         UpdateEffectStatus();
@@ -541,7 +516,7 @@ public partial class MainWindow : Window
         }
 
         _replayError = null;
-        FooterStatusText.Text = $"Replaying {Path.GetFileName(path)} through the mock pipeline.";
+        FooterStatusText.Text = $"Replaying {Path.GetFileName(path)} through the output-owned haptic pipeline.";
         _activeReplayTask = ReplayLatestRecordingAsync(path);
         UpdateRecordingStatus();
     }
@@ -593,15 +568,6 @@ public partial class MainWindow : Window
         UpdateTestBenchStatus();
     }
 
-    private async Task<HapticPipelineOperationResult> ProcessAndSubmitHapticBufferAsync()
-    {
-        var result = await _hapticPipeline.RenderNextBufferAsync();
-        UpdateEffectStatus();
-        UpdateMixerStatus();
-        UpdateOutputStatus(result.OutputResult?.Status ?? _hapticPipeline.GetSnapshot().Output);
-        return result;
-    }
-
     private void UpdateHapticsStateText()
     {
         var pipelineSnapshot = _hapticPipeline.GetSnapshot();
@@ -615,6 +581,12 @@ public partial class MainWindow : Window
         if (!pipelineSnapshot.IsRunning)
         {
             HapticsStateText.Text = "Stopped";
+            return;
+        }
+
+        if (pipelineSnapshot.TelemetryTimedOutMuted)
+        {
+            HapticsStateText.Text = "Telemetry stale mute";
             return;
         }
 
@@ -652,7 +624,7 @@ public partial class MainWindow : Window
         _updatingSettingsUi = false;
     }
 
-    private async void TuningControl_Changed(object sender, RoutedEventArgs e)
+    private void TuningControl_Changed(object sender, RoutedEventArgs e)
     {
         if (_updatingTuningUi)
         {
@@ -668,10 +640,7 @@ public partial class MainWindow : Window
 
         if (_hapticsStarted)
         {
-            var submitResult = await ProcessAndSubmitHapticBufferAsync();
-            FooterStatusText.Text = submitResult.Succeeded
-                ? "Tuning applied to the effect engine, mixer, and safety chain."
-                : submitResult.Message;
+            FooterStatusText.Text = "Tuning applied to the output-owned render path.";
         }
         else
         {
@@ -855,7 +824,7 @@ public partial class MainWindow : Window
         FooterStatusText.Text = result.Message;
     }
 
-    private async void ResetProfileButton_Click(object sender, RoutedEventArgs e)
+    private void ResetProfileButton_Click(object sender, RoutedEventArgs e)
     {
         ApplyProfileToControls(HapticDriveProfile.Default);
         ApplyProfileToRuntime(HapticDriveProfile.Default);
@@ -865,10 +834,7 @@ public partial class MainWindow : Window
 
         if (_hapticsStarted)
         {
-            var submitResult = await ProcessAndSubmitHapticBufferAsync();
-            FooterStatusText.Text = submitResult.Succeeded
-                ? "Reset tuning to conservative defaults."
-                : submitResult.Message;
+            FooterStatusText.Text = "Reset tuning to conservative defaults for the output-owned render path.";
             return;
         }
 
@@ -955,6 +921,13 @@ public partial class MainWindow : Window
         return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
     }
 
+    private static string FormatDuration(TimeSpan? duration)
+    {
+        return duration is null
+            ? "none"
+            : $"{duration.Value.TotalMilliseconds:0.000} ms";
+    }
+
     private void UpdateOutputStatus(AudioOutputStatus status)
     {
         OutputModeValueText.Text = status.DisplayName;
@@ -988,7 +961,7 @@ public partial class MainWindow : Window
         NullOutputStatusText.Text = "Null output: default automated-test and hardware-absent target; produces no physical sound.";
         WasapiDebugStatusText.Text = "WASAPI debug: manual placeholder only; it is not the ASIO target and is never selected automatically.";
         AsioStatusText.Text = $"{_asioVisibilitySnapshot.Message} Windows sound output visibility is not proof of ASIO usage; Null output remains default.";
-        AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; last error {status.LastError ?? "none"}.";
+        AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; render callbacks {status.RenderCallbackCount:N0}; backend callbacks {status.BackendCallbackCount:N0}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; underruns {status.UnderrunCount:N0}; last error {status.LastError ?? "none"}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
@@ -1046,10 +1019,10 @@ public partial class MainWindow : Window
         var parserFailed = pipelineSnapshot.ParserFailureCount;
         var vehicleUpdates = pipelineSnapshot.VehicleStateUpdateCount;
 
-        DiagnosticsSummaryText.Text = $"UDP {receiverSnapshot.PacketCount:N0} packet(s), parser {parserSuccess:N0} valid / {parserFailed:N0} failed, effects {audioDiagnostics.ActiveEffectCount}, output peak {audioDiagnostics.OutputPeakLevel:0.000}.";
+        DiagnosticsSummaryText.Text = $"UDP {receiverSnapshot.PacketCount:N0} packet(s), parser {parserSuccess:N0} valid / {parserFailed:N0} failed, effects {audioDiagnostics.ActiveEffectCount}, output peak {audioDiagnostics.OutputPeakLevel:0.000}, callbacks {outputStatus.RenderCallbackCount:N0}.";
         DiagnosticsItemsControl.ItemsSource = new[]
         {
-            $"Pipeline: {(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
+            $"Pipeline: {(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); telemetry age {(pipelineSnapshot.TelemetryAge is null ? "none" : $"{pipelineSnapshot.TelemetryAge.Value.TotalMilliseconds:0} ms")}; stale mute {pipelineSnapshot.TelemetryTimedOutMuted}; last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
             $"UDP listener: {(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}.",
             $"UDP forwarding: {forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; {forwarderSnapshot.ErrorCount:N0} error(s).",
             $"Parser: {parserSuccess:N0} valid, {parserIgnored:N0} ignored, {parserFailed:N0} failed. {pipelineSnapshot.LastPacketMessage}",
@@ -1059,7 +1032,7 @@ public partial class MainWindow : Window
             $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
             $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
             $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
-            $"Output: {outputStatus.DisplayName} ({outputStatus.State}); hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}.",
+            $"Output: {outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}."
         };
 
@@ -1067,37 +1040,6 @@ public partial class MainWindow : Window
         {
             PageStatusText.Text = DiagnosticsSummaryText.Text;
         }
-    }
-
-    private async void HapticRenderTimer_Tick(object? sender, EventArgs e)
-    {
-        if (_hapticRenderInFlight || !_hapticPipeline.GetSnapshot().IsRunning)
-        {
-            return;
-        }
-
-        _hapticRenderInFlight = true;
-
-        try
-        {
-            var result = await _hapticPipeline.RenderNextBufferAsync();
-            if (!result.Succeeded)
-            {
-                FooterStatusText.Text = result.Message;
-                _hapticRenderTimer.Stop();
-                _hapticsStarted = false;
-                StartStopButton.Content = "Start Haptics";
-            }
-        }
-        finally
-        {
-            _hapticRenderInFlight = false;
-        }
-
-        UpdateHapticsStateText();
-        UpdateEffectStatus();
-        UpdateMixerStatus();
-        UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
     }
 
     private async Task RefreshAsioVisibilityDiagnosticsAsync()
@@ -1140,6 +1082,9 @@ public partial class MainWindow : Window
     private void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
     {
         UpdateTelemetryStatus();
+        UpdateHapticsStateText();
+        UpdateMixerStatus();
+        UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
     }
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
@@ -1407,7 +1352,6 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _telemetryStatusTimer.Stop();
-        _hapticRenderTimer.Stop();
         _testBench.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _hapticPipeline.DisposeAsync().AsTask().GetAwaiter().GetResult();

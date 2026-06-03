@@ -19,6 +19,9 @@ public sealed record HapticPipelineSnapshot(
     long ParserFailureCount,
     long VehicleStateUpdateCount,
     long RenderedBufferCount,
+    TimeSpan? TelemetryAge,
+    TimeSpan TelemetryMuteTimeout,
+    bool TelemetryTimedOutMuted,
     bool IsMuted,
     bool EmergencyMute,
     string LastPacketMessage,
@@ -35,4 +38,3 @@ public sealed record HapticPipelineSnapshot(
 {
     public bool HasParsedPackets => ParserSuccessCount > 0 || ParserIgnoredCount > 0 || ParserFailureCount > 0;
 }
-

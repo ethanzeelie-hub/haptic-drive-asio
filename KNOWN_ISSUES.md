@@ -153,3 +153,13 @@
 - The Fosi amplifier is available, but no gain safety, physical shaker feel, physical latency, or frequency tuning is claimed.
 - Dayton BST-1 physical shaker testing is deferred until the shaker arrives.
 - Windows sound output visibility is explicitly treated as separate from ASIO driver visibility and does not prove ASIO usage.
+
+## Stage 17
+
+- Native ASIO streaming is implemented behind `IAsioOutputBackend`, but physical Dayton BST-1 output, physical gain safety, shaker feel, physical latency, and final frequency tuning remain unvalidated.
+- The render path is output-owned and no longer driven by WPF `DispatcherTimer`, but final hardware callback behavior still depends on the selected local ASIO driver and must be checked manually with the full chain.
+- The ASIO backend uses a small preallocated queue between app rendering and the driver callback; underrun and dropped-buffer diagnostics are surfaced, but they are not a final latency measurement.
+- Stale telemetry is muted by wall-clock timeout so old live samples cannot drive effects indefinitely; effect behavior under network loss or game pause may need future refinement after real sessions.
+- ASIO driver selection, output channel selection, and arming remain explicit. The app still must not auto-switch to ASIO or WASAPI.
+- `NullAudioOutputDevice` remains the automated-test default. Hardware-dependent tests remain manual and skipped by default.
+- Recording library polish, forwarding destination UI, advanced routing matrices, live graphing, real WASAPI output, physical calibration UI, and Simagic P-HPR output remain deferred.

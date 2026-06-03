@@ -6,18 +6,24 @@ public sealed class UnavailableAsioOutputBackend : IAsioOutputBackend
 {
     private string? _driverName;
     private string? _lastError;
+    private long _droppedBufferCount;
 
     public AsioOutputBackendSnapshot GetSnapshot()
     {
         return new AsioOutputBackendSnapshot(
             IsOpen: false,
             IsRunning: false,
-            _driverName,
+            DriverName: _driverName,
             SampleRate: 0,
             BufferSize: 0,
             OutputChannelCount: 0,
             SubmittedBufferCount: 0,
-            DroppedBufferCount: 0,
+            DroppedBufferCount: Interlocked.Read(ref _droppedBufferCount),
+            CallbackCount: 0,
+            UnderrunCount: 0,
+            QueuedBufferCount: 0,
+            LastCallbackJitter: null,
+            MaximumCallbackJitter: null,
             _lastError);
     }
 
@@ -45,16 +51,15 @@ public sealed class UnavailableAsioOutputBackend : IAsioOutputBackend
         return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("ASIO backend already stopped."));
     }
 
-    public ValueTask<AsioOutputBackendOperationResult> SubmitAsync(
+    public AsioOutputBackendOperationResult Submit(
         ReadOnlyMemory<float> interleavedSamples,
         int sampleRate,
         int frameCount,
-        int outputChannelCount,
-        CancellationToken cancellationToken = default)
+        int outputChannelCount)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(AsioOutputBackendOperationResult.Failure(
-            _lastError ?? "ASIO backend is unavailable."));
+        Interlocked.Increment(ref _droppedBufferCount);
+        return AsioOutputBackendOperationResult.Failure(
+            _lastError ?? "ASIO backend is unavailable.");
     }
 
     public ValueTask DisposeAsync()

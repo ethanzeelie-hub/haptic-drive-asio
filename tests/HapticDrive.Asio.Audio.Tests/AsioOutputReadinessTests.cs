@@ -291,14 +291,19 @@ public sealed class AsioOutputReadinessTests
         public AsioOutputBackendSnapshot GetSnapshot()
         {
             return new AsioOutputBackendSnapshot(
-                IsOpen,
-                IsRunning,
-                AsioAudioOutputDevice.PreferredDriverName,
-                AudioOutputConfiguration.Default.SampleRate,
-                AudioOutputConfiguration.Default.BufferSize,
-                _outputChannelCount,
+                IsOpen: IsOpen,
+                IsRunning: IsRunning,
+                DriverName: AsioAudioOutputDevice.PreferredDriverName,
+                SampleRate: AudioOutputConfiguration.Default.SampleRate,
+                BufferSize: AudioOutputConfiguration.Default.BufferSize,
+                OutputChannelCount: _outputChannelCount,
                 SubmittedBufferCount: 0,
                 DroppedBufferCount: 0,
+                CallbackCount: 0,
+                UnderrunCount: 0,
+                QueuedBufferCount: 0,
+                LastCallbackJitter: null,
+                MaximumCallbackJitter: null,
                 LastError: null);
         }
 
@@ -337,21 +342,19 @@ public sealed class AsioOutputReadinessTests
             return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Fake backend stopped."));
         }
 
-        public ValueTask<AsioOutputBackendOperationResult> SubmitAsync(
+        public AsioOutputBackendOperationResult Submit(
             ReadOnlyMemory<float> interleavedSamples,
             int sampleRate,
             int frameCount,
-            int outputChannelCount,
-            CancellationToken cancellationToken = default)
+            int outputChannelCount)
         {
-            cancellationToken.ThrowIfCancellationRequested();
             if (!IsRunning)
             {
-                return ValueTask.FromResult(AsioOutputBackendOperationResult.Failure("Fake backend stopped."));
+                return AsioOutputBackendOperationResult.Failure("Fake backend stopped.");
             }
 
             LastSubmittedSamples = interleavedSamples.ToArray();
-            return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Fake backend accepted buffer."));
+            return AsioOutputBackendOperationResult.Success("Fake backend accepted buffer.");
         }
 
         public ValueTask DisposeAsync()

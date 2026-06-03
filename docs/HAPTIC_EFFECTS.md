@@ -1,6 +1,6 @@
 # Haptic Effects
 
-Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock. Stage 14 adds practical UI tuning and profile persistence for those existing effects. Stage 15 feeds live and replayed telemetry through those same effects, mixer, safety chain, and `NullAudioOutputDevice` in the first playable mock pipeline.
+Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock. Stage 14 adds practical UI tuning and profile persistence for those existing effects. Stage 15 feeds live and replayed telemetry through those same effects, mixer, safety chain, and `NullAudioOutputDevice` in the first playable mock pipeline. Stage 17 moves live rendering into an output-owned path and adds stale telemetry mute before hardware validation.
 
 ## Source Data
 
@@ -106,6 +106,8 @@ The `HapticEffectEngine` renders active effect buffers as `AudioMixerInput` sour
 
 The WPF shell adds Stage 14 controls for per-effect enabled state and gain, selected existing effect parameters, mixer/safety settings, versioned JSON profiles, and read-only diagnostics. The effect engine can retune by replacing immutable option records under a short lock, then continues to feed the same mixer, safety processor, emergency mute, limiter, clipping protection, and `NullAudioOutputDevice` path.
 
-Stage 15 does not add new effect categories, routing matrices, calibration UI, live graphs, real WASAPI output, real ASIO streaming, Simagic P-HPR output, or physical calibration.
+Stage 17 does not add new effect categories, routing matrices, calibration UI, live graphs, real WASAPI output, Simagic P-HPR output, or physical calibration.
+
+The output-owned render path renders effects only from current in-memory `VehicleState`/effect state, then passes buffers through the existing mixer and safety processor. If fresh parsed `VehicleState` has not arrived within the wall-clock timeout, effects are muted and safety silence is rendered until telemetry updates again.
 
 These defaults are not physical shaker calibration and must not be treated as final safe gain, final feel, final latency, or final frequency tuning. Those remain unvalidated until the real hardware chain is tested locally.

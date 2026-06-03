@@ -4,13 +4,13 @@ Manual hardware tests are opt-in checks for real output devices. They must stay 
 
 These tests must not be required for automated validation until the user confirms hardware is available.
 
-Current Stage 16 hardware status: the M-Audio M-Track Solo is connected to the user's Windows PC and the driver is installed. The Fosi amplifier has been received. The Dayton BST-1 shaker has not arrived, so physical shaker output testing is deferred. Stage 16 diagnostics may report ASIO driver visibility and readiness state, but automated tests still use fake ASIO catalogs/backends and Null output.
+Current Stage 17 hardware status: the M-Audio M-Track Solo is connected to the user's Windows PC and the driver is installed. The Fosi amplifier has been received. The Dayton BST-1 shaker has not arrived, so physical shaker output testing is deferred. Stage 17 diagnostics may report ASIO driver visibility, render callbacks, backend callbacks, drops, underruns, jitter, and telemetry age, but automated tests still use fake ASIO catalogs/backends and Null output.
 
 ## Stage 02 Manual Test Marker
 
 `HapticDrive.Asio.Audio.Tests.OutputDeviceTests.Manual_AsioOutputDevice_OpensRealDriverWhenHardwareIsAvailable` is skipped by default.
 
-It remains skipped by default. Stage 16 adds readiness diagnostics and fake-backend coverage, but native streaming validation is still manual/local work.
+It remains skipped by default. Stage 17 adds native streaming and fake-backend coverage, but physical shaker validation is still manual/local work.
 
 ## Before Running Any Manual Hardware Test
 
@@ -41,8 +41,23 @@ Short version:
 - Use test bench first, then replay, then live UDP only after the lower-risk checks are safe.
 - Keep physical gain changes manual and gradual after the Dayton BST-1 arrives.
 
+## Stage 17 Manual Streaming Checklist
+
+Use `docs/STAGE_17_NATIVE_ASIO_STREAMING.md` after the Stage 16 readiness checklist.
+
+Short version:
+
+- Keep Null output as the startup/default path.
+- Select ASIO, driver, channel, and arming deliberately.
+- Start Haptics deliberately.
+- Watch render callbacks, backend callbacks, dropped buffers, underruns, jitter, and telemetry age.
+- Verify stale telemetry mute by stopping replay or live telemetry and confirming output returns to silence.
+- Verify Emergency Mute and Stop Haptics.
+- Do not connect or energize the Dayton BST-1 until it arrives and the manual physical test is intentionally run.
+
 ## Stage 02 Expected Result
 
 - With no ASIO driver available, ASIO output returns a failure result instead of crashing.
 - With a matching fake driver catalog and fake backend in tests, ASIO output can validate explicit driver selection, arming, channel routing, lifecycle, stop, dispose, and safety-processed buffer submission.
+- Stage 17 fake-backend tests also validate output-owned callback cadence, dropped-buffer diagnostics, stale telemetry mute, emergency mute, and stop/dispose behavior.
 - No automated test requires real ASIO, WASAPI, M-Audio, Fosi, Dayton BST-1, F1 25, or live telemetry.

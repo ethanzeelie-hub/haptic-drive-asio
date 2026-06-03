@@ -15,7 +15,7 @@ F1 25 can enable UDP telemetry through the in-game telemetry settings. PC users 
 
 The PDF examples use port `20777`. Haptic Drive ASIO defaults to listening on `20778` because another tool, router, or Simagic software may already consume `20777`.
 
-Stage 15 implements raw listening, byte-preserving forwarding, raw packet recording, deterministic replay, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, mapping into shared `VehicleState`, conservative generated haptic effects for engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock, safe UI tuning/profile/diagnostic status, and a mock pipeline coordinator that renders live or replayed telemetry through the mixer, safety chain, and `NullAudioOutputDevice`. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding and recording use exact raw payload bytes and do not depend on parser or effect success.
+Stage 17 implements raw listening, byte-preserving forwarding, raw packet recording, deterministic replay, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, mapping into shared `VehicleState`, conservative generated haptic effects for engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock, safe UI tuning/profile/diagnostic status, and an output-owned renderer that feeds live or replayed telemetry through the mixer, safety chain, and selected output. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding and recording use exact raw payload bytes and do not depend on parser or effect success.
 
 Supported input modes planned:
 
@@ -28,7 +28,7 @@ Supported input modes planned:
 
 When connected as the game begins sending telemetry, the first frame includes enough data to initialize consumers. The PDF lists Session, Participants, Car Setups, Lap Data, Motion, Car Telemetry, Car Status, Car Damage, and Motion Ex on the first frame.
 
-The app tolerates packets arriving in any order and maintains last-known `VehicleState` samples per mapped packet slice. Missing slices remain null until their source packet arrives, and populated slices carry packet stamps so later timeout and safety stages can distinguish missing/stale data from real zero values.
+The app tolerates packets arriving in any order and maintains last-known `VehicleState` samples per mapped packet slice. Missing slices remain null until their source packet arrives, and populated slices carry packet stamps. Stage 17 also applies a wall-clock telemetry mute in the render path so stale live telemetry cannot continue driving effects indefinitely.
 
 ## Player Car Selection
 

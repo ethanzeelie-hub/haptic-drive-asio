@@ -10,7 +10,7 @@ Stage 09 implements raw UDP telemetry recording and deterministic replay.
 - Keep recording independent of F1 25 parser success so unknown or malformed packets can still be captured.
 - Keep replay reusable by the existing `F125PacketParser` and `F125VehicleStateAdapter` path.
 
-Stage 15 adds minimal latest-recording replay control in the shell and feeds replayed packets through the same mock parser, `VehicleState`, effect, mixer, safety, and `NullAudioOutputDevice` pipeline as live UDP packets. It still does not implement a polished recordings library UI, file picker, profile snapshots inside recordings, ASIO streaming, WASAPI output, or physical hardware validation.
+Stage 17 feeds replayed packets through the same parser, `VehicleState`, effect, mixer, safety, and output-owned render path as live UDP packets. Replay still does not implement a polished recordings library UI, file picker, profile snapshots inside recordings, real WASAPI output, or physical hardware validation.
 
 ## File Format
 

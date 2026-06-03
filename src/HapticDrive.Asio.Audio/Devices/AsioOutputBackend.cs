@@ -15,12 +15,11 @@ public interface IAsioOutputBackend : IAsyncDisposable
 
     ValueTask<AsioOutputBackendOperationResult> StopAsync(CancellationToken cancellationToken = default);
 
-    ValueTask<AsioOutputBackendOperationResult> SubmitAsync(
+    AsioOutputBackendOperationResult Submit(
         ReadOnlyMemory<float> interleavedSamples,
         int sampleRate,
         int frameCount,
-        int outputChannelCount,
-        CancellationToken cancellationToken = default);
+        int outputChannelCount);
 }
 
 public sealed record AsioOutputBackendSnapshot(
@@ -32,6 +31,11 @@ public sealed record AsioOutputBackendSnapshot(
     int OutputChannelCount,
     long SubmittedBufferCount,
     long DroppedBufferCount,
+    long CallbackCount,
+    long UnderrunCount,
+    int QueuedBufferCount,
+    TimeSpan? LastCallbackJitter,
+    TimeSpan? MaximumCallbackJitter,
     string? LastError);
 
 public sealed record AsioOutputBackendOpenResult(

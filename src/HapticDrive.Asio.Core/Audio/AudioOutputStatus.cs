@@ -17,4 +17,13 @@ public sealed record AudioOutputStatus(
     int? DeviceOutputChannelCount = null,
     long SubmittedBufferCount = 0,
     long DroppedBufferCount = 0,
+    long RenderCallbackCount = 0,
+    long BackendCallbackCount = 0,
+    long UnderrunCount = 0,
+    bool IsStreaming = false,
+    TimeSpan? LastRenderDuration = null,
+    TimeSpan? MaximumRenderDuration = null,
+    TimeSpan? LastCallbackJitter = null,
+    TimeSpan? MaximumCallbackJitter = null,
+    TimeSpan? LastTelemetryAge = null,
     string? LastError = null);
