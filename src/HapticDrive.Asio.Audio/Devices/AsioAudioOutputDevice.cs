@@ -8,19 +8,49 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
     public const string PreferredDriverName = "M-Audio M-Track Solo and Duo ASIO";
 
     private readonly IAsioDriverCatalog _driverCatalog;
+    private readonly IAsioOutputBackend _backend;
+    private float[] _routedSamples = [];
+    private int _driverOutputChannelCount;
+    private int? _selectedOutputChannel;
+    private long _submittedBufferCount;
+    private long _droppedBufferCount;
+    private string? _lastError;
 
     public AsioAudioOutputDevice()
-        : this(new UnavailableAsioDriverCatalog())
+        : this(new WindowsRegistryAsioDriverCatalog(), new UnavailableAsioOutputBackend())
     {
     }
 
     public AsioAudioOutputDevice(IAsioDriverCatalog driverCatalog)
+        : this(driverCatalog, new UnavailableAsioOutputBackend())
+    {
+    }
+
+    public AsioAudioOutputDevice(
+        IAsioDriverCatalog driverCatalog,
+        IAsioOutputBackend backend)
         : base(AudioOutputDeviceKind.Asio, "ASIO Output")
     {
-        _driverCatalog = driverCatalog;
+        _driverCatalog = driverCatalog ?? throw new ArgumentNullException(nameof(driverCatalog));
+        _backend = backend ?? throw new ArgumentNullException(nameof(backend));
     }
 
     public override bool RequiresPhysicalHardware => true;
+
+    public override AudioOutputStatus GetStatus()
+    {
+        var baseStatus = base.GetStatus();
+        var backendSnapshot = _backend.GetSnapshot();
+        return baseStatus with
+        {
+            DeviceOutputChannelCount = _driverOutputChannelCount == 0 ? backendSnapshot.OutputChannelCount : _driverOutputChannelCount,
+            DroppedBufferCount = Interlocked.Read(ref _droppedBufferCount) + backendSnapshot.DroppedBufferCount,
+            IsHardwareArmed = Configuration.IsHardwareArmed,
+            LastError = _lastError ?? backendSnapshot.LastError,
+            SelectedOutputChannel = _selectedOutputChannel ?? Configuration.SelectedOutputChannel,
+            SubmittedBufferCount = Interlocked.Read(ref _submittedBufferCount) + backendSnapshot.SubmittedBufferCount
+        };
+    }
 
     public override async ValueTask<AudioOutputDeviceResult> OpenAsync(
         AudioOutputConfiguration configuration,
@@ -28,27 +58,191 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
     {
         cancellationToken.ThrowIfCancellationRequested();
         Configuration = configuration;
+        _lastError = null;
+        _selectedOutputChannel = configuration.SelectedOutputChannel;
+
+        if (configuration.ChannelCount != 1)
+        {
+            State = AudioOutputDeviceState.Faulted;
+            _lastError = "Stage 16 ASIO readiness supports mono source buffers only.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
+
+        if (configuration.SelectedOutputChannel is null)
+        {
+            State = AudioOutputDeviceState.Faulted;
+            _lastError = "Select an ASIO output channel before opening ASIO output.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
+
+        if (configuration.SelectedOutputChannel.Value < 0)
+        {
+            State = AudioOutputDeviceState.Faulted;
+            _lastError = "ASIO output channel must be zero or greater.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
 
         var drivers = await _driverCatalog.GetDriverNamesAsync(cancellationToken).ConfigureAwait(false);
-        var requestedDriver = string.IsNullOrWhiteSpace(configuration.RequestedDeviceName)
-            ? PreferredDriverName
-            : configuration.RequestedDeviceName;
+        if (string.IsNullOrWhiteSpace(configuration.RequestedDeviceName))
+        {
+            State = AudioOutputDeviceState.Faulted;
+            DeviceName = null;
+            _lastError = "Select an ASIO driver before opening ASIO output.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
 
-        var selectedDriver = FindDriver(drivers, requestedDriver)
-            ?? FindDriver(drivers, PreferredDriverName);
+        var requestedDriver = configuration.RequestedDeviceName.Trim();
+        var selectedDriver = FindDriver(drivers, requestedDriver);
 
         if (selectedDriver is null)
         {
             State = AudioOutputDeviceState.Faulted;
             DeviceName = requestedDriver;
-            return await FailureAsync(
-                $"ASIO driver unavailable. Requested '{requestedDriver}', but no matching ASIO driver was found.").ConfigureAwait(false);
+            _lastError = $"ASIO driver unavailable. Requested '{requestedDriver}', but no matching ASIO driver was found.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
         }
 
         DeviceName = selectedDriver;
+        var openResult = await _backend.OpenAsync(selectedDriver, configuration, cancellationToken).ConfigureAwait(false);
+        if (!openResult.Succeeded)
+        {
+            State = AudioOutputDeviceState.Faulted;
+            _driverOutputChannelCount = 0;
+            _lastError = openResult.ErrorMessage ?? openResult.Message;
+            return await FailureAsync(
+                $"ASIO driver '{selectedDriver}' was discovered, but the output backend could not open it: {openResult.Message}").ConfigureAwait(false);
+        }
+
+        if (openResult.OutputChannelCount <= 0)
+        {
+            State = AudioOutputDeviceState.Faulted;
+            _driverOutputChannelCount = 0;
+            _lastError = $"ASIO driver '{selectedDriver}' reported no output channels.";
+            await _backend.StopAsync(cancellationToken).ConfigureAwait(false);
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
+
+        if (configuration.SelectedOutputChannel.Value >= openResult.OutputChannelCount)
+        {
+            State = AudioOutputDeviceState.Faulted;
+            _driverOutputChannelCount = openResult.OutputChannelCount;
+            _lastError = $"Selected ASIO output channel {configuration.SelectedOutputChannel.Value} is outside the reported {openResult.OutputChannelCount} output channel(s).";
+            await _backend.StopAsync(cancellationToken).ConfigureAwait(false);
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
+
+        _driverOutputChannelCount = openResult.OutputChannelCount;
+        _routedSamples = new float[checked(configuration.BufferSize * _driverOutputChannelCount)];
         State = AudioOutputDeviceState.Open;
-        StatusMessage = "ASIO driver selected. Real ASIO streaming is not implemented in Stage 02.";
+        StatusMessage = $"ASIO driver '{selectedDriver}' opened for manual readiness. Channel {configuration.SelectedOutputChannel.Value} selected; armed {configuration.IsHardwareArmed}.";
         return await SuccessAsync(StatusMessage).ConfigureAwait(false);
+    }
+
+    public override async ValueTask<AudioOutputDeviceResult> StartAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!Configuration.IsHardwareArmed)
+        {
+            _lastError = "ASIO output must be explicitly armed before it can start.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
+
+        if (State is not (AudioOutputDeviceState.Open or AudioOutputDeviceState.Stopped))
+        {
+            _lastError = "ASIO output must be open before it can start.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
+
+        var startResult = await _backend.StartAsync(cancellationToken).ConfigureAwait(false);
+        if (!startResult.Succeeded)
+        {
+            State = AudioOutputDeviceState.Faulted;
+            _lastError = startResult.ErrorMessage ?? startResult.Message;
+            return await FailureAsync($"ASIO output could not start: {startResult.Message}").ConfigureAwait(false);
+        }
+
+        State = AudioOutputDeviceState.Started;
+        StatusMessage = "ASIO output started after explicit selection and arming.";
+        _lastError = null;
+        return await SuccessAsync(StatusMessage).ConfigureAwait(false);
+    }
+
+    public override async ValueTask<AudioOutputDeviceResult> StopAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var stopResult = await _backend.StopAsync(cancellationToken).ConfigureAwait(false);
+        if (!stopResult.Succeeded)
+        {
+            _lastError = stopResult.ErrorMessage ?? stopResult.Message;
+            State = AudioOutputDeviceState.Stopped;
+            return await FailureAsync($"ASIO output stopped with backend warning: {stopResult.Message}").ConfigureAwait(false);
+        }
+
+        if (State is AudioOutputDeviceState.Open or AudioOutputDeviceState.Started or AudioOutputDeviceState.Stopped or AudioOutputDeviceState.Faulted)
+        {
+            State = AudioOutputDeviceState.Stopped;
+            StatusMessage = "ASIO output stopped.";
+            return await SuccessAsync(StatusMessage).ConfigureAwait(false);
+        }
+
+        return await FailureAsync("ASIO output is not open.").ConfigureAwait(false);
+    }
+
+    public override async ValueTask<AudioOutputDeviceResult> SubmitBufferAsync(
+        AudioSampleBuffer buffer,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (State != AudioOutputDeviceState.Started)
+        {
+            return await FailureAsync("ASIO output must be started before it can consume audio sample buffers.").ConfigureAwait(false);
+        }
+
+        ValidateBufferMatchesConfiguration(buffer, Configuration);
+
+        if (_selectedOutputChannel is null || _driverOutputChannelCount <= 0)
+        {
+            Interlocked.Increment(ref _droppedBufferCount);
+            _lastError = "ASIO output channel routing is not configured.";
+            return await FailureAsync(_lastError).ConfigureAwait(false);
+        }
+
+        RouteMonoBuffer(buffer, _selectedOutputChannel.Value, _driverOutputChannelCount, _routedSamples);
+        var submitResult = await _backend.SubmitAsync(
+            _routedSamples,
+            Configuration.SampleRate,
+            Configuration.BufferSize,
+            _driverOutputChannelCount,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!submitResult.Succeeded)
+        {
+            Interlocked.Increment(ref _droppedBufferCount);
+            _lastError = submitResult.ErrorMessage ?? submitResult.Message;
+            return await FailureAsync($"ASIO output dropped a buffer: {submitResult.Message}").ConfigureAwait(false);
+        }
+
+        Interlocked.Increment(ref _submittedBufferCount);
+        _lastError = null;
+        StatusMessage = $"ASIO output accepted {buffer.FrameCount:N0} safety-processed frame(s).";
+        return await SuccessAsync(StatusMessage).ConfigureAwait(false);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await _backend.StopAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            await _backend.DisposeAsync().ConfigureAwait(false);
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     private static string? FindDriver(IReadOnlyList<string> drivers, string? requestedDriver)
@@ -60,5 +254,33 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
 
         return drivers.FirstOrDefault(driver =>
             string.Equals(driver, requestedDriver, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void RouteMonoBuffer(
+        AudioSampleBuffer source,
+        int selectedOutputChannel,
+        int outputChannelCount,
+        float[] destination)
+    {
+        if (source.ChannelCount != 1)
+        {
+            throw new ArgumentException("Stage 16 ASIO routing expects a mono source buffer.", nameof(source));
+        }
+
+        if ((uint)selectedOutputChannel >= (uint)outputChannelCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(selectedOutputChannel));
+        }
+
+        if (destination.Length != checked(source.FrameCount * outputChannelCount))
+        {
+            throw new ArgumentException("Routed ASIO buffer length does not match the selected output channel count.", nameof(destination));
+        }
+
+        Array.Clear(destination);
+        for (var frame = 0; frame < source.FrameCount; frame++)
+        {
+            destination[(frame * outputChannelCount) + selectedOutputChannel] = source[frame, 0];
+        }
     }
 }

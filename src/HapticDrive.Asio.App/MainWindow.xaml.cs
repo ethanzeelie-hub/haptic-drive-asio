@@ -21,8 +21,9 @@ namespace HapticDrive.Asio.App;
 
 public partial class MainWindow : Window
 {
-    private readonly HapticPipelineCoordinator _hapticPipeline = new();
-    private readonly AsioDriverVisibilityDiagnostics _asioVisibilityDiagnostics = new(new UnavailableAsioDriverCatalog());
+    private readonly IAsioDriverCatalog _asioDriverCatalog = new WindowsRegistryAsioDriverCatalog();
+    private readonly AsioDriverVisibilityDiagnostics _asioVisibilityDiagnostics;
+    private readonly AsioReadinessDiagnostics _asioReadinessDiagnostics;
     private readonly AudioTestBench _testBench = new();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
@@ -42,6 +43,13 @@ public partial class MainWindow : Window
         AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Pulse),
         AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Constant)
     ];
+    private readonly IReadOnlyList<OutputModeOption> _outputModeOptions =
+    [
+        new(AudioOutputDeviceKind.Null, "Null output"),
+        new(AudioOutputDeviceKind.Asio, "ASIO output"),
+        new(AudioOutputDeviceKind.WasapiDebug, "WASAPI debug")
+    ];
+    private readonly IReadOnlyList<int> _asioOutputChannelChoices = Enumerable.Range(0, 8).ToArray();
 
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
@@ -194,21 +202,36 @@ public partial class MainWindow : Window
     private bool _emergencyMuted;
     private bool _lightTheme;
     private bool _hapticRenderInFlight;
+    private bool _updatingOutputUi;
+    private AudioOutputDeviceKind _selectedOutputKind = AudioOutputDeviceKind.Null;
+    private string? _selectedAsioDriverName;
+    private int? _selectedAsioOutputChannel;
+    private bool _asioArmed;
     private string? _telemetryStartError;
     private string? _recordingError;
     private string? _replayError;
     private HapticDriveProfile _currentProfile = HapticDriveProfile.Default;
+    private HapticPipelineCoordinator _hapticPipeline = new();
     private AsioDriverVisibilitySnapshot _asioVisibilitySnapshot = AsioDriverVisibilitySnapshot.NotChecked;
+    private AsioReadinessSnapshot _asioReadinessSnapshot = AsioReadinessSnapshot.NotChecked;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
     private bool _updatingSettingsUi;
 
     public MainWindow()
     {
+        _asioVisibilityDiagnostics = new AsioDriverVisibilityDiagnostics(_asioDriverCatalog);
+        _asioReadinessDiagnostics = new AsioReadinessDiagnostics(_asioDriverCatalog);
+
         InitializeComponent();
 
         NavigationList.ItemsSource = _pages;
         NavigationList.SelectedIndex = 0;
+        _updatingOutputUi = true;
+        OutputModeComboBox.ItemsSource = _outputModeOptions;
+        OutputModeComboBox.SelectedItem = _outputModeOptions.Single(option => option.Kind == _selectedOutputKind);
+        AsioOutputChannelComboBox.ItemsSource = _asioOutputChannelChoices;
+        _updatingOutputUi = false;
         TestBenchSignalComboBox.ItemsSource = _testBenchSignals;
         TestBenchSignalComboBox.SelectedIndex = 1;
         ApplyTheme(lightTheme: false);
@@ -285,6 +308,128 @@ public partial class MainWindow : Window
             UpdateTestBenchStatus();
             UpdateDiagnosticsStatus();
         }
+    }
+
+    private async void OutputModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingOutputUi
+            || OutputModeComboBox.SelectedItem is not OutputModeOption option)
+        {
+            return;
+        }
+
+        _selectedOutputKind = option.Kind;
+        await RebuildHapticPipelineForOutputSelectionAsync($"Output mode changed to {option.Label}; haptics are stopped until started explicitly.");
+    }
+
+    private async void AsioDriverComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingOutputUi)
+        {
+            return;
+        }
+
+        _selectedAsioDriverName = AsioDriverComboBox.SelectedItem as string;
+        if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
+        {
+            await RebuildHapticPipelineForOutputSelectionAsync("ASIO driver selection changed; haptics are stopped until ASIO is armed and started explicitly.");
+        }
+    }
+
+    private async void AsioOutputChannelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingOutputUi)
+        {
+            return;
+        }
+
+        _selectedAsioOutputChannel = AsioOutputChannelComboBox.SelectedItem is int channel
+            ? channel
+            : null;
+        if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
+        {
+            await RebuildHapticPipelineForOutputSelectionAsync("ASIO channel selection changed; haptics are stopped until started explicitly.");
+        }
+    }
+
+    private async void AsioArmCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingOutputUi)
+        {
+            return;
+        }
+
+        _asioArmed = AsioArmCheckBox.IsChecked == true;
+        if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
+        {
+            await RebuildHapticPipelineForOutputSelectionAsync(
+                _asioArmed
+                    ? "ASIO armed. Start Haptics is still required before output can run."
+                    : "ASIO disarmed and haptics stopped.");
+        }
+    }
+
+    private async void RefreshAsioButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshAsioVisibilityDiagnosticsAsync();
+        FooterStatusText.Text = "ASIO readiness diagnostics refreshed.";
+    }
+
+    private async Task RebuildHapticPipelineForOutputSelectionAsync(string footerMessage)
+    {
+        _hapticRenderTimer.Stop();
+        if (_hapticsStarted || _hapticPipeline.GetSnapshot().IsRunning)
+        {
+            await _hapticPipeline.StopAsync();
+        }
+
+        _hapticsStarted = false;
+        StartStopButton.Content = "Start Haptics";
+
+        var previousPipeline = _hapticPipeline;
+        _hapticPipeline = CreatePipelineForSelectedOutput();
+        _hapticPipeline.ApplyProfile(_currentProfile);
+        await previousPipeline.DisposeAsync();
+
+        await RefreshAsioReadinessDiagnosticsAsync();
+        UpdateHapticsStateText();
+        UpdateRecordingStatus();
+        UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
+        UpdateDeviceStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = footerMessage;
+    }
+
+    private HapticPipelineCoordinator CreatePipelineForSelectedOutput()
+    {
+        var configuration = BuildSelectedOutputConfiguration();
+        return new HapticPipelineCoordinator(
+            configuration,
+            CreateSelectedOutputDevice(),
+            profile: _currentProfile);
+    }
+
+    private IAudioOutputDevice CreateSelectedOutputDevice()
+    {
+        return _selectedOutputKind switch
+        {
+            AudioOutputDeviceKind.Null => new NullAudioOutputDevice(),
+            AudioOutputDeviceKind.WasapiDebug => new WasapiDebugOutputDevice(),
+            AudioOutputDeviceKind.Asio => new AsioAudioOutputDevice(_asioDriverCatalog),
+            _ => new NullAudioOutputDevice()
+        };
+    }
+
+    private AudioOutputConfiguration BuildSelectedOutputConfiguration()
+    {
+        return _selectedOutputKind == AudioOutputDeviceKind.Asio
+            ? AudioOutputConfiguration.Default with
+            {
+                RequestedDeviceName = _selectedAsioDriverName,
+                SelectedOutputChannel = _selectedAsioOutputChannel,
+                IsHardwareArmed = _asioArmed
+            }
+            : AudioOutputConfiguration.Default;
     }
 
     private async void StartStopButton_Click(object sender, RoutedEventArgs e)
@@ -813,7 +958,9 @@ public partial class MainWindow : Window
     private void UpdateOutputStatus(AudioOutputStatus status)
     {
         OutputModeValueText.Text = status.DisplayName;
-        OutputModeDetailText.Text = status.StatusMessage;
+        OutputModeDetailText.Text = status.Kind == AudioOutputDeviceKind.Asio
+            ? $"{status.StatusMessage} Armed {status.IsHardwareArmed}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}."
+            : status.StatusMessage;
         UpdateDeviceStatus();
     }
 
@@ -839,13 +986,15 @@ public partial class MainWindow : Window
         var status = snapshot.Output;
         CurrentOutputStatusText.Text = $"Current output: {status.DisplayName} ({status.State}); {status.StatusMessage}";
         NullOutputStatusText.Text = "Null output: default automated-test and hardware-absent target; produces no physical sound.";
-        WasapiDebugStatusText.Text = "WASAPI debug: manual placeholder only; no real streaming is enabled in Stage 15.";
+        WasapiDebugStatusText.Text = "WASAPI debug: manual placeholder only; it is not the ASIO target and is never selected automatically.";
         AsioStatusText.Text = $"{_asioVisibilitySnapshot.Message} Windows sound output visibility is not proof of ASIO usage; Null output remains default.";
+        AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; last error {status.LastError ?? "none"}.";
+        HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
-                ? "Selected output requires physical hardware; this is not the Stage 15 default."
+                ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
                 : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}.";
         }
     }
@@ -910,8 +1059,8 @@ public partial class MainWindow : Window
             $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
             $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
             $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
-            $"Output: {outputStatus.DisplayName} ({outputStatus.State}); hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}.",
-            $"ASIO visibility: {_asioVisibilitySnapshot.Message} Drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; M-Audio match {(_asioVisibilitySnapshot.IsMTrackDriverVisible ? "yes" : "no")}."
+            $"Output: {outputStatus.DisplayName} ({outputStatus.State}); hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}.",
+            $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
@@ -954,8 +1103,38 @@ public partial class MainWindow : Window
     private async Task RefreshAsioVisibilityDiagnosticsAsync()
     {
         _asioVisibilitySnapshot = await _asioVisibilityDiagnostics.RefreshAsync();
+        UpdateAsioDriverSelectionItems();
+        await RefreshAsioReadinessDiagnosticsAsync();
         UpdateDeviceStatus();
         UpdateDiagnosticsStatus();
+    }
+
+    private async Task RefreshAsioReadinessDiagnosticsAsync()
+    {
+        _asioReadinessSnapshot = await _asioReadinessDiagnostics.RefreshAsync(_hapticPipeline.GetSnapshot().Output);
+    }
+
+    private void UpdateAsioDriverSelectionItems()
+    {
+        var drivers = _asioVisibilitySnapshot.DriverNames;
+        _updatingOutputUi = true;
+        AsioDriverComboBox.ItemsSource = drivers;
+
+        if (_selectedAsioDriverName is not null
+            && drivers.Contains(_selectedAsioDriverName, StringComparer.OrdinalIgnoreCase))
+        {
+            AsioDriverComboBox.SelectedItem = drivers.First(driver =>
+                string.Equals(driver, _selectedAsioDriverName, StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            _selectedAsioDriverName = null;
+            AsioDriverComboBox.SelectedIndex = -1;
+        }
+
+        AsioOutputChannelComboBox.SelectedItem = _selectedAsioOutputChannel;
+        AsioArmCheckBox.IsChecked = _asioArmed;
+        _updatingOutputUi = false;
     }
 
     private void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
@@ -1241,6 +1420,10 @@ public partial class MainWindow : Window
         string Summary,
         string Status,
         IReadOnlyList<string> Items);
+
+    private sealed record OutputModeOption(
+        AudioOutputDeviceKind Kind,
+        string Label);
 
     private sealed record ThemePalette(
         string Background,

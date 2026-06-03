@@ -567,3 +567,52 @@ Self-review:
 - UDP forwarding and recording/replay raw byte guarantees were preserved and remain parser-independent.
 - Parser packet layouts, offsets, enum values, versions, lengths, and `VehicleState` mappings were not changed.
 - Tests cover lifecycle, restart, stopped rendering, live-like packet flow, replay flow, malformed packets, recording before parser failure, normal mute, emergency mute, disabled effects, Null output diagnostics, replay stop safety, and fake ASIO/M-Audio visibility diagnostics.
+
+## Stage 16 - Manual ASIO Hardware Readiness
+
+Date: 2026-06-03
+
+Status: Complete.
+
+Goal: Prepare the app for controlled manual ASIO readiness checks with the connected M-Audio M-Track Solo while preserving Null output defaults, hardware-safe behavior, and CI-safe automated tests.
+
+Notes:
+
+- Verified Stage 15 was complete, tested, and committed as `624534a stage-15-first-playable-mock-output` before beginning Stage 16.
+- Added `WindowsRegistryAsioDriverCatalog` to list ASIO driver names from standard Windows ASIO registry locations when available.
+- Kept ASIO discovery behind `IAsioDriverCatalog` so tests can use fake catalogs and missing ASIO drivers remain non-fatal.
+- Added `AsioReadinessDiagnostics` for ASIO availability, M-Audio / M-Track visibility, selected output mode, selected driver, sample rate, buffer size, channel state, arming state, running state, buffer counters, drops, and last error.
+- Extended `AudioOutputConfiguration` and `AudioOutputStatus` with optional hardware arming, selected output channel, output channel count, buffer counters, and last-error diagnostics.
+- Reworked `AsioAudioOutputDevice` so ASIO requires explicit driver selection, explicit output-channel selection, explicit arming, and explicit Start Haptics before it can run.
+- Added `IAsioOutputBackend` and a default unavailable backend so native streaming remains isolated and failure-safe while fake backends cover lifecycle/routing tests.
+- Implemented Stage 16 mono-to-selected-channel routing after the existing effect, mixer, and safety processor path. Other routed ASIO channels are cleared.
+- Added WPF Devices controls for output mode, ASIO refresh, ASIO driver selection, channel selection, and ASIO arming. Changing output mode/settings stops haptics and rebuilds the runtime pipeline in a stopped state.
+- Updated diagnostics and documentation to state that Windows sound output visibility is not proof of ASIO usage.
+- Added `docs/STAGE_16_ASIO_READINESS.md` with the manual M-Audio/Fosi/BST-1 readiness checklist.
+- Updated README, ASIO output docs, manual hardware docs, hardware-absent mode docs, roadmap, and known issues for Stage 16.
+- Did not add a new external dependency. Native ASIO callback streaming remains future local Windows validation work behind the backend seam.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 188 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 16 stayed within manual ASIO hardware readiness scope.
+- Updated M-Audio/Fosi/BST-1 hardware state is reflected accurately.
+- No Simagic P-HPR, USB haptic output, reverse engineering, or new haptic effect categories were implemented.
+- Default output remains `NullAudioOutputDevice`.
+- ASIO is explicit, selectable, channel-routed, and arming-gated by default.
+- ASIO absence, M-Audio absence, Fosi absence, and Dayton BST-1 absence do not break startup, build, tests, or CI.
+- Windows sound output visibility is not treated as proof of ASIO usage.
+- Emergency mute remains applied through the existing mixer/safety path before output.
+- Stop Haptics stops output, and switching away from ASIO stops the previous output path first in the shell workflow.
+- Safety chain remains mandatory before hardware-capable output submission.
+- UDP forwarding and recording/replay raw byte guarantees were not changed.
+- Parser and `VehicleState` behavior were not changed.
+- No guessed parser fields, packet offsets, packet layouts, packet lengths, enum values, or versions were introduced.
+- Hardware tests are skipped/manual by default.
+- Tests cover fake ASIO discovery, fake M-Audio visibility, unavailable ASIO, invalid driver, invalid channel, arming, lifecycle, stop/dispose safety, routing, emergency mute, safety-processed output, default Null output, and hardware-absent operation.

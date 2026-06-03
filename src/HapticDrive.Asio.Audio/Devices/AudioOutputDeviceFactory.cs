@@ -8,7 +8,7 @@ public sealed class AudioOutputDeviceFactory
     private readonly IAsioDriverCatalog _asioDriverCatalog;
 
     public AudioOutputDeviceFactory()
-        : this(new UnavailableAsioDriverCatalog())
+        : this(new WindowsRegistryAsioDriverCatalog())
     {
     }
 

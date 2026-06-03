@@ -141,3 +141,15 @@
 - Seeing the M-Audio device in the Windows sound output selector is not proof that the app is using ASIO.
 - Real ASIO streaming, M-Audio hardware readiness, physical latency measurement, physical gain calibration, and Dayton BST-1 shaker tuning remain deferred to Stage 16/manual testing.
 - The Dayton BST-1 has not been physically validated in this project yet, so no final shaker feel, safe gain, latency, or frequency tuning claims can be made.
+
+## Stage 16
+
+- ASIO driver-name discovery is implemented through Windows ASIO registry locations, but driver visibility still depends on how the vendor driver registers itself locally.
+- The app exposes explicit ASIO selection, driver selection, channel selection, arming, routing diagnostics, and fake-backend tests, but a native ASIO callback streaming backend is not installed in this Stage 16 build.
+- Selecting ASIO with the default unavailable backend can discover a driver but fail safely at backend open/start; this is readiness behavior, not physical output validation.
+- Output channel count is known only when a backend can open the selected ASIO driver. Until then, channel choices are manual readiness selections and must be confirmed locally.
+- The WPF shell still uses simple code-behind wiring and rebuilds the runtime pipeline when output mode/settings change; polished device profiles and persisted output selection are deferred.
+- Test bench remains bound to Null output by default. Manual ASIO test-bench streaming awaits the native backend and local validation.
+- The Fosi amplifier is available, but no gain safety, physical shaker feel, physical latency, or frequency tuning is claimed.
+- Dayton BST-1 physical shaker testing is deferred until the shaker arrives.
+- Windows sound output visibility is explicitly treated as separate from ASIO driver visibility and does not prove ASIO usage.

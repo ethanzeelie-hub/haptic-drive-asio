@@ -11,4 +11,10 @@ public sealed record AudioOutputStatus(
     int BufferSize,
     bool RequiresPhysicalHardware,
     bool IsManualDebugOnly,
-    bool IsAvailable);
+    bool IsAvailable,
+    bool IsHardwareArmed = false,
+    int? SelectedOutputChannel = null,
+    int? DeviceOutputChannelCount = null,
+    long SubmittedBufferCount = 0,
+    long DroppedBufferCount = 0,
+    string? LastError = null);

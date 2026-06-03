@@ -18,7 +18,8 @@
 - Stage 13: Kerb, impact, road texture, and slip effects complete.
 - Stage 14: UI tuning, profiles, and diagnostics complete.
 - Stage 15: First playable mock output milestone complete.
-- Next: Stage 16 manual ASIO hardware readiness.
+- Stage 16: Manual ASIO hardware readiness complete.
+- Phase 1 software/manual ASIO readiness milestone complete.
 
 ## Planned Stages
 
@@ -37,10 +38,11 @@
 13. Stage 13: Kerb, impact, road texture, and slip effects. Complete.
 14. Stage 14: UI tuning, profiles, and diagnostics. Complete.
 15. Stage 15: First playable mock output milestone. Complete.
-16. Stage 16: Manual ASIO hardware readiness.
+16. Stage 16: Manual ASIO hardware readiness. Complete.
 
 ## V1 Boundary
 
 - F1 25 first.
 - Null output, WASAPI debug output, ASIO abstraction, telemetry replay, first playable mock software pipeline, and hardware-safe defaults.
+- Stage 16 ASIO readiness includes discovery, explicit selection/arming/channel routing seams, diagnostics, fake-backend tests, and manual M-Audio/Fosi/BST-1 checklist.
 - No Simagic P-HPR implementation in V1.

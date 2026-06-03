@@ -62,7 +62,11 @@ public sealed class OutputDeviceTests
     {
         await using var device = new AsioAudioOutputDevice(new FakeAsioDriverCatalog([]));
 
-        var result = await device.OpenAsync(AudioOutputConfiguration.Default);
+        var result = await device.OpenAsync(AudioOutputConfiguration.Default with
+        {
+            RequestedDeviceName = AsioAudioOutputDevice.PreferredDriverName,
+            SelectedOutputChannel = 0
+        });
 
         Assert.False(result.Succeeded);
         Assert.Equal(AudioOutputDeviceState.Faulted, result.Status.State);
@@ -74,17 +78,24 @@ public sealed class OutputDeviceTests
     [Fact]
     public async Task AsioOutputDevice_PrefersMAudioDriverWhenAvailable()
     {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
         await using var device = new AsioAudioOutputDevice(new FakeAsioDriverCatalog(
         [
             "Other ASIO Driver",
             AsioAudioOutputDevice.PreferredDriverName
-        ]));
+        ]), backend);
 
-        var result = await device.OpenAsync(AudioOutputConfiguration.Default);
+        var result = await device.OpenAsync(AudioOutputConfiguration.Default with
+        {
+            RequestedDeviceName = AsioAudioOutputDevice.PreferredDriverName,
+            SelectedOutputChannel = 1
+        });
 
         Assert.True(result.Succeeded);
         Assert.Equal(AudioOutputDeviceState.Open, result.Status.State);
         Assert.Equal(AsioAudioOutputDevice.PreferredDriverName, result.Status.DeviceName);
+        Assert.Equal(2, result.Status.DeviceOutputChannelCount);
+        Assert.Equal(1, result.Status.SelectedOutputChannel);
     }
 
     [Fact]
@@ -119,6 +130,73 @@ public sealed class OutputDeviceTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(_driverNames);
+        }
+    }
+
+    private sealed class FakeAsioOutputBackend : IAsioOutputBackend
+    {
+        private readonly int _outputChannelCount;
+        private bool _isOpen;
+
+        public FakeAsioOutputBackend(int outputChannelCount)
+        {
+            _outputChannelCount = outputChannelCount;
+        }
+
+        public AsioOutputBackendSnapshot GetSnapshot()
+        {
+            return new AsioOutputBackendSnapshot(
+                _isOpen,
+                IsRunning: false,
+                DriverName: null,
+                AudioOutputConfiguration.Default.SampleRate,
+                AudioOutputConfiguration.Default.BufferSize,
+                _outputChannelCount,
+                SubmittedBufferCount: 0,
+                DroppedBufferCount: 0,
+                LastError: null);
+        }
+
+        public ValueTask<AsioOutputBackendOpenResult> OpenAsync(
+            string driverName,
+            AudioOutputConfiguration configuration,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _isOpen = true;
+            return ValueTask.FromResult(AsioOutputBackendOpenResult.Success(
+                "Opened fake ASIO backend.",
+                configuration.SampleRate,
+                configuration.BufferSize,
+                _outputChannelCount));
+        }
+
+        public ValueTask<AsioOutputBackendOperationResult> StartAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Started."));
+        }
+
+        public ValueTask<AsioOutputBackendOperationResult> StopAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Stopped."));
+        }
+
+        public ValueTask<AsioOutputBackendOperationResult> SubmitAsync(
+            ReadOnlyMemory<float> interleavedSamples,
+            int sampleRate,
+            int frameCount,
+            int outputChannelCount,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Submitted."));
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 }
