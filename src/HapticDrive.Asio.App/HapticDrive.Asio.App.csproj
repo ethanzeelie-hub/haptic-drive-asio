@@ -5,6 +5,7 @@
     <ProjectReference Include="..\HapticDrive.Asio.Telemetry.F1_25\HapticDrive.Asio.Telemetry.F1_25.csproj" />
     <ProjectReference Include="..\HapticDrive.Asio.Audio\HapticDrive.Asio.Audio.csproj" />
     <ProjectReference Include="..\HapticDrive.Asio.Recording\HapticDrive.Asio.Recording.csproj" />
+    <ProjectReference Include="..\HapticDrive.Asio.Runtime\HapticDrive.Asio.Runtime.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

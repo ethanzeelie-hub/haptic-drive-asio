@@ -1,6 +1,6 @@
 # Hardware-Absent Mode
 
-Hardware-absent mode is the default development and automated-test posture until the real M-Audio interface, amplifier, and Dayton BST-1 chain is available.
+Hardware-absent mode is the default development and automated-test posture until the real M-Audio interface, amplifier, and Dayton BST-1 chain is fully available and manually validated. The M-Audio M-Track Solo and Fosi amplifier may now be present locally, but the Dayton BST-1 shaker has not been physically validated.
 
 ## Current Behavior
 
@@ -14,6 +14,9 @@ Hardware-absent mode is the default development and automated-test posture until
 - The Stage 10 mixer and safety chain are covered by automated tests using null output only.
 - The Stage 11 test bench generates deterministic synthetic validation buffers and feeds null output by default.
 - The Stage 12 gear shift and engine effects generate deterministic source buffers and feed the existing mixer, safety chain, and null output in tests.
+- Stage 13 kerb, impact, road texture, and slip effects use the same null-output path.
+- Stage 15 live/replay mock pipeline orchestration uses `NullAudioOutputDevice` by default and can be validated without F1 25, UDP sockets, ASIO hardware, WASAPI hardware, M-Audio hardware, Fosi amplifier, or Dayton BST-1.
+- Optional M-Audio / ASIO visibility diagnostics use fake catalogs in automated tests and must not be treated as proof of real ASIO streaming.
 
 ## Output Modes
 
@@ -30,3 +33,4 @@ Hardware-absent mode is the default development and automated-test posture until
 - Do not make automated tests depend on output hardware.
 - Do not fall back from ASIO to WASAPI automatically.
 - Keep hardware-dependent tests skipped by default.
+- Do not treat Windows sound output selector visibility as proof of ASIO usage.

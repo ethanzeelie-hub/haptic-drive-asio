@@ -17,7 +17,8 @@
 - Stage 12: Gear shift and engine effects complete.
 - Stage 13: Kerb, impact, road texture, and slip effects complete.
 - Stage 14: UI tuning, profiles, and diagnostics complete.
-- Next: Stage 15 first playable mock output milestone.
+- Stage 15: First playable mock output milestone complete.
+- Next: Stage 16 manual ASIO hardware readiness.
 
 ## Planned Stages
 
@@ -35,11 +36,11 @@
 12. Stage 12: Gear shift and engine effects. Complete.
 13. Stage 13: Kerb, impact, road texture, and slip effects. Complete.
 14. Stage 14: UI tuning, profiles, and diagnostics. Complete.
-15. Stage 15: First playable mock output milestone.
+15. Stage 15: First playable mock output milestone. Complete.
 16. Stage 16: Manual ASIO hardware readiness.
 
 ## V1 Boundary
 
 - F1 25 first.
-- Null output, WASAPI debug output, ASIO abstraction, telemetry replay, and hardware-safe defaults.
+- Null output, WASAPI debug output, ASIO abstraction, telemetry replay, first playable mock software pipeline, and hardware-safe defaults.
 - No Simagic P-HPR implementation in V1.

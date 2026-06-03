@@ -529,3 +529,41 @@ Self-review:
 - No guessed parser fields, packet offsets, packet layouts, packet lengths, enum values, or versions were introduced.
 - No Simagic P-HPR work was added.
 - Tests cover profile defaults, save/load, missing/corrupt/unsupported files, invalid-value repair, effect/mixer/safety mapping, emergency mute preservation, diagnostics snapshots without hardware or telemetry, and replay inactive/completed status.
+
+## Stage 15 - First Playable Mock Output
+
+Date: 2026-06-03
+
+Status: Complete.
+
+Goal: Create the first end-to-end playable mock haptic milestone while keeping `NullAudioOutputDevice` as the default output and avoiding Stage 16 real ASIO hardware readiness.
+
+Notes:
+
+- Verified Stage 14 was complete, tested, and committed as `cc4ee32 stage-14-ui-tuning-profiles-diagnostics` before beginning Stage 15.
+- Added `HapticDrive.Asio.Runtime` with `HapticPipelineCoordinator` as the integration boundary for live UDP packets, replay packets, the F1 25 parser, `VehicleState` adapter, existing haptic effects, mixer, safety chain, recording, forwarding, replay, and output abstraction.
+- Live UDP and replay packets now share the same parser, `VehicleState`, effect, mixer, safety, and output path.
+- Start/Stop Haptics now starts and stops the mock software pipeline and selected output device cleanly.
+- Added a simple WPF mock render timer for runtime Null-output rendering while keeping tests deterministic through explicit render steps.
+- Emergency mute immediately updates the coordinator mixer/safety state and submits a muted buffer when the pipeline is running.
+- Stage 14 profile settings now apply to the active coordinator effect, mixer, and safety configuration.
+- Added minimal `Replay Latest` shell control that replays the newest local `.hdrec` file through the same mock pipeline without UDP sockets.
+- Added optional ASIO driver visibility diagnostics through the existing `IAsioDriverCatalog` seam. The default catalog remains hardware-absent safe and reports no drivers unless a real discovery implementation is added later.
+- Added `docs/STAGE_15_MOCK_PIPELINE.md` with the hardware-safe mock validation checklist and M-Audio / ASIO visibility caveats.
+- Updated README, roadmap, telemetry, ASIO, hardware-absent, and known-issues documentation for Stage 15.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 168 passing tests and 1 skipped manual ASIO hardware test.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 15 stayed within the first playable mock output milestone scope.
+- No Stage 16 real ASIO hardware readiness, ASIO callback streaming, WASAPI streaming, physical shaker calibration, physical gain tuning, latency measurement, or Simagic P-HPR work was implemented.
+- Default output remains `NullAudioOutputDevice`, and automated tests do not require hardware, F1 25, live telemetry, M-Audio, Fosi, Dayton BST-1, ASIO, or WASAPI.
+- UDP forwarding and recording/replay raw byte guarantees were preserved and remain parser-independent.
+- Parser packet layouts, offsets, enum values, versions, lengths, and `VehicleState` mappings were not changed.
+- Tests cover lifecycle, restart, stopped rendering, live-like packet flow, replay flow, malformed packets, recording before parser failure, normal mute, emergency mute, disabled effects, Null output diagnostics, replay stop safety, and fake ASIO/M-Audio visibility diagnostics.

@@ -33,7 +33,7 @@
                                FontWeight="Bold"
                                Text="Haptic Drive ASIO" />
                     <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 14 UI tuning, profiles, and diagnostics" />
+                               Text="Stage 15 first playable mock output" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -165,7 +165,7 @@
                                            Text="Stopped" />
                                 <TextBlock Margin="0,6,0,0"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Stage 10 feeds safe silence through Null output." />
+                                           Text="Live UDP or replay can feed the mock pipeline; Null output remains default." />
                             </StackPanel>
                         </Border>
 
@@ -300,7 +300,7 @@
                         <StackPanel>
                             <TextBlock FontSize="18"
                                        FontWeight="SemiBold"
-                                       Text="Stage 14 Effect Tuning" />
+                                       Text="Stage 15 Effect Tuning" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
                                        Text="Engine, gear shift, kerb, impact, road texture, and slip effects are synthesized from VehicleState telemetry, then rendered through the mixer, safety chain, and Null output." />
@@ -752,13 +752,20 @@
                                        Text="Recording And Replay" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Recording captures raw UDP payload bytes before parser validation. Replay status is diagnostic-only in this shell slice." />
-                            <Button x:Name="RecordingsStartStopButton"
-                                    Width="150"
-                                    Margin="0,16,0,0"
-                                    HorizontalAlignment="Left"
-                                    Click="StartRecordingButton_Click"
-                                    Content="Start Recording" />
+                                       Text="Recording captures raw UDP payload bytes before parser validation. Replay feeds recorded packets through the same parser, VehicleState, effects, mixer, safety, and Null output path." />
+                            <WrapPanel Margin="0,16,0,0">
+                                <Button x:Name="RecordingsStartStopButton"
+                                        Width="150"
+                                        Margin="0,0,8,0"
+                                        HorizontalAlignment="Left"
+                                        Click="StartRecordingButton_Click"
+                                        Content="Start Recording" />
+                                <Button x:Name="ReplayStartStopButton"
+                                        Width="140"
+                                        HorizontalAlignment="Left"
+                                        Click="StartReplayButton_Click"
+                                        Content="Replay Latest" />
+                            </WrapPanel>
                             <TextBlock x:Name="RecordingsDetailText"
                                        Margin="0,14,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}" />
@@ -923,7 +930,7 @@
                 <TextBlock x:Name="FooterStatusText"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource AppMutedTextBrush}"
-                           Text="Ready - Stage 14 tuning and diagnostics" />
+                           Text="Ready - Stage 15 mock pipeline" />
                 <CheckBox Grid.Column="1"
                           Content="Minimize to tray on close"
                           IsEnabled="False" />

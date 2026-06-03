@@ -130,3 +130,14 @@
 - Mixer/routing controls expose master mute/gain and safety output settings only. Advanced routing matrices, per-channel assignments, effect priority, and ducking remain deferred.
 - `NullAudioOutputDevice` remains the default automated-test output. Real WASAPI output, real ASIO streaming, hardware readiness checks, and physical shaker calibration are still not implemented.
 - Physical shaker feel, safe physical gain, latency, effect priority, and final frequency tuning remain unvalidated until real hardware testing.
+
+## Stage 15
+
+- The first playable mock software pipeline is wired for live UDP and replayed packets, but it still renders through `NullAudioOutputDevice` by default and produces no physical shaker output.
+- The WPF shell uses a simple mock render `DispatcherTimer`; a real low-latency audio callback loop is still Stage 16/future work.
+- Replay controls intentionally use a minimal latest-recording flow. A polished recordings library, file picker, trimming, and recording metadata browser remain deferred.
+- Optional ASIO visibility diagnostics use the existing `IAsioDriverCatalog` seam. The default catalog still reports no drivers unless a real discovery implementation is added later.
+- The M-Audio M-Track Solo and Fosi amplifier may be present locally, but automated tests and normal startup do not require them.
+- Seeing the M-Audio device in the Windows sound output selector is not proof that the app is using ASIO.
+- Real ASIO streaming, M-Audio hardware readiness, physical latency measurement, physical gain calibration, and Dayton BST-1 shaker tuning remain deferred to Stage 16/manual testing.
+- The Dayton BST-1 has not been physically validated in this project yet, so no final shaker feel, safe gain, latency, or frequency tuning claims can be made.

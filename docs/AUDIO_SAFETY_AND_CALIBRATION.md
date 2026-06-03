@@ -1,6 +1,6 @@
 # Audio Safety and Calibration
 
-Stage 10 adds the first internal audio safety chain. Stage 11 adds deterministic test-bench signals that exercise that chain through null output. Stage 12 and Stage 13 add generated haptic effect sources and keep them on the same mixer/safety/null-output path. Stage 14 exposes conservative software tuning/profile controls for this chain. This is not physical shaker calibration.
+Stage 10 adds the first internal audio safety chain. Stage 11 adds deterministic test-bench signals that exercise that chain through null output. Stage 12 and Stage 13 add generated haptic effect sources and keep them on the same mixer/safety/null-output path. Stage 14 exposes conservative software tuning/profile controls for this chain. Stage 15 wires live and replayed telemetry into the same mock mixer/safety/null-output path. This is not physical shaker calibration.
 
 ## Stage 10 Safety Chain
 
@@ -64,6 +64,6 @@ Engine vibration and gear shift effects render deterministic source buffers from
 
 - Stage 11 signals are synthetic validation tools only, not engine, gear shift, kerb, slip, road texture, ABS, traction loss, or impact effects.
 - Stage 12 and Stage 13 effects are software defaults only, not final physical calibration.
-- No real ASIO or WASAPI streaming is implemented in Stage 14.
+- No real ASIO or WASAPI streaming is implemented in Stage 15.
 - `NullAudioOutputDevice` remains the default automated-test output.
 - These normalized defaults are conservative software limits only. No final physical safety, safe gain, shaker feel, latency, or frequency tuning claims may be made until the real hardware chain is tested.
