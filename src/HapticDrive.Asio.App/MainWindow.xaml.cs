@@ -12,6 +12,8 @@ using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Input.Abstractions.Devices;
+using HapticDrive.Input.Abstractions.Paddles;
+using HapticDrive.Input.Abstractions.Shift;
 using HapticDrive.Input.Windows;
 using System.IO;
 using System.Net;
@@ -32,6 +34,8 @@ public partial class MainWindow : Window
     private readonly AudioTestBench _testBench = new();
     private readonly IInputDeviceDiscovery _inputDeviceDiscovery = new WindowsInputDeviceDiscovery();
     private readonly IWheelInputCandidateProvider _wheelInputCandidateProvider = new WheelInputCandidateProvider();
+    private readonly IWheelPaddleInputSource _paddleInputSource = new PollingWheelPaddleInputSource(
+        new WindowsGameControllerButtonStateReader());
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
@@ -74,7 +78,7 @@ public partial class MainWindow : Window
                 "Stage 13 adds conservative kerb, impact, road texture, and slip / brake-lock effect generators from VehicleState.",
                 "Stage 14 exposes safe tuning controls, profile save/load/reset, and practical runtime diagnostics.",
                 "Stage 18 keeps live UDP and replayed packets wired into the parser, VehicleState adapter, effects, mixer, safety chain, and output-owned renderer.",
-                "Stage 2D adds read-only wheel / paddle input discovery for future GT Neo mapping.",
+                "Stage 2E adds read-only Windows game-controller paddle input diagnostics and manual left/right mapping.",
                 "Stale telemetry is muted by wall-clock timeout.",
                 "NullAudioOutputDevice is the default safe output.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
@@ -118,7 +122,7 @@ public partial class MainWindow : Window
                 "WasapiDebugOutputDevice exists as a manual debug placeholder only.",
                 "AsioAudioOutputDevice exists behind the same interface and fails gracefully when no driver is available.",
                 "Refresh Input Devices performs read-only Raw Input and Windows game-controller discovery.",
-                "Input discovery does not start a live paddle listener, map paddles, route haptics, or send P-HPR commands.",
+                "Live paddle diagnostics read Windows game-controller button states only after explicit Start Listener.",
                 "WASAPI remains a manual debug fallback only.",
                 "ASIO absence must fail gracefully and never block automated tests."
             ]),
@@ -194,7 +198,7 @@ public partial class MainWindow : Window
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
                 "Stage 18 reports pipeline, engine, gear, kerb, impact, road texture, slip, mixer, safety, output, replay, forwarding, packet-ID, ASIO visibility, callback, drop, underrun, jitter, and telemetry-age state.",
-                "Stage 2D reports read-only input discovery status and candidate device scoring.",
+                "Stage 2E reports read-only input discovery, selected paddle device, mapping, last raw button, and mapped paddle press diagnostics.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -223,11 +227,14 @@ public partial class MainWindow : Window
     private AsioDriverVisibilitySnapshot _asioVisibilitySnapshot = AsioDriverVisibilitySnapshot.NotChecked;
     private AsioReadinessSnapshot _asioReadinessSnapshot = AsioReadinessSnapshot.NotChecked;
     private InputDeviceDiscoverySnapshot _inputDiscoverySnapshot = InputDeviceDiscoverySnapshot.NotRun;
+    private WheelPaddleMapping _paddleMapping = WheelPaddleMapping.Default;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
     private bool _updatingSettingsUi;
+    private bool _updatingPaddleInputUi;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
+    private List<PaddleDeviceListItem> _paddleDeviceItems = [];
     private List<RecordingLibraryItem> _recordingLibraryItems = [];
 
     public MainWindow()
@@ -241,6 +248,7 @@ public partial class MainWindow : Window
         _selectedAsioDriverName = appSettings.LastAsioDriverName;
         _selectedAsioOutputChannel = appSettings.LastAsioOutputChannel;
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
+        _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
         _hapticPipeline = CreatePipelineForSelectedOutput();
 
         _updatingOutputUi = true;
@@ -263,6 +271,9 @@ public partial class MainWindow : Window
         ApplyProfileToControls(_currentProfile);
         ApplyProfileToRuntime(_currentProfile);
         UpdateProfileStatus("Default conservative profile loaded.", []);
+        ApplyPaddleMappingToControls();
+        _paddleInputSource.RawButtonChanged += PaddleInputSource_InputChanged;
+        _paddleInputSource.PaddleInputReceived += PaddleInputSource_InputChanged;
         _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick += TelemetryStatusTimer_Tick;
         Loaded += MainWindow_Loaded;
@@ -328,7 +339,7 @@ public partial class MainWindow : Window
             DiagnosticsPanel.Visibility = page.NavigationLabel == "Diagnostics"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 2D read-only input discovery";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 2E read-only paddle input diagnostics";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
             UpdateMixerStatus();
@@ -426,7 +437,9 @@ public partial class MainWindow : Window
         try
         {
             _inputDiscoverySnapshot = await _inputDeviceDiscovery.DiscoverAsync();
+            UpdatePaddleDeviceSelectionItems();
             UpdateInputDiscoveryStatus();
+            UpdatePaddleInputStatus();
             UpdateDiagnosticsStatus();
             FooterStatusText.Text = $"Input device discovery refreshed; {_inputDiscoverySnapshot.DeviceCount:N0} device(s) found. No commands were sent.";
         }
@@ -436,9 +449,77 @@ public partial class MainWindow : Window
                 [],
                 [],
                 [$"Input discovery failed before any device commands were sent: {ex.Message}"]);
+            UpdatePaddleDeviceSelectionItems();
             UpdateInputDiscoveryStatus();
+            UpdatePaddleInputStatus();
             UpdateDiagnosticsStatus();
             FooterStatusText.Text = "Input device discovery failed safely.";
+        }
+    }
+
+    private async void StartPaddleInputListenerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryBuildPaddleMappingFromControls(out var mapping, out var message))
+        {
+            PaddleInputStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return;
+        }
+
+        if (PaddleInputDeviceComboBox.SelectedItem is not PaddleDeviceListItem deviceItem)
+        {
+            PaddleInputStatusText.Text = "Select a Windows game-controller input device before starting the read-only paddle listener.";
+            FooterStatusText.Text = "Paddle input listener was not started; no input device is selected.";
+            return;
+        }
+
+        _paddleMapping = mapping with
+        {
+            SelectedDeviceId = deviceItem.Selection.DeviceId,
+            SelectedMethod = deviceItem.Selection.Method
+        };
+        SaveAppSettings();
+        await _paddleInputSource.StartAsync(deviceItem.Selection, _paddleMapping);
+        UpdatePaddleInputStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Read-only paddle input listener started. Mapped presses update diagnostics only.";
+    }
+
+    private async void StopPaddleInputListenerButton_Click(object sender, RoutedEventArgs e)
+    {
+        await _paddleInputSource.StopAsync();
+        UpdatePaddleInputStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Read-only paddle input listener stopped.";
+    }
+
+    private void SetLeftPaddleFromLastChangedButton_Click(object sender, RoutedEventArgs e)
+    {
+        AssignPaddleFromLastChangedButton(PaddleSide.Left);
+    }
+
+    private void SetRightPaddleFromLastChangedButton_Click(object sender, RoutedEventArgs e)
+    {
+        AssignPaddleFromLastChangedButton(PaddleSide.Right);
+    }
+
+    private void PaddleInputDeviceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingPaddleInputUi)
+        {
+            return;
+        }
+
+        if (PaddleInputDeviceComboBox.SelectedItem is PaddleDeviceListItem item)
+        {
+            _paddleMapping = _paddleMapping with
+            {
+                SelectedDeviceId = item.Selection.DeviceId,
+                SelectedMethod = item.Selection.Method
+            };
+            SaveAppSettings();
+            _paddleInputSource.RefreshMapping(_paddleMapping);
+            UpdatePaddleInputStatus();
         }
     }
 
@@ -674,6 +755,156 @@ public partial class MainWindow : Window
         }
     }
 
+    private void UpdatePaddleDeviceSelectionItems()
+    {
+        var devices = _inputDiscoverySnapshot.HasRun
+            ? _inputDiscoverySnapshot.Devices
+                .Where(device => device.DiscoveryMethod == InputDiscoveryMethod.WindowsGameController
+                    && device.Kind == InputDeviceKind.GameController
+                    && device.NativeDeviceIndex is not null)
+                .OrderByDescending(device => device.LooksLikeGtNeoOrWheelInput)
+                .ThenByDescending(device => device.CandidateScore)
+                .ThenBy(device => device.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            : [];
+
+        _paddleDeviceItems = devices
+            .Select(device => new PaddleDeviceListItem(
+                InputDeviceSelection.FromDeviceInfo(device),
+                $"{device.DisplayName} - {device.ButtonCount?.ToString() ?? "unknown"} button(s) - {device.CandidateKind}"))
+            .ToList();
+
+        _updatingPaddleInputUi = true;
+        PaddleInputDeviceComboBox.ItemsSource = _paddleDeviceItems;
+        PaddleInputDeviceComboBox.DisplayMemberPath = nameof(PaddleDeviceListItem.DisplayText);
+
+        var selected = _paddleDeviceItems.FirstOrDefault(item =>
+            string.Equals(item.Selection.DeviceId, _paddleMapping.SelectedDeviceId, StringComparison.OrdinalIgnoreCase));
+        PaddleInputDeviceComboBox.SelectedItem = selected;
+        _updatingPaddleInputUi = false;
+    }
+
+    private void ApplyPaddleMappingToControls()
+    {
+        _updatingPaddleInputUi = true;
+        LeftPaddleButtonTextBox.Text = _paddleMapping.LeftPaddleButtonId?.ToString() ?? "";
+        RightPaddleButtonTextBox.Text = _paddleMapping.RightPaddleButtonId?.ToString() ?? "";
+        PaddleDebounceTextBox.Text = ((int)_paddleMapping.DebounceDuration.TotalMilliseconds).ToString();
+        _updatingPaddleInputUi = false;
+        UpdatePaddleDeviceSelectionItems();
+        UpdatePaddleInputStatus();
+    }
+
+    private bool TryBuildPaddleMappingFromControls(out WheelPaddleMapping mapping, out string message)
+    {
+        mapping = _paddleMapping;
+        if (!TryParseOptionalButtonId(LeftPaddleButtonTextBox.Text, out var leftButtonId, out message))
+        {
+            return false;
+        }
+
+        if (!TryParseOptionalButtonId(RightPaddleButtonTextBox.Text, out var rightButtonId, out message))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(PaddleDebounceTextBox.Text.Trim(), out var debounceMilliseconds)
+            || debounceMilliseconds is < 0 or > 250)
+        {
+            message = "Paddle debounce must be between 0 and 250 ms.";
+            return false;
+        }
+
+        mapping = new WheelPaddleMapping
+        {
+            SelectedDeviceId = (PaddleInputDeviceComboBox.SelectedItem as PaddleDeviceListItem)?.Selection.DeviceId
+                ?? _paddleMapping.SelectedDeviceId,
+            SelectedMethod = InputDiscoveryMethod.WindowsGameController,
+            LeftPaddleButtonId = leftButtonId,
+            RightPaddleButtonId = rightButtonId,
+            DebounceDuration = TimeSpan.FromMilliseconds(debounceMilliseconds)
+        }.Normalize();
+        message = "Paddle input mapping ready.";
+        return true;
+    }
+
+    private static bool TryParseOptionalButtonId(string text, out int? buttonId, out string message)
+    {
+        buttonId = null;
+        var trimmed = text.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            message = "Button is unmapped.";
+            return true;
+        }
+
+        if (!int.TryParse(trimmed, out var parsed) || parsed is < 1 or > 128)
+        {
+            message = "Paddle button IDs must be whole numbers from 1 to 128.";
+            return false;
+        }
+
+        buttonId = parsed;
+        message = "Button mapped.";
+        return true;
+    }
+
+    private void AssignPaddleFromLastChangedButton(PaddleSide side)
+    {
+        var snapshot = _paddleInputSource.GetPaddleSnapshot();
+        if (snapshot.LastChangedButtonId is null)
+        {
+            PaddleInputStatusText.Text = "No changed button has been observed yet. Start the listener and press a paddle first.";
+            return;
+        }
+
+        if (side == PaddleSide.Left)
+        {
+            LeftPaddleButtonTextBox.Text = snapshot.LastChangedButtonId.Value.ToString();
+        }
+        else if (side == PaddleSide.Right)
+        {
+            RightPaddleButtonTextBox.Text = snapshot.LastChangedButtonId.Value.ToString();
+        }
+
+        if (TryBuildPaddleMappingFromControls(out var mapping, out var message))
+        {
+            _paddleMapping = mapping;
+            _paddleInputSource.RefreshMapping(_paddleMapping);
+            SaveAppSettings();
+            UpdatePaddleInputStatus();
+            FooterStatusText.Text = $"{side} paddle mapped to button {snapshot.LastChangedButtonId.Value}.";
+            return;
+        }
+
+        PaddleInputStatusText.Text = message;
+    }
+
+    private static WheelPaddleMapping CreatePaddleMapping(PaddleInputMappingSetting setting)
+    {
+        return new WheelPaddleMapping
+        {
+            SelectedDeviceId = setting.SelectedDeviceId,
+            SelectedMethod = setting.SelectedMethod,
+            LeftPaddleButtonId = setting.LeftPaddleButtonId,
+            RightPaddleButtonId = setting.RightPaddleButtonId,
+            DebounceDuration = TimeSpan.FromMilliseconds(setting.DebounceMilliseconds)
+        }.Normalize();
+    }
+
+    private PaddleInputMappingSetting CreatePaddleMappingSetting()
+    {
+        var mapping = _paddleMapping.Normalize();
+        return new PaddleInputMappingSetting
+        {
+            SelectedDeviceId = mapping.SelectedDeviceId,
+            SelectedMethod = mapping.SelectedMethod,
+            LeftPaddleButtonId = mapping.LeftPaddleButtonId,
+            RightPaddleButtonId = mapping.RightPaddleButtonId,
+            DebounceMilliseconds = (int)mapping.DebounceDuration.TotalMilliseconds
+        };
+    }
+
     private void SaveAppSettings()
     {
         try
@@ -683,7 +914,8 @@ public partial class MainWindow : Window
                 UseLightTheme = _lightTheme,
                 LastAsioDriverName = _selectedAsioDriverName,
                 LastAsioOutputChannel = _selectedAsioOutputChannel,
-                ForwardingDestinations = _forwardingDestinations.ToList()
+                ForwardingDestinations = _forwardingDestinations.ToList(),
+                PaddleInputMapping = CreatePaddleMappingSetting()
             });
             _settingsError = null;
         }
@@ -1354,12 +1586,13 @@ public partial class MainWindow : Window
         AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; render callbacks {status.RenderCallbackCount:N0}; backend callbacks {status.BackendCallbackCount:N0}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; underruns {status.UnderrunCount:N0}; last error {status.LastError ?? "none"}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
         UpdateInputDiscoveryStatus();
+        UpdatePaddleInputStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}.";
         }
     }
 
@@ -1371,7 +1604,7 @@ public partial class MainWindow : Window
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
             : "Profile values are clamped to conservative software ranges on load and save.";
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -1393,8 +1626,8 @@ public partial class MainWindow : Window
             InputDiscoveryStatusText.Text = "Input discovery has not been refreshed. Use Refresh Input Devices to enumerate read-only Windows input metadata.";
             InputDiscoveryItemsControl.ItemsSource = new[]
             {
-                "Safety: discovery only. No live paddle listener, haptic routing, USB output report, feature report, or P-HPR output command is used.",
-                "Selected input device: none. Stage 2D does not map left/right paddles yet."
+                "Safety: discovery refresh only. The live listener starts only from Start Listener and never routes haptics or P-HPR commands.",
+                "Selected input device: none. Use Refresh Input Devices, select a Windows game-controller device, then start the listener for diagnostics."
             };
             return;
         }
@@ -1409,14 +1642,50 @@ public partial class MainWindow : Window
             $"Input discovery: {(snapshot.ReadOnlyDiscoverySucceeded ? "succeeded" : "completed with warnings")}; refreshed {localRefreshTime}; {snapshot.DeviceCount:N0} device(s); methods {methodText}; errors {snapshot.Errors.Count:N0}.";
         InputDiscoveryItemsControl.ItemsSource = new[]
         {
-            "Safety: read-only discovery only. No live paddle listener, haptic routing, USB output report, feature report, or P-HPR output command is used.",
+            "Safety: read-only discovery and read-only button-state diagnostics only. No haptic routing, USB output report, feature report, or P-HPR output command is used.",
             $"Candidate devices: {FormatInputCandidates(candidates)}",
             $"Likely Simagic wheelbase candidates: {FormatInputCandidates(snapshot.LikelySimagicWheelBaseCandidates)}",
             $"Likely GT Neo / wheel input candidates: {FormatInputCandidates(snapshot.LikelyGtNeoWheelInputCandidates)}",
             $"Likely P700 pedal candidates: {FormatInputCandidates(snapshot.LikelyP700PedalCandidates)}",
             $"Unknown HID/game-controller candidates: {FormatInputCandidates(snapshot.UnknownHidOrGameControllerCandidates)}",
-            "Selected input device: none. Stage 2D records candidates only; left/right paddle mapping waits for Stage 2E and user button IDs.",
+            "Manual mapping: start the listener, press a paddle, then set left/right from the last changed button.",
             $"Discovery errors: {errorText}"
+        };
+    }
+
+    private void UpdatePaddleInputStatus()
+    {
+        var snapshot = _paddleInputSource.GetPaddleSnapshot();
+        var selectedText = snapshot.SelectedDevice is null
+            ? _paddleMapping.SelectedDeviceId is null ? "none" : $"saved {_paddleMapping.SelectedDeviceId}"
+            : $"{snapshot.SelectedDevice.DisplayName} ({snapshot.SelectedDevice.Method})";
+        var lastRaw = snapshot.LastChangedButtonId is null
+            ? "none"
+            : $"button {snapshot.LastChangedButtonId} {snapshot.LastChangedButtonState}";
+        var lastMapped = snapshot.LastPaddleEvent is null
+            ? "none"
+            : $"{snapshot.LastPaddleEvent.PaddleSide} paddle button {snapshot.LastPaddleEvent.ButtonId} at {snapshot.LastPaddleEvent.TimestampUtc.ToLocalTime():T}";
+        var error = snapshot.LastErrorMessage ?? "none";
+
+        StartPaddleInputListenerButton.IsEnabled = snapshot.Status is not InputListenerStatus.Listening
+            and not InputListenerStatus.Starting;
+        StopPaddleInputListenerButton.IsEnabled = snapshot.Status is InputListenerStatus.Listening
+            or InputListenerStatus.Starting
+            or InputListenerStatus.Error
+            or InputListenerStatus.Disconnected;
+        PaddleInputStatusText.Text =
+            $"Paddle listener: {snapshot.Status}; selected {selectedText}; mapped presses {snapshot.PaddlePressCount:N0}; last raw {lastRaw}; last mapped {lastMapped}; error {error}.";
+        PaddleInputItemsControl.ItemsSource = new[]
+        {
+            "Safety: Stage 2E reads game-controller button states only. It does not route ShiftIntent, audio haptics, P-HPR output, USB output reports, or feature reports.",
+            $"Selected method: {(_paddleMapping.SelectedMethod == InputDiscoveryMethod.Unknown ? InputDiscoveryMethod.WindowsGameController : _paddleMapping.SelectedMethod)}",
+            $"Left paddle mapping: {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}; current state {snapshot.LeftPaddleState}",
+            $"Right paddle mapping: {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}; current state {snapshot.RightPaddleState}",
+            $"Last changed raw button: {lastRaw}",
+            $"Last mapped paddle event: {lastMapped}",
+            $"Paddle press count: {snapshot.PaddlePressCount:N0}",
+            $"Debounce: {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms",
+            $"Listener error: {error}"
         };
     }
 
@@ -1464,9 +1733,10 @@ public partial class MainWindow : Window
             $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
             $"Output: {outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
             $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
+            $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; ASIO armed state is not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; ASIO armed state, haptics running state, emergency mute, and P-HPR control are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
@@ -1496,7 +1766,23 @@ public partial class MainWindow : Window
         }
 
         var errors = snapshot.Errors.Count == 0 ? "none" : string.Join("; ", snapshot.Errors);
-        return $"{snapshot.DeviceCount:N0} device(s); methods {FormatDiscoveryMethods(snapshot.Methods)}; wheelbase {snapshot.LikelySimagicWheelBaseCandidates.Count:N0}; GT Neo/wheel {snapshot.LikelyGtNeoWheelInputCandidates.Count:N0}; P700 {snapshot.LikelyP700PedalCandidates.Count:N0}; unknown HID/game-controller {snapshot.UnknownHidOrGameControllerCandidates.Count:N0}; errors {errors}; read-only only with no paddle listener or haptic routing.";
+        return $"{snapshot.DeviceCount:N0} device(s); methods {FormatDiscoveryMethods(snapshot.Methods)}; wheelbase {snapshot.LikelySimagicWheelBaseCandidates.Count:N0}; GT Neo/wheel {snapshot.LikelyGtNeoWheelInputCandidates.Count:N0}; P700 {snapshot.LikelyP700PedalCandidates.Count:N0}; unknown HID/game-controller {snapshot.UnknownHidOrGameControllerCandidates.Count:N0}; errors {errors}; read-only discovery with Stage 2E Windows game-controller listener available separately.";
+    }
+
+    private string BuildPaddleInputDiagnosticsText()
+    {
+        var snapshot = _paddleInputSource.GetPaddleSnapshot();
+        var selected = snapshot.SelectedDevice is null
+            ? _paddleMapping.SelectedDeviceId ?? "none"
+            : $"{snapshot.SelectedDevice.DisplayName} ({snapshot.SelectedDevice.DeviceId})";
+        var lastRaw = snapshot.LastChangedButtonId is null
+            ? "none"
+            : $"button {snapshot.LastChangedButtonId} {snapshot.LastChangedButtonState}";
+        var lastMapped = snapshot.LastPaddleEvent is null
+            ? "none"
+            : $"{snapshot.LastPaddleEvent.PaddleSide} button {snapshot.LastPaddleEvent.ButtonId} utc {snapshot.LastPaddleEvent.TimestampUtc:O} ticks {snapshot.LastPaddleEvent.StopwatchTicks}";
+
+        return $"{snapshot.Status}; selected {selected}; method {_paddleMapping.SelectedMethod}; left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)} state {snapshot.LeftPaddleState}; right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)} state {snapshot.RightPaddleState}; last raw {lastRaw}; last mapped {lastMapped}; count {snapshot.PaddlePressCount:N0}; debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms; error {snapshot.LastErrorMessage ?? "none"}; diagnostics only, no haptic output.";
     }
 
     private static string FormatDiscoveryMethods(IReadOnlyList<InputDiscoveryMethod> methods)
@@ -1519,6 +1805,11 @@ public partial class MainWindow : Window
             ? "controls unavailable"
             : $"{device.ButtonCount?.ToString() ?? "unknown"} button(s), {device.AxisCount?.ToString() ?? "unknown"} axis/axes";
         return $"{device.DisplayName} via {device.DiscoveryMethod}; {vendorProduct}; {controls}; score {device.CandidateScore}; {device.CandidateReason}";
+    }
+
+    private static string FormatButtonMapping(int? buttonId)
+    {
+        return buttonId is null ? "unmapped" : $"button {buttonId}";
     }
 
     private string BuildForwardingDestinationsText()
@@ -1572,6 +1863,16 @@ public partial class MainWindow : Window
         UpdateHapticsStateText();
         UpdateMixerStatus();
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
+        UpdatePaddleInputStatus();
+    }
+
+    private void PaddleInputSource_InputChanged(object? sender, object e)
+    {
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            UpdatePaddleInputStatus();
+            UpdateDiagnosticsStatus();
+        });
     }
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
@@ -1840,6 +2141,7 @@ public partial class MainWindow : Window
     {
         _telemetryStatusTimer.Stop();
         _testBench.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _paddleInputSource.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _hapticPipeline.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.OnClosed(e);
@@ -1859,6 +2161,10 @@ public partial class MainWindow : Window
     private sealed record ForwardingDestinationListItem(
         int Index,
         ForwardingDestinationSetting Setting,
+        string DisplayText);
+
+    private sealed record PaddleDeviceListItem(
+        InputDeviceSelection Selection,
         string DisplayText);
 
     private sealed record RecordingLibraryItem(

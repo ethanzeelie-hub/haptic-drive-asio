@@ -1,6 +1,6 @@
 # Simagic Shift Intent Design
 
-Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. These stages do not implement a live listener, router, or output path.
+Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds a read-only Windows game-controller paddle listener with manual left/right mapping diagnostics. These stages do not implement ShiftIntent routing or any output path.
 
 ## Default Event Flow
 
@@ -90,18 +90,34 @@ A future `ShiftIntentEvent` should include:
 - Last telemetry gear for diagnostics.
 - Correlation ID for optional telemetry confirmation/rejection.
 
-## Stage 2D Discovery Inputs For Stage 2E
+## Stage 2E Paddle Diagnostics
 
-Stage 2D produces `InputDeviceDiscoverySnapshot` values from read-only Windows discovery. Stage 2E should use those snapshots to let the user identify which Raw Input or Windows game-controller device corresponds to the Alpha Evo / GT Neo path.
+Stage 2E uses Stage 2D `InputDeviceDiscoverySnapshot` values to let the user select a Windows game-controller device for the Alpha Evo / GT Neo path.
 
-Stage 2E still needs user mapping data before reliable paddle routing:
+Implemented Stage 2E diagnostics:
+
+- selected input device,
+- selected input method,
+- manual left/right button mapping,
+- last changed raw button,
+- left/right current state,
+- rising-edge mapped paddle press events,
+- conservative debounce,
+- UTC and stopwatch timestamps,
+- input event count,
+- listener error and disconnect state,
+- safe app-settings persistence for mapping only.
+
+Stage 2E still needs user mapping data before reliable routing:
 
 - left paddle button number,
 - right paddle button number,
 - device display name shown by Windows,
 - whether the paddles appear through Raw Input, the Windows controller panel, both, or neither.
 
-No `ShiftIntentEvent` is raised by Stage 2D. No haptic output is triggered by discovery results.
+No hardware-derived `ShiftIntentEvent` is raised by Stage 2E. No haptic output is triggered by mapped paddle presses.
+
+Stage 2F should convert mapped paddle diagnostics into `ShiftIntentEvent` values and evaluate cached `DrivingArmed` state, still without real P-HPR output.
 
 ## Routing
 

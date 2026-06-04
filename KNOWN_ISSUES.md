@@ -208,3 +208,12 @@
 - DirectInput-specific enumeration and HID input-report reading are deferred unless Raw Input and the built-in Windows game-controller capability path are insufficient.
 - Candidate scoring is non-authoritative and uses names, HID usage metadata, and broad device class hints until exact Alpha Evo / GT Neo / P700 VID/PID and button data are supplied.
 - No haptic routing, P-HPR output, USB output report, write-capable feature report, controlled write testing, SimPro control, or SimHub integration is implemented.
+
+## Stage 2E
+
+- The live paddle listener is read-only and currently uses the Windows game-controller button-state API. Raw Input live button decoding and HID input-report parsing remain deferred unless the game-controller path is insufficient.
+- Manual mapping may still require user-provided left/right paddle button IDs from Windows controller tools, SimPro Manager, SimHub, or Haptic Drive ASIO's last-changed-button diagnostics.
+- Mapped paddle presses are diagnostics only. They do not raise hardware-derived `ShiftIntentEvent` values yet.
+- No `DrivingArmed`-gated paddle routing exists yet.
+- No P-HPR output, P-HPR USB write, output report, feature report, gear pulse, or controlled write testing is implemented.
+- Device selection is persisted only as a safe input setting. If Windows changes the joystick index or device identity, the user may need to refresh devices and reselect the wheel input path.

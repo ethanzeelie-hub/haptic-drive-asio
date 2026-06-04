@@ -851,3 +851,41 @@ Self-review:
 - Candidate scoring is deliberately non-authoritative until the user supplies Device Manager, USBView, controller tester, SimPro Manager, and optional SimHub data.
 - Existing ASIO/BST-1 audio behavior and `NullAudioOutputDevice` automated-test default were not changed.
 - P-HPR remains a separate non-audio actuator path with no real writes before the exact approval phrase.
+
+## Stage 2E - Raw Paddle Input Listener and Mapping
+
+Date: 2026-06-04
+
+Status: Complete.
+
+Goal: Implement a safe, read-only raw paddle input listener and manual left/right paddle mapping layer for the Simagic Alpha Evo / GT Neo wheel setup without triggering haptic output.
+
+Notes:
+
+- Parsed the Stage 2E brief and verified Stage 2D was complete before implementation.
+- Added read-only paddle listener models in `HapticDrive.Input.Abstractions`: `InputDeviceSelection`, `WheelPaddleMapping`, `InputButtonState`, `InputEventTimestamp`, `InputListenerStatus`, raw button events, mapped paddle input events, snapshots, a mockable `IInputButtonStateReader`, `WheelPaddleInputProcessor`, and `PollingWheelPaddleInputSource`.
+- Added rising-edge detection so a press fires once, holding does not repeat, release rearms the button, and repeated press after release fires again.
+- Added conservative configurable debounce with a 20 ms default.
+- Added UTC and stopwatch-tick timestamps for mapped paddle press diagnostics.
+- Added `WindowsGameControllerButtonStateReader` in `HapticDrive.Input.Windows` using read-only Windows game-controller button polling by native joystick index from Stage 2D discovery.
+- Preserved Raw Input as discovery metadata. Live Raw Input/HID report decoding is deferred until the user's exact report-descriptor/button data proves it is needed.
+- Added Devices-page controls for Refresh Input Devices, selected Windows game-controller device, Start/Stop Listener, left/right button entry, Set Left From Last Button, Set Right From Last Button, listener status, current left/right state, last raw changed button, last mapped paddle event, event count, debounce, and errors.
+- Persisted only safe input mapping settings: selected input device ID, selected method, left/right button IDs, and debounce duration. Haptics running state, emergency mute, ASIO arming, and P-HPR enablement remain non-persisted.
+- Added hardware-free tests for mock listener start/stop, selected device tracking, left/right mapping, unmapped buttons, rising-edge behavior, hold suppression, release/repress behavior, timestamps, debounce, listener errors, disconnect state, no Stage 2E `ShiftIntentEvent` emission, and no USB write-capable listener API surface.
+- Updated README, architecture, roadmap, known issues, Simagic research, user-data request, wheel-input research, shift-intent design, and safety-plan docs.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 236 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 2E stayed within read-only paddle input diagnostics and manual mapping scope.
+- No real P-HPR USB writes, output reports, write-capable feature reports, real vibration commands, Simagic-specific control messages, controlled write testing, SimPro/SimHub hooking, or driver changes were implemented or executed.
+- No hardware-derived `ShiftIntentEvent` routing, cached `DrivingArmed` paddle gate connection, P-HPR routing, ASIO gear-pulse integration, audio haptic routing from paddles, or `EffectEngine` gear-triggering from paddle presses was implemented.
+- The existing ASIO/BST-1 audio path and `NullAudioOutputDevice` automated-test default were not changed.
+- Mapped paddle events remain diagnostics only; Stage 2F is next for the Shift Intent Event Layer.

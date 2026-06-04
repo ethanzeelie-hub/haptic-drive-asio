@@ -26,6 +26,7 @@
 - Stage 2B: Input and P-HPR abstractions complete.
 - Stage 2C: Cached `DrivingArmed` state service complete.
 - Stage 2D: Read-only wheel / paddle input discovery complete.
+- Stage 2E: Raw paddle input listener and mapping complete.
 
 ## Planned Stages
 
@@ -58,8 +59,8 @@ Phase 2 safe sequence:
 2. Stage 2B: Input and P-HPR abstractions. Complete.
 3. Stage 2C: Cached `DrivingArmed` state service. Complete.
 4. Stage 2D: Read-only wheel / paddle input discovery. Complete.
-5. Stage 2E: Raw paddle input listener and mapping. Next.
-6. Stage 2F: Shift intent event layer.
+5. Stage 2E: Raw paddle input listener and mapping. Complete.
+6. Stage 2F: Shift intent event layer. Next.
 7. Stage 2G: Read-only P700 / P-HPR device inventory.
 8. Stage 2H: Capture workflow and metadata tooling.
 9. Stage 2I: Capture analysis framework.
@@ -93,3 +94,4 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - Stage 2B adds contracts and mock-only P-HPR scaffolding only; it does not implement real input discovery, protocol control, or device writes.
 - Stage 2C adds cached `DrivingArmed` evaluation only; it does not connect paddle events or route actuator commands.
 - Stage 2D adds read-only input-device discovery and candidate scoring only; it does not implement live paddle listening, left/right mapping, haptic routing, or P-HPR output.
+- Stage 2E adds read-only Windows game-controller paddle listening, manual left/right mapping, rising-edge/debounce diagnostics, and safe mapping persistence only; it does not raise `ShiftIntentEvent` from hardware input, route haptics, or implement P-HPR output.

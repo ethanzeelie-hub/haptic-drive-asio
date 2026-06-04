@@ -62,6 +62,7 @@ public sealed class WindowsGameControllerDeviceEnumerator : IWindowsInputDeviceE
             Controls = BuildControls(caps),
             ButtonCount = checked((int)caps.NumberOfButtons),
             AxisCount = checked((int)caps.NumberOfAxes),
+            NativeDeviceIndex = checked((int)index),
             ReadOnlyDiscoverySucceeded = true,
             DiscoveredAtUtc = discoveredAtUtc
         };

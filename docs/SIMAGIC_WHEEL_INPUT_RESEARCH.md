@@ -1,6 +1,6 @@
 # Simagic Wheel Input Research
 
-Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. It does not add an input listener.
+Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics.
 
 ## Goal
 
@@ -35,12 +35,45 @@ Stage 2D also adds `WheelInputCandidateProvider` scoring for:
 
 The scoring is non-authoritative. It uses names, device class, HID usage metadata, and broad API source only until the user supplies exact Alpha Evo / GT Neo / P700 Device Manager and USBView data.
 
-## Deferred From Stage 2D
+## Stage 2E Implemented Listener
+
+Stage 2E adds a live listener behind mockable input abstractions:
+
+- `IInputButtonStateReader` is the low-level read-only button-state seam.
+- `PollingWheelPaddleInputSource` runs the reader off the UI thread.
+- `WheelPaddleInputProcessor` performs rising-edge detection, release-to-rearm behavior, debounce, mapped left/right diagnostics, UTC timestamps, stopwatch ticks, and safe error/disconnect snapshots.
+- `WindowsGameControllerButtonStateReader` reads button states from the built-in Windows game-controller API by native joystick index.
+
+This path was chosen for Stage 2E because Stage 2D's Windows game-controller capability discovery exposes button counts and one-based button IDs that line up with Windows controller-panel mapping. Raw Input remains useful for metadata, but live Raw Input HID report decoding needs report-descriptor data before button IDs can be mapped safely.
+
+Stage 2E does not send output reports, feature reports, vibration commands, Simagic-specific control messages, or P-HPR commands.
+
+## Manual Mapping Workflow
+
+On the Devices page:
+
+1. Press Refresh Input Devices.
+2. Select the Windows game-controller device whose buttons change for the Alpha Evo / GT Neo path.
+3. Press Start Listener.
+4. Press the left paddle.
+5. Verify the last changed raw button.
+6. Press Set Left From Last Button.
+7. Press the right paddle.
+8. Verify the last changed raw button.
+9. Press Set Right From Last Button.
+10. Watch left/right current state, last mapped paddle event, timestamp, and paddle press count.
+
+Mapped paddle presses in Stage 2E are diagnostics only. They do not trigger ShiftIntent routing, audio haptics, P-HPR output, gear pulses, or any USB writes.
+
+The app persists only safe input settings: selected input device ID, selected input method, left/right button IDs, and debounce duration.
+
+## Deferred From Stage 2E
 
 - DirectInput-specific enumeration is deferred because the built-in Windows game-controller capability API gives a maintained, dependency-free mapping view for this stage.
-- HID input-report reading is deferred because Stage 2D only needs metadata and candidate selection. Stage 2E can add input-report or Raw Input event observation if normal button state is not visible.
+- HID input-report reading is deferred because the current listener can read normal game-controller button states, and HID report parsing should wait for USBView / HID descriptor data if needed.
+- Live Raw Input button decoding is deferred because reliable button IDs require HID report-descriptor interpretation for the user's exact wheel input path.
 - Simagic-specific read-only discovery is deferred until Raw Input and Windows game-controller data prove insufficient.
-- Live rising-edge paddle detection, debouncing, left/right mapping, `ShiftIntentEvent` creation, and haptic routing are all Stage 2E or later.
+- Hardware-derived `ShiftIntentEvent` creation and haptic routing are Stage 2F or later.
 
 ## Planned Diagnostics
 
@@ -56,14 +89,21 @@ Stage 2D exposes manual read-only input discovery status in the WPF Devices page
 - discovery errors,
 - and a safety note that no commands are sent.
 
-Later listener/routing stages should expose:
+Stage 2E exposes:
 
-- Input device detected.
 - Selected input device.
 - Left paddle pressed.
 - Right paddle pressed.
 - Last paddle timestamp.
 - Input event count.
+- Last changed raw button.
+- Last mapped paddle side.
+- Listener status.
+- Listener error message.
+- Debounce duration.
+
+Later routing stages should expose:
+
 - Last event latency estimate where possible.
 - Last `DrivingArmed` state.
 - Last suppressed input reason.
@@ -81,6 +121,7 @@ From Windows controller tools or a gamepad tester:
 - Whether the wheelbase/GT Neo appears separately from the P700 pedals.
 - Device name shown by Windows.
 - VID/PID and Hardware IDs from Device Manager or USBView.
+- Haptic Drive ASIO last-changed button number for each paddle after Stage 2E listener mapping.
 
 ## Safety Boundary
 

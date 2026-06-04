@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2D includes read-only input discovery for possible wheel / paddle devices, but no P-HPR output implementation exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2E includes read-only paddle input diagnostics for possible wheel / paddle devices, but no P-HPR output implementation exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -52,7 +52,7 @@ Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGI
 Stage 2B adds contract-only projects for the future actuator path:
 
 - `HapticDrive.Input.Abstractions` defines input-device descriptors, read-only discovery contracts, paddle shift-intent contracts, `ShiftIntentEvent`, `PaddleSide`, `DrivingArmedState`, and `IDrivingArmedStateProvider`.
-- `HapticDrive.Input.Windows` is the Windows read-only input discovery home. Stage 2D implements Raw Input metadata enumeration and Windows game-controller capability enumeration there, but still does not implement a paddle listener.
+- `HapticDrive.Input.Windows` is the Windows read-only input discovery and button-state reading home. Stage 2D implements Raw Input metadata enumeration and Windows game-controller capability enumeration there; Stage 2E adds read-only Windows game-controller button-state polling for paddle diagnostics.
 - `HapticDrive.Simagic.PHPR.Abstractions` defines `PHprCommand`, module/source enums, safety flags/defaults, `IPHprOutputDevice`, output snapshots/results, and a `MockPhprOutputDevice`.
 
 `MockPhprOutputDevice` is mock-only. It records clamped commands in memory for tests and diagnostics, marks commands as `MockOnly`, and performs no hardware writes.
@@ -96,7 +96,43 @@ Stage 2D extends `HapticDrive.Input.Abstractions` with richer read-only input di
 
 The WPF Devices page exposes a manual Refresh Input Devices button and read-only candidate summary. This does not start live input event listening, map left/right paddles, create `ShiftIntentEvent` values, route haptics, send USB output reports, send feature reports, or send P-HPR commands.
 
-Stage 2E should use these discovery snapshots to choose and map the raw paddle input listener without changing the no-write P-HPR gate.
+Stage 2E uses these discovery snapshots to choose and map the read-only paddle input listener without changing the no-write P-HPR gate.
+
+## Stage 2E Read-Only Paddle Listener
+
+Stage 2E extends the input boundary without touching the ASIO/BST-1 audio path or the future P-HPR output path.
+
+`HapticDrive.Input.Abstractions` now owns the read-only paddle listener model:
+
+- `InputDeviceSelection`
+- `WheelPaddleMapping`
+- `InputButtonState`
+- `InputEventTimestamp`
+- `InputListenerStatus`
+- `WheelPaddleRawButtonEvent`
+- `WheelPaddleInputEvent`
+- `WheelPaddleInputSnapshot`
+- `IInputButtonStateReader`
+- `PollingWheelPaddleInputSource`
+- `WheelPaddleInputProcessor`
+
+The processor handles raw button changes, rising-edge detection, release-to-rearm behavior, conservative debounce, UTC timestamps, stopwatch ticks, last raw-button diagnostics, mapped left/right paddle events, listener status, and captured errors. These mapped paddle events are diagnostics only in Stage 2E. `PollingWheelPaddleInputSource` implements `IWheelPaddleInputSource` for future compatibility but deliberately does not raise hardware-derived `ShiftIntentEvent` values in this stage.
+
+`HapticDrive.Input.Windows` adds `WindowsGameControllerButtonStateReader`, which reads button states through the built-in Windows game-controller API using the native joystick index discovered by Stage 2D. This is read-only polling. It does not send USB output reports, feature reports, vibration commands, or Simagic-specific control messages.
+
+Raw Input remains the preferred metadata discovery path, but Stage 2E does not decode live Raw Input HID button reports because reliable button mapping requires HID report-descriptor data from the user's Alpha Evo / GT Neo path. If the Windows game-controller path is insufficient, a later stage can add a Raw Input or HID input-report reader behind `IInputButtonStateReader`.
+
+The WPF Devices page now exposes manual paddle diagnostics:
+
+- select a Windows game-controller input device,
+- start/stop the read-only listener,
+- observe the last changed raw button,
+- map left/right paddles from that last changed button,
+- display left/right current state,
+- display last mapped paddle event timestamp and count,
+- and persist safe input mapping settings separately from haptic profiles.
+
+Persisted input settings include only selected input device ID, selected input method, left/right button IDs, and debounce duration. Haptic running state, emergency mute, ASIO arming, P-HPR control enablement, and unsafe hardware state are not persisted.
 
 ## Early Development Rule
 

@@ -797,6 +797,71 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock Margin="0,18,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="Live Paddle Input Diagnostics" />
+                            <WrapPanel Margin="0,10,0,0">
+                                <ComboBox x:Name="PaddleInputDeviceComboBox"
+                                          Width="360"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="PaddleInputDeviceComboBox_SelectionChanged" />
+                                <Button x:Name="StartPaddleInputListenerButton"
+                                        Width="150"
+                                        Margin="0,0,8,8"
+                                        Click="StartPaddleInputListenerButton_Click"
+                                        Content="Start Listener" />
+                                <Button x:Name="StopPaddleInputListenerButton"
+                                        Width="140"
+                                        Margin="0,0,8,8"
+                                        Click="StopPaddleInputListenerButton_Click"
+                                        Content="Stop Listener" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,2,0,0">
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Left" />
+                                <TextBox x:Name="LeftPaddleButtonTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8" />
+                                <Button Width="210"
+                                        Margin="0,0,14,8"
+                                        Click="SetLeftPaddleFromLastChangedButton_Click"
+                                        Content="Set Left From Last Button" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Right" />
+                                <TextBox x:Name="RightPaddleButtonTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8" />
+                                <Button Width="220"
+                                        Margin="0,0,14,8"
+                                        Click="SetRightPaddleFromLastChangedButton_Click"
+                                        Content="Set Right From Last Button" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Debounce ms" />
+                                <TextBox x:Name="PaddleDebounceTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8" />
+                            </WrapPanel>
+                            <TextBlock x:Name="PaddleInputStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                            <ItemsControl x:Name="PaddleInputItemsControl"
+                                          Margin="0,10,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,0,0,8"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   Text="{Binding}"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 

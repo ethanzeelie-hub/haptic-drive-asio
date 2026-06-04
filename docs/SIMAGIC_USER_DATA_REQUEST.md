@@ -4,7 +4,7 @@ Stage 2A requests this data so Phase 2 can proceed from observed hardware behavi
 
 Do not post public files that contain serial numbers, usernames, or private paths. Raw captures should stay local and uncommitted unless a sanitized summary is created.
 
-Stage 2D adds read-only input discovery, but the exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still required before Stage 2E can map live paddle input safely.
+Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics, but the exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
 
 ## Priority 1 - SimPro Manager V3 Screenshots
 
@@ -102,7 +102,24 @@ After pressing Refresh Input Devices in Haptic Drive ASIO, please capture or cop
 - any discovery errors,
 - and the Windows game-controller button numbers for left and right paddles if visible.
 
-Stage 2D discovery is read-only. It does not start live paddle listening, send commands, or vibrate P-HPR modules.
+Stage 2D discovery is read-only. It does not send commands or vibrate P-HPR modules.
+
+## Stage 2E Paddle Mapping Follow-Up
+
+After pressing Refresh Input Devices, selecting the likely Alpha Evo / GT Neo Windows game-controller device, and pressing Start Listener in Haptic Drive ASIO, please capture or copy:
+
+- selected input device display name,
+- selected input device ID shown by Haptic Drive ASIO if visible,
+- selected input method,
+- last changed button after pressing the left paddle,
+- last changed button after pressing the right paddle,
+- mapped left/right button IDs,
+- whether holding a paddle repeats or only counts once,
+- whether releasing and pressing again increments the mapped paddle count,
+- listener error message if any,
+- and whether Windows changes the device or joystick index after unplug/replug.
+
+Stage 2E paddle listening is read-only diagnostics only. It does not trigger ShiftIntent routing, DrivingArmed-gated routing, audio haptics, P-HPR output, gear pulses, USB output reports, or feature reports.
 
 ## Later - USBPcap/Wireshark Captures
 

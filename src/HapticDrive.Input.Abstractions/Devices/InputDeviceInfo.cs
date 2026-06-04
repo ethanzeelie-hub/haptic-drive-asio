@@ -30,6 +30,8 @@ public sealed record InputDeviceInfo
 
     public int? AxisCount { get; init; }
 
+    public int? NativeDeviceIndex { get; init; }
+
     public ushort? HidUsagePage { get; init; }
 
     public ushort? HidUsage { get; init; }

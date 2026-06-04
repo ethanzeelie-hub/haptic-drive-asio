@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. These stages do not add USB writes, real P-HPR output, protocol control, live paddle listener code, or haptic routing from paddle input.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. These stages do not add USB writes, real P-HPR output, protocol control, ShiftIntent routing from hardware input, or haptic routing from paddle input.
 
 ## Current Repository Baseline
 
@@ -12,6 +12,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 2B now defines input and P-HPR contracts without adding real hardware access.
 - Stage 2C now defines `DrivingArmedStateService` in `HapticDrive.Actuation` without connecting it to paddle input or P-HPR output.
 - Stage 2D now defines richer input discovery snapshots and implements read-only Windows Raw Input plus Windows game-controller capability discovery.
+- Stage 2E now defines read-only paddle listener diagnostics, manual left/right mapping, rising-edge/debounce processing, and safe mapping persistence.
 
 ## User Hardware Context
 
@@ -183,11 +184,46 @@ Not implemented in Stage 2D:
 - No USB output reports or write-capable feature reports.
 - No real P-HPR output.
 
+## Stage 2E Scope
+
+Implemented in Stage 2E:
+
+- `InputDeviceSelection`
+- `WheelPaddleMapping`
+- `InputButtonState`
+- `InputEventTimestamp`
+- `InputListenerStatus`
+- `WheelPaddleRawButtonEvent`
+- `WheelPaddleInputEvent`
+- `WheelPaddleInputSnapshot`
+- `IInputButtonStateReader`
+- `PollingWheelPaddleInputSource`
+- `WheelPaddleInputProcessor`
+- `WindowsGameControllerButtonStateReader`
+- Devices-page Start/Stop Listener controls
+- last-changed raw button diagnostics
+- Set Left/Right From Last Button mapping workflow
+- left/right current state diagnostics
+- mapped paddle press count and timestamp diagnostics
+- safe app-settings persistence for selected input device, method, left/right button IDs, and debounce only
+- hardware-free listener and processor tests
+
+Not implemented in Stage 2E:
+
+- No hardware-derived `ShiftIntentEvent` routing.
+- No cached `DrivingArmed` gate connection.
+- No P-HPR routing.
+- No real USB writes.
+- No real P-HPR output.
+- No audio/ASIO gear-pulse routing.
+- No Raw Input live HID report decoding.
+- No HID input-report reader.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
 
-The highest-value first items after Stage 2D are:
+The highest-value first items after Stage 2E are:
 
 1. SimPro Manager V3 P700/P-HPR screenshots.
 2. SimHub P-HPR detection and mapping screenshots.
@@ -195,6 +231,7 @@ The highest-value first items after Stage 2D are:
 4. USBView or USB Device Tree Viewer exports for descriptors and HID report descriptors.
 5. Windows game controller / DirectInput button numbers for the GT Neo left and right paddles.
 6. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
+7. Haptic Drive ASIO Stage 2E last-changed button and mapped left/right paddle diagnostics.
 
 USBPcap/Wireshark captures are useful later, but they are not required before the Stage 2B abstraction work.
 
