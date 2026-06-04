@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. It does not add USB writes, real P-HPR output, protocol control, or input listener code.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Neither stage adds USB writes, real P-HPR output, protocol control, or input listener code.
 
 ## Current Repository Baseline
 
@@ -9,6 +9,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - `NullAudioOutputDevice` remains the automated-test and startup default.
 - Stage 18 remains the final pre-Dayton-shaker software package.
 - Searches of `src/` and `tests/` during Stage 2A found no Simagic, P-HPR, P700, GT Neo, `ShiftIntent`, or `DrivingArmed` implementation code.
+- Stage 2B now defines input and P-HPR contracts without adding real hardware access.
 
 ## User Hardware Context
 
@@ -87,6 +88,40 @@ Not implemented in Stage 2A:
 - No real USB write path.
 - No Simagic device output reports.
 - No feature reports that can write or change device state.
+
+## Stage 2B Scope
+
+Implemented in Stage 2B:
+
+- `HapticDrive.Input.Abstractions`
+- `HapticDrive.Input.Windows` placeholder project for later read-only Windows input work.
+- `HapticDrive.Simagic.PHPR.Abstractions`
+- `IShiftIntentSource`
+- `IWheelPaddleInputSource`
+- `IInputDeviceDiscovery`
+- `ShiftIntentEvent`
+- `PaddleSide`
+- `DrivingArmedState`
+- `IDrivingArmedStateProvider`
+- `IPHprOutputDevice`
+- `PHprCommand`
+- `PHprModuleId`
+- `PHprCommandSource`
+- `PHprSafetyLimits`
+- `PHprOutputSnapshot`
+- `MockPhprOutputDevice` skeleton.
+
+Not implemented in Stage 2B:
+
+- No Windows Raw Input implementation.
+- No DirectInput implementation.
+- No HID input-report reader.
+- No P700/P-HPR device discovery implementation.
+- No shift-intent router.
+- No telemetry-backed `DrivingArmed` service.
+- No protocol encoder/decoder.
+- No real USB writes.
+- No real P-HPR output.
 
 ## Required Follow-Up Data
 

@@ -737,3 +737,40 @@ Self-review:
 - The default future P-HPR gear-pulse mode is documented as `InstantPaddleOnly`, gated by cached `DrivingArmed`, with no telemetry wait and no default second confirmation pulse.
 - Required user data is now explicitly requested and documented.
 - Raw capture and private hardware inventory files are ignored by default.
+
+## Stage 2B - Input and P-HPR Abstractions
+
+Date: 2026-06-04
+
+Status: Complete.
+
+Goal: Create safe input and P-HPR abstraction projects, model the future shift-intent and actuator command surfaces, and add a mock-only P-HPR output skeleton without implementing real input discovery or hardware writes.
+
+Notes:
+
+- Added `HapticDrive.Input.Abstractions`.
+- Added `HapticDrive.Input.Windows` as the future Windows read-only input project placeholder.
+- Added `HapticDrive.Simagic.PHPR.Abstractions`.
+- Added input device, paddle input, shift intent, and cached driving-state contracts: `IInputDeviceDiscovery`, `InputDeviceDescriptor`, `IShiftIntentSource`, `IWheelPaddleInputSource`, `ShiftIntentEvent`, `PaddleSide`, `DrivingArmedState`, and `IDrivingArmedStateProvider`.
+- Added P-HPR command/output contracts: `IPHprOutputDevice`, `PHprCommand`, `PHprModuleId`, `PHprCommandSource`, `PHprSafetyFlags`, `PHprSafetyLimits`, `PHprOutputSnapshot`, command results, and command status.
+- Added `MockPhprOutputDevice` skeleton that records clamped commands in memory, marks accepted commands as mock-only, supports emergency-stop suppression, and performs no hardware writes.
+- Added `HapticDrive.Input.Tests` for cached `DrivingArmed`, shift-intent, and read-only descriptor defaults.
+- Added `HapticDrive.Simagic.PHPR.Tests` for conservative P-HPR safety defaults, command clamping, mock command recording, and emergency-stop suppression.
+- Updated README, roadmap, known issues, architecture, and Simagic docs for Stage 2B.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Initial `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` run showed two timing-sensitive pre-existing streaming/runtime test failures while both new Stage 2B test projects passed.
+- Immediate rerun of `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 200 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 2B stayed within abstraction and mock-only scope.
+- No Raw Input implementation, DirectInput implementation, HID reader, P700/P-HPR discovery, shift-intent router, telemetry-backed `DrivingArmed` service, protocol encoder/decoder, real P-HPR output adapter, or USB write path was implemented.
+- `HapticDrive.Input.Windows` contains no listener and performs no device access.
+- `MockPhprOutputDevice` is explicitly mock-only and does not send output reports, feature reports, or vibration commands.
+- `PHprSafetyLimits.Default` keeps real device writes disabled and uses conservative first-write caps for future gated testing.
+- Existing ASIO/BST-1 architecture and `NullAudioOutputDevice` automated-test default were not changed.

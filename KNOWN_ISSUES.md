@@ -183,3 +183,12 @@
 - No P700/P-HPR USB inventory or protocol hypothesis has been implemented yet.
 - No real P-HPR USB writes are allowed unless the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
 - Raw captures and private device inventories must stay uncommitted.
+
+## Stage 2B
+
+- Stage 2B adds abstractions and a mock-only P-HPR output skeleton, but no Windows Raw Input, DirectInput, HID listener, or real device discovery implementation exists yet.
+- `DrivingArmedState` is a contract/model only; no telemetry-backed `DrivingArmed` service exists yet.
+- `ShiftIntentEvent` and source interfaces exist, but no shift intent router or paddle input event pipeline exists yet.
+- `MockPhprOutputDevice` records clamped mock commands only; it is not a real protocol adapter and does not send USB writes.
+- P-HPR safety defaults exist, but the full `PHprSafetyLimiter` is still deferred to Stage 2L.
+- No P700/P-HPR read-only inventory, USB capture analysis, protocol hypothesis, SimPro/SimHub coexistence detection, or controlled write plan exists yet.

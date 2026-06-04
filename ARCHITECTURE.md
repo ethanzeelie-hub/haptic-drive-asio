@@ -47,6 +47,16 @@ The future default P-HPR gear-pulse path is `InstantPaddleOnly`: read-only GT Ne
 
 Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
 
+## Stage 2B Input and P-HPR Abstractions
+
+Stage 2B adds contract-only projects for the future actuator path:
+
+- `HapticDrive.Input.Abstractions` defines input-device descriptors, read-only discovery contracts, paddle shift-intent contracts, `ShiftIntentEvent`, `PaddleSide`, `DrivingArmedState`, and `IDrivingArmedStateProvider`.
+- `HapticDrive.Input.Windows` exists as the later Windows read-only input discovery home, but Stage 2B does not implement Raw Input, DirectInput, HID reads, or any listener.
+- `HapticDrive.Simagic.PHPR.Abstractions` defines `PHprCommand`, module/source enums, safety flags/defaults, `IPHprOutputDevice`, output snapshots/results, and a `MockPhprOutputDevice`.
+
+`MockPhprOutputDevice` is mock-only. It records clamped commands in memory for tests and diagnostics, marks commands as `MockOnly`, and performs no hardware writes.
+
 ## Early Development Rule
 
 The app must build and test without ASIO hardware, M-Audio hardware, the Fosi amplifier, the Dayton BST-1, F1 25, or any live telemetry stream.

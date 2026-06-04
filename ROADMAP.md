@@ -23,6 +23,7 @@
 - Stage 18: Final pre-shaker readiness package complete.
 - Phase 1 software/manual ASIO readiness milestone complete through the maximum safe pre-BT-1 scope.
 - Stage 2A: Phase 2 readiness, Simagic P-HPR research intake, and data request complete.
+- Stage 2B: Input and P-HPR abstractions complete.
 
 ## Planned Stages
 
@@ -52,7 +53,7 @@ Phase 2 begins while preserving the Stage 18 ASIO/BST-1 package. P-HPR is a sepa
 Phase 2 safe sequence:
 
 1. Stage 2A: Phase 2 readiness, research intake, and data request. Complete.
-2. Stage 2B: Input and P-HPR abstractions.
+2. Stage 2B: Input and P-HPR abstractions. Complete.
 3. Stage 2C: Cached `DrivingArmed` state service.
 4. Stage 2D: Read-only wheel / paddle input discovery.
 5. Stage 2E: Raw paddle input listener and mapping.
@@ -87,3 +88,4 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - Stage 18 adds launch/runtime prerequisite handling, persisted app settings, forwarding destination UI, recordings library, selected replay, packet-ID diagnostics, copyable diagnostics reports, and final pre-shaker documentation cleanup.
 - No Simagic P-HPR implementation in V1.
 - Stage 2A adds Simagic Phase 2 documentation and safety gates only; it does not implement P-HPR output.
+- Stage 2B adds contracts and mock-only P-HPR scaffolding only; it does not implement real input discovery, protocol control, or device writes.
