@@ -774,3 +774,40 @@ Self-review:
 - `MockPhprOutputDevice` is explicitly mock-only and does not send output reports, feature reports, or vibration commands.
 - `PHprSafetyLimits.Default` keeps real device writes disabled and uses conservative first-write caps for future gated testing.
 - Existing ASIO/BST-1 architecture and `NullAudioOutputDevice` automated-test default were not changed.
+
+## Stage 2C - DrivingArmed State Service
+
+Date: 2026-06-04
+
+Status: Complete.
+
+Goal: Add a cached menu-safe `DrivingArmed` service from existing `VehicleState` and runtime pipeline snapshots so future paddle input can be accepted or suppressed without waiting for telemetry at paddle-event time.
+
+Notes:
+
+- Added `HapticDrive.Actuation` for non-audio actuator gating logic.
+- Added `DrivingArmedStateService` implementing `IDrivingArmedStateProvider`.
+- Added `DrivingArmedStateServiceOptions` with menu-safe mode enabled by default, recent-telemetry requirement enabled by default, telemetry freshness threshold, zero-speed active-driving allowance, and diagnostics-only unsafe override.
+- Added `DrivingArmedEvaluationContext`, `DrivingArmedSuppressionReason`, and `DrivingArmedStateServiceSnapshot`.
+- Added update paths from existing `VehicleState` and `HapticPipelineSnapshot`.
+- Driving is unarmed by default until recent valid telemetry proves active driving.
+- Suppression reasons now cover no telemetry, stale telemetry, paused, network paused, garage/menu/result state, invalid vehicle state, not moving/inactive, emergency mute, and haptics stopped.
+- Zero-speed active driving remains allowed by default for pit-lane/start-line cases when telemetry state indicates active driving.
+- Added `HapticDrive.Actuation.Tests` covering active fresh telemetry, stale telemetry, pause, network pause, garage/result states, haptics stopped, emergency mute, zero-speed behavior, menu-safe override behavior, pipeline snapshot updates, and change events.
+- Updated README, roadmap, known issues, architecture, and Simagic docs for Stage 2C.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- One final parallel `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` run showed two pre-existing timing-sensitive output-owned rendering failures while the new Stage 2C tests passed.
+- Immediate rerun of `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 215 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 2C stayed within cached driving-state gating scope.
+- No paddle input listener, Raw Input, DirectInput, HID reader, shift-intent router, P-HPR routing, protocol encoder/decoder, real output adapter, USB write path, or UI wiring was implemented.
+- The service evaluates cached state and does not block waiting for telemetry at paddle-event time.
+- Existing ASIO/BST-1 audio path and `NullAudioOutputDevice` default were not changed.
+- P-HPR remains a separate non-audio actuator path with no real writes before the exact approval phrase.

@@ -187,8 +187,15 @@
 ## Stage 2B
 
 - Stage 2B adds abstractions and a mock-only P-HPR output skeleton, but no Windows Raw Input, DirectInput, HID listener, or real device discovery implementation exists yet.
-- `DrivingArmedState` is a contract/model only; no telemetry-backed `DrivingArmed` service exists yet.
 - `ShiftIntentEvent` and source interfaces exist, but no shift intent router or paddle input event pipeline exists yet.
 - `MockPhprOutputDevice` records clamped mock commands only; it is not a real protocol adapter and does not send USB writes.
 - P-HPR safety defaults exist, but the full `PHprSafetyLimiter` is still deferred to Stage 2L.
 - No P700/P-HPR read-only inventory, USB capture analysis, protocol hypothesis, SimPro/SimHub coexistence detection, or controlled write plan exists yet.
+
+## Stage 2C
+
+- `DrivingArmedStateService` evaluates cached snapshots only; it is not yet wired into the WPF app or paddle input pipeline.
+- No Raw Input, DirectInput, HID reader, or real wheel/paddle device discovery exists yet.
+- No `ShiftIntentRouter` exists yet, so accepted driving state does not route any gear pulse.
+- Menu-safe gating uses the current `VehicleState` fields and may need refinement after live F1 25 menu, pause, garage, pit-lane, and start-line observations.
+- Real P-HPR output remains forbidden before the exact approval phrase and is not implemented.

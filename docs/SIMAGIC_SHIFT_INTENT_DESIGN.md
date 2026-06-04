@@ -1,6 +1,6 @@
 # Simagic Shift Intent Design
 
-Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only; it does not implement a listener, router, or output path.
+Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. These stages do not implement a listener, router, or output path.
 
 ## Default Event Flow
 
@@ -74,6 +74,8 @@ Recommended options:
 - Telemetry freshness threshold.
 - Allow zero-speed active driving.
 - Diagnostics-only override for testing, clearly labelled unsafe for menus.
+
+Stage 2C implements these options in `DrivingArmedStateServiceOptions`.
 
 ## Event Data
 

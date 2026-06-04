@@ -1,6 +1,6 @@
 # Simagic P-HPR Safety Plan
 
-This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Neither stage implements USB writes or real P-HPR output.
+This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. None of these stages implements USB writes or real P-HPR output.
 
 ## Required Approval Phrase
 

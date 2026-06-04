@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Neither stage adds USB writes, real P-HPR output, protocol control, or input listener code.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. These stages do not add USB writes, real P-HPR output, protocol control, or input listener code.
 
 ## Current Repository Baseline
 
@@ -10,6 +10,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 18 remains the final pre-Dayton-shaker software package.
 - Searches of `src/` and `tests/` during Stage 2A found no Simagic, P-HPR, P700, GT Neo, `ShiftIntent`, or `DrivingArmed` implementation code.
 - Stage 2B now defines input and P-HPR contracts without adding real hardware access.
+- Stage 2C now defines `DrivingArmedStateService` in `HapticDrive.Actuation` without connecting it to paddle input or P-HPR output.
 
 ## User Hardware Context
 
@@ -120,6 +121,35 @@ Not implemented in Stage 2B:
 - No shift-intent router.
 - No telemetry-backed `DrivingArmed` service.
 - No protocol encoder/decoder.
+- No real USB writes.
+- No real P-HPR output.
+
+## Stage 2C Scope
+
+Implemented in Stage 2C:
+
+- `HapticDrive.Actuation`
+- `DrivingArmedStateService`
+- `DrivingArmedStateServiceOptions`
+- `DrivingArmedEvaluationContext`
+- `DrivingArmedSuppressionReason`
+- `DrivingArmedStateServiceSnapshot`
+- Update from existing `VehicleState`
+- Update from existing `HapticPipelineSnapshot`
+- Default false until recent valid telemetry is observed
+- Menu-safe mode enabled by default
+- Require recent telemetry enabled by default
+- Telemetry freshness threshold
+- Allow zero-speed active driving enabled by default
+- Diagnostics-only unsafe override option
+- Suppression reasons for no telemetry, stale telemetry, paused, network-paused, garage/menu/result state, invalid state, not moving/inactive, emergency mute, and haptics stopped
+
+Not implemented in Stage 2C:
+
+- No paddle input listener.
+- No shift intent router.
+- No P-HPR routing.
+- No UI wiring.
 - No real USB writes.
 - No real P-HPR output.
 

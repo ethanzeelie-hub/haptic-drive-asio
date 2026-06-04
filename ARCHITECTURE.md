@@ -57,6 +57,24 @@ Stage 2B adds contract-only projects for the future actuator path:
 
 `MockPhprOutputDevice` is mock-only. It records clamped commands in memory for tests and diagnostics, marks commands as `MockOnly`, and performs no hardware writes.
 
+## Stage 2C DrivingArmed State Service
+
+Stage 2C adds `HapticDrive.Actuation` as the home for cached non-audio actuator gating.
+
+`DrivingArmedStateService` consumes existing `VehicleState` and `HapticPipelineSnapshot` data. It keeps `DrivingArmed` false until recent valid telemetry proves active driving, then suppresses future paddle haptics when cached state indicates:
+
+- no telemetry,
+- stale telemetry,
+- stopped haptics,
+- emergency mute,
+- game pause,
+- network pause,
+- garage/menu/result state,
+- invalid vehicle state,
+- or not-moving/inactive state when zero-speed active driving is disabled.
+
+The service is in-memory and event-driven. It does not block waiting for telemetry at paddle-event time and is not yet connected to an input listener or shift-intent router.
+
 ## Early Development Rule
 
 The app must build and test without ASIO hardware, M-Audio hardware, the Fosi amplifier, the Dayton BST-1, F1 25, or any live telemetry stream.

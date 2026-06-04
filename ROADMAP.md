@@ -24,6 +24,7 @@
 - Phase 1 software/manual ASIO readiness milestone complete through the maximum safe pre-BT-1 scope.
 - Stage 2A: Phase 2 readiness, Simagic P-HPR research intake, and data request complete.
 - Stage 2B: Input and P-HPR abstractions complete.
+- Stage 2C: Cached `DrivingArmed` state service complete.
 
 ## Planned Stages
 
@@ -54,7 +55,7 @@ Phase 2 safe sequence:
 
 1. Stage 2A: Phase 2 readiness, research intake, and data request. Complete.
 2. Stage 2B: Input and P-HPR abstractions. Complete.
-3. Stage 2C: Cached `DrivingArmed` state service.
+3. Stage 2C: Cached `DrivingArmed` state service. Complete.
 4. Stage 2D: Read-only wheel / paddle input discovery.
 5. Stage 2E: Raw paddle input listener and mapping.
 6. Stage 2F: Shift intent event layer.
@@ -89,3 +90,4 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - No Simagic P-HPR implementation in V1.
 - Stage 2A adds Simagic Phase 2 documentation and safety gates only; it does not implement P-HPR output.
 - Stage 2B adds contracts and mock-only P-HPR scaffolding only; it does not implement real input discovery, protocol control, or device writes.
+- Stage 2C adds cached `DrivingArmed` evaluation only; it does not connect paddle events or route actuator commands.
