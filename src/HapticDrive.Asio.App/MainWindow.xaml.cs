@@ -11,6 +11,8 @@ using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Actuation.Driving;
+using HapticDrive.Actuation.Shift;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
@@ -36,6 +38,8 @@ public partial class MainWindow : Window
     private readonly IWheelInputCandidateProvider _wheelInputCandidateProvider = new WheelInputCandidateProvider();
     private readonly IWheelPaddleInputSource _paddleInputSource = new PollingWheelPaddleInputSource(
         new WindowsGameControllerButtonStateReader());
+    private readonly DrivingArmedStateService _drivingArmedStateService = new();
+    private readonly ShiftIntentProcessor _shiftIntentProcessor;
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
@@ -57,6 +61,7 @@ public partial class MainWindow : Window
         new(AudioOutputDeviceKind.WasapiDebug, "WASAPI debug")
     ];
     private readonly IReadOnlyList<int> _asioOutputChannelChoices = Enumerable.Range(0, 8).ToArray();
+    private readonly IReadOnlyList<ShiftIntentMode> _shiftIntentModeOptions = Enum.GetValues<ShiftIntentMode>();
 
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
@@ -78,7 +83,7 @@ public partial class MainWindow : Window
                 "Stage 13 adds conservative kerb, impact, road texture, and slip / brake-lock effect generators from VehicleState.",
                 "Stage 14 exposes safe tuning controls, profile save/load/reset, and practical runtime diagnostics.",
                 "Stage 18 keeps live UDP and replayed packets wired into the parser, VehicleState adapter, effects, mixer, safety chain, and output-owned renderer.",
-                "Stage 2E adds read-only Windows game-controller paddle input diagnostics and manual left/right mapping.",
+                "Stage 2F adds DrivingArmed-gated shift intent diagnostics from mapped paddle input without haptic routing.",
                 "Stale telemetry is muted by wall-clock timeout.",
                 "NullAudioOutputDevice is the default safe output.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
@@ -198,7 +203,7 @@ public partial class MainWindow : Window
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
                 "Stage 18 reports pipeline, engine, gear, kerb, impact, road texture, slip, mixer, safety, output, replay, forwarding, packet-ID, ASIO visibility, callback, drop, underrun, jitter, and telemetry-age state.",
-                "Stage 2E reports read-only input discovery, selected paddle device, mapping, last raw button, and mapped paddle press diagnostics.",
+                "Stage 2F reports read-only input discovery, selected paddle device, mapping, mapped paddle presses, DrivingArmed-gated shift intent decisions, and no-output safety state.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -232,6 +237,7 @@ public partial class MainWindow : Window
     private bool _updatingTuningUi;
     private bool _updatingSettingsUi;
     private bool _updatingPaddleInputUi;
+    private bool _updatingShiftIntentUi;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -249,6 +255,9 @@ public partial class MainWindow : Window
         _selectedAsioOutputChannel = appSettings.LastAsioOutputChannel;
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
         _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
+        _shiftIntentProcessor = new ShiftIntentProcessor(
+            _drivingArmedStateService,
+            CreateShiftIntentOptions(appSettings.ShiftIntent));
         _hapticPipeline = CreatePipelineForSelectedOutput();
 
         _updatingOutputUi = true;
@@ -266,14 +275,17 @@ public partial class MainWindow : Window
         _updatingSettingsUi = false;
         TestBenchSignalComboBox.ItemsSource = _testBenchSignals;
         TestBenchSignalComboBox.SelectedIndex = 1;
+        ShiftIntentModeComboBox.ItemsSource = _shiftIntentModeOptions;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
         ApplyProfileToRuntime(_currentProfile);
         UpdateProfileStatus("Default conservative profile loaded.", []);
         ApplyPaddleMappingToControls();
+        ApplyShiftIntentSettingsToControls();
         _paddleInputSource.RawButtonChanged += PaddleInputSource_InputChanged;
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_InputChanged;
+        _paddleInputSource.PaddleInputReceived += PaddleInputSource_PaddleInputReceived;
         _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick += TelemetryStatusTimer_Tick;
         Loaded += MainWindow_Loaded;
@@ -339,7 +351,7 @@ public partial class MainWindow : Window
             DiagnosticsPanel.Visibility = page.NavigationLabel == "Diagnostics"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 2E read-only paddle input diagnostics";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 2F shift intent diagnostics";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
             UpdateMixerStatus();
@@ -503,6 +515,50 @@ public partial class MainWindow : Window
         AssignPaddleFromLastChangedButton(PaddleSide.Right);
     }
 
+    private void ShiftIntentEnabledCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingShiftIntentUi)
+        {
+            return;
+        }
+
+        ApplyShiftIntentOptionsFromControls("Shift intent preferences updated.");
+    }
+
+    private void ShiftIntentModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingShiftIntentUi)
+        {
+            return;
+        }
+
+        ApplyShiftIntentOptionsFromControls("Shift intent mode updated.");
+    }
+
+    private void ClearShiftIntentDiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _shiftIntentProcessor.ClearDiagnostics();
+        UpdateShiftIntentStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Shift intent diagnostics cleared.";
+    }
+
+    private void ApplyShiftIntentOptionsFromControls(string footerMessage)
+    {
+        var mode = ShiftIntentModeComboBox.SelectedItem is ShiftIntentMode selectedMode
+            ? selectedMode
+            : ShiftIntentMode.InstantPaddleOnly;
+        _shiftIntentProcessor.Configure(new ShiftIntentProcessorOptions
+        {
+            IsEnabled = ShiftIntentEnabledCheckBox.IsChecked == true,
+            Mode = mode
+        });
+        SaveAppSettings();
+        UpdateShiftIntentStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = footerMessage;
+    }
+
     private void PaddleInputDeviceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_updatingPaddleInputUi)
@@ -539,6 +595,7 @@ public partial class MainWindow : Window
         await previousPipeline.DisposeAsync();
 
         await RefreshAsioReadinessDiagnosticsAsync();
+        RefreshDrivingArmedAndShiftIntentTelemetry();
         UpdateHapticsStateText();
         UpdateRecordingStatus();
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
@@ -905,6 +962,35 @@ public partial class MainWindow : Window
         };
     }
 
+    private static ShiftIntentProcessorOptions CreateShiftIntentOptions(ShiftIntentSetting setting)
+    {
+        return new ShiftIntentProcessorOptions
+        {
+            IsEnabled = setting.IsEnabled,
+            Mode = setting.Mode
+        }.Normalize();
+    }
+
+    private ShiftIntentSetting CreateShiftIntentSetting()
+    {
+        var snapshot = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        return new ShiftIntentSetting
+        {
+            IsEnabled = snapshot.IsEnabled,
+            Mode = snapshot.Mode
+        };
+    }
+
+    private void ApplyShiftIntentSettingsToControls()
+    {
+        var snapshot = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        _updatingShiftIntentUi = true;
+        ShiftIntentEnabledCheckBox.IsChecked = snapshot.IsEnabled;
+        ShiftIntentModeComboBox.SelectedItem = snapshot.Mode;
+        _updatingShiftIntentUi = false;
+        UpdateShiftIntentStatus();
+    }
+
     private void SaveAppSettings()
     {
         try
@@ -915,7 +1001,8 @@ public partial class MainWindow : Window
                 LastAsioDriverName = _selectedAsioDriverName,
                 LastAsioOutputChannel = _selectedAsioOutputChannel,
                 ForwardingDestinations = _forwardingDestinations.ToList(),
-                PaddleInputMapping = CreatePaddleMappingSetting()
+                PaddleInputMapping = CreatePaddleMappingSetting(),
+                ShiftIntent = CreateShiftIntentSetting()
             });
             _settingsError = null;
         }
@@ -950,8 +1037,10 @@ public partial class MainWindow : Window
         FooterStatusText.Text = _hapticsStarted
             ? "Haptics started with output-owned low-latency rendering; Null output remains the default unless ASIO was selected, routed, and armed."
             : "Haptics stopped";
+        RefreshDrivingArmedAndShiftIntentTelemetry();
         UpdateOutputStatus(result.OutputResult?.Status ?? _hapticPipeline.GetSnapshot().Output);
         UpdateEffectStatus();
+        UpdateShiftIntentStatus();
         UpdateDiagnosticsStatus();
     }
 
@@ -1163,7 +1252,7 @@ public partial class MainWindow : Window
 
     private void UpdateHapticsStateText()
     {
-        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
 
         if (_emergencyMuted)
         {
@@ -1561,7 +1650,7 @@ public partial class MainWindow : Window
 
     private void UpdateMixerStatus()
     {
-        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         var mixer = _currentProfile.ToMixerSettings(_emergencyMuted);
         var safety = _currentProfile.ToSafetyOptions(_emergencyMuted);
         MasterGainValueText.Text = $"{mixer.MasterGain:P0}";
@@ -1587,12 +1676,13 @@ public partial class MainWindow : Window
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
+        UpdateShiftIntentStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}.";
         }
     }
 
@@ -1604,7 +1694,8 @@ public partial class MainWindow : Window
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
             : "Profile values are clamped to conservative software ranges on load and save.";
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -1677,7 +1768,7 @@ public partial class MainWindow : Window
             $"Paddle listener: {snapshot.Status}; selected {selectedText}; mapped presses {snapshot.PaddlePressCount:N0}; last raw {lastRaw}; last mapped {lastMapped}; error {error}.";
         PaddleInputItemsControl.ItemsSource = new[]
         {
-            "Safety: Stage 2E reads game-controller button states only. It does not route ShiftIntent, audio haptics, P-HPR output, USB output reports, or feature reports.",
+            "Safety: Stage 2F may evaluate mapped paddle presses into shift intent diagnostics only. It does not route audio haptics, P-HPR output, USB output reports, or feature reports.",
             $"Selected method: {(_paddleMapping.SelectedMethod == InputDiscoveryMethod.Unknown ? InputDiscoveryMethod.WindowsGameController : _paddleMapping.SelectedMethod)}",
             $"Left paddle mapping: {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}; current state {snapshot.LeftPaddleState}",
             $"Right paddle mapping: {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}; current state {snapshot.RightPaddleState}",
@@ -1686,6 +1777,36 @@ public partial class MainWindow : Window
             $"Paddle press count: {snapshot.PaddlePressCount:N0}",
             $"Debounce: {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms",
             $"Listener error: {error}"
+        };
+    }
+
+    private void UpdateShiftIntentStatus()
+    {
+        var diagnostics = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        var driving = _drivingArmedStateService.GetSnapshot();
+        var lastAccepted = diagnostics.LastAcceptedEvent is null
+            ? "none"
+            : $"{diagnostics.LastAcceptedEvent.Direction} at {diagnostics.LastAcceptedEvent.TimestampUtc.ToLocalTime():T}, gear {FormatOptionalInt(diagnostics.LastAcceptedEvent.LastTelemetryGear)}";
+        var lastSuppressed = diagnostics.LastSuppressedEvent is null
+            ? "none"
+            : $"{diagnostics.LastSuppressedEvent.PaddleEvent.PaddleSide} at {diagnostics.LastSuppressedEvent.EvaluatedAtUtc.ToLocalTime():T}: {diagnostics.LastSuppressedEvent.SuppressionReason}";
+        var telemetryAge = driving.LastTelemetryAge is null
+            ? "none"
+            : $"{driving.LastTelemetryAge.Value.TotalMilliseconds:0} ms";
+
+        ShiftIntentStatusText.Text =
+            $"Shift intent: {(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}.";
+        ShiftIntentItemsControl.ItemsSource = new[]
+        {
+            "Safety: Stage 2F evaluates mapped paddle intent only. It does not trigger haptic output, call MockPhprOutputDevice, create PHprCommand, or touch the ASIO/BST-1 audio path.",
+            $"DrivingArmed current state: {driving.Current.IsArmed}; reason {driving.Current.Reason}",
+            $"DrivingArmed telemetry age: {telemetryAge}; menu safe mode {driving.MenuSafeModeEnabled}; require recent telemetry {driving.RequireRecentTelemetry}",
+            $"Last paddle side: {diagnostics.LastPaddleSide}; direction {diagnostics.LastDirection}; last paddle event {(diagnostics.LastPaddleEvent is null ? "none" : diagnostics.LastPaddleEvent.TimestampUtc.ToLocalTime().ToString("T"))}",
+            $"Accepted shift intents: {diagnostics.AcceptedShiftIntentCount:N0}; suppressed shift intents: {diagnostics.SuppressedShiftIntentCount:N0}; observed paddle events {diagnostics.TotalPaddleEventsObserved:N0}",
+            $"Last accepted event: {lastAccepted}",
+            $"Last suppression reason: {diagnostics.LastSuppressionReason ?? "none"}",
+            $"Last known telemetry: gear {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownGear)}, speed {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownSpeedKph)} km/h, RPM {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownRpm)}, frame {FormatOptionalUInt(diagnostics.LastTelemetry.LastKnownFrameIdentifier)}",
+            $"Pending confirmation records: {diagnostics.PendingConfirmationCount:N0}; error {diagnostics.LastError ?? "none"}"
         };
     }
 
@@ -1734,9 +1855,10 @@ public partial class MainWindow : Window
             $"Output: {outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
             $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
             $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
+            $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; ASIO armed state, haptics running state, emergency mute, and P-HPR control are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; ASIO armed state, haptics running state, emergency mute, and P-HPR control are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
@@ -1766,7 +1888,7 @@ public partial class MainWindow : Window
         }
 
         var errors = snapshot.Errors.Count == 0 ? "none" : string.Join("; ", snapshot.Errors);
-        return $"{snapshot.DeviceCount:N0} device(s); methods {FormatDiscoveryMethods(snapshot.Methods)}; wheelbase {snapshot.LikelySimagicWheelBaseCandidates.Count:N0}; GT Neo/wheel {snapshot.LikelyGtNeoWheelInputCandidates.Count:N0}; P700 {snapshot.LikelyP700PedalCandidates.Count:N0}; unknown HID/game-controller {snapshot.UnknownHidOrGameControllerCandidates.Count:N0}; errors {errors}; read-only discovery with Stage 2E Windows game-controller listener available separately.";
+        return $"{snapshot.DeviceCount:N0} device(s); methods {FormatDiscoveryMethods(snapshot.Methods)}; wheelbase {snapshot.LikelySimagicWheelBaseCandidates.Count:N0}; GT Neo/wheel {snapshot.LikelyGtNeoWheelInputCandidates.Count:N0}; P700 {snapshot.LikelyP700PedalCandidates.Count:N0}; unknown HID/game-controller {snapshot.UnknownHidOrGameControllerCandidates.Count:N0}; errors {errors}; read-only discovery with Stage 2E Windows game-controller listener and Stage 2F shift intent diagnostics available separately.";
     }
 
     private string BuildPaddleInputDiagnosticsText()
@@ -1783,6 +1905,20 @@ public partial class MainWindow : Window
             : $"{snapshot.LastPaddleEvent.PaddleSide} button {snapshot.LastPaddleEvent.ButtonId} utc {snapshot.LastPaddleEvent.TimestampUtc:O} ticks {snapshot.LastPaddleEvent.StopwatchTicks}";
 
         return $"{snapshot.Status}; selected {selected}; method {_paddleMapping.SelectedMethod}; left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)} state {snapshot.LeftPaddleState}; right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)} state {snapshot.RightPaddleState}; last raw {lastRaw}; last mapped {lastMapped}; count {snapshot.PaddlePressCount:N0}; debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms; error {snapshot.LastErrorMessage ?? "none"}; diagnostics only, no haptic output.";
+    }
+
+    private string BuildShiftIntentDiagnosticsText()
+    {
+        var diagnostics = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        var driving = _drivingArmedStateService.GetSnapshot();
+        var lastAccepted = diagnostics.LastAcceptedEvent is null
+            ? "none"
+            : $"{diagnostics.LastAcceptedEvent.Direction} seq {diagnostics.LastAcceptedEvent.SequenceNumber} utc {diagnostics.LastAcceptedEvent.TimestampUtc:O} button {diagnostics.LastAcceptedEvent.SourceButtonId?.ToString() ?? "unknown"} gear {FormatOptionalInt(diagnostics.LastAcceptedEvent.LastTelemetryGear)}";
+        var lastSuppressed = diagnostics.LastSuppressedEvent is null
+            ? "none"
+            : $"{diagnostics.LastSuppressedEvent.PaddleEvent.PaddleSide} seq {diagnostics.LastSuppressedEvent.PaddleEvent.SequenceNumber} reason {diagnostics.LastSuppressedEvent.SuppressionReason}";
+
+        return $"{(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed} reason {driving.Current.Reason}; menu safe {driving.MenuSafeModeEnabled}; require recent telemetry {driving.RequireRecentTelemetry}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}; pending confirmations {diagnostics.PendingConfirmationCount:N0}; no haptic output.";
     }
 
     private static string FormatDiscoveryMethods(IReadOnlyList<InputDiscoveryMethod> methods)
@@ -1810,6 +1946,16 @@ public partial class MainWindow : Window
     private static string FormatButtonMapping(int? buttonId)
     {
         return buttonId is null ? "unmapped" : $"button {buttonId}";
+    }
+
+    private static string FormatOptionalInt(int? value)
+    {
+        return value is null ? "unknown" : value.Value.ToString("N0");
+    }
+
+    private static string FormatOptionalUInt(uint? value)
+    {
+        return value is null ? "unknown" : value.Value.ToString("N0");
     }
 
     private string BuildForwardingDestinationsText()
@@ -1859,11 +2005,13 @@ public partial class MainWindow : Window
 
     private void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
     {
+        RefreshDrivingArmedAndShiftIntentTelemetry();
         UpdateTelemetryStatus();
         UpdateHapticsStateText();
         UpdateMixerStatus();
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
         UpdatePaddleInputStatus();
+        UpdateShiftIntentStatus();
     }
 
     private void PaddleInputSource_InputChanged(object? sender, object e)
@@ -1872,6 +2020,17 @@ public partial class MainWindow : Window
         {
             UpdatePaddleInputStatus();
             UpdateDiagnosticsStatus();
+        });
+    }
+
+    private void PaddleInputSource_PaddleInputReceived(object? sender, WheelPaddleInputEvent e)
+    {
+        var result = _shiftIntentProcessor.HandlePaddleInput(e);
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            UpdateShiftIntentStatus();
+            UpdateDiagnosticsStatus();
+            FooterStatusText.Text = result.Message;
         });
     }
 
@@ -1898,8 +2057,17 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(UpdateTelemetryStatus);
     }
 
+    private HapticPipelineSnapshot RefreshDrivingArmedAndShiftIntentTelemetry()
+    {
+        var snapshot = _hapticPipeline.GetSnapshot();
+        _drivingArmedStateService.UpdateFromPipelineSnapshot(snapshot);
+        _shiftIntentProcessor.UpdateFromPipelineSnapshot(snapshot);
+        return snapshot;
+    }
+
     private void UpdateTelemetryStatus()
     {
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         if (_telemetryStartError is not null)
         {
             TelemetryStatusText.Text = "UDP: unavailable";
@@ -1941,7 +2109,6 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP Router" })
         {
-            var pipelineSnapshot = _hapticPipeline.GetSnapshot();
             var forwardingSnapshot = pipelineSnapshot.Forwarding;
             var parsedPackets = pipelineSnapshot.ParserSuccessCount;
             var vehicleStateUpdates = pipelineSnapshot.VehicleStateUpdateCount;

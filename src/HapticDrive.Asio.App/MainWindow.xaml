@@ -862,6 +862,39 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock Margin="0,18,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="Shift Intent Diagnostics" />
+                            <WrapPanel Margin="0,10,0,0">
+                                <CheckBox x:Name="ShiftIntentEnabledCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="ShiftIntentEnabledCheckBox_Changed"
+                                          Unchecked="ShiftIntentEnabledCheckBox_Changed"
+                                          Content="Enable Shift Intent" />
+                                <ComboBox x:Name="ShiftIntentModeComboBox"
+                                          Width="260"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="ShiftIntentModeComboBox_SelectionChanged" />
+                                <Button Width="190"
+                                        Margin="0,0,8,8"
+                                        Click="ClearShiftIntentDiagnosticsButton_Click"
+                                        Content="Clear Intent Counters" />
+                            </WrapPanel>
+                            <TextBlock x:Name="ShiftIntentStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                            <ItemsControl x:Name="ShiftIntentItemsControl"
+                                          Margin="0,10,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,0,0,8"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   Text="{Binding}"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 

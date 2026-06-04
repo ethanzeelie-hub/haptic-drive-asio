@@ -40,7 +40,19 @@ public sealed class ShiftIntentAbstractionTests
         Assert.Equal(42, shiftIntent.SequenceNumber);
         Assert.Equal("raw-input-alpha-evo", shiftIntent.SourceDeviceId);
         Assert.Equal(5, shiftIntent.LastTelemetryGear);
+        Assert.Equal(ShiftIntentDirection.Upshift, shiftIntent.Direction);
+        Assert.Equal(ShiftIntentSource.WheelPaddle, shiftIntent.Source);
+        Assert.Equal(ShiftIntentMode.InstantPaddleOnly, shiftIntent.Mode);
+        Assert.NotEqual(Guid.Empty, shiftIntent.CorrelationId);
         Assert.Equal(armed, shiftIntent.DrivingArmedAtEvent);
+    }
+
+    [Fact]
+    public void ShiftIntentEvent_DefaultDirectionMapsLeftToDownshiftAndRightToUpshift()
+    {
+        Assert.Equal(ShiftIntentDirection.Downshift, ShiftIntentEvent.DirectionForPaddle(PaddleSide.Left));
+        Assert.Equal(ShiftIntentDirection.Upshift, ShiftIntentEvent.DirectionForPaddle(PaddleSide.Right));
+        Assert.Equal(ShiftIntentDirection.Unknown, ShiftIntentEvent.DirectionForPaddle(PaddleSide.Unknown));
     }
 
     [Fact]

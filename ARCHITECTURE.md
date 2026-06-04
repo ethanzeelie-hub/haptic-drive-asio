@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2E includes read-only paddle input diagnostics for possible wheel / paddle devices, but no P-HPR output implementation exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2F includes read-only paddle input diagnostics plus a cached `DrivingArmed` shift-intent event layer, but no P-HPR output implementation or routing exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -51,7 +51,7 @@ Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGI
 
 Stage 2B adds contract-only projects for the future actuator path:
 
-- `HapticDrive.Input.Abstractions` defines input-device descriptors, read-only discovery contracts, paddle shift-intent contracts, `ShiftIntentEvent`, `PaddleSide`, `DrivingArmedState`, and `IDrivingArmedStateProvider`.
+- `HapticDrive.Input.Abstractions` defines input-device descriptors, read-only discovery contracts, paddle shift-intent contracts, `ShiftIntentEvent`, `PaddleSide`, `ShiftIntentDirection`, `ShiftIntentMode`, `ShiftIntentSource`, `DrivingArmedState`, and `IDrivingArmedStateProvider`.
 - `HapticDrive.Input.Windows` is the Windows read-only input discovery and button-state reading home. Stage 2D implements Raw Input metadata enumeration and Windows game-controller capability enumeration there; Stage 2E adds read-only Windows game-controller button-state polling for paddle diagnostics.
 - `HapticDrive.Simagic.PHPR.Abstractions` defines `PHprCommand`, module/source enums, safety flags/defaults, `IPHprOutputDevice`, output snapshots/results, and a `MockPhprOutputDevice`.
 
@@ -133,6 +133,29 @@ The WPF Devices page now exposes manual paddle diagnostics:
 - and persist safe input mapping settings separately from haptic profiles.
 
 Persisted input settings include only selected input device ID, selected input method, left/right button IDs, and debounce duration. Haptic running state, emergency mute, ASIO arming, P-HPR control enablement, and unsafe hardware state are not persisted.
+
+## Stage 2F Shift Intent Event Layer
+
+Stage 2F adds `HapticDrive.Actuation.Shift` as the event/gating layer between mapped paddle diagnostics and later actuator routing.
+
+`ShiftIntentProcessor` subscribes to mapped `WheelPaddleInputEvent` values from the Stage 2E listener in the WPF app. For each mapped paddle press it:
+
+- reads `IDrivingArmedStateProvider.Current`,
+- maps left paddle to `Downshift` and right paddle to `Upshift`,
+- applies the selected `ShiftIntentMode`,
+- emits an accepted `ShiftIntentEvent` only when the layer is enabled, `DrivingArmed` is true, and the mode allows immediate paddle intent,
+- records suppressed diagnostics when `DrivingArmed` is false, the layer is disabled, or `TelemetryConfirmedOnly` is active,
+- and writes accepted events only to an in-memory sink / event surface for diagnostics.
+
+The default mode is `InstantPaddleOnly`. It accepts mapped left/right paddle presses immediately when cached `DrivingArmed` is true, does not wait for a fresh telemetry packet, does not wait for a gear-confirmation packet, and does not create a default confirmation event.
+
+`TelemetryConfirmedOnly` is a secondary/debug mode in Stage 2F. It observes mapped paddle presses diagnostically but suppresses immediate accepted `ShiftIntentEvent` emission. The existing Phase 1 telemetry-confirmed ASIO gear-shift effect remains separate.
+
+`InstantWithRejectedShiftFeedback` accepts immediate intent like `InstantPaddleOnly` and records a pending-confirmation diagnostic count. It does not implement rejected-shift detection or feedback output yet.
+
+The WPF Devices and Diagnostics pages show shift-intent enabled state, mode, cached `DrivingArmed` state/reason, telemetry age, menu-safe/recent-telemetry settings, last paddle side, last direction, accepted/suppressed counters, last accepted event, last suppression reason, last known telemetry gear/speed/RPM/frame, pending confirmations, and errors. App settings persist only shift-intent enabled state and mode.
+
+Stage 2F does not call `IPHprOutputDevice`, `MockPhprOutputDevice`, `PHprCommand`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, `AsioAudioOutputDevice`, or any USB write path. Stage 2M will later route accepted shift intents to mock P-HPR gear pulses.
 
 ## Early Development Rule
 

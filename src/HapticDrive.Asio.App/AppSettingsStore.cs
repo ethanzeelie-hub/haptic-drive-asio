@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
+using HapticDrive.Input.Abstractions.Shift;
 
 namespace HapticDrive.Asio.App;
 
@@ -90,7 +91,8 @@ internal sealed class AppSettingsStore
                 ? settings.LastAsioOutputChannel
                 : null,
             ForwardingDestinations = destinations,
-            PaddleInputMapping = SanitizePaddleInputMapping(settings.PaddleInputMapping)
+            PaddleInputMapping = SanitizePaddleInputMapping(settings.PaddleInputMapping),
+            ShiftIntent = SanitizeShiftIntent(settings.ShiftIntent)
         };
     }
 
@@ -116,6 +118,23 @@ internal sealed class AppSettingsStore
         };
     }
 
+    private static ShiftIntentSetting SanitizeShiftIntent(ShiftIntentSetting? setting)
+    {
+        if (setting is null)
+        {
+            return new ShiftIntentSetting();
+        }
+
+        var mode = Enum.IsDefined(setting.Mode)
+            ? setting.Mode
+            : ShiftIntentMode.InstantPaddleOnly;
+
+        return setting with
+        {
+            Mode = mode
+        };
+    }
+
     private static int? NormalizeButtonId(int? buttonId)
     {
         return buttonId is > 0 and <= 128 ? buttonId : null;
@@ -134,6 +153,8 @@ internal sealed record AppSettings
 
     public PaddleInputMappingSetting PaddleInputMapping { get; init; } = new();
 
+    public ShiftIntentSetting ShiftIntent { get; init; } = new();
+
     public string? LastStatusMessage { get; init; }
 
     public static AppSettings Default { get; } = new();
@@ -150,6 +171,13 @@ internal sealed record PaddleInputMappingSetting
     public int? RightPaddleButtonId { get; init; }
 
     public int DebounceMilliseconds { get; init; } = (int)WheelPaddleMapping.DefaultDebounceDuration.TotalMilliseconds;
+}
+
+internal sealed record ShiftIntentSetting
+{
+    public bool IsEnabled { get; init; } = true;
+
+    public ShiftIntentMode Mode { get; init; } = ShiftIntentMode.InstantPaddleOnly;
 }
 
 internal sealed record ForwardingDestinationSetting

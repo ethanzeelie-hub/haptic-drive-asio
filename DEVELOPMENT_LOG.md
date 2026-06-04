@@ -889,3 +889,49 @@ Self-review:
 - No hardware-derived `ShiftIntentEvent` routing, cached `DrivingArmed` paddle gate connection, P-HPR routing, ASIO gear-pulse integration, audio haptic routing from paddles, or `EffectEngine` gear-triggering from paddle presses was implemented.
 - The existing ASIO/BST-1 audio path and `NullAudioOutputDevice` automated-test default were not changed.
 - Mapped paddle events remain diagnostics only; Stage 2F is next for the Shift Intent Event Layer.
+
+## Stage 2F - Shift Intent Event Layer
+
+Date: 2026-06-05
+
+Status: Complete.
+
+Goal: Convert mapped GT Neo paddle input events from Stage 2E into accepted or suppressed ShiftIntent evaluations using cached `DrivingArmed` state from Stage 2C, without producing any haptic output.
+
+Notes:
+
+- Parsed the Stage 2F brief and kept scope to mapped paddle input -> shift intent evaluation -> diagnostics / in-memory accepted-event sink only.
+- Added `ShiftIntentMode`, `ShiftIntentDirection`, and `ShiftIntentSource`.
+- Extended `ShiftIntentEvent` with direction, source, mode, stopwatch ticks, source button ID, last known telemetry gear/speed/RPM/session/frame diagnostics, and a correlation ID while preserving the existing factory usage.
+- Added `HapticDrive.Actuation.Shift` with `ShiftIntentProcessor`, `ShiftIntentProcessorOptions`, `ShiftIntentEvaluationResult`, `ShiftIntentDiagnosticsSnapshot`, `ShiftIntentTelemetrySnapshot`, `IShiftIntentSink`, and `InMemoryShiftIntentSink`.
+- Default mode is `InstantPaddleOnly`: mapped left/right paddle presses are accepted immediately when cached `DrivingArmed` is true, with no telemetry wait and no confirmation event.
+- Left paddle maps to `Downshift`; right paddle maps to `Upshift`.
+- `TelemetryConfirmedOnly` observes mapped paddle presses diagnostically but suppresses immediate accepted paddle intent.
+- `InstantWithRejectedShiftFeedback` accepts immediate intent when `DrivingArmed` is true and records a pending-confirmation diagnostic count only.
+- Suppressed evaluations preserve the cached `DrivingArmed` reason when the gate is false.
+- Wired the WPF Devices and Diagnostics pages to show shift intent enabled state, mode, `DrivingArmed` state/reason, telemetry age, menu-safe/recent-telemetry state, last paddle side, last direction, accepted/suppressed counters, last accepted event, last suppression reason, last known telemetry gear/speed/RPM/frame, pending confirmations, and errors.
+- Persisted only safe shift-intent preferences: enabled state and selected mode.
+- Added hardware-free tests for default mode, direction mapping, accepted/suppressed behavior, diagnostics counters, last accepted/suppressed state, disabled layer suppression, telemetry-confirmed-only suppression, future rejected-feedback diagnostics, cached-state-only evaluation, error capture, and no output-facing processor constructor surface.
+- Updated README, architecture, roadmap, known issues, and Simagic Phase 2 docs for Stage 2F.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 250 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 2F stayed within the Shift Intent Event Layer only.
+- No P700/P-HPR USB discovery, capture workflow, capture analysis, protocol hypothesis, mock gear pulse routing, real P-HPR output, or real hardware control was implemented.
+- No real USB writes, output reports, write-capable feature reports, vibration commands, SimPro/SimHub hooking, driver changes, firmware work, or controlled write testing were implemented or executed.
+- No haptic routing was added from paddle input.
+- `MockPhprOutputDevice` is not called.
+- `IPHprOutputDevice` is not called.
+- `PHprCommand` is not created.
+- `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, ASIO output, and the ASIO/BST-1 audio path are not called from paddle input.
+- The paddle hot path reads cached `DrivingArmed` state only and does not wait for telemetry, perform disk IO, perform network IO, or touch audio rendering.
+- `InstantPaddleOnly` is confirmed as the default mode, with no default second confirmation event.
+- Stage 2G is next for read-only P700 / P-HPR device inventory.

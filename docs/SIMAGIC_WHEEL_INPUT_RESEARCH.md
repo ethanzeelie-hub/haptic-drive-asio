@@ -1,6 +1,6 @@
 # Simagic Wheel Input Research
 
-Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics.
+Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state.
 
 ## Goal
 
@@ -63,7 +63,7 @@ On the Devices page:
 9. Press Set Right From Last Button.
 10. Watch left/right current state, last mapped paddle event, timestamp, and paddle press count.
 
-Mapped paddle presses in Stage 2E are diagnostics only. They do not trigger ShiftIntent routing, audio haptics, P-HPR output, gear pulses, or any USB writes.
+Mapped paddle presses from Stage 2E now feed Stage 2F shift-intent evaluation. Accepted Stage 2F intent is still diagnostics only and does not trigger audio haptics, P-HPR output, gear pulses, or any USB writes.
 
 The app persists only safe input settings: selected input device ID, selected input method, left/right button IDs, and debounce duration.
 
@@ -73,7 +73,21 @@ The app persists only safe input settings: selected input device ID, selected in
 - HID input-report reading is deferred because the current listener can read normal game-controller button states, and HID report parsing should wait for USBView / HID descriptor data if needed.
 - Live Raw Input button decoding is deferred because reliable button IDs require HID report-descriptor interpretation for the user's exact wheel input path.
 - Simagic-specific read-only discovery is deferred until Raw Input and Windows game-controller data prove insufficient.
-- Hardware-derived `ShiftIntentEvent` creation and haptic routing are Stage 2F or later.
+- Haptic routing from accepted `ShiftIntentEvent` values is Stage 2M or later.
+
+## Stage 2F Implemented Shift Intent Evaluation
+
+Stage 2F adds the event layer after the read-only listener:
+
+- `WheelPaddleInputEvent` is passed to `ShiftIntentProcessor`.
+- The processor reads cached `DrivingArmed` state only; it does not wait for telemetry at paddle-press time.
+- `InstantPaddleOnly` is the default mode and accepts immediate intent when `DrivingArmed` is true.
+- `TelemetryConfirmedOnly` observes mapped paddle presses but suppresses immediate accepted intent.
+- `InstantWithRejectedShiftFeedback` accepts immediately and records pending confirmation diagnostics only.
+- Left paddle is recorded as `Downshift`; right paddle is recorded as `Upshift`.
+- Suppressed diagnostics preserve the `DrivingArmed` reason when the cached gate is false.
+
+Stage 2F does not call `MockPhprOutputDevice`, `IPHprOutputDevice`, `PHprCommand`, `GearShiftEffect`, ASIO output, or the audio mixer.
 
 ## Planned Diagnostics
 
@@ -105,8 +119,8 @@ Stage 2E exposes:
 Later routing stages should expose:
 
 - Last event latency estimate where possible.
-- Last `DrivingArmed` state.
-- Last suppressed input reason.
+- Last `DrivingArmed` state. Implemented for shift-intent diagnostics in Stage 2F.
+- Last suppressed input reason. Implemented for shift-intent diagnostics in Stage 2F.
 - Last shift pulse routed.
 - Last telemetry gear.
 - Optional gear confirmation/rejection result.

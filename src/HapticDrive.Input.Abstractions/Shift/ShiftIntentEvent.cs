@@ -8,7 +8,17 @@ public sealed record ShiftIntentEvent(
     DrivingArmedState DrivingArmedAtEvent,
     long SequenceNumber = 0,
     string? SourceDeviceId = null,
-    int? LastTelemetryGear = null)
+    int? LastTelemetryGear = null,
+    ShiftIntentDirection Direction = ShiftIntentDirection.Unknown,
+    ShiftIntentSource Source = ShiftIntentSource.WheelPaddle,
+    ShiftIntentMode Mode = ShiftIntentMode.InstantPaddleOnly,
+    long? StopwatchTicks = null,
+    int? SourceButtonId = null,
+    int? LastKnownSpeedKph = null,
+    int? LastKnownRpm = null,
+    float? LastKnownSessionTime = null,
+    uint? LastKnownFrameIdentifier = null,
+    Guid? CorrelationId = null)
 {
     public bool IsAcceptedByDrivingGate => DrivingArmedAtEvent.IsArmed;
 
@@ -18,7 +28,17 @@ public sealed record ShiftIntentEvent(
         DateTimeOffset? timestampUtc = null,
         long sequenceNumber = 0,
         string? sourceDeviceId = null,
-        int? lastTelemetryGear = null)
+        int? lastTelemetryGear = null,
+        ShiftIntentDirection direction = ShiftIntentDirection.Unknown,
+        ShiftIntentSource source = ShiftIntentSource.WheelPaddle,
+        ShiftIntentMode mode = ShiftIntentMode.InstantPaddleOnly,
+        long? stopwatchTicks = null,
+        int? sourceButtonId = null,
+        int? lastKnownSpeedKph = null,
+        int? lastKnownRpm = null,
+        float? lastKnownSessionTime = null,
+        uint? lastKnownFrameIdentifier = null,
+        Guid? correlationId = null)
     {
         return new ShiftIntentEvent(
             paddleSide,
@@ -26,6 +46,35 @@ public sealed record ShiftIntentEvent(
             drivingArmedAtEvent,
             sequenceNumber,
             sourceDeviceId,
-            lastTelemetryGear);
+            lastTelemetryGear,
+            NormalizeDirection(paddleSide, direction),
+            source,
+            mode,
+            stopwatchTicks,
+            sourceButtonId,
+            lastKnownSpeedKph,
+            lastKnownRpm,
+            lastKnownSessionTime,
+            lastKnownFrameIdentifier,
+            correlationId ?? Guid.NewGuid());
+    }
+
+    public static ShiftIntentDirection DirectionForPaddle(PaddleSide paddleSide)
+    {
+        return paddleSide switch
+        {
+            PaddleSide.Left => ShiftIntentDirection.Downshift,
+            PaddleSide.Right => ShiftIntentDirection.Upshift,
+            _ => ShiftIntentDirection.Unknown
+        };
+    }
+
+    private static ShiftIntentDirection NormalizeDirection(
+        PaddleSide paddleSide,
+        ShiftIntentDirection direction)
+    {
+        return direction == ShiftIntentDirection.Unknown
+            ? DirectionForPaddle(paddleSide)
+            : direction;
     }
 }

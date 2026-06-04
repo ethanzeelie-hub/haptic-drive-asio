@@ -4,7 +4,7 @@ Stage 2A requests this data so Phase 2 can proceed from observed hardware behavi
 
 Do not post public files that contain serial numbers, usernames, or private paths. Raw captures should stay local and uncommitted unless a sanitized summary is created.
 
-Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics, but the exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
+Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F adds cached `DrivingArmed` shift-intent evaluation diagnostics only. The exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
 
 ## Priority 1 - SimPro Manager V3 Screenshots
 
@@ -104,7 +104,7 @@ After pressing Refresh Input Devices in Haptic Drive ASIO, please capture or cop
 
 Stage 2D discovery is read-only. It does not send commands or vibrate P-HPR modules.
 
-## Stage 2E Paddle Mapping Follow-Up
+## Stage 2E / 2F Paddle Mapping Follow-Up
 
 After pressing Refresh Input Devices, selecting the likely Alpha Evo / GT Neo Windows game-controller device, and pressing Start Listener in Haptic Drive ASIO, please capture or copy:
 
@@ -118,8 +118,11 @@ After pressing Refresh Input Devices, selecting the likely Alpha Evo / GT Neo Wi
 - whether releasing and pressing again increments the mapped paddle count,
 - listener error message if any,
 - and whether Windows changes the device or joystick index after unplug/replug.
+- Stage 2F shift-intent enabled state and mode.
+- Stage 2F last accepted or suppressed shift-intent reason while haptics are running and fresh telemetry is present.
+- Stage 2F `DrivingArmed` reason, telemetry age, and menu-safe/recent-telemetry status when a paddle press is suppressed.
 
-Stage 2E paddle listening is read-only diagnostics only. It does not trigger ShiftIntent routing, DrivingArmed-gated routing, audio haptics, P-HPR output, gear pulses, USB output reports, or feature reports.
+Stage 2E paddle listening is read-only diagnostics only. Stage 2F evaluates mapped paddle presses into accepted/suppressed shift-intent diagnostics, but it still does not trigger audio haptics, P-HPR output, gear pulses, USB output reports, feature reports, `MockPhprOutputDevice`, or `PHprCommand`.
 
 ## Later - USBPcap/Wireshark Captures
 

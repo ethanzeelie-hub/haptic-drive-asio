@@ -213,7 +213,18 @@
 
 - The live paddle listener is read-only and currently uses the Windows game-controller button-state API. Raw Input live button decoding and HID input-report parsing remain deferred unless the game-controller path is insufficient.
 - Manual mapping may still require user-provided left/right paddle button IDs from Windows controller tools, SimPro Manager, SimHub, or Haptic Drive ASIO's last-changed-button diagnostics.
-- Mapped paddle presses are diagnostics only. They do not raise hardware-derived `ShiftIntentEvent` values yet.
-- No `DrivingArmed`-gated paddle routing exists yet.
+- Mapped paddle presses now feed the Stage 2F shift-intent diagnostics layer, but the Stage 2E listener itself remains read-only and does not route haptics.
+- `DrivingArmed`-gated paddle evaluation exists in Stage 2F, but no accepted intent is routed to any actuator yet.
 - No P-HPR output, P-HPR USB write, output report, feature report, gear pulse, or controlled write testing is implemented.
 - Device selection is persisted only as a safe input setting. If Windows changes the joystick index or device identity, the user may need to refresh devices and reselect the wheel input path.
+
+## Stage 2F
+
+- The Shift Intent Event Layer exists and can accept or suppress mapped paddle intent through cached `DrivingArmed` state, but no P-HPR routing exists yet.
+- No P700/P-HPR USB inventory exists yet; that is Stage 2G.
+- No P-HPR protocol discovery or capture analysis exists yet.
+- No mock P-HPR gear-pulse routing exists yet; `MockPhprOutputDevice` is not called by Stage 2F.
+- No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.
+- No rejected-shift feedback output exists yet. `InstantWithRejectedShiftFeedback` records pending confirmation diagnostics only.
+- No haptic output is triggered from paddles. Stage 2F does not call `GearShiftEffect`, ASIO output, the audio mixer, P-HPR output, or `PHprCommand`.
+- `DrivingArmed` menu-safe gating may need refinement after live F1 25 menu, pause, garage, pit-lane, and start-line observations.

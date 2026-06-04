@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. These stages do not add USB writes, real P-HPR output, protocol control, ShiftIntent routing from hardware input, or haptic routing from paddle input.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
 
 ## Current Repository Baseline
 
@@ -13,6 +13,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 2C now defines `DrivingArmedStateService` in `HapticDrive.Actuation` without connecting it to paddle input or P-HPR output.
 - Stage 2D now defines richer input discovery snapshots and implements read-only Windows Raw Input plus Windows game-controller capability discovery.
 - Stage 2E now defines read-only paddle listener diagnostics, manual left/right mapping, rising-edge/debounce processing, and safe mapping persistence.
+- Stage 2F now defines `ShiftIntentProcessor`, `ShiftIntentMode`, `ShiftIntentDirection`, `ShiftIntentSource`, accepted/suppressed shift-intent diagnostics, safe in-memory accepted-event storage, and WPF diagnostics/settings for shift intent enabled state and mode.
 
 ## User Hardware Context
 
@@ -219,11 +220,41 @@ Not implemented in Stage 2E:
 - No Raw Input live HID report decoding.
 - No HID input-report reader.
 
+## Stage 2F Scope
+
+Implemented in Stage 2F:
+
+- `ShiftIntentMode` with `InstantPaddleOnly` as the default, plus `TelemetryConfirmedOnly` and `InstantWithRejectedShiftFeedback`.
+- `ShiftIntentDirection` with left paddle mapped to `Downshift` and right paddle mapped to `Upshift`.
+- `ShiftIntentSource` for wheel-paddle, telemetry-gear-change, and test diagnostics.
+- Extended `ShiftIntentEvent` diagnostics for direction, source, mode, stopwatch ticks, source button, last known gear/speed/RPM/session/frame, and a correlation ID.
+- `ShiftIntentProcessor` in `HapticDrive.Actuation.Shift`.
+- Immediate accepted intent when a mapped paddle press arrives while cached `DrivingArmed` is true and mode allows instant paddle intent.
+- Suppressed diagnostics when the layer is disabled, `DrivingArmed` is false, or `TelemetryConfirmedOnly` is active.
+- Suppression messages preserve the cached `DrivingArmed` reason when the gate is false.
+- Safe in-memory accepted-event sink for diagnostics and tests only.
+- Devices-page shift-intent diagnostics and controls for enabled state, mode, and counter clearing.
+- App-settings persistence for shift-intent enabled state and selected mode only.
+- Hardware-free tests for default mode, direction mapping, accepted/suppressed behavior, diagnostics counters, error capture, telemetry-confirmed mode, future rejected-feedback mode, and no output-facing processor surface.
+
+Not implemented in Stage 2F:
+
+- No P700/P-HPR USB discovery or inventory.
+- No capture workflow or capture analysis.
+- No mock P-HPR gear-pulse routing.
+- No real P-HPR output.
+- No `IPHprOutputDevice` or `MockPhprOutputDevice` calls.
+- No `PHprCommand` creation.
+- No ASIO gear pulse from paddle input.
+- No `GearShiftEffect` call from paddle input.
+- No rejected-shift feedback output.
+- No telemetry wait, disk IO, network IO, or audio rendering work in the paddle event path.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
 
-The highest-value first items after Stage 2E are:
+The highest-value first items after Stage 2F are:
 
 1. SimPro Manager V3 P700/P-HPR screenshots.
 2. SimHub P-HPR detection and mapping screenshots.
@@ -231,7 +262,7 @@ The highest-value first items after Stage 2E are:
 4. USBView or USB Device Tree Viewer exports for descriptors and HID report descriptors.
 5. Windows game controller / DirectInput button numbers for the GT Neo left and right paddles.
 6. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
-7. Haptic Drive ASIO Stage 2E last-changed button and mapped left/right paddle diagnostics.
+7. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
 USBPcap/Wireshark captures are useful later, but they are not required before the Stage 2B abstraction work.
 

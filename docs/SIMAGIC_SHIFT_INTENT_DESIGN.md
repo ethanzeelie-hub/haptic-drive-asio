@@ -1,6 +1,6 @@
 # Simagic Shift Intent Design
 
-Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds a read-only Windows game-controller paddle listener with manual left/right mapping diagnostics. These stages do not implement ShiftIntent routing or any output path.
+Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds a read-only Windows game-controller paddle listener with manual left/right mapping diagnostics. Stage 2F implements the Shift Intent Event Layer for accepted/suppressed diagnostics. These stages do not implement P-HPR routing or any output path.
 
 ## Default Event Flow
 
@@ -9,37 +9,41 @@ GT Neo paddle press
 -> read-only input event
 -> ShiftIntentEvent
 -> cached DrivingArmed gate
--> immediate mock/P-HPR gear pulse
+-> accepted/suppressed diagnostics
+-> later mock/P-HPR gear pulse
 ```
 
 The paddle event path must not block waiting for a fresh F1 25 telemetry packet.
 
 ## Default Mode
 
-`InstantPaddleOnly` is the default future mode.
+`InstantPaddleOnly` is the default mode.
 
 Behavior:
 
-- Left or right paddle press triggers a gear pulse immediately when `DrivingArmed` is true.
+- Left or right paddle press creates an accepted `ShiftIntentEvent` immediately when `DrivingArmed` is true.
 - The event uses cached driving state only.
 - The event does not wait for telemetry confirmation.
 - The event does not fire a second normal telemetry-confirmed pulse by default.
-- Left and right paddles use the same pulse by default.
+- Stage 2F records the accepted event for diagnostics only.
+- Future routing should use the same pulse for left and right by default while retaining direction in diagnostics.
 
 ## Other Planned Modes
 
 `TelemetryConfirmedOnly`:
 
-- Triggers only when F1 25 telemetry confirms gear changed.
-- Matches the existing Phase 1 ASIO gear-effect style for comparison/debugging.
+- Stage 2F observes mapped paddle presses diagnostically and suppresses immediate accepted intent.
+- The suppression reason states that telemetry-confirmed-only mode is active.
+- The existing Phase 1 ASIO gear-effect style remains separate for comparison/debugging.
 
 `InstantWithRejectedShiftFeedback`:
 
-- Fires the immediate paddle pulse first.
+- Emits immediate accepted intent first when `DrivingArmed` is true.
 - Later inspects telemetry to determine whether gear changed within a configurable window.
 - May optionally fire a subtle rejected-shift pulse if the gear did not change.
 - Must never delay the initial pulse.
 - Must never fire a second normal confirmation pulse by default.
+- Stage 2F records a pending-confirmation diagnostic count only; no rejected-shift output is implemented yet.
 
 Rejected shifts are expected to be rare, mostly during aggressive downshifts such as 4->3 or 3->2 when speed/revs are too high. Rejected-shift feedback should start disabled or subtle.
 
@@ -48,10 +52,10 @@ Rejected shifts are expected to be rare, mostly during aggressive downshifts suc
 Future paddle event handling should be:
 
 ```text
-if paddlePressed && DrivingArmed:
-    fire shift pulse immediately
+if paddlePressed && DrivingArmed && mode allows immediate intent:
+    accept ShiftIntentEvent immediately
 else:
-    suppress pulse and record diagnostic reason
+    suppress intent and record diagnostic reason
 ```
 
 `DrivingArmed` must be cached continuously from the latest telemetry-derived state. It should default false until recent valid telemetry proves active driving.
@@ -79,18 +83,25 @@ Stage 2C implements these options in `DrivingArmedStateServiceOptions`.
 
 ## Event Data
 
-A future `ShiftIntentEvent` should include:
+Stage 2F `ShiftIntentEvent` includes:
 
 - Paddle side.
 - Press timestamp.
 - Source device identity where available.
 - Event sequence.
 - `DrivingArmed` at event time.
-- Suppression reason when not accepted.
-- Last telemetry gear for diagnostics.
+- Shift direction (`Left` = `Downshift`, `Right` = `Upshift`).
+- Source (`WheelPaddle`, `TelemetryGearChange`, or `Test`).
+- Mode.
+- Stopwatch ticks.
+- Source button ID.
+- Last telemetry gear for diagnostics where available.
+- Last known speed, RPM, session time, and frame identifier where available.
 - Correlation ID for optional telemetry confirmation/rejection.
 
-## Stage 2E Paddle Diagnostics
+Suppression state is kept in `ShiftIntentEvaluationResult` and `ShiftIntentDiagnosticsSnapshot`, not emitted as an accepted event.
+
+## Stage 2E Paddle Diagnostics And Stage 2F Evaluation
 
 Stage 2E uses Stage 2D `InputDeviceDiscoverySnapshot` values to let the user select a Windows game-controller device for the Alpha Evo / GT Neo path.
 
@@ -117,11 +128,32 @@ Stage 2E still needs user mapping data before reliable routing:
 
 No hardware-derived `ShiftIntentEvent` is raised by Stage 2E. No haptic output is triggered by mapped paddle presses.
 
-Stage 2F should convert mapped paddle diagnostics into `ShiftIntentEvent` values and evaluate cached `DrivingArmed` state, still without real P-HPR output.
+Stage 2F converts mapped paddle diagnostics into `ShiftIntentEvaluationResult` values and accepted `ShiftIntentEvent` values when allowed by cached `DrivingArmed` state and mode, still without real or mock P-HPR output.
+
+Implemented Stage 2F diagnostics:
+
+- shift intent enabled state,
+- current `ShiftIntentMode`,
+- cached `DrivingArmed` state and reason,
+- telemetry age,
+- menu-safe and require-recent-telemetry state,
+- last paddle side,
+- last direction,
+- last paddle event time,
+- last accepted event,
+- accepted and suppressed counters,
+- last suppression reason,
+- last known telemetry gear, speed, RPM, and frame,
+- pending confirmation count for the future rejected-feedback mode,
+- and last evaluation error.
+
+Stage 2F persists only shift-intent enabled state and mode. It does not persist haptics running state, emergency mute state, real P-HPR approval, or output state.
 
 ## Routing
 
-A future accepted `ShiftIntentEvent` should be able to route to:
+Stage 2F does not route accepted `ShiftIntentEvent` values to haptics. Stage 2M should later route accepted events to mock P-HPR gear pulses after the mock safety/routing stages exist.
+
+A later accepted `ShiftIntentEvent` should be able to route to:
 
 - Brake P-HPR.
 - Throttle P-HPR.
@@ -129,3 +161,14 @@ A future accepted `ShiftIntentEvent` should be able to route to:
 - BST-1 / ASIO gear effect later if suitable.
 
 P-HPR output must not block ASIO output, and ASIO output must not block P-HPR output.
+
+Stage 2F safety confirmations:
+
+- No `MockPhprOutputDevice` call.
+- No `IPHprOutputDevice` call.
+- No `PHprCommand` creation.
+- No real P-HPR output.
+- No ASIO gear pulse from paddle input.
+- No `GearShiftEffect` call from paddle input.
+- No telemetry wait on the paddle event path.
+- No disk IO, network IO, or audio rendering on the paddle event path.
