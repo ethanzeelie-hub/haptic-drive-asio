@@ -1,6 +1,6 @@
 # UDP Forwarding
 
-Stage 05 adds byte-preserving UDP forwarding on top of the raw Stage 04 listener.
+Stage 05 added byte-preserving UDP forwarding on top of the raw Stage 04 listener. Stage 18 adds app-level destination editing and persistence.
 
 Current behavior:
 
@@ -9,8 +9,11 @@ Current behavior:
 - Each packet event includes a sequence number, remote endpoint, and receive timestamp.
 - The forwarder accepts raw packet events and sends exact packet payload bytes to enabled destinations.
 - The dashboard shows listener state, packet count, packet rate, no-packet warning, forwarding destination state, forwarded datagram count, and forwarded byte count.
+- The Telemetry / UDP Router page can add, edit, remove, enable, disable, and persist forwarding destinations.
+- Destinations support IP addresses, `localhost`, DNS hostnames, ports, enabled state, and friendly names.
+- Obvious enabled loopback to the local listener port `20778` is blocked in the UI to avoid forwarding loops.
 
-The shell currently starts with zero forwarding destinations configured. Destination editing should be added later through settings, profiles, or the Telemetry / UDP Router page.
+The shell still starts safely when no destinations are configured. Destination settings are app preferences, not haptic profiles.
 
 Forwarding rules:
 
@@ -23,7 +26,5 @@ Forwarding rules:
 
 Planned later work:
 
-- Add UI controls for destination host, port, enabled state, and friendly name.
-- Persist forwarding destinations in the profile or settings model.
-- Show per-destination forwarded packet counts and errors.
-- Warn when a configured destination points back to the listener port.
+- Add per-destination forwarded packet and error counters if the router grows beyond the current global diagnostics.
+- Add import/export for router presets if external telemetry tool workflows need it.

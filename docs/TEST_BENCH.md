@@ -32,7 +32,7 @@ The test bench respects normal mute and emergency mute. It reports selected sign
 ## Boundaries
 
 - Automated tests use null output only.
-- No real WASAPI or ASIO streaming is implemented.
-- No real-time callback loop is implemented.
+- The app has a native ASIO streaming output path, but the deterministic test bench remains bound to Null output by default.
+- The test bench does not replace explicit ASIO selection, driver selection, channel selection, arming, and Start Haptics.
 - No graphs, calibration wizard, routing matrix, profile editor, or hardware tuning workflow is implemented.
 - No final shaker feel, safe physical gain, physical latency, or frequency tuning claims can be made until the real hardware chain is tested locally.

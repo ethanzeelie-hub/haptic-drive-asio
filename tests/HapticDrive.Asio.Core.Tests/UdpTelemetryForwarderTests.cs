@@ -77,6 +77,28 @@ public sealed class UdpTelemetryForwarderTests
     }
 
     [Fact]
+    public async Task Forwarder_ForwardsToLocalhostHostnameDestination()
+    {
+        using var destination = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        var destinationEndPoint = (IPEndPoint)destination.Client.LocalEndPoint!;
+        await using var forwarder = new UdpTelemetryForwarder(
+        [
+            new UdpTelemetryForwardingDestination("Local hostname sink", "localhost", destinationEndPoint.Port)
+        ]);
+        var payload = new byte[] { 0x4C, 0x48, 0x53, 0x54 };
+
+        await forwarder.ForwardAsync(CreatePacket(payload));
+
+        var received = await WaitForAsync(destination.ReceiveAsync(), TimeSpan.FromSeconds(3));
+        var snapshot = forwarder.GetSnapshot();
+
+        Assert.Equal(payload, received.Buffer);
+        Assert.Equal(1, snapshot.ForwardedDatagramCount);
+        Assert.Equal(payload.Length, snapshot.ForwardedByteCount);
+        Assert.Equal(0, snapshot.ErrorCount);
+    }
+
+    [Fact]
     public async Task Forwarder_ForwardsToMultipleEnabledDestinations()
     {
         using var firstDestination = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));

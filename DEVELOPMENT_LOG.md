@@ -659,3 +659,43 @@ Self-review:
 - Parser packet layouts, offsets, enum values, versions, lengths, and `VehicleState` mappings were not changed.
 - No Simagic P-HPR, forwarding UI, recordings library polish, broad UI rewrite, real WASAPI output, advanced routing matrix, or physical calibration work was added.
 - No final shaker feel, safe physical gain, physical latency, or final frequency tuning is claimed.
+
+## Stage 18 - Final Pre-Shaker Readiness Package
+
+Date: 2026-06-04
+
+Status: Complete.
+
+Goal: Finish the maximum safe software package before the Dayton shaker arrives by adding launch/runtime prerequisite handling, forwarding and recording UI polish, app settings persistence, diagnostics reporting, and final pre-shaker documentation cleanup without requiring physical shaker output.
+
+Notes:
+
+- Verified Stage 17 was complete before beginning Stage 18.
+- Added `Run-HapticDrive.ps1` to set `DOTNET_ROOT` to the repo-local .NET 8 runtime, check `Microsoft.WindowsDesktop.App 8.x`, build the solution, and launch the WPF executable.
+- Added `Run-HapticDrive.cmd` as the recommended wrapper so normal PowerShell execution policy does not block launch.
+- Added app settings persistence separate from haptic profiles. Settings persist theme, UDP forwarding destinations, and last ASIO driver/channel selection only.
+- Kept `NullAudioOutputDevice` as the startup and automated-test default. ASIO armed state, haptic running state, emergency mute, and physical calibration are not persisted.
+- Added UDP forwarding destination editing in the Telemetry / UDP Router page with name, host/IP, port, enabled state, persistence, removal, and obvious loopback protection for the local listener port.
+- Extended UDP forwarding destinations to support DNS hostnames as well as IP endpoints while preserving byte-for-byte payload forwarding.
+- Added a metadata-only recording summary reader and a Recordings page library that lists local `.hdrec` files, shows metadata summaries, refreshes the library, and replays the selected recording.
+- Added packet-ID observation diagnostics to the runtime pipeline snapshot for known F1 25 packet IDs.
+- Added copyable diagnostics reports that include pipeline, UDP, forwarding, packet-ID, recording/replay, effects, mixer/safety, test bench, output, ASIO readiness, runtime prerequisite, and app-settings state.
+- Updated Stage 18 UI text and documentation to remove stale Stage 15 mock/Stage 17-only wording where it affected current behavior.
+- Added `docs/STAGE_18_FINAL_PRE_SHAKER.md` and updated README, roadmap, known issues, ASIO, hardware-absent, manual hardware, telemetry, forwarding, recording/replay, profiles/diagnostics, and test bench docs.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 192 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18 stayed within final pre-shaker readiness scope.
+- No physical shaker output, physical gain calibration, physical latency measurement, final frequency tuning, live graphing, advanced routing matrix, real WASAPI output, Simagic P-HPR output, or speculative F1 packet layout work was implemented.
+- The app is now complete for the available pre-BT-1 hardware state: M-Audio and Fosi can be checked through explicit readiness diagnostics, but the Dayton shaker remains absent.
+- Automated tests still do not require F1 25, live UDP, M-Audio, Fosi, Dayton shaker hardware, ASIO, or WASAPI.
+- UDP forwarding and recording/replay raw byte guarantees remain parser-independent.
+- Parser packet layouts, offsets, enum values, versions, lengths, and `VehicleState` mappings were not changed.
+- Physical shaker feel, safe physical gain, physical latency, and final frequency tuning remain explicitly unclaimed until the full chain is tested locally.

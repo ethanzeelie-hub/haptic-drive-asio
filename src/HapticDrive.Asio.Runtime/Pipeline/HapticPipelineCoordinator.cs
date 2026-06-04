@@ -19,6 +19,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private readonly AudioSampleBuffer _outputBuffer;
     private readonly HapticPipelineOptions _options;
     private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
+    private readonly long[] _packetIdCounts = new long[16];
+    private readonly DateTimeOffset?[] _packetIdLastObservedAtUtc = new DateTimeOffset?[16];
     private readonly bool _ownsOutputDevice;
     private readonly bool _ownsForwarder;
     private readonly bool _ownsRecordingService;
@@ -55,13 +57,14 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         TelemetryRecordingService? recordingService = null,
         ITelemetryReplayService? replayService = null,
         HapticDriveProfile? profile = null,
-        HapticPipelineOptions? options = null)
+        HapticPipelineOptions? options = null,
+        IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null)
     {
         Configuration = configuration ?? AudioOutputConfiguration.Default;
         _options = options ?? HapticPipelineOptions.Default;
         Format = AudioSampleFormat.FromConfiguration(Configuration);
         OutputDevice = outputDevice ?? new NullAudioOutputDevice();
-        TelemetryForwarder = telemetryForwarder ?? new UdpTelemetryForwarder();
+        TelemetryForwarder = telemetryForwarder ?? new UdpTelemetryForwarder(forwardingDestinations);
         RecordingService = recordingService ?? new TelemetryRecordingService();
         ReplayService = replayService ?? new TelemetryReplayService();
         AudioPipeline = new AudioRenderPipeline(Format);
@@ -400,8 +403,23 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             OutputDevice.GetStatus(),
             OutputDevice is NullAudioOutputDevice nullOutput ? nullOutput.GetSampleSinkSnapshot() : null,
             TelemetryForwarder.GetSnapshot(),
+            CreatePacketDiagnosticsSnapshot(),
             RecordingService.GetSnapshot(),
             ReplayService.GetSnapshot());
+    }
+
+    private IReadOnlyList<HapticPipelinePacketDiagnostics> CreatePacketDiagnosticsSnapshot()
+    {
+        lock (_diagnosticsGate)
+        {
+            return F125PacketDefinitions.All
+                .Select(definition => new HapticPipelinePacketDiagnostics(
+                    definition.Id,
+                    definition.Name,
+                    definition.Id < _packetIdCounts.Length ? Interlocked.Read(ref _packetIdCounts[definition.Id]) : 0,
+                    definition.Id < _packetIdLastObservedAtUtc.Length ? _packetIdLastObservedAtUtc[definition.Id] : null))
+                .ToArray();
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -489,6 +507,16 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             case F125PacketParseStatus.Failure:
                 Interlocked.Increment(ref _packetParseFailureCount);
                 break;
+        }
+
+        if (parseResult.Header is { } header
+            && header.PacketId < _packetIdCounts.Length)
+        {
+            Interlocked.Increment(ref _packetIdCounts[header.PacketId]);
+            lock (_diagnosticsGate)
+            {
+                _packetIdLastObservedAtUtc[header.PacketId] = packet.ReceivedAtUtc;
+            }
         }
 
         lock (_diagnosticsGate)

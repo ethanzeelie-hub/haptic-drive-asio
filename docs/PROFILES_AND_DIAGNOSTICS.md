@@ -24,6 +24,8 @@ Profiles do not include:
 - Recording files or replay files.
 - Physical shaker gain, calibration, safe physical output, latency, or frequency-response data.
 
+Stage 18 app settings are separate from profiles. App settings persist theme, UDP forwarding destinations, and last ASIO driver/channel selections. They do not persist ASIO armed state, haptic running state, emergency mute, or physical calibration.
+
 ## JSON Format
 
 Profiles are stored as human-readable JSON with `Version` set to `1`.
@@ -65,7 +67,9 @@ Diagnostics include:
 
 - UDP listener running state, packet count, packet rate, and last packet age.
 - UDP forwarding destination counts, forwarded datagrams/bytes, and error count.
+- Configured UDP forwarding destination summary.
 - Parser valid, ignored, and failed counts.
+- Packet-ID observation counts for known F1 25 packet IDs.
 - VehicleState update count and last adapter message.
 - Recording active/inactive state, file name, and packet count.
 - Replay active/inactive state, source file name, packet count, and status message.
@@ -73,5 +77,7 @@ Diagnostics include:
 - Mixer peak, safety output peak, limiter count, clipping count, mute, and emergency mute state.
 - Test bench active/inactive state, selected signal, peak level, limiter count, and output mode.
 - Output mode, hardware-required flag, manual-debug flag, and hardware-absent Null output state.
+- ASIO readiness, callback, drop, underrun, jitter, and selected driver/channel/armed state.
+- Runtime prerequisite and app-settings path.
 
-Diagnostics do not add heavy charting, long-term logs, live graphs, routing matrices, hardware readiness checks, or real output streaming.
+Stage 18 adds a copyable diagnostics report. Diagnostics do not add heavy charting, long-term logs, live graphs, routing matrices, physical hardware calibration, or real WASAPI output.

@@ -1,6 +1,6 @@
 # ASIO Output
 
-ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics.
+ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics. Stage 18 adds launch/runtime prerequisite handling, app settings persistence, forwarding/recording/diagnostics polish, and final pre-shaker readiness cleanup.
 
 ## Stage 02 Implementation
 
@@ -20,6 +20,8 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - Real device sample streaming remains local Windows validation work before any shaker claims.
 - ASIO failure does not select WASAPI automatically.
 - Windows sound output visibility is not proof of ASIO usage.
+- Persisted ASIO driver/channel settings are convenience selections only; ASIO armed state and auto-start are not persisted.
+- Direct executable launch requires .NET 8 Desktop Runtime visibility to the app host. `Run-HapticDrive.cmd` runs the PowerShell launcher, which sets `DOTNET_ROOT` to the repo-local runtime before launching.
 
 ## Target Defaults
 
@@ -85,3 +87,10 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - ASIO output remains explicit and armed; it is never selected automatically.
 - Drops and underruns should be treated as readiness/debugging signals, not final hardware latency data.
 - Final shaker feel, safe physical gain, physical latency, and final frequency tuning remain unvalidated until the Dayton BST-1 chain is tested locally.
+
+## Stage 18 Pre-Shaker Readiness
+
+- `Run-HapticDrive.cmd` is the preferred launch path during development because it avoids normal PowerShell execution-policy blocks, checks the repo-local .NET 8 Desktop runtime, and starts the WPF executable.
+- App settings persist theme, forwarding destinations, and last ASIO driver/channel selection only.
+- Diagnostics can be copied and include output callback counters, packet-ID counts, forwarding state, recording/replay state, runtime prerequisite status, and ASIO readiness state.
+- ASIO remains explicit: select output mode, select driver, select channel, arm, then Start Haptics.

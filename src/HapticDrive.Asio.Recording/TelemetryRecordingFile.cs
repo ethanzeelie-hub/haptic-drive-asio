@@ -12,6 +12,88 @@ public static class TelemetryRecordingFile
     internal const int MaxStringByteLength = 1_024;
     internal static readonly byte[] Magic = Encoding.ASCII.GetBytes("HDREC001");
 
+    public static async Task<TelemetryRecordingSummaryLoadResult> LoadSummaryAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return TelemetryRecordingSummaryLoadResult.Failure("Recording path is required.");
+        }
+
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return TelemetryRecordingSummaryLoadResult.FileNotFound("Recording file does not exist.");
+            }
+
+            var fileInfo = new FileInfo(path);
+            await using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite,
+                bufferSize: 4 * 1024,
+                useAsync: true);
+
+            var magic = await ReadBytesAsync(stream, Magic.Length, cancellationToken).ConfigureAwait(false);
+            if (!magic.SequenceEqual(Magic))
+            {
+                return TelemetryRecordingSummaryLoadResult.Corrupt("Recording header magic is invalid.");
+            }
+
+            var version = await ReadInt32Async(stream, cancellationToken).ConfigureAwait(false);
+            if (version != CurrentVersion)
+            {
+                return TelemetryRecordingSummaryLoadResult.UnsupportedVersion(
+                    $"Recording format version {version} is not supported.");
+            }
+
+            var createdAtUtcTicks = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
+            var createdAtUtc = new DateTimeOffset(createdAtUtcTicks, TimeSpan.Zero);
+            var metadata = new TelemetryRecordingMetadata(
+                createdAtUtc,
+                await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false),
+                await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false),
+                await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false));
+            var packetCount = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
+
+            if (packetCount < 0)
+            {
+                return TelemetryRecordingSummaryLoadResult.Corrupt("Recording packet count is invalid.");
+            }
+
+            return TelemetryRecordingSummaryLoadResult.Success(
+                new TelemetryRecordingSummary(
+                    path,
+                    metadata,
+                    packetCount,
+                    fileInfo.Length,
+                    new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero)));
+        }
+        catch (OperationCanceledException)
+        {
+            return TelemetryRecordingSummaryLoadResult.Cancelled("Recording summary load was cancelled.");
+        }
+        catch (EndOfStreamException ex)
+        {
+            return TelemetryRecordingSummaryLoadResult.Corrupt($"Recording is truncated: {ex.Message}");
+        }
+        catch (InvalidDataException ex)
+        {
+            return TelemetryRecordingSummaryLoadResult.Corrupt(ex.Message);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            return TelemetryRecordingSummaryLoadResult.Corrupt($"Recording metadata is invalid: {ex.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return TelemetryRecordingSummaryLoadResult.Failure($"Recording summary could not be loaded: {ex.Message}");
+        }
+    }
+
     public static async Task<TelemetryRecordingLoadResult> LoadAsync(
         string path,
         int maxPayloadLength = DefaultMaxPayloadLength,

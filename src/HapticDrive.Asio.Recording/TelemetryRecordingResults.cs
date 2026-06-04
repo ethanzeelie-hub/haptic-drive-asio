@@ -89,6 +89,44 @@ public sealed record TelemetryRecordingLoadResult(
     }
 }
 
+public sealed record TelemetryRecordingSummaryLoadResult(
+    TelemetryRecordingLoadStatus Status,
+    TelemetryRecordingSummary? Summary,
+    string Message)
+{
+    public bool Succeeded => Status == TelemetryRecordingLoadStatus.Success;
+
+    public static TelemetryRecordingSummaryLoadResult Success(TelemetryRecordingSummary summary)
+    {
+        return new(TelemetryRecordingLoadStatus.Success, summary, "Recording summary loaded.");
+    }
+
+    public static TelemetryRecordingSummaryLoadResult FileNotFound(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.FileNotFound, null, message);
+    }
+
+    public static TelemetryRecordingSummaryLoadResult UnsupportedVersion(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.UnsupportedVersion, null, message);
+    }
+
+    public static TelemetryRecordingSummaryLoadResult Cancelled(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.Cancelled, null, message);
+    }
+
+    public static TelemetryRecordingSummaryLoadResult Corrupt(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.Corrupt, null, message);
+    }
+
+    public static TelemetryRecordingSummaryLoadResult Failure(string message)
+    {
+        return new(TelemetryRecordingLoadStatus.Failure, null, message);
+    }
+}
+
 public enum TelemetryReplayStatus
 {
     Success,

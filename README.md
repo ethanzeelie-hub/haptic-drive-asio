@@ -8,9 +8,9 @@ The M-Audio M-Track Solo interface and Fosi Audio BT20A amplifier are now availa
 
 ## Current Stage
 
-Stage 17: native ASIO streaming and low-latency pre-shaker hardening complete.
+Stage 18: final pre-shaker readiness package complete.
 
-The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute, dark theme default, light theme scaffolding, safe tuning controls, profile save/load/reset, runtime diagnostics, basic recording/replay controls, ASIO driver visibility diagnostics, and explicit ASIO output readiness controls.
+The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute, dark theme default, persisted light/dark theme setting, safe tuning controls, profile save/load/reset, runtime diagnostics, recording/replay library controls, persisted UDP forwarding destination controls, ASIO driver visibility diagnostics, and explicit ASIO output readiness controls.
 
 The selected output mode is `NullAudioOutputDevice` by default, so the app can open and tests can run without ASIO hardware or shaker hardware.
 
@@ -22,7 +22,9 @@ Stage 16 adds Windows ASIO driver-name discovery, explicit output-mode selection
 
 Stage 17 adds an NAudio-backed native ASIO streaming backend behind `IAsioOutputBackend`, moves live haptic rendering off the WPF `DispatcherTimer` into an output-owned render loop, and adds stale telemetry wall-clock mute plus callback/render diagnostics for render callbacks, backend callbacks, submitted buffers, dropped buffers, underruns, render duration, jitter, and telemetry age. The audio render callback fills in-memory buffers only; UI, disk IO, logging, networking, blocking waits, and async continuations stay outside that path. The default output remains `NullAudioOutputDevice`; the app never auto-switches to ASIO or WASAPI. The M-Audio M-Track Solo is available on the user's PC, but M-Audio absence must not break build/test/CI. Windows sound output visibility is not proof of ASIO usage; ASIO must be confirmed through the app's ASIO driver/output path.
 
-The app does not yet implement forwarding destination configuration in the UI, a polished recordings library UI, advanced routing matrices, live graphing, real WASAPI output, physical shaker calibration, or physical shaker validation. Physical shaker feel, safe gain, physical latency, and final frequency tuning remain unvalidated until the Dayton BST-1 arrives and the full chain is tested locally.
+Stage 18 adds a root launch script with .NET 8 Desktop Runtime preflight, app-settings persistence separate from haptic profiles, persisted UDP forwarding destination editing, a recordings library with metadata summaries and selected replay, packet-ID diagnostics, diagnostics copy/report support, and final pre-shaker UI/documentation cleanup. ASIO output still requires explicit output mode selection, driver selection, channel selection, arming, and Start Haptics.
+
+The app does not yet implement advanced routing matrices, live graphing, real WASAPI output, physical shaker calibration, or physical shaker validation. Physical shaker feel, safe gain, physical latency, and final frequency tuning remain unvalidated until the Dayton BST-1 arrives and the full chain is tested locally.
 
 ## Solution Layout
 
@@ -33,6 +35,32 @@ The app does not yet implement forwarding destination configuration in the UI, a
 - `src/HapticDrive.Asio.Runtime`: end-to-end pipeline coordinator for live/replay telemetry, parser, VehicleState, effects, mixer, safety, recording, forwarding, output-owned rendering, and stale telemetry mute.
 - `src/HapticDrive.Asio.Recording`: telemetry recording and replay.
 - `tests/*`: xUnit test projects.
+
+## Launch
+
+Build/test commands do not open the desktop app. Use the Stage 18 launch wrapper:
+
+```powershell
+.\Run-HapticDrive.cmd
+```
+
+The wrapper runs `Run-HapticDrive.ps1` with a process-scoped PowerShell execution-policy bypass, so normal machine policy does not block launch. The script uses the repo-local `.dotnet` runtime, sets `DOTNET_ROOT`, checks for `Microsoft.WindowsDesktop.App 8.x`, builds the solution with `--no-restore`, and starts the WPF executable. If you have already built and only want to launch:
+
+```powershell
+.\Run-HapticDrive.cmd -NoBuild
+```
+
+To verify launch prerequisites without opening another app window:
+
+```powershell
+.\Run-HapticDrive.cmd -NoBuild -CheckOnly
+```
+
+Direct executable launch also works when .NET 8 Desktop Runtime is available to the app host:
+
+```powershell
+& .\src\HapticDrive.Asio.App\bin\Debug\net8.0-windows\HapticDrive.Asio.App.exe
+```
 
 ## Mock Validation
 
@@ -45,6 +73,10 @@ Use `docs/STAGE_16_ASIO_READINESS.md` for the manual M-Audio/Fosi/BST-1 readines
 ## Stage 17 Streaming
 
 Use `docs/STAGE_17_NATIVE_ASIO_STREAMING.md` for the pre-shaker streaming checklist and diagnostics. ASIO output is still explicit: select ASIO deliberately, select the driver, select one output channel, arm ASIO, then start haptics. Automated tests use Null output and fake ASIO backends; they do not require M-Audio, Fosi, Dayton BST-1, F1 25, or live telemetry.
+
+## Stage 18 Final Pre-Shaker Package
+
+Use `docs/STAGE_18_FINAL_PRE_SHAKER.md` for the final pre-shaker checklist. Stage 18 completes the pre-BT-1 software package around the existing engine: launch/runtime prerequisite handling, persisted app settings, forwarding destination UI, recording library UI, selected recording replay, packet-ID diagnostics, copyable diagnostics report, and final documentation cleanup. Null output remains default, and ASIO hardware remains opt-in and explicitly armed.
 
 ## Build
 

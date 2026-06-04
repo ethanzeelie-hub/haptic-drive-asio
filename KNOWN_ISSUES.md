@@ -163,3 +163,12 @@
 - ASIO driver selection, output channel selection, and arming remain explicit. The app still must not auto-switch to ASIO or WASAPI.
 - `NullAudioOutputDevice` remains the automated-test default. Hardware-dependent tests remain manual and skipped by default.
 - Recording library polish, forwarding destination UI, advanced routing matrices, live graphing, real WASAPI output, physical calibration UI, and Simagic P-HPR output remain deferred.
+
+## Stage 18
+
+- The final pre-shaker software package is implemented: launch/runtime prerequisite handling, app settings persistence, UDP forwarding destination UI, recordings library UI, selected replay, packet-ID diagnostics, and copyable diagnostics reports are now available.
+- App settings are separate from haptic profiles and persist theme, forwarding destinations, and last ASIO driver/channel only. ASIO armed state, haptic running state, emergency mute, and physical calibration are not persisted.
+- UDP forwarding now supports IP addresses, `localhost`, and DNS hostnames. Obvious enabled loopback to the local listener port `20778` is blocked in the UI.
+- Recordings are listed from local app data with metadata summaries, but recording trimming, profile snapshots, and route snapshots are not implemented.
+- Advanced routing matrices, live graphing, real WASAPI output, Simagic P-HPR output, and physical calibration UI remain outside the pre-BT-1 scope.
+- Physical Dayton BST-1 output, safe physical gain, shaker feel, physical latency, and final frequency tuning remain unvalidated until the BT-1 arrives and the full M-Audio -> Fosi -> Dayton BST-1 chain is tested locally.

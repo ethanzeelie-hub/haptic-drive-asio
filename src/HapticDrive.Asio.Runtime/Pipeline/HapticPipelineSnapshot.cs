@@ -33,8 +33,15 @@ public sealed record HapticPipelineSnapshot(
     AudioOutputStatus Output,
     NullAudioOutputDeviceSnapshot? NullOutput,
     UdpTelemetryForwarderSnapshot Forwarding,
+    IReadOnlyList<HapticPipelinePacketDiagnostics> PacketDiagnostics,
     TelemetryRecordingSnapshot Recording,
     TelemetryReplaySnapshot Replay)
 {
     public bool HasParsedPackets => ParserSuccessCount > 0 || ParserIgnoredCount > 0 || ParserFailureCount > 0;
 }
+
+public sealed record HapticPipelinePacketDiagnostics(
+    byte PacketId,
+    string Name,
+    long ObservedCount,
+    DateTimeOffset? LastObservedAtUtc);

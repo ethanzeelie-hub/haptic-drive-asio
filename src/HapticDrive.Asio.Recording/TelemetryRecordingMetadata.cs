@@ -46,3 +46,10 @@ public sealed class TelemetryRecording
 
     public IReadOnlyList<TelemetryRecordedPacket> Packets { get; }
 }
+
+public sealed record TelemetryRecordingSummary(
+    string Path,
+    TelemetryRecordingMetadata Metadata,
+    long PacketCount,
+    long FileSizeBytes,
+    DateTimeOffset LastModifiedAtUtc);

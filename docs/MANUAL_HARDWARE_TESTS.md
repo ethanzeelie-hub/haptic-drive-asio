@@ -4,7 +4,7 @@ Manual hardware tests are opt-in checks for real output devices. They must stay 
 
 These tests must not be required for automated validation until the user confirms hardware is available.
 
-Current Stage 17 hardware status: the M-Audio M-Track Solo is connected to the user's Windows PC and the driver is installed. The Fosi amplifier has been received. The Dayton BST-1 shaker has not arrived, so physical shaker output testing is deferred. Stage 17 diagnostics may report ASIO driver visibility, render callbacks, backend callbacks, drops, underruns, jitter, and telemetry age, but automated tests still use fake ASIO catalogs/backends and Null output.
+Current Stage 18 hardware status: the M-Audio M-Track Solo is connected to the user's Windows PC and the driver is installed. The Fosi amplifier has been received. The Dayton BST-1 shaker has not arrived, so physical shaker output testing is deferred. Stage 18 diagnostics may report ASIO driver visibility, render callbacks, backend callbacks, drops, underruns, jitter, telemetry age, forwarding destinations, recording library state, and packet-ID counts, but automated tests still use fake ASIO catalogs/backends and Null output.
 
 ## Stage 02 Manual Test Marker
 
@@ -16,6 +16,7 @@ It remains skipped by default. Stage 17 adds native streaming and fake-backend c
 
 - Confirm the M-Audio interface is connected by USB.
 - Confirm the M-Audio ASIO driver is installed.
+- Confirm the app launches through `Run-HapticDrive.cmd` or that .NET 8 Desktop Runtime x64 is available for direct executable launch.
 - Confirm Windows sound settings can see the M-Audio endpoint, but do not treat that as proof of ASIO usage.
 - Confirm the app ASIO driver list can see the M-Audio / M-Track ASIO driver.
 - Confirm the amplifier is at minimum volume if connected.
@@ -54,6 +55,20 @@ Short version:
 - Verify stale telemetry mute by stopping replay or live telemetry and confirming output returns to silence.
 - Verify Emergency Mute and Stop Haptics.
 - Do not connect or energize the Dayton BST-1 until it arrives and the manual physical test is intentionally run.
+
+## Stage 18 Final Pre-Shaker Checklist
+
+Before the BT-1 arrives, the safe software package should be checked through:
+
+- Launch wrapper startup.
+- Null output startup.
+- ASIO driver visibility refresh.
+- Explicit ASIO driver/channel selection without auto-arming.
+- UDP forwarding destination add/edit/remove with loopback protection.
+- Recording start/stop and recordings library refresh.
+- Replay latest and replay selected recording.
+- Diagnostics refresh and copy report.
+- Emergency Mute and Stop Haptics.
 
 ## Stage 02 Expected Result
 

@@ -10,7 +10,9 @@ Stage 09 implements raw UDP telemetry recording and deterministic replay.
 - Keep recording independent of F1 25 parser success so unknown or malformed packets can still be captured.
 - Keep replay reusable by the existing `F125PacketParser` and `F125VehicleStateAdapter` path.
 
-Stage 17 feeds replayed packets through the same parser, `VehicleState`, effect, mixer, safety, and output-owned render path as live UDP packets. Replay still does not implement a polished recordings library UI, file picker, profile snapshots inside recordings, real WASAPI output, or physical hardware validation.
+Stage 17 feeds replayed packets through the same parser, `VehicleState`, effect, mixer, safety, and output-owned render path as live UDP packets. Stage 18 adds a recordings library UI that lists local `.hdrec` files, reads metadata summaries without loading full payloads, and can replay the selected recording.
+
+Replay still does not implement recording trimming, route snapshots, profile snapshots inside recordings, real WASAPI output, or physical hardware validation.
 
 ## File Format
 
@@ -68,4 +70,20 @@ Replay path:
 
 Fast replay emits packets immediately for deterministic automated tests. Time-preserving replay can delay between packets according to recorded relative timing and an optional speed multiplier.
 
-Stage 15 exposes replay active/inactive state, source file path, packets replayed, and status message through the runtime pipeline snapshot. Replay packet ordering and raw byte preservation remain unchanged.
+The runtime snapshot exposes replay active/inactive state, source file path, packets replayed, and status message. Replay packet ordering and raw byte preservation remain unchanged.
+
+## Stage 18 Library UI
+
+The Recordings page can:
+
+- Start and stop raw UDP recording.
+- Replay the latest local recording.
+- Refresh the local recordings library.
+- Show file name, packet count, file size, source game, source profile, app version, created time, and modified time for readable `.hdrec` files.
+- Replay the selected recording through the same output-owned haptic pipeline.
+
+The library reads from:
+
+```text
+%LOCALAPPDATA%\HapticDrive.Asio\Recordings
+```

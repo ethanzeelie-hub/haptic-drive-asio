@@ -12,6 +12,8 @@ using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
 using System.IO;
+using System.Net;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -24,6 +26,7 @@ public partial class MainWindow : Window
     private readonly IAsioDriverCatalog _asioDriverCatalog = new WindowsRegistryAsioDriverCatalog();
     private readonly AsioDriverVisibilityDiagnostics _asioVisibilityDiagnostics;
     private readonly AsioReadinessDiagnostics _asioReadinessDiagnostics;
+    private readonly AppSettingsStore _settingsStore = new();
     private readonly AudioTestBench _testBench = new();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
@@ -53,7 +56,7 @@ public partial class MainWindow : Window
             "Dashboard",
             "Dashboard",
             "A safe overview for raw UDP telemetry, output state, and hardware-absent operation.",
-            "Stage 17 output-owned streaming pipeline",
+            "Stage 18 final pre-shaker readiness pipeline",
             [
                 "UDP listener starts on port 20778 by default.",
                 "Packets are counted, preserved as raw datagrams, and offered to the forwarder.",
@@ -66,7 +69,7 @@ public partial class MainWindow : Window
                 "Stage 12 adds conservative engine vibration and gear shift effect generators from VehicleState.",
                 "Stage 13 adds conservative kerb, impact, road texture, and slip / brake-lock effect generators from VehicleState.",
                 "Stage 14 exposes safe tuning controls, profile save/load/reset, and practical runtime diagnostics.",
-                "Stage 17 wires live UDP and replayed packets into the parser, VehicleState adapter, effects, mixer, safety chain, and output-owned renderer.",
+                "Stage 18 keeps live UDP and replayed packets wired into the parser, VehicleState adapter, effects, mixer, safety chain, and output-owned renderer.",
                 "Stale telemetry is muted by wall-clock timeout.",
                 "NullAudioOutputDevice is the default safe output.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
@@ -75,7 +78,7 @@ public partial class MainWindow : Window
             "Effects",
             "Effects",
             "Hardware-safe generated effect diagnostics.",
-            "Stage 17 effect tuning drives the output-owned render path",
+            "Stage 18 effect tuning drives the output-owned render path",
             [
                 "Gear shift is synthesized from valid forward gear changes in VehicleState telemetry.",
                 "Engine vibration is synthesized from RPM, throttle, idle RPM, max RPM, gear, speed, and pause/status gates where available.",
@@ -85,7 +88,7 @@ public partial class MainWindow : Window
                 "Slip and minimal brake-lock vibration are synthesized from wheel slip ratio/angle, wheel speed, throttle, brake, speed, TC, and ABS fields.",
                 "Defaults are conservative and inspired by SimHub-style frequency, gain, pulse-duration, speed, and threshold controls.",
                 "Live haptics render through an output-owned callback path; the test bench remains deterministic validation only.",
-                "Advanced live graphs, routing matrices, and physical calibration remain deferred."
+                "Advanced live graphs, routing matrices, and physical calibration wait for post-BT-1 hardware stages."
             ]),
         new(
             "Mixer / Routing",
@@ -125,8 +128,8 @@ public partial class MainWindow : Window
                 "Stage 07 packet bodies are parsed from the official F1 25 v3 spec.",
                 "Stage 08 selects the player car from packet headers and keeps last-known VehicleState slices.",
                 "Stage 12 and Stage 13 effects consume VehicleState only and do not read parser packet bodies directly.",
-                "No forwarding destinations are configured in the shell yet.",
-                "Replay is implemented in the Recording project for deterministic tests."
+                "Forwarding destinations can be edited and persisted from this page.",
+                "Packet-ID diagnostics and copyable reports help verify telemetry flow before shaker hardware arrives."
             ]),
         new(
             "Recordings",
@@ -138,7 +141,7 @@ public partial class MainWindow : Window
                 "Replay service emits recorded packets through the same parser and VehicleState path used by live packets.",
                 "Deterministic VehicleState sequences can drive Stage 12 and Stage 13 effects in tests.",
                 "Replay tests do not require F1 25, UDP sockets, audio output, ASIO hardware, or shaker hardware.",
-                "A polished recording library UI and file picker are deferred."
+                "The recordings library lists local .hdrec files and can replay the selected recording."
             ]),
         new(
             "Test Bench",
@@ -183,7 +186,7 @@ public partial class MainWindow : Window
             [
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
-                "Stage 17 reports pipeline, engine, gear, kerb, impact, road texture, slip, mixer, safety, output, replay, ASIO visibility, callback, drop, underrun, jitter, and telemetry-age state.",
+                "Stage 18 reports pipeline, engine, gear, kerb, impact, road texture, slip, mixer, safety, output, replay, forwarding, packet-ID, ASIO visibility, callback, drop, underrun, jitter, and telemetry-age state.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -206,18 +209,30 @@ public partial class MainWindow : Window
     private string? _telemetryStartError;
     private string? _recordingError;
     private string? _replayError;
+    private string? _settingsError;
     private HapticDriveProfile _currentProfile = HapticDriveProfile.Default;
-    private HapticPipelineCoordinator _hapticPipeline = new();
+    private HapticPipelineCoordinator _hapticPipeline;
     private AsioDriverVisibilitySnapshot _asioVisibilitySnapshot = AsioDriverVisibilitySnapshot.NotChecked;
     private AsioReadinessSnapshot _asioReadinessSnapshot = AsioReadinessSnapshot.NotChecked;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
     private bool _updatingSettingsUi;
+    private List<ForwardingDestinationSetting> _forwardingDestinations = [];
+    private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
+    private List<RecordingLibraryItem> _recordingLibraryItems = [];
 
     public MainWindow()
     {
         _asioVisibilityDiagnostics = new AsioDriverVisibilityDiagnostics(_asioDriverCatalog);
         _asioReadinessDiagnostics = new AsioReadinessDiagnostics(_asioDriverCatalog);
+
+        var appSettings = _settingsStore.Load();
+        _settingsError = appSettings.LastStatusMessage;
+        _lightTheme = appSettings.UseLightTheme;
+        _selectedAsioDriverName = appSettings.LastAsioDriverName;
+        _selectedAsioOutputChannel = appSettings.LastAsioOutputChannel;
+        _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
+        _hapticPipeline = CreatePipelineForSelectedOutput();
 
         InitializeComponent();
 
@@ -227,10 +242,12 @@ public partial class MainWindow : Window
         OutputModeComboBox.ItemsSource = _outputModeOptions;
         OutputModeComboBox.SelectedItem = _outputModeOptions.Single(option => option.Kind == _selectedOutputKind);
         AsioOutputChannelComboBox.ItemsSource = _asioOutputChannelChoices;
+        AsioOutputChannelComboBox.SelectedItem = _selectedAsioOutputChannel;
         _updatingOutputUi = false;
         TestBenchSignalComboBox.ItemsSource = _testBenchSignals;
         TestBenchSignalComboBox.SelectedIndex = 1;
-        ApplyTheme(lightTheme: false);
+        ApplyTheme(_lightTheme);
+        RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
         ApplyProfileToRuntime(_currentProfile);
         UpdateProfileStatus("Default conservative profile loaded.", []);
@@ -260,6 +277,8 @@ public partial class MainWindow : Window
         UpdateProfileStatus();
         UpdateTestBenchStatus();
         UpdateDiagnosticsStatus();
+        UpdateForwardingEditorStatus();
+        await RefreshRecordingLibraryAsync();
     }
 
     private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -279,6 +298,9 @@ public partial class MainWindow : Window
             DevicesPanel.Visibility = page.NavigationLabel == "Devices"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+            ForwardingPanel.Visibility = page.NavigationLabel == "Telemetry / UDP Router"
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             RecordingsPanel.Visibility = page.NavigationLabel == "Recordings"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -294,7 +316,7 @@ public partial class MainWindow : Window
             DiagnosticsPanel.Visibility = page.NavigationLabel == "Diagnostics"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 17 streaming pipeline";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 18 final pre-shaker package";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
             UpdateMixerStatus();
@@ -302,6 +324,10 @@ public partial class MainWindow : Window
             UpdateProfileStatus();
             UpdateTestBenchStatus();
             UpdateDiagnosticsStatus();
+            if (page.NavigationLabel == "Recordings")
+            {
+                _ = RefreshRecordingLibraryAsync();
+            }
         }
     }
 
@@ -325,6 +351,7 @@ public partial class MainWindow : Window
         }
 
         _selectedAsioDriverName = AsioDriverComboBox.SelectedItem as string;
+        SaveAppSettings();
         if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
         {
             await RebuildHapticPipelineForOutputSelectionAsync("ASIO driver selection changed; haptics are stopped until ASIO is armed and started explicitly.");
@@ -341,6 +368,7 @@ public partial class MainWindow : Window
         _selectedAsioOutputChannel = AsioOutputChannelComboBox.SelectedItem is int channel
             ? channel
             : null;
+        SaveAppSettings();
         if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
         {
             await RebuildHapticPipelineForOutputSelectionAsync("ASIO channel selection changed; haptics are stopped until started explicitly.");
@@ -400,7 +428,8 @@ public partial class MainWindow : Window
         return new HapticPipelineCoordinator(
             configuration,
             CreateSelectedOutputDevice(),
-            profile: _currentProfile);
+            profile: _currentProfile,
+            forwardingDestinations: CreateForwardingDestinations());
     }
 
     private IAudioOutputDevice CreateSelectedOutputDevice()
@@ -424,6 +453,202 @@ public partial class MainWindow : Window
                 IsHardwareArmed = _asioArmed
             }
             : AudioOutputConfiguration.Default;
+    }
+
+    private IReadOnlyList<UdpTelemetryForwardingDestination> CreateForwardingDestinations()
+    {
+        var destinations = new List<UdpTelemetryForwardingDestination>();
+        foreach (var setting in _forwardingDestinations)
+        {
+            if (!string.IsNullOrWhiteSpace(setting.Host)
+                && setting.Port is >= 1 and <= 65_535)
+            {
+                destinations.Add(new UdpTelemetryForwardingDestination(
+                    setting.Name,
+                    setting.Host,
+                    setting.Port,
+                    setting.Enabled));
+            }
+        }
+
+        return destinations;
+    }
+
+    private async void SaveForwardingDestinationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryBuildForwardingDestinationSetting(out var setting, out var message))
+        {
+            ForwardingEditorStatusText.Text = message;
+            return;
+        }
+
+        if (ForwardingDestinationsListBox.SelectedItem is ForwardingDestinationListItem selected
+            && selected.Index >= 0
+            && selected.Index < _forwardingDestinations.Count)
+        {
+            _forwardingDestinations[selected.Index] = setting;
+        }
+        else
+        {
+            _forwardingDestinations.Add(setting);
+        }
+
+        SaveAppSettings();
+        RefreshForwardingDestinationItems();
+        await RebuildHapticPipelineForOutputSelectionAsync("UDP forwarding destinations updated; haptics are stopped until started explicitly.");
+    }
+
+    private async void RemoveForwardingDestinationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ForwardingDestinationsListBox.SelectedItem is not ForwardingDestinationListItem selected
+            || selected.Index < 0
+            || selected.Index >= _forwardingDestinations.Count)
+        {
+            ForwardingEditorStatusText.Text = "Select a forwarding destination to remove.";
+            return;
+        }
+
+        var removed = _forwardingDestinations[selected.Index];
+        _forwardingDestinations.RemoveAt(selected.Index);
+        SaveAppSettings();
+        RefreshForwardingDestinationItems();
+        ClearForwardingDestinationEditor();
+        await RebuildHapticPipelineForOutputSelectionAsync($"Removed UDP forwarding destination {removed.Name}; haptics are stopped until started explicitly.");
+    }
+
+    private void ClearForwardingDestinationButton_Click(object sender, RoutedEventArgs e)
+    {
+        ClearForwardingDestinationEditor();
+        ForwardingEditorStatusText.Text = "Forwarding editor cleared.";
+    }
+
+    private void ForwardingDestinationsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ForwardingDestinationsListBox.SelectedItem is not ForwardingDestinationListItem item)
+        {
+            return;
+        }
+
+        ForwardingNameTextBox.Text = item.Setting.Name;
+        ForwardingHostTextBox.Text = item.Setting.Host;
+        ForwardingPortTextBox.Text = item.Setting.Port.ToString();
+        ForwardingEnabledCheckBox.IsChecked = item.Setting.Enabled;
+        ForwardingEditorStatusText.Text = $"Editing {item.Setting.Name}.";
+    }
+
+    private bool TryBuildForwardingDestinationSetting(
+        out ForwardingDestinationSetting setting,
+        out string message)
+    {
+        setting = new ForwardingDestinationSetting();
+        var host = ForwardingHostTextBox.Text.Trim();
+        var name = ForwardingNameTextBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            message = "Forwarding host or IP address is required.";
+            return false;
+        }
+
+        if (!int.TryParse(ForwardingPortTextBox.Text.Trim(), out var port) || port is < 1 or > 65_535)
+        {
+            message = "Forwarding port must be between 1 and 65535.";
+            return false;
+        }
+
+        if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
+        {
+            message = "Forwarding host must be a valid DNS name, localhost, IPv4 address, or IPv6 address.";
+            return false;
+        }
+
+        var enabled = ForwardingEnabledCheckBox.IsChecked == true;
+        if (enabled && IsObviousUdpLoopback(host, port))
+        {
+            message = $"Forwarding to {host}:{port} would loop back to the local listener port and is blocked.";
+            return false;
+        }
+
+        setting = new ForwardingDestinationSetting
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? $"{host}:{port}" : name,
+            Host = host,
+            Port = port,
+            Enabled = enabled
+        };
+        message = "Forwarding destination ready.";
+        return true;
+    }
+
+    private static bool IsObviousUdpLoopback(string host, int port)
+    {
+        if (port != UdpTelemetryReceiverOptions.DefaultPort)
+        {
+            return false;
+        }
+
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return IPAddress.TryParse(host, out var address)
+            && IPAddress.IsLoopback(address);
+    }
+
+    private void RefreshForwardingDestinationItems()
+    {
+        _forwardingDestinationItems = _forwardingDestinations
+            .Select((setting, index) => new ForwardingDestinationListItem(
+                index,
+                setting,
+                $"{(setting.Enabled ? "On" : "Off")} - {setting.Name} -> {setting.Host}:{setting.Port}"))
+            .ToList();
+        ForwardingDestinationsListBox.ItemsSource = _forwardingDestinationItems;
+        UpdateForwardingEditorStatus();
+    }
+
+    private void ClearForwardingDestinationEditor()
+    {
+        ForwardingDestinationsListBox.SelectedIndex = -1;
+        ForwardingNameTextBox.Text = "";
+        ForwardingHostTextBox.Text = "127.0.0.1";
+        ForwardingPortTextBox.Text = "20779";
+        ForwardingEnabledCheckBox.IsChecked = true;
+    }
+
+    private void UpdateForwardingEditorStatus()
+    {
+        var enabled = _forwardingDestinations.Count(destination => destination.Enabled);
+        ForwardingDestinationsSummaryText.Text = _forwardingDestinations.Count == 0
+            ? "No forwarding destinations configured. Recording and parsing still work normally."
+            : $"{enabled}/{_forwardingDestinations.Count} destination(s) enabled. Loopback to UDP {UdpTelemetryReceiverOptions.DefaultPort} is blocked.";
+
+        if (string.IsNullOrWhiteSpace(ForwardingEditorStatusText.Text))
+        {
+            ForwardingEditorStatusText.Text = "Use 127.0.0.1 or localhost for local tools; choose a port other than the listener port.";
+        }
+    }
+
+    private void SaveAppSettings()
+    {
+        try
+        {
+            _settingsStore.Save(new AppSettings
+            {
+                UseLightTheme = _lightTheme,
+                LastAsioDriverName = _selectedAsioDriverName,
+                LastAsioOutputChannel = _selectedAsioOutputChannel,
+                ForwardingDestinations = _forwardingDestinations.ToList()
+            });
+            _settingsError = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            _settingsError = $"App settings could not be saved: {ex.Message}";
+        }
+
+        UpdateProfileStatus();
     }
 
     private async void StartStopButton_Click(object sender, RoutedEventArgs e)
@@ -517,11 +742,50 @@ public partial class MainWindow : Window
 
         _replayError = null;
         FooterStatusText.Text = $"Replaying {Path.GetFileName(path)} through the output-owned haptic pipeline.";
-        _activeReplayTask = ReplayLatestRecordingAsync(path);
+        _activeReplayTask = ReplayRecordingAsync(path);
         UpdateRecordingStatus();
     }
 
-    private async Task ReplayLatestRecordingAsync(string path)
+    private async void ReplaySelectedRecordingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RecordingLibraryListBox.SelectedItem is not RecordingLibraryItem item)
+        {
+            _replayError = "Select a recording from the library before replaying.";
+            FooterStatusText.Text = _replayError;
+            UpdateRecordingStatus();
+            return;
+        }
+
+        var replaySnapshot = _hapticPipeline.GetSnapshot().Replay;
+        if (replaySnapshot.IsReplaying)
+        {
+            await _hapticPipeline.ReplayService.StopAsync();
+            FooterStatusText.Text = "Replay stop requested.";
+            UpdateRecordingStatus();
+            UpdateDiagnosticsStatus();
+            return;
+        }
+
+        _replayError = null;
+        FooterStatusText.Text = $"Replaying selected recording {Path.GetFileName(item.Path)}.";
+        _activeReplayTask = ReplayRecordingAsync(item.Path);
+        UpdateRecordingStatus();
+    }
+
+    private async void RefreshRecordingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshRecordingLibraryAsync();
+    }
+
+    private void RecordingLibraryListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem item)
+        {
+            RecordingLibraryStatusText.Text = item.DetailText;
+        }
+    }
+
+    private async Task ReplayRecordingAsync(string path)
     {
         var result = await _hapticPipeline.ReplayFileAsync(path, TelemetryReplayOptions.Fast);
         await Dispatcher.InvokeAsync(() =>
@@ -533,6 +797,59 @@ public partial class MainWindow : Window
             UpdateEffectStatus();
             UpdateDiagnosticsStatus();
         });
+    }
+
+    private async Task RefreshRecordingLibraryAsync()
+    {
+        try
+        {
+            _recordingLibraryItems = await LoadRecordingLibraryItemsAsync();
+            RecordingLibraryListBox.ItemsSource = _recordingLibraryItems;
+            RecordingLibraryStatusText.Text = _recordingLibraryItems.Count == 0
+                ? $"No .hdrec files found in {GetRecordingsDirectory()}."
+                : $"{_recordingLibraryItems.Count} recording(s) found in {GetRecordingsDirectory()}.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            RecordingLibraryStatusText.Text = $"Recording library could not be refreshed: {ex.Message}";
+        }
+    }
+
+    private static async Task<List<RecordingLibraryItem>> LoadRecordingLibraryItemsAsync()
+    {
+        var recordingsDirectory = GetRecordingsDirectory();
+        if (!Directory.Exists(recordingsDirectory))
+        {
+            return [];
+        }
+
+        var items = new List<RecordingLibraryItem>();
+        foreach (var path in Directory
+            .EnumerateFiles(recordingsDirectory, "*.hdrec", SearchOption.TopDirectoryOnly)
+            .OrderByDescending(File.GetLastWriteTimeUtc))
+        {
+            var result = await TelemetryRecordingFile.LoadSummaryAsync(path).ConfigureAwait(false);
+            if (result.Succeeded && result.Summary is not null)
+            {
+                var summary = result.Summary;
+                var sizeText = summary.FileSizeBytes >= 1024 * 1024
+                    ? $"{summary.FileSizeBytes / 1024d / 1024d:0.0} MB"
+                    : $"{summary.FileSizeBytes / 1024d:0.0} KB";
+                var createdLocal = summary.Metadata.CreatedAtUtc.ToLocalTime();
+                items.Add(new RecordingLibraryItem(
+                    path,
+                    $"{Path.GetFileName(path)} - {summary.PacketCount:N0} packet(s) - {sizeText}",
+                    $"Created {createdLocal:g}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}."));
+                continue;
+            }
+
+            items.Add(new RecordingLibraryItem(
+                path,
+                $"{Path.GetFileName(path)} - {result.Status}",
+                result.Message));
+        }
+
+        return items;
     }
 
     private async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
@@ -599,6 +916,7 @@ public partial class MainWindow : Window
     {
         _lightTheme = !_lightTheme;
         ApplyTheme(_lightTheme);
+        SaveAppSettings();
     }
 
     private void ApplyTheme(bool lightTheme)
@@ -656,6 +974,7 @@ public partial class MainWindow : Window
         }
 
         ApplyTheme(SettingsLightThemeCheckBox.IsChecked == true);
+        SaveAppSettings();
         UpdateProfileStatus();
     }
 
@@ -847,6 +1166,33 @@ public partial class MainWindow : Window
         FooterStatusText.Text = "Diagnostics refreshed.";
     }
 
+    private void CopyDiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateDiagnosticsStatus();
+        var report = new StringBuilder()
+            .AppendLine("Haptic Drive ASIO diagnostics")
+            .AppendLine($"Generated: {DateTimeOffset.Now:g}")
+            .AppendLine(DiagnosticsSummaryText.Text);
+
+        if (DiagnosticsItemsControl.ItemsSource is IEnumerable<string> items)
+        {
+            foreach (var item in items)
+            {
+                report.AppendLine(item);
+            }
+        }
+
+        try
+        {
+            Clipboard.SetText(report.ToString());
+            FooterStatusText.Text = "Diagnostics report copied.";
+        }
+        catch (Exception ex)
+        {
+            FooterStatusText.Text = $"Diagnostics report could not be copied: {ex.Message}";
+        }
+    }
+
     private async void TestBenchSignalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (TestBenchSignalComboBox.SelectedItem is not AudioTestSignalDefinition signal)
@@ -980,7 +1326,9 @@ public partial class MainWindow : Window
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
             : "Profile values are clamped to conservative software ranges on load and save.";
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Default output remains NullAudioOutputDevice.";
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
+        RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Profiles" })
         {
@@ -989,7 +1337,7 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Settings" })
         {
-            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; conservative defaults available; profile storage is local app data.";
+            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; ASIO armed state and auto-start are never persisted.";
         }
     }
 
@@ -1018,6 +1366,7 @@ public partial class MainWindow : Window
         var parserIgnored = pipelineSnapshot.ParserIgnoredCount;
         var parserFailed = pipelineSnapshot.ParserFailureCount;
         var vehicleUpdates = pipelineSnapshot.VehicleStateUpdateCount;
+        var packetDiagnostics = BuildPacketDiagnosticsText(pipelineSnapshot.PacketDiagnostics);
 
         DiagnosticsSummaryText.Text = $"UDP {receiverSnapshot.PacketCount:N0} packet(s), parser {parserSuccess:N0} valid / {parserFailed:N0} failed, effects {audioDiagnostics.ActiveEffectCount}, output peak {audioDiagnostics.OutputPeakLevel:0.000}, callbacks {outputStatus.RenderCallbackCount:N0}.";
         DiagnosticsItemsControl.ItemsSource = new[]
@@ -1025,7 +1374,9 @@ public partial class MainWindow : Window
             $"Pipeline: {(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); telemetry age {(pipelineSnapshot.TelemetryAge is null ? "none" : $"{pipelineSnapshot.TelemetryAge.Value.TotalMilliseconds:0} ms")}; stale mute {pipelineSnapshot.TelemetryTimedOutMuted}; last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
             $"UDP listener: {(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}.",
             $"UDP forwarding: {forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; {forwarderSnapshot.ErrorCount:N0} error(s).",
+            $"UDP forwarding destinations: {BuildForwardingDestinationsText()}",
             $"Parser: {parserSuccess:N0} valid, {parserIgnored:N0} ignored, {parserFailed:N0} failed. {pipelineSnapshot.LastPacketMessage}",
+            $"Packet IDs: {packetDiagnostics}",
             $"VehicleState: {vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
             $"Recording: {(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
             $"Replay: {(replaySnapshot.IsReplaying ? "active" : "inactive")}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
@@ -1033,13 +1384,35 @@ public partial class MainWindow : Window
             $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
             $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
             $"Output: {outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
-            $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}."
+            $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
+            $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; ASIO armed state is not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
         {
             PageStatusText.Text = DiagnosticsSummaryText.Text;
         }
+    }
+
+    private static string BuildPacketDiagnosticsText(IReadOnlyList<HapticPipelinePacketDiagnostics> diagnostics)
+    {
+        var observed = diagnostics
+            .Where(item => item.ObservedCount > 0)
+            .Select(item => $"{item.Name}#{item.PacketId}: {item.ObservedCount:N0}")
+            .ToArray();
+
+        return observed.Length == 0
+            ? "no packet IDs observed yet"
+            : string.Join("; ", observed);
+    }
+
+    private string BuildForwardingDestinationsText()
+    {
+        return _forwardingDestinations.Count == 0
+            ? "none configured"
+            : string.Join("; ", _forwardingDestinations.Select(destination =>
+                $"{(destination.Enabled ? "enabled" : "disabled")} {destination.Name}->{destination.Host}:{destination.Port}"));
     }
 
     private async Task RefreshAsioVisibilityDiagnosticsAsync()
@@ -1166,7 +1539,7 @@ public partial class MainWindow : Window
             var recordingSnapshot = _hapticPipeline.GetSnapshot().Recording;
             PageStatusText.Text = recordingSnapshot.IsRecording
                 ? $"Recording {recordingSnapshot.PacketCount:N0} raw packets to {Path.GetFileName(recordingSnapshot.FilePath)}"
-                : "Recording idle; latest replay can feed the same mock haptic pipeline.";
+                : "Recording idle; latest or selected replay can feed the same haptic pipeline.";
         }
     }
 
@@ -1368,6 +1741,16 @@ public partial class MainWindow : Window
     private sealed record OutputModeOption(
         AudioOutputDeviceKind Kind,
         string Label);
+
+    private sealed record ForwardingDestinationListItem(
+        int Index,
+        ForwardingDestinationSetting Setting,
+        string DisplayText);
+
+    private sealed record RecordingLibraryItem(
+        string Path,
+        string DisplayText,
+        string DetailText);
 
     private sealed record ThemePalette(
         string Background,

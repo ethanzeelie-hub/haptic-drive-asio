@@ -72,6 +72,30 @@ public sealed class TelemetryRecordingServiceTests
     }
 
     [Fact]
+    public async Task RecordingSummary_LoadsMetadataAndPacketCountWithoutFullReplayLoad()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 9, 30, 0, TimeSpan.Zero);
+
+        await using var recorder = new TelemetryRecordingService();
+        Assert.True((await recorder.StartAsync(
+            path,
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Summary Test", "stage-18-test"))).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01, 0x02], createdAtUtc)).Succeeded);
+        Assert.True((await recorder.StopAsync()).Succeeded);
+
+        var result = await TelemetryRecordingFile.LoadSummaryAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Summary);
+        Assert.Equal(path, result.Summary.Path);
+        Assert.Equal(createdAtUtc, result.Summary.Metadata.CreatedAtUtc);
+        Assert.Equal("Summary Test", result.Summary.Metadata.SourceProfile);
+        Assert.Equal(1, result.Summary.PacketCount);
+        Assert.True(result.Summary.FileSizeBytes > 0);
+    }
+
+    [Fact]
     public async Task Recording_InvalidPathFailsSafely()
     {
         await using var recorder = new TelemetryRecordingService();

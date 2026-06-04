@@ -22,6 +22,9 @@ Hardware-absent mode is the default development and automated-test posture until
 - Native ASIO streaming is implemented behind `IAsioOutputBackend` in Stage 17, but Null output remains the default and fake backends cover automated streaming tests.
 - Output-owned rendering has replaced the WPF haptic render timer for the live pipeline.
 - Stale telemetry wall-clock mute prevents old live telemetry from continuing to drive effects indefinitely.
+- Stage 18 adds a launch wrapper/script that sets `DOTNET_ROOT` to the repo-local .NET 8 runtime and checks for `Microsoft.WindowsDesktop.App 8.x` before starting the WPF executable.
+- Stage 18 app settings persist theme, forwarding destinations, and last ASIO driver/channel selection, but never persist ASIO armed state or haptic auto-start.
+- Stage 18 forwarding and recording-library UI work without shaker hardware and do not require ASIO output.
 
 ## Output Modes
 
@@ -40,3 +43,4 @@ Hardware-absent mode is the default development and automated-test posture until
 - Keep hardware-dependent tests skipped by default.
 - Do not treat Windows sound output selector visibility as proof of ASIO usage.
 - Do not treat callback/drop/underrun diagnostics as final physical latency or safe gain measurements.
+- Do not treat persisted ASIO driver/channel selection as hardware arming.

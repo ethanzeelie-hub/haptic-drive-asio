@@ -15,7 +15,7 @@ F1 25 can enable UDP telemetry through the in-game telemetry settings. PC users 
 
 The PDF examples use port `20777`. Haptic Drive ASIO defaults to listening on `20778` because another tool, router, or Simagic software may already consume `20777`.
 
-Stage 17 implements raw listening, byte-preserving forwarding, raw packet recording, deterministic replay, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, mapping into shared `VehicleState`, conservative generated haptic effects for engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock, safe UI tuning/profile/diagnostic status, and an output-owned renderer that feeds live or replayed telemetry through the mixer, safety chain, and selected output. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding and recording use exact raw payload bytes and do not depend on parser or effect success.
+Stage 17 implements raw listening, byte-preserving forwarding, raw packet recording, deterministic replay, F1 25 packet header validation, core packet body parsing for Motion, Session, Lap Data, Event, Participants, Car Telemetry, Car Status, Car Damage, and Motion Ex, mapping into shared `VehicleState`, conservative generated haptic effects for engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock, safe UI tuning/profile/diagnostic status, and an output-owned renderer that feeds live or replayed telemetry through the mixer, safety chain, and selected output. Stage 18 adds persisted forwarding destination UI, recording library UI, selected replay, packet-ID observation diagnostics, and copyable diagnostics reports. The listener counts datagrams, tracks packet rate and last packet time, and preserves packet bytes for forwarding, recording, replay, and parsing. Forwarding and recording use exact raw payload bytes and do not depend on parser or effect success.
 
 Supported input modes planned:
 
@@ -87,13 +87,14 @@ Pause, garage, and mute:
 - Parser failures must be counted for diagnostics without crashing the app.
 - VehicleState mapping must not synthesize restricted telemetry values; zero values are preserved as received.
 
-## Diagnostics To Add Later
+## Diagnostics
 
-- Packet rate by packet ID.
-- Last packet timestamp by packet ID.
-- Parser error counts.
-- Dropped, malformed, unknown, and duplicate packet counters.
+Implemented diagnostics include:
+
+- Parser success, ignored, and failure counts.
+- Packet-ID observation counts for known F1 25 packet IDs.
 - Forwarded packet count and forwarding errors.
 - Current player car index.
-- Current surface IDs and wheel order display.
 - Current output mode and safety state.
+
+Detailed last timestamp by packet ID, duplicate counters, and full surface/wheel field displays remain deferred until they are needed for physical tuning or support.

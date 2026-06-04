@@ -70,6 +70,25 @@ public sealed class HapticPipelineCoordinatorTests
         Assert.True(snapshot.Effects.Engine.IsActive);
         Assert.True(snapshot.Audio!.ActiveSourceCount > 0);
         Assert.True(snapshot.NullOutput!.LastPeakLevel > 0f);
+        var packetDiagnostics = snapshot.PacketDiagnostics.Single(item => item.PacketId == 6);
+        Assert.Equal("Car Telemetry", packetDiagnostics.Name);
+        Assert.Equal(1, packetDiagnostics.ObservedCount);
+        Assert.NotNull(packetDiagnostics.LastObservedAtUtc);
+    }
+
+    [Fact]
+    public async Task Pipeline_ForwardsConfiguredDestinationDiagnosticsWithoutStartingHardware()
+    {
+        var destination = new UdpTelemetryForwardingDestination(
+            "local tool",
+            new IPEndPoint(IPAddress.Loopback, 20779),
+            enabled: false);
+        await using var coordinator = new HapticPipelineCoordinator(forwardingDestinations: [destination]);
+
+        var snapshot = coordinator.GetSnapshot();
+
+        Assert.Equal(1, snapshot.Forwarding.DestinationCount);
+        Assert.Equal(0, snapshot.Forwarding.EnabledDestinationCount);
     }
 
     [Fact]

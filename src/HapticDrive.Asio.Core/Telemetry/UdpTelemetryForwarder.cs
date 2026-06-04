@@ -69,7 +69,15 @@ public sealed class UdpTelemetryForwarder : IUdpTelemetryForwarder
             {
                 try
                 {
-                    await _udpClient.SendAsync(packet.Payload, packet.Payload.Length, destination.EndPoint).ConfigureAwait(false);
+                    if (destination.EndPoint is not null)
+                    {
+                        await _udpClient.SendAsync(packet.Payload, packet.Payload.Length, destination.EndPoint).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await _udpClient.SendAsync(packet.Payload, packet.Payload.Length, destination.Host, destination.Port).ConfigureAwait(false);
+                    }
+
                     Interlocked.Increment(ref _forwardedDatagramCount);
                     Interlocked.Add(ref _forwardedByteCount, packet.Payload.Length);
 
