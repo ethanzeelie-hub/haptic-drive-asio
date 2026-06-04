@@ -1,6 +1,6 @@
 # Simagic Shift Intent Design
 
-Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. These stages do not implement a listener, router, or output path.
+Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. These stages do not implement a live listener, router, or output path.
 
 ## Default Event Flow
 
@@ -89,6 +89,19 @@ A future `ShiftIntentEvent` should include:
 - Suppression reason when not accepted.
 - Last telemetry gear for diagnostics.
 - Correlation ID for optional telemetry confirmation/rejection.
+
+## Stage 2D Discovery Inputs For Stage 2E
+
+Stage 2D produces `InputDeviceDiscoverySnapshot` values from read-only Windows discovery. Stage 2E should use those snapshots to let the user identify which Raw Input or Windows game-controller device corresponds to the Alpha Evo / GT Neo path.
+
+Stage 2E still needs user mapping data before reliable paddle routing:
+
+- left paddle button number,
+- right paddle button number,
+- device display name shown by Windows,
+- whether the paddles appear through Raw Input, the Windows controller panel, both, or neither.
+
+No `ShiftIntentEvent` is raised by Stage 2D. No haptic output is triggered by discovery results.
 
 ## Routing
 

@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. These stages do not add USB writes, real P-HPR output, protocol control, or input listener code.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. These stages do not add USB writes, real P-HPR output, protocol control, live paddle listener code, or haptic routing from paddle input.
 
 ## Current Repository Baseline
 
@@ -11,6 +11,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Searches of `src/` and `tests/` during Stage 2A found no Simagic, P-HPR, P700, GT Neo, `ShiftIntent`, or `DrivingArmed` implementation code.
 - Stage 2B now defines input and P-HPR contracts without adding real hardware access.
 - Stage 2C now defines `DrivingArmedStateService` in `HapticDrive.Actuation` without connecting it to paddle input or P-HPR output.
+- Stage 2D now defines richer input discovery snapshots and implements read-only Windows Raw Input plus Windows game-controller capability discovery.
 
 ## User Hardware Context
 
@@ -153,17 +154,47 @@ Not implemented in Stage 2C:
 - No real USB writes.
 - No real P-HPR output.
 
+## Stage 2D Scope
+
+Implemented in Stage 2D:
+
+- `InputDeviceInfo`
+- `InputDeviceKind`
+- `InputDiscoveryMethod`
+- `InputControlInfo`
+- `InputDeviceDiscoverySnapshot`
+- `IWheelInputCandidateProvider`
+- Raw Input metadata discovery
+- Windows game-controller capability discovery
+- Safe redaction for normal device path display
+- Likely-device scoring for Simagic wheelbase, GT Neo / wheel input path, P700 pedals, and unknown HID/game-controller devices
+- WPF Devices page Refresh Input Devices diagnostics
+- Hardware-free tests for models, zero devices, exceptions, scoring, deterministic fake discovery, safe empty snapshots, and no write-like discovery interface methods
+
+Not implemented in Stage 2D:
+
+- No live paddle input listener.
+- No rising-edge detection.
+- No left/right paddle mapping.
+- No `ShiftIntentEvent` routing from actual hardware input.
+- No P-HPR routing.
+- No DirectInput-specific dependency.
+- No HID input-report reader.
+- No USB output reports or write-capable feature reports.
+- No real P-HPR output.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
 
-The highest-value first items are:
+The highest-value first items after Stage 2D are:
 
 1. SimPro Manager V3 P700/P-HPR screenshots.
 2. SimHub P-HPR detection and mapping screenshots.
 3. Windows Device Manager hardware IDs for the P700 and Alpha Evo / GT Neo-visible devices.
 4. USBView or USB Device Tree Viewer exports for descriptors and HID report descriptors.
 5. Windows game controller / DirectInput button numbers for the GT Neo left and right paddles.
+6. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 
 USBPcap/Wireshark captures are useful later, but they are not required before the Stage 2B abstraction work.
 

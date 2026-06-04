@@ -811,3 +811,43 @@ Self-review:
 - The service evaluates cached state and does not block waiting for telemetry at paddle-event time.
 - Existing ASIO/BST-1 audio path and `NullAudioOutputDevice` default were not changed.
 - P-HPR remains a separate non-audio actuator path with no real writes before the exact approval phrase.
+
+## Stage 2D - Read-Only Wheel / Paddle Input Discovery
+
+Date: 2026-06-04
+
+Status: Complete.
+
+Goal: Implement read-only wheel / paddle input discovery for the Simagic Alpha Evo / GT Neo / P700 setup without adding live paddle listening, haptic routing, or any P-HPR write path.
+
+Notes:
+
+- Extended `HapticDrive.Input.Abstractions` with richer read-only discovery models: `InputDeviceInfo`, `InputDeviceKind`, `InputDiscoveryMethod`, `InputControlInfo`, `InputDeviceDiscoverySnapshot`, and `IWheelInputCandidateProvider`.
+- Updated `IInputDeviceDiscovery` to return a full `InputDeviceDiscoverySnapshot`.
+- Added `WheelInputCandidateProvider` scoring for likely Simagic wheelbase, likely GT Neo / wheel input path, likely P700 pedals, and unknown HID/game-controller candidates.
+- Implemented `WindowsInputDeviceDiscovery` in `HapticDrive.Input.Windows`.
+- Added `RawInputDeviceEnumerator` for read-only Raw Input metadata, including broad device class, redacted device path / instance text, HID VID/PID where available, and HID usage page / usage.
+- Added `WindowsGameControllerDeviceEnumerator` for dependency-free Windows game-controller capability discovery, including display name, button count, axis count, and read-only control slots.
+- Added normal-display redaction for Windows device paths so serial-like path segments are not shown directly in the UI.
+- Added a WPF Devices-page Input Discovery section with a manual Refresh Input Devices button, status summary, candidate groups, discovery errors, and a safety note.
+- Added input discovery to the copyable runtime diagnostics report.
+- Added hardware-free tests for model construction, zero devices, discovery exceptions, candidate scoring from synthetic names, Simagic / P700 / Alpha / GT Neo detection, deterministic fake discovery, empty snapshot consumption, and no write-like discovery interface methods.
+- Updated README, architecture, roadmap, known issues, and Simagic docs for Stage 2D.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 225 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 2D stayed within read-only discovery scope.
+- No live paddle listener, rising-edge detection, left/right paddle mapping, `ShiftIntentEvent` routing, haptic routing, P-HPR output, protocol encoder/decoder, USB output report, write-capable feature report, or controlled write testing was implemented.
+- Raw Input and Windows game-controller discovery are manual diagnostics only and do not take control from SimPro Manager or SimHub.
+- DirectInput-specific enumeration and HID input-report reading remain deferred until Stage 2E or later if the implemented discovery paths are insufficient.
+- Candidate scoring is deliberately non-authoritative until the user supplies Device Manager, USBView, controller tester, SimPro Manager, and optional SimHub data.
+- Existing ASIO/BST-1 audio behavior and `NullAudioOutputDevice` automated-test default were not changed.
+- P-HPR remains a separate non-audio actuator path with no real writes before the exact approval phrase.

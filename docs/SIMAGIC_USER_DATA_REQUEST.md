@@ -4,6 +4,8 @@ Stage 2A requests this data so Phase 2 can proceed from observed hardware behavi
 
 Do not post public files that contain serial numbers, usernames, or private paths. Raw captures should stay local and uncommitted unless a sanitized summary is created.
 
+Stage 2D adds read-only input discovery, but the exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still required before Stage 2E can map live paddle input safely.
+
 ## Priority 1 - SimPro Manager V3 Screenshots
 
 Please capture:
@@ -85,6 +87,22 @@ Please identify:
 - Whether button state changes are visible in the Windows controller panel.
 - Whether button state changes are visible in another gamepad tester.
 - Whether the P700 pedals and Alpha Evo/GT Neo appear as separate controllers.
+- Device display name for the controller whose buttons change when each GT Neo paddle is pressed.
+- Whether the left/right paddle numbers are one-based or zero-based in the tester being used.
+- Any Raw Input / HID / game-controller device names shown by Haptic Drive ASIO's Stage 2D Refresh Input Devices panel.
+
+## Stage 2D Discovery Follow-Up
+
+After pressing Refresh Input Devices in Haptic Drive ASIO, please capture or copy:
+
+- likely Simagic wheelbase candidates,
+- likely GT Neo / wheel input candidates,
+- likely P700 pedal candidates,
+- unknown HID/game-controller candidates,
+- any discovery errors,
+- and the Windows game-controller button numbers for left and right paddles if visible.
+
+Stage 2D discovery is read-only. It does not start live paddle listening, send commands, or vibrate P-HPR modules.
 
 ## Later - USBPcap/Wireshark Captures
 

@@ -1,6 +1,6 @@
 # Simagic P-HPR Safety Plan
 
-This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. None of these stages implements USB writes or real P-HPR output.
+This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. None of these stages implements USB writes or real P-HPR output.
 
 ## Required Approval Phrase
 
@@ -10,7 +10,7 @@ No real P-HPR USB writes, output reports, write-capable feature reports, or real
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-That phrase has not been provided as of Stage 2B.
+That phrase has not been provided as of Stage 2D.
 
 Stage 2B keeps `PHprSafetyLimits.AllowRealDeviceWrites` false by default, and `MockPhprOutputDevice` only records mock commands in memory.
 

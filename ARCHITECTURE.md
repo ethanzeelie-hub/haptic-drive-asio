@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2A documents the boundary only; no P-HPR implementation exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2D includes read-only input discovery for possible wheel / paddle devices, but no P-HPR output implementation exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -52,7 +52,7 @@ Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGI
 Stage 2B adds contract-only projects for the future actuator path:
 
 - `HapticDrive.Input.Abstractions` defines input-device descriptors, read-only discovery contracts, paddle shift-intent contracts, `ShiftIntentEvent`, `PaddleSide`, `DrivingArmedState`, and `IDrivingArmedStateProvider`.
-- `HapticDrive.Input.Windows` exists as the later Windows read-only input discovery home, but Stage 2B does not implement Raw Input, DirectInput, HID reads, or any listener.
+- `HapticDrive.Input.Windows` is the Windows read-only input discovery home. Stage 2D implements Raw Input metadata enumeration and Windows game-controller capability enumeration there, but still does not implement a paddle listener.
 - `HapticDrive.Simagic.PHPR.Abstractions` defines `PHprCommand`, module/source enums, safety flags/defaults, `IPHprOutputDevice`, output snapshots/results, and a `MockPhprOutputDevice`.
 
 `MockPhprOutputDevice` is mock-only. It records clamped commands in memory for tests and diagnostics, marks commands as `MockOnly`, and performs no hardware writes.
@@ -74,6 +74,29 @@ Stage 2C adds `HapticDrive.Actuation` as the home for cached non-audio actuator 
 - or not-moving/inactive state when zero-speed active driving is disabled.
 
 The service is in-memory and event-driven. It does not block waiting for telemetry at paddle-event time and is not yet connected to an input listener or shift-intent router.
+
+## Stage 2D Read-Only Input Discovery
+
+Stage 2D extends `HapticDrive.Input.Abstractions` with richer read-only input discovery models:
+
+- `InputDeviceInfo`
+- `InputDeviceKind`
+- `InputDiscoveryMethod`
+- `InputControlInfo`
+- `InputDeviceDiscoverySnapshot`
+- `IInputDeviceDiscovery`
+- `IWheelInputCandidateProvider`
+
+`HapticDrive.Input.Windows` implements `WindowsInputDeviceDiscovery` with two read-only enumerators:
+
+- `RawInputDeviceEnumerator` uses Windows Raw Input APIs to enumerate device metadata, safe redacted device paths, HID VID/PID where available, HID usage page/usage, and broad Raw Input device class.
+- `WindowsGameControllerDeviceEnumerator` uses the built-in Windows game-controller capability API to enumerate connected controller names, button count, axis count, and read-only control slots.
+
+`WheelInputCandidateProvider` scores synthetic and discovered devices as likely Simagic wheelbase, likely GT Neo / wheel input path, likely P700 pedals, or unknown HID/game-controller candidates. The scoring is intentionally non-authoritative until the user supplies exact Device Manager / USBView / controller tester data.
+
+The WPF Devices page exposes a manual Refresh Input Devices button and read-only candidate summary. This does not start live input event listening, map left/right paddles, create `ShiftIntentEvent` values, route haptics, send USB output reports, send feature reports, or send P-HPR commands.
+
+Stage 2E should use these discovery snapshots to choose and map the raw paddle input listener without changing the no-write P-HPR gate.
 
 ## Early Development Rule
 

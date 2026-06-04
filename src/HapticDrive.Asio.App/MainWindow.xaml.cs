@@ -11,6 +11,8 @@ using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Input.Abstractions.Devices;
+using HapticDrive.Input.Windows;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -28,6 +30,8 @@ public partial class MainWindow : Window
     private readonly AsioReadinessDiagnostics _asioReadinessDiagnostics;
     private readonly AppSettingsStore _settingsStore = new();
     private readonly AudioTestBench _testBench = new();
+    private readonly IInputDeviceDiscovery _inputDeviceDiscovery = new WindowsInputDeviceDiscovery();
+    private readonly IWheelInputCandidateProvider _wheelInputCandidateProvider = new WheelInputCandidateProvider();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
@@ -70,6 +74,7 @@ public partial class MainWindow : Window
                 "Stage 13 adds conservative kerb, impact, road texture, and slip / brake-lock effect generators from VehicleState.",
                 "Stage 14 exposes safe tuning controls, profile save/load/reset, and practical runtime diagnostics.",
                 "Stage 18 keeps live UDP and replayed packets wired into the parser, VehicleState adapter, effects, mixer, safety chain, and output-owned renderer.",
+                "Stage 2D adds read-only wheel / paddle input discovery for future GT Neo mapping.",
                 "Stale telemetry is muted by wall-clock timeout.",
                 "NullAudioOutputDevice is the default safe output.",
                 "The app remains safe to open without ASIO hardware or shaker hardware."
@@ -106,12 +111,14 @@ public partial class MainWindow : Window
         new(
             "Devices",
             "Devices",
-            "Safe status for Null, WASAPI debug, and ASIO output abstractions.",
-            "Output status available",
+            "Safe status for output abstractions and read-only input discovery.",
+            "Output and input discovery status available",
             [
                 "NullAudioOutputDevice is available for automated tests and safe app startup.",
                 "WasapiDebugOutputDevice exists as a manual debug placeholder only.",
                 "AsioAudioOutputDevice exists behind the same interface and fails gracefully when no driver is available.",
+                "Refresh Input Devices performs read-only Raw Input and Windows game-controller discovery.",
+                "Input discovery does not start a live paddle listener, map paddles, route haptics, or send P-HPR commands.",
                 "WASAPI remains a manual debug fallback only.",
                 "ASIO absence must fail gracefully and never block automated tests."
             ]),
@@ -187,6 +194,7 @@ public partial class MainWindow : Window
                 "Output status is available for the selected safe output device.",
                 "Mixer and safety diagnostics are available in the audio pipeline tests and minimal shell status.",
                 "Stage 18 reports pipeline, engine, gear, kerb, impact, road texture, slip, mixer, safety, output, replay, forwarding, packet-ID, ASIO visibility, callback, drop, underrun, jitter, and telemetry-age state.",
+                "Stage 2D reports read-only input discovery status and candidate device scoring.",
                 "Test bench diagnostics report selected synthetic signal, output peak, limiter count, and output mode.",
                 "UDP packet count, packet rate, and no-packet warning are available.",
                 "Forwarded datagram count, forwarded byte count, and forwarding errors are available.",
@@ -214,6 +222,7 @@ public partial class MainWindow : Window
     private HapticPipelineCoordinator _hapticPipeline;
     private AsioDriverVisibilitySnapshot _asioVisibilitySnapshot = AsioDriverVisibilitySnapshot.NotChecked;
     private AsioReadinessSnapshot _asioReadinessSnapshot = AsioReadinessSnapshot.NotChecked;
+    private InputDeviceDiscoverySnapshot _inputDiscoverySnapshot = InputDeviceDiscoverySnapshot.NotRun;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
     private bool _updatingSettingsUi;
@@ -319,7 +328,7 @@ public partial class MainWindow : Window
             DiagnosticsPanel.Visibility = page.NavigationLabel == "Diagnostics"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 18 final pre-shaker package";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - Stage 2D read-only input discovery";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
             UpdateMixerStatus();
@@ -399,6 +408,38 @@ public partial class MainWindow : Window
     {
         await RefreshAsioVisibilityDiagnosticsAsync();
         FooterStatusText.Text = "ASIO readiness diagnostics refreshed.";
+    }
+
+    private async void RefreshInputDevicesButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshInputDeviceDiscoveryAsync();
+    }
+
+    private async Task RefreshInputDeviceDiscoveryAsync()
+    {
+        InputDiscoveryStatusText.Text = "Input discovery is refreshing read-only Windows metadata.";
+        InputDiscoveryItemsControl.ItemsSource = new[]
+        {
+            "Safety: discovery only. No live paddle listener, haptic routing, or P-HPR output command is started."
+        };
+
+        try
+        {
+            _inputDiscoverySnapshot = await _inputDeviceDiscovery.DiscoverAsync();
+            UpdateInputDiscoveryStatus();
+            UpdateDiagnosticsStatus();
+            FooterStatusText.Text = $"Input device discovery refreshed; {_inputDiscoverySnapshot.DeviceCount:N0} device(s) found. No commands were sent.";
+        }
+        catch (Exception ex)
+        {
+            _inputDiscoverySnapshot = InputDeviceDiscoverySnapshot.Create(
+                [],
+                [],
+                [$"Input discovery failed before any device commands were sent: {ex.Message}"]);
+            UpdateInputDiscoveryStatus();
+            UpdateDiagnosticsStatus();
+            FooterStatusText.Text = "Input device discovery failed safely.";
+        }
     }
 
     private async Task RebuildHapticPipelineForOutputSelectionAsync(string footerMessage)
@@ -1312,12 +1353,13 @@ public partial class MainWindow : Window
         AsioStatusText.Text = $"{_asioVisibilitySnapshot.Message} Windows sound output visibility is not proof of ASIO usage; Null output remains default.";
         AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; render callbacks {status.RenderCallbackCount:N0}; backend callbacks {status.BackendCallbackCount:N0}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; underruns {status.UnderrunCount:N0}; last error {status.LastError ?? "none"}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
+        UpdateInputDiscoveryStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}.";
         }
     }
 
@@ -1342,6 +1384,40 @@ public partial class MainWindow : Window
         {
             PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; ASIO armed state and auto-start are never persisted.";
         }
+    }
+
+    private void UpdateInputDiscoveryStatus()
+    {
+        if (!_inputDiscoverySnapshot.HasRun)
+        {
+            InputDiscoveryStatusText.Text = "Input discovery has not been refreshed. Use Refresh Input Devices to enumerate read-only Windows input metadata.";
+            InputDiscoveryItemsControl.ItemsSource = new[]
+            {
+                "Safety: discovery only. No live paddle listener, haptic routing, USB output report, feature report, or P-HPR output command is used.",
+                "Selected input device: none. Stage 2D does not map left/right paddles yet."
+            };
+            return;
+        }
+
+        var snapshot = _inputDiscoverySnapshot;
+        var localRefreshTime = snapshot.DiscoveredAtUtc.ToLocalTime().ToString("g");
+        var methodText = FormatDiscoveryMethods(snapshot.Methods);
+        var errorText = snapshot.Errors.Count == 0 ? "none" : string.Join("; ", snapshot.Errors);
+        var candidates = _wheelInputCandidateProvider.GetCandidates(snapshot);
+
+        InputDiscoveryStatusText.Text =
+            $"Input discovery: {(snapshot.ReadOnlyDiscoverySucceeded ? "succeeded" : "completed with warnings")}; refreshed {localRefreshTime}; {snapshot.DeviceCount:N0} device(s); methods {methodText}; errors {snapshot.Errors.Count:N0}.";
+        InputDiscoveryItemsControl.ItemsSource = new[]
+        {
+            "Safety: read-only discovery only. No live paddle listener, haptic routing, USB output report, feature report, or P-HPR output command is used.",
+            $"Candidate devices: {FormatInputCandidates(candidates)}",
+            $"Likely Simagic wheelbase candidates: {FormatInputCandidates(snapshot.LikelySimagicWheelBaseCandidates)}",
+            $"Likely GT Neo / wheel input candidates: {FormatInputCandidates(snapshot.LikelyGtNeoWheelInputCandidates)}",
+            $"Likely P700 pedal candidates: {FormatInputCandidates(snapshot.LikelyP700PedalCandidates)}",
+            $"Unknown HID/game-controller candidates: {FormatInputCandidates(snapshot.UnknownHidOrGameControllerCandidates)}",
+            "Selected input device: none. Stage 2D records candidates only; left/right paddle mapping waits for Stage 2E and user button IDs.",
+            $"Discovery errors: {errorText}"
+        };
     }
 
     private void UpdateDiagnosticsStatus()
@@ -1387,6 +1463,7 @@ public partial class MainWindow : Window
             $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
             $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
             $"Output: {outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
+            $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
             $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; ASIO armed state is not persisted."
@@ -1408,6 +1485,40 @@ public partial class MainWindow : Window
         return observed.Length == 0
             ? "no packet IDs observed yet"
             : string.Join("; ", observed);
+    }
+
+    private string BuildInputDiscoveryDiagnosticsText()
+    {
+        var snapshot = _inputDiscoverySnapshot;
+        if (!snapshot.HasRun)
+        {
+            return "not refreshed; manual Refresh Input Devices is available on Devices; no listener, mapping, routing, or output is active.";
+        }
+
+        var errors = snapshot.Errors.Count == 0 ? "none" : string.Join("; ", snapshot.Errors);
+        return $"{snapshot.DeviceCount:N0} device(s); methods {FormatDiscoveryMethods(snapshot.Methods)}; wheelbase {snapshot.LikelySimagicWheelBaseCandidates.Count:N0}; GT Neo/wheel {snapshot.LikelyGtNeoWheelInputCandidates.Count:N0}; P700 {snapshot.LikelyP700PedalCandidates.Count:N0}; unknown HID/game-controller {snapshot.UnknownHidOrGameControllerCandidates.Count:N0}; errors {errors}; read-only only with no paddle listener or haptic routing.";
+    }
+
+    private static string FormatDiscoveryMethods(IReadOnlyList<InputDiscoveryMethod> methods)
+    {
+        return methods.Count == 0 ? "none" : string.Join(", ", methods);
+    }
+
+    private static string FormatInputCandidates(IEnumerable<InputDeviceInfo> candidates)
+    {
+        var devices = candidates.Take(6).Select(FormatInputCandidate).ToArray();
+        return devices.Length == 0 ? "none" : string.Join(" | ", devices);
+    }
+
+    private static string FormatInputCandidate(InputDeviceInfo device)
+    {
+        var vendorProduct = device.VendorId is null || device.ProductId is null
+            ? "VID/PID unavailable"
+            : $"VID_{device.VendorId:X4}/PID_{device.ProductId:X4}";
+        var controls = device.ButtonCount is null && device.AxisCount is null
+            ? "controls unavailable"
+            : $"{device.ButtonCount?.ToString() ?? "unknown"} button(s), {device.AxisCount?.ToString() ?? "unknown"} axis/axes";
+        return $"{device.DisplayName} via {device.DiscoveryMethod}; {vendorProduct}; {controls}; score {device.CandidateScore}; {device.CandidateReason}";
     }
 
     private string BuildForwardingDestinationsText()

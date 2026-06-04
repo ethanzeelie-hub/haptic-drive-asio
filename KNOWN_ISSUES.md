@@ -199,3 +199,12 @@
 - No `ShiftIntentRouter` exists yet, so accepted driving state does not route any gear pulse.
 - Menu-safe gating uses the current `VehicleState` fields and may need refinement after live F1 25 menu, pause, garage, pit-lane, and start-line observations.
 - Real P-HPR output remains forbidden before the exact approval phrase and is not implemented.
+
+## Stage 2D
+
+- Input discovery is read-only and manual. The app enumerates Raw Input metadata and Windows game-controller capabilities only when Refresh Input Devices is pressed.
+- No live paddle listener exists yet, so left/right paddle press events are not observed, debounced, or raised as `ShiftIntentEvent` values.
+- No left/right paddle mapping exists yet because user-visible button IDs from Windows controller tools, Device Manager, USBView, SimPro Manager, and optional SimHub screenshots are still required.
+- DirectInput-specific enumeration and HID input-report reading are deferred unless Raw Input and the built-in Windows game-controller capability path are insufficient.
+- Candidate scoring is non-authoritative and uses names, HID usage metadata, and broad device class hints until exact Alpha Evo / GT Neo / P700 VID/PID and button data are supplied.
+- No haptic routing, P-HPR output, USB output report, write-capable feature report, controlled write testing, SimPro control, or SimHub integration is implemented.
