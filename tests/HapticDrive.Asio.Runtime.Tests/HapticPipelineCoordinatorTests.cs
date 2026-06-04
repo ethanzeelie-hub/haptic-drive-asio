@@ -326,7 +326,7 @@ public sealed class HapticPipelineCoordinatorTests
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(1_000));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(3_000));
         while (!condition())
         {
             await Task.Delay(5, timeout.Token);

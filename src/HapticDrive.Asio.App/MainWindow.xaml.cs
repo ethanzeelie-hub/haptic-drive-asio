@@ -234,16 +234,19 @@ public partial class MainWindow : Window
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
         _hapticPipeline = CreatePipelineForSelectedOutput();
 
+        _updatingOutputUi = true;
+        _updatingTuningUi = true;
+        _updatingSettingsUi = true;
         InitializeComponent();
 
         NavigationList.ItemsSource = _pages;
         NavigationList.SelectedIndex = 0;
-        _updatingOutputUi = true;
         OutputModeComboBox.ItemsSource = _outputModeOptions;
         OutputModeComboBox.SelectedItem = _outputModeOptions.Single(option => option.Kind == _selectedOutputKind);
         AsioOutputChannelComboBox.ItemsSource = _asioOutputChannelChoices;
         AsioOutputChannelComboBox.SelectedItem = _selectedAsioOutputChannel;
         _updatingOutputUi = false;
+        _updatingSettingsUi = false;
         TestBenchSignalComboBox.ItemsSource = _testBenchSignals;
         TestBenchSignalComboBox.SelectedIndex = 1;
         ApplyTheme(_lightTheme);

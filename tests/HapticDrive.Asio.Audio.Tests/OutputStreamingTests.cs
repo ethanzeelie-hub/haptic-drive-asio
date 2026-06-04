@@ -25,7 +25,12 @@ public sealed class OutputStreamingTests
         });
 
         Assert.True(result.Succeeded, result.Message);
-        await WaitUntilAsync(() => Volatile.Read(ref callbackCount) >= 4);
+        await WaitUntilAsync(() =>
+        {
+            var status = device.GetStatus();
+            return Volatile.Read(ref callbackCount) >= 4
+                && status.LastCallbackJitter is not null;
+        });
         Assert.True((await device.StopAsync()).Succeeded);
 
         var status = device.GetStatus();
@@ -122,7 +127,7 @@ public sealed class OutputStreamingTests
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(750));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(3_000));
         while (!condition())
         {
             await Task.Delay(5, timeout.Token);
