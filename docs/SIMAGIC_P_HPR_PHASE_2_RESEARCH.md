@@ -1,5 +1,125 @@
 # Simagic P-HPR Phase 2 Research
 
-Placeholder for future research only.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. It does not add USB writes, real P-HPR output, protocol control, or input listener code.
 
-Do not implement Simagic P-HPR output in V1.
+## Current Repository Baseline
+
+- Phase 1 is complete through Stage 18.
+- The WPF app, F1 25 UDP listener/parser, raw forwarding, recording/replay, `VehicleState`, ASIO readiness, native ASIO streaming backend, haptic effects, mixer, safety chain, emergency mute, stale telemetry mute, profiles, diagnostics, and launch wrapper already exist.
+- `NullAudioOutputDevice` remains the automated-test and startup default.
+- Stage 18 remains the final pre-Dayton-shaker software package.
+- Searches of `src/` and `tests/` during Stage 2A found no Simagic, P-HPR, P700, GT Neo, `ShiftIntent`, or `DrivingArmed` implementation code.
+
+## User Hardware Context
+
+- Simagic P700 2-pedal set connected directly to the PC by USB.
+- Brake and throttle pedals.
+- Two Simagic P-HPR modules, one on brake and one on throttle.
+- P-HPR modules connected through the built-in P700 haptic controller.
+- Simagic Alpha Evo 12 Nm wheelbase connected separately to the PC by USB.
+- Simagic GT Neo wheel connected to or through the Alpha Evo wheelbase.
+- SimPro Manager V3 is currently used.
+- P-HPR modules are visible/configurable in SimPro Manager V3.
+- P-HPR modules are visible/configurable in SimHub, but SimHub P-HPR control feels noticeably laggier.
+- Haptic Drive ASIO must not require SimHub at runtime.
+
+## Phase 2 Objective
+
+Phase 2 adds a separate non-audio actuator architecture for Simagic P-HPR pedal modules while preserving the existing ASIO/BST-1 audio path.
+
+The P-HPR modules are not audio devices. They must not be routed through ASIO and must not be forced into `IAudioOutputDevice`.
+
+Planned future boundaries:
+
+```text
+F1 25 telemetry
+-> VehicleState
+-> audio haptic effects
+-> mixer/safety
+-> ASIO/BST-1 audio output
+
+GT Neo paddle input and VehicleState
+-> shift/effect routing
+-> actuator safety
+-> P-HPR pedal output
+```
+
+The two paths may share event timestamps and diagnostics later, but neither path should block the other.
+
+## Highest-Priority Feature
+
+The most important new behavior is an instant pedal gear pulse from GT Neo paddle input:
+
+```text
+GT Neo paddle press
+-> read-only Raw Input / DirectInput / HID event
+-> ShiftIntentEvent
+-> cached DrivingArmed gate
+-> immediate P-HPR gear pulse
+```
+
+Default future mode:
+
+- `InstantPaddleOnly`
+- Fire on left or right paddle press immediately when `DrivingArmed` is true.
+- Do not wait for F1 25 telemetry at event time.
+- Do not fire a second normal telemetry-confirmed pulse by default.
+
+Telemetry is still required for cached menu-safe driving state, diagnostics, optional telemetry-confirmed mode, optional rejected-shift detection, road vibration, slip, and lock effects.
+
+## Stage 2A Scope
+
+Implemented in Stage 2A:
+
+- Confirmed Stage 18 completion from project docs and development log.
+- Confirmed no current Simagic/P-HPR implementation exists in `src/` or `tests/`.
+- Created the Phase 2 research and safety documentation set.
+- Updated durable project guidance for no real P-HPR writes before explicit approval.
+- Updated ignore rules for raw/private capture artifacts.
+
+Not implemented in Stage 2A:
+
+- No input listener.
+- No DirectInput, Raw Input, or HID code.
+- No P-HPR output abstractions.
+- No mock P-HPR output.
+- No protocol encoder/decoder.
+- No real USB write path.
+- No Simagic device output reports.
+- No feature reports that can write or change device state.
+
+## Required Follow-Up Data
+
+Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
+
+The highest-value first items are:
+
+1. SimPro Manager V3 P700/P-HPR screenshots.
+2. SimHub P-HPR detection and mapping screenshots.
+3. Windows Device Manager hardware IDs for the P700 and Alpha Evo / GT Neo-visible devices.
+4. USBView or USB Device Tree Viewer exports for descriptors and HID report descriptors.
+5. Windows game controller / DirectInput button numbers for the GT Neo left and right paddles.
+
+USBPcap/Wireshark captures are useful later, but they are not required before the Stage 2B abstraction work.
+
+## Write Safety Gate
+
+No real P-HPR USB writes may be implemented or executed until the user says exactly:
+
+```text
+I approve Phase 2 controlled P-HPR write testing
+```
+
+That approval phrase has not been provided as of Stage 2A.
+
+Before that phrase, work is limited to read-only discovery, input observation, documentation, mock output, protocol hypotheses, tests, and diagnostics.
+
+## Legal and Coexistence Notes
+
+- Do not copy SimHub code or UI assets unless license compatibility is checked and documented.
+- Do not depend on hidden SimHub internals.
+- Do not copy, hook, patch, or inject into SimPro Manager.
+- Do not modify SimPro Manager settings automatically.
+- Do not kill SimPro Manager.
+- Detecting whether SimPro Manager or SimHub is running is allowed in a later stage.
+- Default future direct P-HPR control must remain disabled when a conflict risk exists.

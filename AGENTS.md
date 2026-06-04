@@ -38,8 +38,22 @@ These rules are durable project guidance for Haptic Drive ASIO.
 - Keep UI, telemetry receive, audio callback, disk IO, logging, and graphing separated.
 - Never block the audio path with UI, disk, logging, networking, or graphing work.
 - Build future-game support architecturally, but implement F1 25 first.
-- Do not implement Simagic P-HPR output in V1.
+- Do not implement Simagic P-HPR output in V1 / Phase 1.
 - Do not let future hardware research delay the ASIO bass shaker engine.
+
+## Phase 2 / 3 Simagic P-HPR and GT Neo
+
+- P-HPR modules are non-audio actuators; do not route them through ASIO or `IAudioOutputDevice`.
+- Keep any future P-HPR actuator architecture separate from the ASIO/BST-1 audio path.
+- Do not implement or execute real P-HPR USB writes until the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
+- Until that exact phrase is present, allowed work is documentation, read-only device/input discovery, capture guides, protocol hypotheses, mock output, mock routing, diagnostics, and tests only.
+- Read-only GT Neo paddle input observation is allowed.
+- Paddle input is the default future P-HPR gear-pulse source.
+- Default future gear-pulse mode is `InstantPaddleOnly`: fire from paddle press through cached `DrivingArmed`, with no telemetry wait and no default second confirmation pulse.
+- Menu-safe cached `DrivingArmed` gating is required before paddle input may route to a gear pulse.
+- Mock P-HPR output and safety limiting must exist before any real output adapter.
+- Detecting SimPro Manager / SimHub process status is allowed later, but do not kill, hook, inject into, or modify either application.
+- Raw USB captures, private device inventories, serial numbers, and unsanitized hardware data must not be committed.
 
 ## Legal
 

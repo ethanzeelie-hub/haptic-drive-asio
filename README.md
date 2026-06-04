@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface and Fosi Audio BT20A amplifier are now availa
 
 ## Current Stage
 
-Stage 18: final pre-shaker readiness package complete.
+Stage 2A: Phase 2 readiness, Simagic P-HPR research intake, and data request complete. Stage 18 remains the final Phase 1 pre-shaker readiness package.
 
 The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute, dark theme default, persisted light/dark theme setting, safe tuning controls, profile save/load/reset, runtime diagnostics, recording/replay library controls, persisted UDP forwarding destination controls, ASIO driver visibility diagnostics, and explicit ASIO output readiness controls.
 
@@ -24,6 +24,8 @@ Stage 17 adds an NAudio-backed native ASIO streaming backend behind `IAsioOutput
 
 Stage 18 adds a root launch script with .NET 8 Desktop Runtime preflight, app-settings persistence separate from haptic profiles, persisted UDP forwarding destination editing, a recordings library with metadata summaries and selected replay, packet-ID diagnostics, diagnostics copy/report support, and final pre-shaker UI/documentation cleanup. ASIO output still requires explicit output mode selection, driver selection, channel selection, arming, and Start Haptics.
 
+Stage 2A starts the Simagic P-HPR / GT Neo paddle-input phase with documentation and safety gates only. P-HPR is planned as a separate non-audio actuator path, not an ASIO or `IAudioOutputDevice` output. No real P-HPR USB writes or vibration commands are implemented, and future real writes are gated behind the exact approval phrase documented in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
+
 The app does not yet implement advanced routing matrices, live graphing, real WASAPI output, physical shaker calibration, or physical shaker validation. Physical shaker feel, safe gain, physical latency, and final frequency tuning remain unvalidated until the Dayton BST-1 arrives and the full chain is tested locally.
 
 ## Solution Layout
@@ -35,6 +37,15 @@ The app does not yet implement advanced routing matrices, live graphing, real WA
 - `src/HapticDrive.Asio.Runtime`: end-to-end pipeline coordinator for live/replay telemetry, parser, VehicleState, effects, mixer, safety, recording, forwarding, output-owned rendering, and stale telemetry mute.
 - `src/HapticDrive.Asio.Recording`: telemetry recording and replay.
 - `tests/*`: xUnit test projects.
+
+## Simagic Phase 2A Docs
+
+- `docs/SIMAGIC_P_HPR_PHASE_2_RESEARCH.md`: Phase 2 baseline, hardware context, boundaries, and readiness notes.
+- `docs/SIMAGIC_USER_DATA_REQUEST.md`: requested SimPro, SimHub, Windows, USBView, and mapping data.
+- `docs/SIMAGIC_CAPTURE_GUIDE.md`: capture naming, metadata, and raw-capture handling rules.
+- `docs/SIMAGIC_WHEEL_INPUT_RESEARCH.md`: read-only GT Neo paddle input discovery plan.
+- `docs/SIMAGIC_SHIFT_INTENT_DESIGN.md`: instant paddle shift-intent design and `DrivingArmed` gating.
+- `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`: P-HPR write gate and actuator safety plan.
 
 ## Launch
 

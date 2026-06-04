@@ -172,3 +172,14 @@
 - Recordings are listed from local app data with metadata summaries, but recording trimming, profile snapshots, and route snapshots are not implemented.
 - Advanced routing matrices, live graphing, real WASAPI output, Simagic P-HPR output, and physical calibration UI remain outside the pre-BT-1 scope.
 - Physical Dayton BST-1 output, safe physical gain, shaker feel, physical latency, and final frequency tuning remain unvalidated until the BT-1 arrives and the full M-Audio -> Fosi -> Dayton BST-1 chain is tested locally.
+
+## Stage 2A
+
+- Stage 2A is documentation and readiness only; no P-HPR abstractions, input listener, mock output, protocol code, or real P-HPR output exists yet.
+- Required SimPro, SimHub, Windows Device Manager, USBView, game-controller mapping, and later USBPcap/Wireshark data is still outstanding.
+- No GT Neo paddle input discovery has been implemented yet.
+- No cached `DrivingArmed` service has been implemented yet.
+- No shift-intent event router has been implemented yet.
+- No P700/P-HPR USB inventory or protocol hypothesis has been implemented yet.
+- No real P-HPR USB writes are allowed unless the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
+- Raw captures and private device inventories must stay uncommitted.

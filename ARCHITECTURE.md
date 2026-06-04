@@ -22,6 +22,31 @@ F1 25 UDP packets
 -> audio output device
 ```
 
+## Phase 2 Planned Actuator Boundary
+
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2A documents the boundary only; no P-HPR implementation exists yet.
+
+P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
+
+Planned separation:
+
+```text
+F1 25 UDP packets
+-> VehicleState
+-> audio haptic effects
+-> mixer and safety chain
+-> ASIO/BST-1 output
+
+GT Neo paddle input and VehicleState
+-> shift intent / pedal effect routing
+-> actuator safety limiter
+-> P-HPR pedal output
+```
+
+The future default P-HPR gear-pulse path is `InstantPaddleOnly`: read-only GT Neo paddle press, cached `DrivingArmed` gate, then immediate pedal gear pulse. It must not wait for a fresh telemetry packet at paddle-press time and must not fire a default second telemetry-confirmed pulse.
+
+Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
+
 ## Early Development Rule
 
 The app must build and test without ASIO hardware, M-Audio hardware, the Fosi amplifier, the Dayton BST-1, F1 25, or any live telemetry stream.

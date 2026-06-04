@@ -22,6 +22,7 @@
 - Stage 17: Native ASIO streaming and low-latency pre-shaker hardening complete.
 - Stage 18: Final pre-shaker readiness package complete.
 - Phase 1 software/manual ASIO readiness milestone complete through the maximum safe pre-BT-1 scope.
+- Stage 2A: Phase 2 readiness, Simagic P-HPR research intake, and data request complete.
 
 ## Planned Stages
 
@@ -44,6 +45,31 @@
 17. Stage 17: Native ASIO streaming and low-latency pre-shaker hardening. Complete.
 18. Stage 18: Final pre-shaker readiness package. Complete.
 
+## Phase 2 / 3 Simagic P-HPR Plan
+
+Phase 2 begins while preserving the Stage 18 ASIO/BST-1 package. P-HPR is a separate non-audio actuator path and must not be routed through ASIO or `IAudioOutputDevice`.
+
+Phase 2 safe sequence:
+
+1. Stage 2A: Phase 2 readiness, research intake, and data request. Complete.
+2. Stage 2B: Input and P-HPR abstractions.
+3. Stage 2C: Cached `DrivingArmed` state service.
+4. Stage 2D: Read-only wheel / paddle input discovery.
+5. Stage 2E: Raw paddle input listener and mapping.
+6. Stage 2F: Shift intent event layer.
+7. Stage 2G: Read-only P700 / P-HPR device inventory.
+8. Stage 2H: Capture workflow and metadata tooling.
+9. Stage 2I: Capture analysis framework.
+10. Stage 2J: P-HPR protocol hypotheses.
+11. Stage 2K: Mock P-HPR protocol and output.
+12. Stage 2L: P-HPR safety layer.
+13. Stage 2M: Mock gear pulse routing.
+14. Stage 2N: Mock road vibration, wheel slip, and wheel lock routing.
+15. Stage 2O: SimPro / SimHub coexistence detection.
+16. Stage 2P: Controlled write test plan.
+
+Stage 2Q and later real P-HPR write work is gated and must not start unless the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
+
 ## Post-BT-1 Hardware Phases
 
 1. BT-1 chain bring-up and silent-to-low-gain ASIO validation.
@@ -60,3 +86,4 @@
 - Stage 17 adds native ASIO streaming behind the backend seam, output-owned render cadence, stale telemetry mute, render/backend diagnostics, and fake-backend tests while keeping Null output as the automated-test default.
 - Stage 18 adds launch/runtime prerequisite handling, persisted app settings, forwarding destination UI, recordings library, selected replay, packet-ID diagnostics, copyable diagnostics reports, and final pre-shaker documentation cleanup.
 - No Simagic P-HPR implementation in V1.
+- Stage 2A adds Simagic Phase 2 documentation and safety gates only; it does not implement P-HPR output.

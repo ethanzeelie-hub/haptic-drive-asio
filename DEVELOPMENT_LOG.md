@@ -699,3 +699,41 @@ Self-review:
 - UDP forwarding and recording/replay raw byte guarantees remain parser-independent.
 - Parser packet layouts, offsets, enum values, versions, lengths, and `VehicleState` mappings were not changed.
 - Physical shaker feel, safe physical gain, physical latency, and final frequency tuning remain explicitly unclaimed until the full chain is tested locally.
+
+## Stage 2A - Phase 2 Readiness, Research Intake, and Data Request
+
+Date: 2026-06-04
+
+Status: Complete.
+
+Goal: Start Phase 2 safely by documenting the Simagic P-HPR / GT Neo scope, confirming the Stage 18 baseline, requesting required user data, and recording the safety gate before any implementation or hardware writes.
+
+Notes:
+
+- Verified Stage 18 was complete from README, roadmap, Stage 18 documentation, and the previous development-log entry.
+- Confirmed searches of `src/` and `tests/` found no Simagic, P-HPR, P700, GT Neo, `ShiftIntent`, or `DrivingArmed` implementation code.
+- Expanded `docs/SIMAGIC_P_HPR_PHASE_2_RESEARCH.md` from a placeholder into the Phase 2 baseline and research intake document.
+- Added `docs/SIMAGIC_USER_DATA_REQUEST.md` for SimPro Manager, SimHub, Windows Device Manager, USBView, game-controller mapping, and later USBPcap/Wireshark data requests.
+- Added `docs/SIMAGIC_CAPTURE_GUIDE.md` for future capture scenarios, naming, metadata, and raw-capture handling.
+- Added `docs/SIMAGIC_WHEEL_INPUT_RESEARCH.md` for the read-only GT Neo paddle input discovery plan.
+- Added `docs/SIMAGIC_SHIFT_INTENT_DESIGN.md` for the default `InstantPaddleOnly` gear-pulse design, cached `DrivingArmed` gate, and no-default-double-pulse rule.
+- Added `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md` with the exact approval phrase required before any real P-HPR write testing.
+- Updated `AGENTS.md` with Phase 2 / 3 Simagic P-HPR and GT Neo rules, including the no-write gate, read-only input allowance, default future paddle gear-pulse source, and raw-capture commit prohibition.
+- Updated `.gitignore` for raw USB captures, private captures, local device inventories, and local Simagic inventory JSON files.
+- Updated README, roadmap, known issues, and architecture docs to reflect Stage 2A without adding runtime code.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 192 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Stage 2A stayed within research, documentation, and safety-intake scope.
+- No input listener, DirectInput, Raw Input, HID reader, P-HPR abstraction, mock output, protocol encoder/decoder, protocol hypothesis code, or capture analysis code was implemented.
+- No real USB writes, output reports, write-capable feature reports, real P-HPR vibration commands, SimPro control, firmware work, driver replacement, or hardware loops were implemented or executed.
+- P-HPR remains documented as a separate non-audio actuator path, not an ASIO or `IAudioOutputDevice` path.
+- The default future P-HPR gear-pulse mode is documented as `InstantPaddleOnly`, gated by cached `DrivingArmed`, with no telemetry wait and no default second confirmation pulse.
+- Required user data is now explicitly requested and documented.
+- Raw capture and private hardware inventory files are ignored by default.

@@ -21,6 +21,19 @@ logs/
 recordings/
 *.log
 
+# Local/private Simagic research artifacts
+captures/
+usb-captures/
+private-captures/
+local-device-inventory/
+*.pcap
+*.pcapng
+*.etl
+*.usbtrace
+*.usbpcap
+simagic-device-inventory*.json
+simagic-usb-inventory*.json
+
 # OS files
 Thumbs.db
 Desktop.ini
