@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling for later Stage 2I analysis. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
 
 ## Current Repository Baseline
 
@@ -15,6 +15,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 2E now defines read-only paddle listener diagnostics, manual left/right mapping, rising-edge/debounce processing, and safe mapping persistence.
 - Stage 2F now defines `ShiftIntentProcessor`, `ShiftIntentMode`, `ShiftIntentDirection`, `ShiftIntentSource`, accepted/suppressed shift-intent diagnostics, safe in-memory accepted-event storage, and WPF diagnostics/settings for shift intent enabled state and mode.
 - Stage 2G now defines `HapticDrive.Simagic.PHPR.Research` for read-only P700 / P-HPR inventory, sanitized local JSON/Markdown exports, redaction, candidate classification, and hardware-free tests.
+- Stage 2H now extends `HapticDrive.Simagic.PHPR.Research` with capture scenario definitions, metadata templates, filename building, validation, sanitization, sanitized manifest export, CLI commands, and hardware-free tests.
 
 ## User Hardware Context
 
@@ -286,11 +287,43 @@ Not implemented in Stage 2G:
 - No `PHprCommand` creation.
 - No output reports, feature writes, HID writes, driver changes, SimPro/SimHub control, or controlled write testing.
 
+## Stage 2H Scope
+
+Implemented in Stage 2H:
+
+- Safe capture workflow documentation in `docs/SIMAGIC_CAPTURE_GUIDE.md`.
+- Required scenario list for SimPro and SimHub P700 / P-HPR captures.
+- `SimagicCaptureScenario` and `SimagicCaptureScenarioId`.
+- `SimagicCaptureMetadata`, software/device/action contexts, and setting snapshots.
+- `SimagicCaptureFilenameBuilder` using the Stage 2H naming convention.
+- `SimagicCaptureMetadataValidator` with required-field checks, scenario-specific setting warnings, private-path warnings, and redaction warnings.
+- `SimagicCaptureSanitizer` for serial-like strings, Windows user paths, raw capture paths, and pasted raw-transfer byte snippets.
+- `SimagicCaptureManifest` and `SimagicCaptureManifestExporter` for sanitized metadata-only manifests.
+- CLI commands for `capture-scenarios`, `capture-template`, `validate-capture-metadata`, and `capture-manifest`.
+- Ignored `capture-metadata/` output path.
+- Hardware-free tests for scenarios, templates, filenames, validation, sanitization, manifest export, and CLI help.
+
+Not implemented in Stage 2H:
+
+- No `.pcap` or `.pcapng` parsing.
+- No USB transfer analysis.
+- No protocol byte inference.
+- No report ID, checksum, field, endpoint, or command classification.
+- No protocol hypotheses.
+- No mock protocol or mock P-HPR output.
+- No mock gear-pulse routing.
+- No real P-HPR output.
+- No `IPHprOutputDevice` or `MockPhprOutputDevice` calls.
+- No `PHprCommand` creation.
+- No output reports, feature reports, HID writes, driver changes, SimPro/SimHub control, or controlled write testing.
+
+Real captures remain pending user collection before Stage 2I unless the user provides actual captures or sanitized transfer summaries.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
 
-The highest-value first items after Stage 2G are:
+The highest-value first items after Stage 2H are:
 
 1. Stage 2G sanitized inventory output from the `inventory` command with the real P700 / Alpha Evo / GT Neo hardware connected.
 2. Device Manager hardware IDs for the P700 and Alpha Evo / GT Neo-visible devices.
@@ -301,7 +334,7 @@ The highest-value first items after Stage 2G are:
 7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
-USBPcap/Wireshark captures are useful later, but they are not required before the Stage 2B abstraction work.
+USBPcap/Wireshark captures are now the next major input for Stage 2I analysis, but Stage 2H itself can complete without them.
 
 ## Write Safety Gate
 

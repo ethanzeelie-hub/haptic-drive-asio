@@ -985,3 +985,55 @@ Self-review:
 - Raw/private inventory files are ignored, and no raw device paths, serial numbers, USB captures, screenshots, or private hardware inventories were committed.
 - P-HPR module visibility is documented as unknown and may be exposed only through the P700 controller.
 - Stage 2H is next for capture workflow and metadata tooling; Stage 2G stops here.
+
+## Stage 2H - Capture Workflow and Metadata Tooling
+
+Date: 2026-06-05
+
+Status: Complete.
+
+Goal: Implement capture workflow and metadata tooling for future Simagic P700 / P-HPR USB protocol research without analyzing captures, generating protocol hypotheses, routing haptics, or sending any USB writes.
+
+Notes:
+
+- Parsed the Stage 2H brief and kept scope to workflow documentation, metadata models, validation, sanitization, templates, and manifests only.
+- Extended `HapticDrive.Simagic.PHPR.Research` with `SimagicCaptureScenario`, `SimagicCaptureScenarioId`, required scenario definitions, target module enum, metadata records, software/device/action contexts, and setting snapshots.
+- Added `SimagicCaptureFilenameBuilder` for the `YYYY-MM-DD_HHMMSS_<software>_<device>_<scenario>_<target>_<settings>.pcapng` convention with unsafe-character and serial-like text sanitization.
+- Added `SimagicCaptureTemplateFactory` for synthetic metadata templates.
+- Added `SimagicCaptureMetadataValidator` for required-field errors, scenario-specific strength/frequency/duration warnings, private/gitignored raw-capture path warnings, and redaction warnings.
+- Added `SimagicCaptureSanitizer` to redact serial-like strings, Windows user paths, raw capture paths, and pasted raw-transfer byte snippets while preserving useful scenario/settings metadata.
+- Added `SimagicCaptureManifest` and `SimagicCaptureManifestExporter` for sanitized metadata-only manifests that exclude raw capture bytes/content.
+- Refactored the research console entry point into `SimagicResearchCli` and preserved the Stage 2G `inventory` command.
+- Added safe Stage 2H commands: `capture-scenarios`, `capture-template`, `validate-capture-metadata`, and `capture-manifest`.
+- Added `capture-metadata/` to `.gitignore`.
+- Added hardware-free tests for the required scenarios, template creation, filename sanitization, validator acceptance/warnings, private path warnings, sanitization, manifest export, CLI help, and assembly reference boundaries.
+- Updated `docs/SIMAGIC_CAPTURE_GUIDE.md` with the full capture workflow, scenario table, metadata fields, private storage rules, command examples, troubleshooting, and Stage 2I handoff.
+- Updated README, architecture, roadmap, known issues, Simagic research, user-data request, USB inventory, safety plan, wheel-input research, and shift-intent design docs.
+- Real USB captures are not present in the repository and remain pending user collection before Stage 2I analysis.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed. NuGet emitted `NU1900` because restricted network access prevented vulnerability-feed metadata from loading.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 errors. The same `NU1900` warning was reported from restored package assets.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 306 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed. The formatter reported generic workspace-load warnings only.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- capture-scenarios` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- capture-template --scenario BrakeTestVibration --target Brake` passed and wrote a generated template under ignored `capture-metadata/generated/`.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- validate-capture-metadata capture-metadata\generated\braketestvibration-brake-metadata-template.json` passed with 0 errors and expected template-completion warnings.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- capture-manifest capture-metadata\generated` passed and wrote a sanitized manifest under ignored `capture-metadata/generated/`.
+
+Self-review:
+
+- Stage 2H stayed within capture workflow and metadata tooling only.
+- No `.pcap` or `.pcapng` parser, USB transfer analysis, protocol byte inference, report ID inference, checksum inference, command classification, protocol hypothesis, decoder, encoder, or mock protocol was implemented.
+- No real P-HPR USB writes, HID writes, output reports, feature reports, vibration commands, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- No haptic routing was added from paddle input or `ShiftIntentEvent` values.
+- `MockPhprOutputDevice` is not called.
+- `IPHprOutputDevice` is not called.
+- `PHprCommand` is not created.
+- The research project still does not reference the P-HPR output abstraction project, `HapticDrive.Asio.Audio`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, ASIO output, or the ASIO/BST-1 audio path.
+- No raw/private captures, USB captures, serial numbers, screenshots, or unsanitized hardware data were committed.
+- Capture workflow and metadata tooling are complete. Real USB captures are pending user collection before Stage 2I analysis.
+- Stage 2I Capture Analysis Framework is next; Stage 2H stops here.

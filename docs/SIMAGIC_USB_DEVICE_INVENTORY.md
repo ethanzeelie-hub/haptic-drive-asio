@@ -145,10 +145,11 @@ OPTIONAL USER INPUT REQUESTED - Stage 2G can proceed tooling-only, but these ite
 
 Do not commit raw USBView exports, screenshots containing private serial numbers, raw USB captures, private device paths, or unsanitized hardware data.
 
-## Next-Stage Dependency
+## Stage 2H Follow-Up
 
-- Stage 2H Capture Workflow and Metadata Tooling can proceed with Stage 2G tooling even if real inventory remains pending.
+- Stage 2H Capture Workflow and Metadata Tooling is complete and can be used even if real inventory remains pending.
+- Use `docs/SIMAGIC_CAPTURE_GUIDE.md` for the USBPcap/Wireshark workflow, scenario list, naming convention, metadata templates, validation, and sanitized manifests.
 - Stage 2I Capture Analysis depends on correct device/interface identification before real capture summaries are treated as authoritative.
 - Stage 2J Protocol Hypotheses must not be written as facts without captures.
 
-Stage 2G stops here. It does not continue to Stage 2H.
+Stage 2G stops at inventory. Stage 2H stops at capture workflow and metadata tooling. Stage 2I is next for capture analysis.

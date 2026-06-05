@@ -29,6 +29,7 @@
 - Stage 2E: Raw paddle input listener and mapping complete.
 - Stage 2F: Shift intent event layer complete.
 - Stage 2G: Read-only P700 / P-HPR device inventory complete.
+- Stage 2H: Capture workflow and metadata tooling complete.
 
 ## Planned Stages
 
@@ -64,8 +65,8 @@ Phase 2 safe sequence:
 5. Stage 2E: Raw paddle input listener and mapping. Complete.
 6. Stage 2F: Shift intent event layer. Complete.
 7. Stage 2G: Read-only P700 / P-HPR device inventory. Complete.
-8. Stage 2H: Capture workflow and metadata tooling. Next.
-9. Stage 2I: Capture analysis framework.
+8. Stage 2H: Capture workflow and metadata tooling. Complete.
+9. Stage 2I: Capture analysis framework. Next.
 10. Stage 2J: P-HPR protocol hypotheses.
 11. Stage 2K: Mock P-HPR protocol and output.
 12. Stage 2L: P-HPR safety layer.
@@ -99,3 +100,4 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - Stage 2E adds read-only Windows game-controller paddle listening, manual left/right mapping, rising-edge/debounce diagnostics, and safe mapping persistence only; it does not raise `ShiftIntentEvent` from hardware input, route haptics, or implement P-HPR output.
 - Stage 2F adds mapped paddle to `ShiftIntentEvent` evaluation, cached `DrivingArmed` gating, safe diagnostics, and safe enabled/mode persistence only; it does not call P-HPR output, create `PHprCommand`, route mock gear pulses, trigger ASIO gear effects, or implement P700/P-HPR discovery.
 - Stage 2G adds read-only P700 / P-HPR inventory tooling, sanitized local exports, registry/input-discovery metadata collection, and candidate classification only; it does not capture USB traffic, analyze captures, hypothesize protocols, call P-HPR output, create `PHprCommand`, or route haptics.
+- Stage 2H adds capture workflow documentation, scenario definitions, metadata templates, filename building, validation, sanitization, sanitized manifest export, and CLI commands only; it does not parse `.pcap/.pcapng`, analyze USB transfers, hypothesize protocols, call P-HPR output, create `PHprCommand`, send USB writes, or route haptics.

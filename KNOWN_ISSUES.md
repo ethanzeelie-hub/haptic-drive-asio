@@ -234,8 +234,18 @@
 - The local Stage 2G inventory run found no Simagic-specific P700, P-HPR, Alpha Evo, or GT Neo candidates; no validated VID/PID, endpoint, report length, or P-HPR visibility claim is made.
 - P-HPR modules may not appear as separate USB/HID devices and may be visible only through the P700 pedal controller.
 - Registry, Raw Input, and Windows game-controller metadata can be incomplete, stale, or non-authoritative; candidate scoring is a research hint only.
-- No USB capture workflow exists yet; that is Stage 2H.
+- USB capture workflow and metadata tooling exists in Stage 2H, but no capture analysis exists yet.
 - No capture analysis exists yet; that is Stage 2I.
 - No protocol hypotheses exist yet; that is Stage 2J.
 - No mock P-HPR gear-pulse routing exists yet.
 - No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.
+
+## Stage 2H
+
+- Capture workflow documentation, scenario definitions, metadata template generation, filename building, metadata validation, sanitization, and sanitized manifest export are implemented, but no USB capture analysis exists yet.
+- Real USB captures may still be pending user collection. Stage 2I requires actual captures or sanitized transfer summaries before real analysis claims can be made.
+- The Stage 2H manifest intentionally contains sanitized metadata only and excludes raw capture bytes/content.
+- No protocol hypotheses exist yet; that is Stage 2J.
+- No mock P-HPR protocol or output exists yet; that is Stage 2K.
+- No mock P-HPR gear-pulse routing exists yet.
+- No real P-HPR output, USB output report, feature report, vibration command, HID write, controlled write testing, SimPro control, or SimHub integration is implemented.

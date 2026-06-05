@@ -26,6 +26,7 @@ captures/
 usb-captures/
 private-captures/
 local-device-inventory/
+capture-metadata/
 *.pcap
 *.pcapng
 *.etl

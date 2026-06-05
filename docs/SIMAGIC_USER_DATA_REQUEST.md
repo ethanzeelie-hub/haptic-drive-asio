@@ -4,7 +4,9 @@ Stage 2A requests this data so Phase 2 can proceed from observed hardware behavi
 
 Do not post public files that contain serial numbers, usernames, or private paths. Raw captures should stay local and uncommitted unless a sanitized summary is created.
 
-Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F adds cached `DrivingArmed` shift-intent evaluation diagnostics only. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized local exports. The exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
+Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F adds cached `DrivingArmed` shift-intent evaluation diagnostics only. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized local exports. Stage 2H adds capture workflow and metadata tooling for later Stage 2I analysis. The exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
+
+Stage 2H can complete without captures. Stage 2I capture analysis will require either actual captures or sanitized transfer summaries.
 
 ## Priority 0 - Stage 2G Haptic Drive Inventory Tool
 
@@ -141,11 +143,27 @@ After pressing Refresh Input Devices, selecting the likely Alpha Evo / GT Neo Wi
 
 Stage 2E paddle listening is read-only diagnostics only. Stage 2F evaluates mapped paddle presses into accepted/suppressed shift-intent diagnostics, but it still does not trigger audio haptics, P-HPR output, gear pulses, USB output reports, feature reports, `MockPhprOutputDevice`, or `PHprCommand`.
 
-## Later - USBPcap/Wireshark Captures
+## Priority 6 - Stage 2H Capture Metadata Tooling
 
-These are later protocol-research inputs, not Stage 2A blockers.
+Before collecting captures, list the required scenarios:
 
-Capture scenarios requested later:
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- capture-scenarios
+```
+
+Create one metadata template per planned capture:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- capture-template --scenario BrakeTestVibration --target Brake
+```
+
+Generated templates are written under ignored `capture-metadata/generated/` by default. For real capture work, keep unsanitized metadata under ignored `capture-metadata/private/` until reviewed.
+
+## Priority 7 - USBPcap/Wireshark Captures
+
+These are Stage 2I protocol-research inputs, not Stage 2H blockers.
+
+Capture scenarios requested before Stage 2I:
 
 - SimPro opened with pedals connected.
 - SimPro closed.
@@ -158,5 +176,28 @@ Capture scenarios requested later:
 - Brake pulse duration changed only.
 - Throttle pulse duration changed only.
 - SimHub P-HPR gear/lock/slip test where possible.
+
+For every capture, record:
+
+- capture filename,
+- capture date/time,
+- software used,
+- software version,
+- SimPro Manager version,
+- SimHub version if used,
+- P700 firmware version if known,
+- P-HPR module targeted,
+- exact action performed,
+- setting before,
+- setting after,
+- strength,
+- frequency,
+- duration,
+- whether brake/throttle/both vibrated,
+- whether SimPro Manager was open,
+- whether SimHub was open,
+- whether Haptic Drive ASIO was open,
+- observed behavior,
+- whether serial numbers/private paths were redacted.
 
 Raw `.pcap`, `.pcapng`, USB trace, and private inventory files must not be committed. Use `docs/SIMAGIC_CAPTURE_GUIDE.md` for naming and metadata.

@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2G includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, and read-only P700 / P-HPR inventory tooling, but no P-HPR output implementation or routing exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2H includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, and capture metadata workflow tooling, but no P-HPR output implementation or routing exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -190,6 +190,38 @@ The CLI command is:
 By default it writes sanitized JSON and Markdown summaries to ignored `local-device-inventory/`. The exports preserve VID/PID and non-sensitive class/manufacturer/product data while redacting serial-like path segments and Windows usernames.
 
 Stage 2G does not reference `HapticDrive.Simagic.PHPR.Abstractions`, `IPHprOutputDevice`, `MockPhprOutputDevice`, `PHprCommand`, `HapticDrive.Asio.Audio`, or the ASIO/BST-1 output path. The local Stage 2G run found zero Simagic-specific P700/P-HPR/Alpha/GT Neo candidates, so real hardware inventory remains awaiting user-provided Device Manager / USBView / tool output.
+
+## Stage 2H Capture Workflow And Metadata Tooling
+
+Stage 2H extends `HapticDrive.Simagic.PHPR.Research` with capture workflow and metadata tooling only.
+
+The project owns:
+
+- `SimagicCaptureScenario`
+- `SimagicCaptureScenarioId`
+- `SimagicCaptureMetadata`
+- `SimagicCaptureSoftwareContext`
+- `SimagicCaptureDeviceContext`
+- `SimagicCaptureActionContext`
+- `SimagicCaptureSettingSnapshot`
+- `SimagicCaptureMetadataValidator`
+- `SimagicCaptureFilenameBuilder`
+- `SimagicCaptureSanitizer`
+- `SimagicCaptureManifest`
+- `SimagicCaptureManifestExporter`
+
+The CLI commands are:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- capture-scenarios
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- capture-template --scenario BrakeTestVibration --target Brake
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- validate-capture-metadata <path>
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- capture-manifest <metadata-folder>
+```
+
+Default generated metadata output goes under ignored `capture-metadata/generated/`. Raw captures remain under private ignored paths such as `captures/private/simagic/`.
+
+Stage 2H does not parse `.pcap` or `.pcapng` files, inspect USB transfer bytes, infer report IDs, infer checksums, generate protocol hypotheses, create encoders/decoders, call `IPHprOutputDevice`, call `MockPhprOutputDevice`, create `PHprCommand`, send USB writes, send HID output reports, send HID feature reports, control SimPro Manager, control SimHub, or touch the ASIO/BST-1 output path.
 
 ## Early Development Rule
 
