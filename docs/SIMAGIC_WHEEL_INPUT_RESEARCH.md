@@ -1,6 +1,6 @@
 # Simagic Wheel Input Research
 
-Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state.
+Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling that also helps correlate the Alpha Evo / GT Neo / P700 device identities before later capture work.
 
 ## Goal
 
@@ -88,6 +88,18 @@ Stage 2F adds the event layer after the read-only listener:
 - Suppressed diagnostics preserve the `DrivingArmed` reason when the cached gate is false.
 
 Stage 2F does not call `MockPhprOutputDevice`, `IPHprOutputDevice`, `PHprCommand`, `GearShiftEffect`, ASIO output, or the audio mixer.
+
+## Stage 2G Implemented P700 / P-HPR Inventory
+
+Stage 2G adds `HapticDrive.Simagic.PHPR.Research` for safe inventory:
+
+- existing Stage 2D input discovery metadata,
+- Windows HID registry metadata,
+- Windows USB registry metadata,
+- sanitized JSON/Markdown export,
+- candidate scoring for P700, P-HPR module/controller, Alpha Evo, GT Neo, Simagic unknown, generic HID, and generic USB input.
+
+The local Stage 2G run found no Simagic-specific P700/P-HPR/Alpha/GT Neo candidates, so the real hardware identity and P-HPR visibility remain awaiting user-provided Device Manager / USBView / tool output. P-HPR modules may appear only through the P700 pedal controller rather than as separate devices.
 
 ## Planned Diagnostics
 

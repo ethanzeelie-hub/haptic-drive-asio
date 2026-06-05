@@ -4,7 +4,22 @@ Stage 2A requests this data so Phase 2 can proceed from observed hardware behavi
 
 Do not post public files that contain serial numbers, usernames, or private paths. Raw captures should stay local and uncommitted unless a sanitized summary is created.
 
-Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F adds cached `DrivingArmed` shift-intent evaluation diagnostics only. The exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
+Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F adds cached `DrivingArmed` shift-intent evaluation diagnostics only. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized local exports. The exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
+
+## Priority 0 - Stage 2G Haptic Drive Inventory Tool
+
+With the P700 pedals, P-HPR modules, Alpha Evo wheelbase, and GT Neo connected, run:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- inventory
+```
+
+The tool prints a read-only safety banner and writes sanitized files under ignored `local-device-inventory/`:
+
+- `simagic-device-inventory-sanitized.json`
+- `simagic-device-inventory-summary.md`
+
+Please provide the sanitized summary or relevant sanitized fields only. Do not commit or share raw private device paths, serial numbers, or unsanitized USBView exports. If the tool reports no Simagic-specific candidates, that is still useful because it may mean the P-HPR modules are visible only through the P700 controller or that Windows exposes them under generic HID/USB names.
 
 ## Priority 1 - SimPro Manager V3 Screenshots
 
@@ -103,6 +118,8 @@ After pressing Refresh Input Devices in Haptic Drive ASIO, please capture or cop
 - and the Windows game-controller button numbers for left and right paddles if visible.
 
 Stage 2D discovery is read-only. It does not send commands or vibrate P-HPR modules.
+
+Stage 2G inventory is also read-only. It reads existing input-discovery metadata plus Windows PnP/HID/USB registry metadata and does not open device handles, send output reports, request feature writes, vibrate P-HPR modules, control SimPro Manager, or control SimHub.
 
 ## Stage 2E / 2F Paddle Mapping Follow-Up
 

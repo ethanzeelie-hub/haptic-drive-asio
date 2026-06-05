@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2F includes read-only paddle input diagnostics plus a cached `DrivingArmed` shift-intent event layer, but no P-HPR output implementation or routing exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2G includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, and read-only P700 / P-HPR inventory tooling, but no P-HPR output implementation or routing exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -156,6 +156,40 @@ The default mode is `InstantPaddleOnly`. It accepts mapped left/right paddle pre
 The WPF Devices and Diagnostics pages show shift-intent enabled state, mode, cached `DrivingArmed` state/reason, telemetry age, menu-safe/recent-telemetry settings, last paddle side, last direction, accepted/suppressed counters, last accepted event, last suppression reason, last known telemetry gear/speed/RPM/frame, pending confirmations, and errors. App settings persist only shift-intent enabled state and mode.
 
 Stage 2F does not call `IPHprOutputDevice`, `MockPhprOutputDevice`, `PHprCommand`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, `AsioAudioOutputDevice`, or any USB write path. Stage 2M will later route accepted shift intents to mock P-HPR gear pulses.
+
+## Stage 2G Read-Only P700 / P-HPR Inventory
+
+Stage 2G adds `HapticDrive.Simagic.PHPR.Research` as a console/reusable research utility for inventory only.
+
+The project owns:
+
+- `SimagicDeviceInventorySnapshot`
+- `SimagicDeviceInventoryItem`
+- `SimagicDeviceCandidateKind`
+- `SimagicDeviceInventoryMethod`
+- `SimagicDeviceInventoryError`
+- `SimagicDeviceInventoryExport`
+- `SimagicDeviceInventorySanitizer`
+- `ISimagicDeviceInventoryProvider`
+- `ISimagicDeviceInventoryExporter`
+
+The default provider composes three read-only sources:
+
+- existing Stage 2D input discovery metadata,
+- Windows HID registry metadata under `HKLM\SYSTEM\CurrentControlSet\Enum\HID`,
+- and Windows USB registry metadata under `HKLM\SYSTEM\CurrentControlSet\Enum\USB`.
+
+The registry source reads only installed PnP metadata such as display name, manufacturer, service, class, class GUID, driver provider/version where available, VID/PID, MI/interface number, and collection number. It does not open HID device handles, send output reports, request feature reports, claim interfaces, install drivers, or take control from SimPro Manager or SimHub.
+
+The CLI command is:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- inventory
+```
+
+By default it writes sanitized JSON and Markdown summaries to ignored `local-device-inventory/`. The exports preserve VID/PID and non-sensitive class/manufacturer/product data while redacting serial-like path segments and Windows usernames.
+
+Stage 2G does not reference `HapticDrive.Simagic.PHPR.Abstractions`, `IPHprOutputDevice`, `MockPhprOutputDevice`, `PHprCommand`, `HapticDrive.Asio.Audio`, or the ASIO/BST-1 output path. The local Stage 2G run found zero Simagic-specific P700/P-HPR/Alpha/GT Neo candidates, so real hardware inventory remains awaiting user-provided Device Manager / USBView / tool output.
 
 ## Early Development Rule
 

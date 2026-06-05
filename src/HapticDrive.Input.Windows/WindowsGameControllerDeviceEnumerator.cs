@@ -93,10 +93,10 @@ public sealed class WindowsGameControllerDeviceEnumerator : IWindowsInputDeviceE
         return controls;
     }
 
-    [DllImport("winmm.dll")]
+    [DllImport("winmm.dll", EntryPoint = "joyGetNumDevs")]
     private static extern uint JoyGetNumDevs();
 
-    [DllImport("winmm.dll", CharSet = CharSet.Unicode)]
+    [DllImport("winmm.dll", EntryPoint = "joyGetDevCapsW", CharSet = CharSet.Unicode)]
     private static extern uint JoyGetDevCaps(uint joystickId, ref JoyCaps caps, uint capsSize);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

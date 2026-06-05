@@ -221,10 +221,21 @@
 ## Stage 2F
 
 - The Shift Intent Event Layer exists and can accept or suppress mapped paddle intent through cached `DrivingArmed` state, but no P-HPR routing exists yet.
-- No P700/P-HPR USB inventory exists yet; that is Stage 2G.
 - No P-HPR protocol discovery or capture analysis exists yet.
 - No mock P-HPR gear-pulse routing exists yet; `MockPhprOutputDevice` is not called by Stage 2F.
 - No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.
 - No rejected-shift feedback output exists yet. `InstantWithRejectedShiftFeedback` records pending confirmation diagnostics only.
 - No haptic output is triggered from paddles. Stage 2F does not call `GearShiftEffect`, ASIO output, the audio mixer, P-HPR output, or `PHprCommand`.
 - `DrivingArmed` menu-safe gating may need refinement after live F1 25 menu, pause, garage, pit-lane, and start-line observations.
+
+## Stage 2G
+
+- Read-only P700 / P-HPR inventory tooling exists, but real P700/P-HPR hardware identity is still awaiting user-provided Device Manager, USBView, or tool output.
+- The local Stage 2G inventory run found no Simagic-specific P700, P-HPR, Alpha Evo, or GT Neo candidates; no validated VID/PID, endpoint, report length, or P-HPR visibility claim is made.
+- P-HPR modules may not appear as separate USB/HID devices and may be visible only through the P700 pedal controller.
+- Registry, Raw Input, and Windows game-controller metadata can be incomplete, stale, or non-authoritative; candidate scoring is a research hint only.
+- No USB capture workflow exists yet; that is Stage 2H.
+- No capture analysis exists yet; that is Stage 2I.
+- No protocol hypotheses exist yet; that is Stage 2J.
+- No mock P-HPR gear-pulse routing exists yet.
+- No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.

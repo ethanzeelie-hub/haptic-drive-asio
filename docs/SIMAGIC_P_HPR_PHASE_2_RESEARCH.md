@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
 
 ## Current Repository Baseline
 
@@ -14,6 +14,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 2D now defines richer input discovery snapshots and implements read-only Windows Raw Input plus Windows game-controller capability discovery.
 - Stage 2E now defines read-only paddle listener diagnostics, manual left/right mapping, rising-edge/debounce processing, and safe mapping persistence.
 - Stage 2F now defines `ShiftIntentProcessor`, `ShiftIntentMode`, `ShiftIntentDirection`, `ShiftIntentSource`, accepted/suppressed shift-intent diagnostics, safe in-memory accepted-event storage, and WPF diagnostics/settings for shift intent enabled state and mode.
+- Stage 2G now defines `HapticDrive.Simagic.PHPR.Research` for read-only P700 / P-HPR inventory, sanitized local JSON/Markdown exports, redaction, candidate classification, and hardware-free tests.
 
 ## User Hardware Context
 
@@ -250,19 +251,55 @@ Not implemented in Stage 2F:
 - No rejected-shift feedback output.
 - No telemetry wait, disk IO, network IO, or audio rendering work in the paddle event path.
 
+## Stage 2G Scope
+
+Implemented in Stage 2G:
+
+- `HapticDrive.Simagic.PHPR.Research` console/reusable research utility.
+- `SimagicDeviceInventorySnapshot`, `SimagicDeviceInventoryItem`, inventory method/error/export models, candidate kinds, sanitizer, provider, exporter, and summary formatter.
+- Reuse of existing Stage 2D read-only input discovery metadata.
+- Read-only Windows HID registry metadata enumeration.
+- Read-only Windows USB registry metadata enumeration.
+- Candidate classification for P700 pedal controller, P-HPR module/controller, Alpha Evo wheelbase, GT Neo wheel input, Simagic unknown, generic HID, and generic USB input.
+- Redaction of serial-like path segments and Windows usernames while preserving VID/PID and useful non-sensitive class/manufacturer/product data.
+- Sanitized JSON and Markdown export support under ignored `local-device-inventory/`.
+- Console safety banner and help/inventory commands.
+- A read-only winmm entry-point fix for the existing Windows game-controller discovery/listener path.
+- Hardware-free tests for model construction, empty snapshots, classification, redaction, sanitized export, provider failure capture, interface no-write surface, assembly reference boundaries, JSON round-trip, and summary formatting.
+
+Local Stage 2G inventory result:
+
+- Total local inventory items observed by the tool: 168.
+- Generic HID/USB candidates: 166.
+- Specific Simagic P700/P-HPR/Alpha/GT Neo candidates: 0.
+- Discovery errors after the winmm entry-point fix: 0.
+- Real P700/P-HPR inventory is still awaiting user-provided Device Manager / USBView / tool output.
+
+Not implemented in Stage 2G:
+
+- No USB capture workflow.
+- No capture analysis.
+- No protocol hypotheses.
+- No mock P-HPR gear-pulse routing.
+- No real P-HPR output.
+- No `IPHprOutputDevice` or `MockPhprOutputDevice` calls.
+- No `PHprCommand` creation.
+- No output reports, feature writes, HID writes, driver changes, SimPro/SimHub control, or controlled write testing.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
 
-The highest-value first items after Stage 2F are:
+The highest-value first items after Stage 2G are:
 
-1. SimPro Manager V3 P700/P-HPR screenshots.
-2. SimHub P-HPR detection and mapping screenshots.
-3. Windows Device Manager hardware IDs for the P700 and Alpha Evo / GT Neo-visible devices.
-4. USBView or USB Device Tree Viewer exports for descriptors and HID report descriptors.
-5. Windows game controller / DirectInput button numbers for the GT Neo left and right paddles.
-6. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
-7. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
+1. Stage 2G sanitized inventory output from the `inventory` command with the real P700 / Alpha Evo / GT Neo hardware connected.
+2. Device Manager hardware IDs for the P700 and Alpha Evo / GT Neo-visible devices.
+3. USBView or USB Device Tree Viewer exports for descriptors and HID report descriptors.
+4. SimPro Manager V3 P700/P-HPR screenshots.
+5. SimHub P-HPR detection and mapping screenshots.
+6. Windows game controller / DirectInput button numbers for the GT Neo left and right paddles.
+7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
+8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
 USBPcap/Wireshark captures are useful later, but they are not required before the Stage 2B abstraction work.
 

@@ -935,3 +935,53 @@ Self-review:
 - The paddle hot path reads cached `DrivingArmed` state only and does not wait for telemetry, perform disk IO, perform network IO, or touch audio rendering.
 - `InstantPaddleOnly` is confirmed as the default mode, with no default second confirmation event.
 - Stage 2G is next for read-only P700 / P-HPR device inventory.
+
+## Stage 2G - Read-Only P700 / P-HPR Device Inventory
+
+Date: 2026-06-05
+
+Status: Complete.
+
+Goal: Implement read-only Simagic P700 / P-HPR device inventory tooling and documentation without adding USB captures, protocol hypotheses, output routing, or any P-HPR writes.
+
+Notes:
+
+- Added `HapticDrive.Simagic.PHPR.Research` as a console/reusable research utility.
+- Added inventory models and services: `SimagicDeviceInventorySnapshot`, `SimagicDeviceInventoryItem`, `SimagicDeviceCandidateKind`, `SimagicDeviceInventoryMethod`, `SimagicDeviceInventoryError`, `SimagicDeviceInventoryExport`, `SimagicDeviceInventorySanitizer`, `ISimagicDeviceInventoryProvider`, and `ISimagicDeviceInventoryExporter`.
+- The default provider reuses Stage 2D read-only input discovery and adds read-only Windows HID/USB registry metadata inventory.
+- Inventory captures safe metadata where available: display/manufacturer/product strings, service/driver/class data, VID/PID, MI/interface number, collection number, HID usage metadata from existing input discovery, report length placeholders, endpoint-summary placeholders, safe instance/path text, candidate kind/score/reason, method, status, error message, and timestamp.
+- Added candidate classification for P700 pedal controller, P-HPR module/controller, Alpha Evo wheelbase, GT Neo wheel input, Simagic unknown, generic HID, generic USB input, and unknown.
+- Added redaction for serial-like path segments and Windows usernames while preserving VID/PID and non-sensitive matching details.
+- Added sanitized JSON and Markdown export support under ignored `local-device-inventory/`.
+- Added a CLI safety banner, help command, inventory command, console summary, and safe no-hardware behavior.
+- Fixed the existing read-only winmm game-controller P/Invoke entry-point casing so Stage 2D/2G Windows game-controller discovery degrades normally instead of reporting a missing entry point.
+- Added `HapticDrive.Simagic.PHPR.Research.Tests` with hardware-free tests for model construction, empty snapshots, synthetic P700/Simagic/Alpha/GT Neo/generic HID classification, redaction, sanitized export, provider failure capture, inventory interface no-write surface, no P-HPR output/audio project references, JSON round-trip, and summary formatting.
+- Created `docs/SIMAGIC_USB_DEVICE_INVENTORY.md`.
+- Updated README, architecture, roadmap, known issues, Simagic research, user-data request, safety plan, and wheel-input research docs for Stage 2G.
+- Local read-only inventory observed 168 total inventory items, 166 generic HID/USB candidates, 0 Simagic-specific P700/P-HPR/Alpha/GT Neo candidates, 0 P700 candidates, 0 P-HPR module/controller candidates, and 0 discovery errors.
+- Real P700/P-HPR hardware identity, VID/PID, report lengths, endpoints, and P-HPR visibility remain awaiting user-provided Device Manager / USBView / sanitized tool output.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed. NuGet emitted `NU1900` because restricted network access prevented vulnerability-feed metadata from loading.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 errors. The same `NU1900` warning was reported from restored package assets.
+- First `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` run had one timing-sensitive pre-existing audio streaming assertion failure while the new Stage 2G tests passed.
+- Immediate rerun of `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 246 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed. The formatter reported generic workspace-load warnings only.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- inventory` passed and wrote sanitized exports to ignored `local-device-inventory/`.
+
+Self-review:
+
+- Stage 2G stayed within read-only inventory scope.
+- No USB capture workflow, capture analysis, protocol hypothesis, mock gear-pulse routing, real P-HPR output, or controlled write testing was implemented.
+- No real USB writes, output reports, write-capable feature reports, vibration commands, device-handle write paths, SimPro/SimHub hooks, driver changes, firmware work, or unsafe libusb/WinUSB takeover were implemented or executed.
+- No haptic routing was added from `ShiftIntentEvent` values.
+- `MockPhprOutputDevice` is not called.
+- `IPHprOutputDevice` is not called.
+- `PHprCommand` is not created.
+- The new research project does not reference the P-HPR output abstraction project, `HapticDrive.Asio.Audio`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, ASIO output, or the ASIO/BST-1 audio path.
+- Raw/private inventory files are ignored, and no raw device paths, serial numbers, USB captures, screenshots, or private hardware inventories were committed.
+- P-HPR module visibility is documented as unknown and may be exposed only through the P700 controller.
+- Stage 2H is next for capture workflow and metadata tooling; Stage 2G stops here.

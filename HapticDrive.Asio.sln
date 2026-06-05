@@ -43,6 +43,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticDrive.Actuation", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticDrive.Actuation.Tests", "tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj", "{3137573D-E063-4E4C-A007-CB4C1CE4186A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticDrive.Simagic.PHPR.Research", "src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj", "{76B216FA-80A2-4EC9-B6B3-8F5CACD4D5F0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticDrive.Simagic.PHPR.Research.Tests", "tests\HapticDrive.Simagic.PHPR.Research.Tests\HapticDrive.Simagic.PHPR.Research.Tests.csproj", "{6B5A7DF2-F5BC-44E2-AE54-813FEBB15FDE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -124,6 +128,14 @@ Global
 		{3137573D-E063-4E4C-A007-CB4C1CE4186A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3137573D-E063-4E4C-A007-CB4C1CE4186A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3137573D-E063-4E4C-A007-CB4C1CE4186A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76B216FA-80A2-4EC9-B6B3-8F5CACD4D5F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76B216FA-80A2-4EC9-B6B3-8F5CACD4D5F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76B216FA-80A2-4EC9-B6B3-8F5CACD4D5F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76B216FA-80A2-4EC9-B6B3-8F5CACD4D5F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B5A7DF2-F5BC-44E2-AE54-813FEBB15FDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B5A7DF2-F5BC-44E2-AE54-813FEBB15FDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B5A7DF2-F5BC-44E2-AE54-813FEBB15FDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B5A7DF2-F5BC-44E2-AE54-813FEBB15FDE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A5DC7D1B-6AEC-409B-B323-1112CEC17707} = {28E7AAF1-13E9-4EF1-B4F7-2328274433B4}
@@ -144,5 +156,7 @@ Global
 		{8C1065F3-6DD5-4CAA-9A1C-73C657A98BBF} = {8D7BE964-9AEB-4415-A5E2-12A92974D96C}
 		{0488DD31-38D2-42A1-A52A-03462EFA0F48} = {28E7AAF1-13E9-4EF1-B4F7-2328274433B4}
 		{3137573D-E063-4E4C-A007-CB4C1CE4186A} = {8D7BE964-9AEB-4415-A5E2-12A92974D96C}
+		{76B216FA-80A2-4EC9-B6B3-8F5CACD4D5F0} = {28E7AAF1-13E9-4EF1-B4F7-2328274433B4}
+		{6B5A7DF2-F5BC-44E2-AE54-813FEBB15FDE} = {8D7BE964-9AEB-4415-A5E2-12A92974D96C}
 	EndGlobalSection
 EndGlobal

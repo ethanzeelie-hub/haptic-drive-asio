@@ -84,7 +84,7 @@ public sealed class WindowsGameControllerButtonStateReader : IInputButtonStateRe
         return ValueTask.FromResult(new InputButtonStateSnapshot(InputListenerStatus.Listening, buttons));
     }
 
-    [DllImport("winmm.dll")]
+    [DllImport("winmm.dll", EntryPoint = "joyGetPosEx")]
     private static extern uint JoyGetPosEx(uint joystickId, ref JoyInfoEx info);
 
     [StructLayout(LayoutKind.Sequential)]
