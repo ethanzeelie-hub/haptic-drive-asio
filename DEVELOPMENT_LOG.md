@@ -1086,3 +1086,77 @@ Self-review:
 - The research project still does not reference the P-HPR output abstraction project, `HapticDrive.Asio.Audio`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, ASIO output, or the ASIO/BST-1 audio path.
 - No raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, or generated analysis reports were committed.
 - Stage 2J P-HPR protocol hypotheses is next; Stage 2I stops here.
+
+## Stage 2J - P-HPR Protocol Hypotheses
+
+Date: 2026-06-07
+
+Status: Complete.
+
+Goal: Convert Stage 2I P-HPR evidence and related sanitized input-analysis outputs into formal, clearly labelled P-HPR protocol hypotheses without implementing real output, mock output integration, or any write path.
+
+Notes:
+
+- Created `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md` with the Stage 2J purpose, no-write safety boundary, evidence reviewed, confidence scale, confirmed non-output input mappings, SimHub F1 EC hypotheses, SimPro 80 1E 89 family hypothesis, unknowns, Stage 2K mock-only surface, real-write blockers, optional user data, and the explicit real-write non-authorization statement.
+- Added sanitized evidence notes under `docs/research/simagic/` for P700 pedal input, GT Neo paddle input, and P-HPR output capture observations.
+- Added analysis-only hypothesis models under `HapticDrive.Simagic.PHPR.Research.Hypotheses`.
+- Added built-in hypothesis records for:
+  - SimHub F1 EC active/start packet: `ReadyForMockProtocol`, high confidence, blocked for real writes.
+  - SimHub F1 EC stop/idle packet: `ReadyForMockProtocol`, high confidence, blocked for real writes.
+  - SimHub duration timing: app-side start plus scheduled stop, `ReadyForMockProtocol`, high confidence, blocked for real writes.
+  - SimPro 80 1E 89 family: separate family, `NeedsMoreCaptures`, conservative Low/Unknown field meanings, blocked for real writes.
+  - P700/GT Neo input-output separation: `EvidenceOnly`, confirmed observation, not an output command.
+  - Runtime identity: `EvidenceOnly`; capture USB addresses are session-only and runtime must use stable Windows identity/configured selection.
+- Added sanitized JSON/Markdown hypothesis export support and safe CLI commands:
+  - `hypotheses-list`
+  - `hypotheses-export --output <path>`
+- Updated README, architecture, roadmap, known issues, Simagic safety/research/user-data/capture/inventory/shift/wheel docs for Stage 2J completion and Stage 2K next.
+- Added hardware-free tests for hypothesis construction, SimHub field map, stop/duration timing, conservative SimPro status, input/output separation, no-write notes, real-write blocking, sanitized export, and CLI commands.
+
+Confidence levels:
+
+- Confirmed input mappings: `ConfirmedObservation`.
+- SimHub F1 EC active/stop/duration: `High` with specific byte observations marked `ConfirmedObservation` where appropriate.
+- SimHub module `00`: Low/uncertain exact meaning.
+- SimPro 80 1E 89 family prefix: `ConfirmedObservation`; SimPro field meanings remain Low/Unknown for Stage 2J.
+- Runtime identity rule: High.
+
+Stage 2K mock-only boundary:
+
+- Stage 2K may create mock protocol objects, mock SimHub F1 EC packet representations, mock-only `PHprCommand` mapping, and mock start plus scheduled stop timing.
+- Stage 2K may feed `MockPhprOutputDevice` in mock tests only.
+- Stage 2K must not write hardware, open Simagic write handles, send HID output reports, send feature reports, or trigger real P-HPR vibration.
+
+Real write blockers:
+
+- Exact approval phrase has not been provided.
+- No controlled write test plan has been executed.
+- No real hardware write safety validation exists.
+- Stop command behavior is not validated on real hardware.
+- SimPro/SimHub coexistence and device ownership are not validated.
+- Report ID, endpoint, interface, checksum/sequence/keepalive behavior, emergency stop path, and `PHprSafetyLimiter` remain required before any real write.
+- First real test must be manual, low strength, short duration, one pedal, and no loop.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed. NuGet emitted `NU1900` because restricted network access prevented vulnerability-feed metadata from loading.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 errors. The same `NU1900` warning was reported from restored package assets.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 290 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed. The formatter reported generic workspace-load warnings only.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- hypotheses-list` passed and reported 6 hypotheses, 3 unknowns, and 12 real-write blockers.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- hypotheses-export --output capture-metadata\generated\simagic-protocol-hypotheses.json` passed and wrote a sanitized ignored export.
+
+Self-review:
+
+- Stage 2J stayed within protocol hypotheses, documentation, sanitized export, and tests.
+- No production encoder, production decoder, live protocol adapter, or command-sending path was implemented.
+- No real P-HPR USB writes, HID output reports, feature reports, vibration commands, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- No haptic routing was added from paddle input or `ShiftIntentEvent` values.
+- `MockPhprOutputDevice` is not called by Stage 2J code.
+- `IPHprOutputDevice` is not called by Stage 2J code.
+- `PHprCommand` is not created by Stage 2J code.
+- The ASIO/BST-1 audio path was not changed.
+- No raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, or generated hypothesis exports were committed.
+- Stage 2K Mock P-HPR Protocol and Output is next; Stage 2J stops here.

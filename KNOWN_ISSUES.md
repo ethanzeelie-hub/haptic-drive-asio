@@ -221,7 +221,7 @@
 ## Stage 2F
 
 - The Shift Intent Event Layer exists and can accept or suppress mapped paddle intent through cached `DrivingArmed` state, but no P-HPR routing exists yet.
-- No P-HPR protocol hypothesis exists yet. Capture analysis tooling exists in Stage 2I.
+- P-HPR protocol hypotheses now exist in Stage 2J, but no production protocol or output route exists.
 - No mock P-HPR gear-pulse routing exists yet; `MockPhprOutputDevice` is not called by Stage 2F.
 - No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.
 - No rejected-shift feedback output exists yet. `InstantWithRejectedShiftFeedback` records pending confirmation diagnostics only.
@@ -235,7 +235,7 @@
 - P-HPR modules may not appear as separate USB/HID devices and may be visible only through the P700 pedal controller.
 - Registry, Raw Input, and Windows game-controller metadata can be incomplete, stale, or non-authoritative; candidate scoring is a research hint only.
 - USB capture workflow and metadata tooling exists in Stage 2H, and read-only capture analysis tooling exists in Stage 2I.
-- No protocol hypotheses exist yet; that is Stage 2J.
+- Protocol hypotheses now exist in Stage 2J, but no production protocol implementation exists.
 - No mock P-HPR gear-pulse routing exists yet.
 - No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.
 
@@ -244,7 +244,7 @@
 - Capture workflow documentation, scenario definitions, metadata template generation, filename building, metadata validation, sanitization, and sanitized manifest export are implemented. Stage 2I adds read-only capture analysis, but Stage 2H itself remains metadata-only.
 - Real raw USB captures remain private and uncommitted. Stage 2I can analyze actual local captures or sanitized transfer summaries before any evidence-backed conclusions are made.
 - The Stage 2H manifest intentionally contains sanitized metadata only and excludes raw capture bytes/content.
-- No protocol hypotheses exist yet; that is Stage 2J.
+- Protocol hypotheses exist in Stage 2J, but no production protocol implementation exists.
 - No mock P-HPR protocol or output exists yet; that is Stage 2K.
 - No mock P-HPR gear-pulse routing exists yet.
 - No real P-HPR output, USB output report, feature report, vibration command, HID write, controlled write testing, SimPro control, or SimHub integration is implemented.
@@ -255,7 +255,18 @@
 - pcap/pcapng support is container-level summary only; USBPcap protocol semantics remain future work if needed.
 - Generated analysis reports under `capture-metadata/generated/` are ignored and should remain private unless deliberately reviewed as sanitized artifacts.
 - The local `Complete Files Required` P-HPR evidence bundle was used as private/sanitized input context, but the bundle and generated analysis output are not committed.
-- No protocol hypotheses exist yet; that is Stage 2J.
+- Protocol hypotheses now exist in Stage 2J, but no production protocol implementation exists.
 - No mock P-HPR protocol or output exists yet; that is Stage 2K.
 - No mock P-HPR gear-pulse routing exists yet.
 - No real P-HPR output, USB output report, feature report, vibration command, HID write, controlled write testing, SimPro control, or SimHub integration is implemented.
+
+## Stage 2J
+
+- Protocol hypotheses exist, but they are not a production implementation.
+- SimHub `F1 EC` is a high-confidence observation and is marked ready for Stage 2K mock protocol only; it is not approved for real writes.
+- SimPro `80 1E 89` is represented as a separate family, but field meanings remain conservative and are not promoted to a mock-ready command surface in Stage 2J.
+- No production encoder or decoder exists.
+- No mock P-HPR output integration exists yet; Stage 2K is next.
+- No real P-HPR output exists.
+- No USB writes, HID output reports, HID feature reports, or vibration commands are implemented.
+- Real write blockers remain: approval phrase, controlled write plan, stop validation, device/report/interface identity, coexistence behavior, emergency stop path, and `PHprSafetyLimiter`.

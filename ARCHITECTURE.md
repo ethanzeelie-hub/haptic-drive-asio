@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2I includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, and read-only capture analysis tooling, but no P-HPR output implementation or routing exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2J includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, and analysis-only protocol hypotheses, but no P-HPR output implementation or routing exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -241,6 +241,25 @@ The project owns:
 Analysis exports contain source file names, payload counts, length counts, source-column counts, short payload previews, truncated SHA-256 fingerprints, byte-diff observations, pcap/pcapng container summaries, and warnings. Raw payload byte arrays are used only in memory for analysis and are not serialized to JSON.
 
 Stage 2I may observe byte differences, but it does not name protocol fields, infer report IDs, infer checksums, classify commands, create protocol hypotheses, create encoders/decoders, call `IPHprOutputDevice`, call `MockPhprOutputDevice`, create `PHprCommand`, send USB writes, send HID output reports, send HID feature reports, control SimPro Manager, control SimHub, or touch the ASIO/BST-1 output path.
+
+## Stage 2J Protocol Hypotheses
+
+Stage 2J extends `HapticDrive.Simagic.PHPR.Research` with analysis-only hypothesis records under `HapticDrive.Simagic.PHPR.Research.Hypotheses`.
+
+The project owns:
+
+- `SimagicProtocolHypothesisSet`
+- `SimagicProtocolHypothesis`
+- `SimagicProtocolHypothesisField`
+- `SimagicProtocolUnknown`
+- confidence, status, family, source, and risk enums
+- `BuiltInProtocolHypotheses`
+- `SimagicProtocolHypothesisExporter`
+- CLI commands `hypotheses-list` and `hypotheses-export`
+
+The built-in hypotheses document confirmed input mappings, the SimHub `F1 EC` active/stop/duration observations, the separate SimPro `80 1E 89` family, runtime identity rules, Stage 2K mock-only boundaries, and real-write blockers.
+
+Stage 2J does not create a production encoder or decoder, does not generate packets for live hardware, does not call `IPHprOutputDevice`, does not call `MockPhprOutputDevice`, does not create `PHprCommand`, does not send USB writes, does not send HID output or feature reports, does not control SimPro Manager or SimHub, and does not touch the ASIO/BST-1 output path.
 
 ## Early Development Rule
 

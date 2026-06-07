@@ -31,6 +31,7 @@
 - Stage 2G: Read-only P700 / P-HPR device inventory complete.
 - Stage 2H: Capture workflow and metadata tooling complete.
 - Stage 2I: Capture analysis framework complete.
+- Stage 2J: P-HPR protocol hypotheses complete.
 
 ## Planned Stages
 
@@ -68,8 +69,8 @@ Phase 2 safe sequence:
 7. Stage 2G: Read-only P700 / P-HPR device inventory. Complete.
 8. Stage 2H: Capture workflow and metadata tooling. Complete.
 9. Stage 2I: Capture analysis framework. Complete.
-10. Stage 2J: P-HPR protocol hypotheses. Next.
-11. Stage 2K: Mock P-HPR protocol and output.
+10. Stage 2J: P-HPR protocol hypotheses. Complete.
+11. Stage 2K: Mock P-HPR protocol and output. Next.
 12. Stage 2L: P-HPR safety layer.
 13. Stage 2M: Mock gear pulse routing.
 14. Stage 2N: Mock road vibration, wheel slip, and wheel lock routing.
@@ -103,3 +104,4 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - Stage 2G adds read-only P700 / P-HPR inventory tooling, sanitized local exports, registry/input-discovery metadata collection, and candidate classification only; it does not capture USB traffic, analyze captures, hypothesize protocols, call P-HPR output, create `PHprCommand`, or route haptics.
 - Stage 2H adds capture workflow documentation, scenario definitions, metadata templates, filename building, validation, sanitization, sanitized manifest export, and CLI commands only; it does not parse `.pcap/.pcapng`, analyze USB transfers, hypothesize protocols, call P-HPR output, create `PHprCommand`, send USB writes, or route haptics.
 - Stage 2I adds read-only capture analysis tooling for Wireshark CSV/text summaries, payload fingerprints, byte-diff observations, pcap/pcapng container summaries, sanitized JSON exports, and synthetic tests only; it does not hypothesize protocol fields, create encoders/decoders, call P-HPR output, create `PHprCommand`, send USB writes, or route haptics.
+- Stage 2J adds formal protocol hypothesis records, sanitized hypothesis docs, SimHub F1 EC mock-only readiness notes, conservative SimPro 80 1E 89 unknowns, Stage 2K mock-only surface definition, real-write blockers, and tests only; it does not create production encoders/decoders, call P-HPR output, create `PHprCommand`, send USB writes, or route haptics.

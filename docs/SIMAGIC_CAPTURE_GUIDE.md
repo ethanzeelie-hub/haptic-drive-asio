@@ -1,6 +1,6 @@
 # Simagic Capture Guide
 
-Stage 2H prepares the Simagic P700 / P-HPR USB capture workflow. Stage 2I adds read-only capture analysis tooling. Neither stage sends USB writes or vibration commands.
+Stage 2H prepares the Simagic P700 / P-HPR USB capture workflow. Stage 2I adds read-only capture analysis tooling. Stage 2J adds protocol hypotheses from reviewed evidence. None of these stages sends USB writes or vibration commands.
 
 ## Stage 2H Purpose
 
@@ -304,4 +304,4 @@ P-HPR modules not appearing separately:
 
 Stage 2I performs read-only capture analysis and sanitized summary export only. It can observe payload counts, payload fingerprints, pcap container structure, and byte differences, but it does not infer protocol fields, create protocol hypotheses, create command encoders/decoders, route haptics, or send USB writes.
 
-Stage 2J is next for protocol hypotheses.
+Stage 2J protocol hypotheses are documented in `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md`. Stage 2K is next for mock P-HPR protocol and output only.

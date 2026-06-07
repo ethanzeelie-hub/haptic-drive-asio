@@ -199,7 +199,7 @@ internal static class SimagicPcapSummaryReader
             warnings.Add(new SimagicCaptureAnalysisWarning
             {
                 SourceFileName = fileName,
-                Message = "USBPcap link type detected. Stage 2I records container and transfer-summary observations only; Stage 2J remains responsible for protocol hypotheses."
+                Message = "USBPcap link type detected. Stage 2I records container and transfer-summary observations only; Stage 2J documents protocol hypotheses separately."
             });
         }
     }

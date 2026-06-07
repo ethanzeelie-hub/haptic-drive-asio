@@ -4,7 +4,7 @@ Stage 2A requests this data so Phase 2 can proceed from observed hardware behavi
 
 Do not post public files that contain serial numbers, usernames, or private paths. Raw captures should stay local and uncommitted unless a sanitized summary is created.
 
-Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F adds cached `DrivingArmed` shift-intent evaluation diagnostics only. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized local exports. Stage 2H adds capture workflow and metadata tooling. Stage 2I adds read-only capture analysis tooling. The exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
+Stage 2D adds read-only input discovery. Stage 2E adds a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F adds cached `DrivingArmed` shift-intent evaluation diagnostics only. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized local exports. Stage 2H adds capture workflow and metadata tooling. Stage 2I adds read-only capture analysis tooling. Stage 2J adds protocol hypotheses and real-write blockers. The exact Alpha Evo / GT Neo / P700 hardware identities and paddle button numbers are still valuable for reliable mapping and later routing.
 
 Stage 2H can complete without captures. Stage 2I capture analysis can use actual private local captures, sanitized Wireshark CSV/text exports, or sanitized transfer summaries.
 
@@ -208,5 +208,20 @@ Analyze sanitized exports or local private captures with:
 ```
 
 Stage 2I reports are sanitized summaries only. Stage 2J is where protocol hypotheses can be documented from reviewed analysis outputs.
+
+## Optional Data Before Later Direct-Control Stages
+
+Stage 2J can complete without more user data. The following optional items would improve later mock/direct-control confidence:
+
+- additional SimPro Manager captures/summaries for brake/throttle test vibration,
+- SimPro strength, frequency, and duration change summaries,
+- exact P700 interface/report IDs from USBView,
+- confirmation whether SimPro must be closed to access the P700,
+- confirmation whether SimHub and SimPro can both see/control P-HPR at the same time,
+- confirmation whether SimHub F1 EC commands were captured against the same P700/P-HPR hardware path,
+- evidence of any report ID separate from payload bytes,
+- and endpoint/interface details still missing from committed sanitized docs.
+
+These are not mandatory for Stage 2K mock-only work.
 
 Raw `.pcap`, `.pcapng`, USB trace, generated analysis summaries, and private inventory files must not be committed unless a sanitized summary is deliberately reviewed for inclusion. Use `docs/SIMAGIC_CAPTURE_GUIDE.md` and `docs/SIMAGIC_CAPTURE_ANALYSIS.md` for naming, metadata, analysis commands, and private storage.

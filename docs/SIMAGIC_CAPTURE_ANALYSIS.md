@@ -37,7 +37,7 @@ Forbidden:
 - SimPro Manager / SimHub control,
 - ASIO/BST-1 audio path changes.
 
-Stage 2J is responsible for protocol hypotheses.
+Stage 2J documents protocol hypotheses separately in `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md`.
 
 ## Commands
 
@@ -82,6 +82,19 @@ Reports intentionally do not serialize raw payload byte arrays.
 
 ## Stage 2I Evidence Status
 
-The local `C:\Users\ethan\Downloads\Complete Files Required` bundle contains sanitized Wireshark-derived P-HPR evidence. Stage 2I tooling can analyze those local files, but the bundle itself and generated reports must stay uncommitted unless a future sanitized summary is deliberately reviewed for inclusion.
+The local `Complete Files Required` bundle contains sanitized Wireshark-derived P-HPR evidence. Stage 2I tooling can analyze those local files, but the bundle itself and generated reports must stay uncommitted unless a future sanitized summary is deliberately reviewed for inclusion.
 
 No real write approval has been provided. Real P-HPR writes remain gated by the exact approval phrase in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
+
+## Stage 2J Handoff
+
+Stage 2J converts reviewed Stage 2I analysis outputs into formal hypotheses:
+
+- confirmed non-output input mappings,
+- SimHub `F1 EC` start/stop/duration hypotheses,
+- separate SimPro `80 1E 89` family notes,
+- unknowns and missing evidence,
+- Stage 2K mock-only surface,
+- and real-write blockers.
+
+Stage 2J still does not send USB writes, issue HID output/feature reports, create production encoders/decoders, create live `PHprCommand` values, or route haptics.

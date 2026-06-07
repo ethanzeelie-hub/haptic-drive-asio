@@ -28,7 +28,7 @@ public static class SimagicCaptureAnalysisFormatter
         }
 
         builder.AppendLine("Exports contain fingerprints, short previews, counts, and byte-diff observations only.");
-        builder.AppendLine("Stage 2J remains responsible for protocol hypotheses.");
+        builder.AppendLine("Stage 2J documents protocol hypotheses separately.");
         return builder.ToString();
     }
 

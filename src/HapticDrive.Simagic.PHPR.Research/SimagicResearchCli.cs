@@ -1,6 +1,7 @@
 using System.Text.Json;
 using HapticDrive.Simagic.PHPR.Research.Capture;
 using HapticDrive.Simagic.PHPR.Research.CaptureAnalysis;
+using HapticDrive.Simagic.PHPR.Research.Hypotheses;
 using HapticDrive.Simagic.PHPR.Research.Inventory;
 
 namespace HapticDrive.Simagic.PHPR.Research;
@@ -28,6 +29,8 @@ public static class SimagicResearchCli
             "capture-manifest" => await RunCaptureManifestAsync(args[1..], output, error),
             "capture-analysis" => await RunCaptureAnalysisAsync(args[1..], output, error),
             "capture-diff" => await RunCaptureDiffAsync(args[1..], output, error),
+            "hypotheses-list" => RunHypothesesList(output),
+            "hypotheses-export" => await RunHypothesesExportAsync(args[1..], output, error),
             _ => UnknownCommand(args[0], output, error)
         };
     }
@@ -301,6 +304,56 @@ public static class SimagicResearchCli
         return 0;
     }
 
+    private static int RunHypothesesList(TextWriter output)
+    {
+        output.WriteLine(SimagicProtocolHypothesisFormatter.SafetyBanner);
+        output.WriteLine();
+
+        var hypothesisSet = BuiltInProtocolHypotheses.Create();
+        output.WriteLine(SimagicProtocolHypothesisFormatter.FormatSummary(hypothesisSet));
+        return 0;
+    }
+
+    private static async Task<int> RunHypothesesExportAsync(string[] args, TextWriter output, TextWriter error)
+    {
+        if (args.Length is < 2 or > 3)
+        {
+            await error.WriteLineAsync("hypotheses-export requires --output <path>.");
+            return 2;
+        }
+
+        string? outputPath = null;
+        for (var index = 0; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--output", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                outputPath = args[++index];
+            }
+            else
+            {
+                await error.WriteLineAsync($"Unknown hypotheses-export option '{args[index]}'.");
+                return 2;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            await error.WriteLineAsync("hypotheses-export requires --output <path>.");
+            return 2;
+        }
+
+        await output.WriteLineAsync(SimagicProtocolHypothesisFormatter.SafetyBanner);
+        await output.WriteLineAsync();
+
+        var hypothesisSet = BuiltInProtocolHypotheses.Create();
+        var exporter = new SimagicProtocolHypothesisExporter();
+        var path = Path.GetExtension(outputPath).Equals(".md", StringComparison.OrdinalIgnoreCase)
+            ? await exporter.ExportMarkdownAsync(hypothesisSet, outputPath)
+            : await exporter.ExportJsonAsync(hypothesisSet, outputPath);
+        await output.WriteLineAsync(SimagicProtocolHypothesisFormatter.FormatSummary(hypothesisSet, path));
+        return 0;
+    }
+
     private static int UnknownCommand(string command, TextWriter output, TextWriter error)
     {
         error.WriteLine($"Unknown command '{command}'.");
@@ -329,6 +382,8 @@ public static class SimagicResearchCli
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- capture-manifest <metadata-folder>");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- capture-analysis <capture-or-export-path>");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- capture-diff <left-capture-or-export-path> <right-capture-or-export-path>");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- hypotheses-list");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- hypotheses-export --output capture-metadata\\generated\\simagic-protocol-hypotheses.json");
         output.WriteLine();
         output.WriteLine("Inventory options:");
         output.WriteLine("  --output-dir <path>  Export sanitized files to this directory. Default: local-device-inventory");
@@ -345,6 +400,9 @@ public static class SimagicResearchCli
         output.WriteLine("Capture analysis options:");
         output.WriteLine("  --output-dir <path>  Default: capture-metadata/generated.");
         output.WriteLine();
-        output.WriteLine("Capture metadata tooling is Stage 2H. Capture analysis is Stage 2I. Neither sends USB writes, creates vibration commands, controls SimPro/SimHub, or creates protocol hypotheses.");
+        output.WriteLine("Hypotheses options:");
+        output.WriteLine("  --output <path>      Export sanitized Stage 2J hypotheses to JSON, or Markdown when the path ends in .md.");
+        output.WriteLine();
+        output.WriteLine("Capture metadata tooling is Stage 2H. Capture analysis is Stage 2I. Protocol hypotheses are Stage 2J. None sends USB writes, creates vibration commands, controls SimPro/SimHub, creates live hardware encoders, or routes haptics.");
     }
 }

@@ -1,6 +1,6 @@
 # Simagic Wheel Input Research
 
-Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling that also helps correlate the Alpha Evo / GT Neo / P700 device identities before later capture work. Stage 2H adds capture workflow and metadata tooling. Stage 2I adds read-only USB capture analysis tooling and sanitized summary export.
+Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling that also helps correlate the Alpha Evo / GT Neo / P700 device identities before later capture work. Stage 2H adds capture workflow and metadata tooling. Stage 2I adds read-only USB capture analysis tooling and sanitized summary export. Stage 2J adds protocol hypotheses while keeping GT Neo paddle bits input-only and non-output.
 
 ## Goal
 
@@ -106,6 +106,12 @@ The local Stage 2G run found no Simagic-specific P700/P-HPR/Alpha/GT Neo candida
 Stage 2H adds capture scenarios, metadata templates, validation, sanitized manifests, and private-storage rules under `docs/SIMAGIC_CAPTURE_GUIDE.md`.
 
 This does not change the read-only GT Neo paddle listener or Stage 2F shift-intent diagnostics. It does not analyze captures, infer protocols, send P-HPR writes, or route haptics.
+
+## Stage 2J Implemented Protocol Hypotheses
+
+Stage 2J documents protocol hypotheses under `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md` and keeps the GT Neo paddle mapping as confirmed input evidence only.
+
+Stage 2J does not route accepted `ShiftIntentEvent` values to any output device and does not create `PHprCommand` values.
 
 ## Planned Diagnostics
 
