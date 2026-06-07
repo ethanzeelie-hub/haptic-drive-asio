@@ -1,6 +1,6 @@
 # Simagic Wheel Input Research
 
-Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling that also helps correlate the Alpha Evo / GT Neo / P700 device identities before later capture work. Stage 2H adds capture workflow and metadata tooling. Stage 2I adds read-only USB capture analysis tooling and sanitized summary export. Stage 2J adds protocol hypotheses while keeping GT Neo paddle bits input-only and non-output. Stage 2K adds mock-only P-HPR protocol/output diagnostics, but still does not route paddle input.
+Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling that also helps correlate the Alpha Evo / GT Neo / P700 device identities before later capture work. Stage 2H adds capture workflow and metadata tooling. Stage 2I adds read-only USB capture analysis tooling and sanitized summary export. Stage 2J adds protocol hypotheses while keeping GT Neo paddle bits input-only and non-output. Stage 2K adds mock-only P-HPR protocol/output diagnostics. Stage 2L adds mock-only P-HPR safety limiting, but still does not route paddle input.
 
 ## Goal
 
@@ -118,6 +118,12 @@ Stage 2J does not route accepted `ShiftIntentEvent` values to any output device 
 Stage 2K documents mock-only P-HPR protocol/output modelling under `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 Stage 2K still does not route accepted `ShiftIntentEvent` values to `MockPhprOutputDevice`, real P-HPR output, ASIO output, or any haptic effect.
+
+## Stage 2L Implemented Safety Layer
+
+Stage 2L documents mock-only P-HPR safety limiting under `docs/SIMAGIC_P_HPR_SAFETY_LAYER.md`.
+
+Stage 2L adds safety decisions, context gates, command-rate limiting, continuous-duration limiting, emergency-stop latching, and a safety-limited mock output wrapper. It still does not route accepted `ShiftIntentEvent` values to `MockPhprOutputDevice`, real P-HPR output, ASIO output, or any haptic effect.
 
 ## Planned Diagnostics
 

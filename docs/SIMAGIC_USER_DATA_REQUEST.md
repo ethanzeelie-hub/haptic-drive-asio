@@ -222,6 +222,6 @@ Stage 2J can complete without more user data. The following optional items would
 - evidence of any report ID separate from payload bytes,
 - and endpoint/interface details still missing from committed sanitized docs.
 
-These are not mandatory for Stage 2K mock-only work.
+These are not mandatory for Stage 2K mock-only work, Stage 2L mock-only safety limiting, or Stage 2M mock routing, but they remain useful before later direct-control stages.
 
 Raw `.pcap`, `.pcapng`, USB trace, generated analysis summaries, and private inventory files must not be committed unless a sanitized summary is deliberately reviewed for inclusion. Use `docs/SIMAGIC_CAPTURE_GUIDE.md` and `docs/SIMAGIC_CAPTURE_ANALYSIS.md` for naming, metadata, analysis commands, and private storage.

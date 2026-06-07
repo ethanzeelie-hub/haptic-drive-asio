@@ -189,7 +189,7 @@
 - Stage 2B adds abstractions and a mock-only P-HPR output skeleton, but no Windows Raw Input, DirectInput, HID listener, or real device discovery implementation exists yet.
 - `ShiftIntentEvent` and source interfaces exist, but no shift intent router or paddle input event pipeline exists yet.
 - `MockPhprOutputDevice` records clamped mock commands only; it is not a real protocol adapter and does not send USB writes.
-- P-HPR safety defaults exist, but the full `PHprSafetyLimiter` is still deferred to Stage 2L.
+- P-HPR safety defaults exist, and Stage 2L now adds the full mock-only `PHprSafetyLimiter`; no routing uses it yet.
 - P700/P-HPR read-only inventory and capture analysis tooling now exist in later stages, but no protocol hypothesis, SimPro/SimHub coexistence detection, or controlled write plan exists yet.
 
 ## Stage 2C
@@ -277,9 +277,23 @@
 - SimHub `F1 EC` mock frames are based on the Stage 2J `ReadyForMockProtocol` hypothesis and are not approved for hardware writes.
 - SimPro `80 1E 89` remains `SimProUnknownMock` / `NeedsMoreCaptures`; detailed SimPro mock encoding is unsupported.
 - `MockPhprOutputDevice` records commands and generated mock frames in memory only.
-- The full P-HPR safety limiter is not implemented yet; Stage 2L is next.
+- The full P-HPR safety limiter is implemented in Stage 2L, but Stage 2K itself remains mock protocol/output only.
 - No mock gear-pulse routing from `ShiftIntentEvent` exists yet.
 - No mock road vibration, wheel slip, or wheel lock routing exists yet.
 - No production encoder or production decoder exists.
 - No real P-HPR output, USB write, HID output report, HID feature report, vibration command, controlled write testing, SimPro control, or SimHub control is implemented.
 - The ASIO/BST-1 audio path is unchanged by Stage 2K.
+
+## Stage 2L
+
+- The P-HPR safety layer exists, but it is not connected to live paddle, shift-intent, `VehicleState`, telemetry-effect, ASIO, audio-effect, or mixer routing yet.
+- `SafetyLimitedPhprOutputDevice` wraps `MockPhprOutputDevice` only; no real output adapter exists.
+- No mock gear-pulse routing from `ShiftIntentEvent` exists yet.
+- No mock road vibration, wheel slip, or wheel lock routing exists yet.
+- SimPro / SimHub coexistence detection is not implemented yet; Stage 2L has a synthetic conflict context placeholder only.
+- No controlled write test plan exists yet.
+- No production encoder or production decoder exists.
+- No real P-HPR output exists.
+- No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control is implemented.
+- Raw/private captures, serial numbers, unsanitized hardware data, and generated local analysis exports remain uncommitted.
+- The ASIO/BST-1 audio path is unchanged by Stage 2L.

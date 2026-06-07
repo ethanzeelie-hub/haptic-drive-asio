@@ -4,6 +4,7 @@ using HapticDrive.Simagic.PHPR.Research.CaptureAnalysis;
 using HapticDrive.Simagic.PHPR.Research.Hypotheses;
 using HapticDrive.Simagic.PHPR.Research.Inventory;
 using HapticDrive.Simagic.PHPR.Research.MockProtocol;
+using HapticDrive.Simagic.PHPR.Research.Safety;
 
 namespace HapticDrive.Simagic.PHPR.Research;
 
@@ -34,6 +35,7 @@ public static class SimagicResearchCli
             "hypotheses-export" => await RunHypothesesExportAsync(args[1..], output, error),
             "mock-protocol-examples" => RunMockProtocolExamples(output),
             "mock-protocol-export" => await RunMockProtocolExportAsync(args[1..], output, error),
+            "safety-examples" => RunSafetyExamples(output),
             _ => UnknownCommand(args[0], output, error)
         };
     }
@@ -404,6 +406,14 @@ public static class SimagicResearchCli
         return 0;
     }
 
+    private static int RunSafetyExamples(TextWriter output)
+    {
+        output.WriteLine(SimagicPhprSafetyExamples.SafetyBanner);
+        output.WriteLine();
+        output.WriteLine(SimagicPhprSafetyExamples.FormatConsole(SimagicPhprSafetyExamples.Create()));
+        return 0;
+    }
+
     private static int UnknownCommand(string command, TextWriter output, TextWriter error)
     {
         error.WriteLine($"Unknown command '{command}'.");
@@ -436,6 +446,7 @@ public static class SimagicResearchCli
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- hypotheses-export --output capture-metadata\\generated\\simagic-protocol-hypotheses.json");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-export --output capture-metadata\\generated\\simagic-mock-protocol-examples.json");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples");
         output.WriteLine();
         output.WriteLine("Inventory options:");
         output.WriteLine("  --output-dir <path>  Export sanitized files to this directory. Default: local-device-inventory");
@@ -458,6 +469,9 @@ public static class SimagicResearchCli
         output.WriteLine("Mock protocol options:");
         output.WriteLine("  --output <path>      Export sanitized Stage 2K mock protocol examples to JSON.");
         output.WriteLine();
-        output.WriteLine("Capture metadata tooling is Stage 2H. Capture analysis is Stage 2I. Protocol hypotheses are Stage 2J. Mock protocol examples are Stage 2K. None sends USB writes, creates real vibration commands, controls SimPro/SimHub, creates live hardware encoders, or routes haptics.");
+        output.WriteLine("P-HPR safety command:");
+        output.WriteLine("  safety-examples      Print Stage 2L mock safety decisions only.");
+        output.WriteLine();
+        output.WriteLine("Capture metadata tooling is Stage 2H. Capture analysis is Stage 2I. Protocol hypotheses are Stage 2J. Mock protocol examples are Stage 2K. Safety examples are Stage 2L. None sends USB writes, creates real vibration commands, controls SimPro/SimHub, creates live hardware encoders, or routes haptics.");
     }
 }

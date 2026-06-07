@@ -1,6 +1,6 @@
 # Simagic Shift Intent Design
 
-Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds a read-only Windows game-controller paddle listener with manual left/right mapping diagnostics. Stage 2F implements the Shift Intent Event Layer for accepted/suppressed diagnostics. Stage 2H adds capture workflow and metadata tooling for later protocol research. Stage 2I adds read-only capture analysis. Stage 2J adds protocol hypotheses. Stage 2K adds mock-only P-HPR protocol/output modelling. These stages do not implement P-HPR routing or any live output path.
+Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds a read-only Windows game-controller paddle listener with manual left/right mapping diagnostics. Stage 2F implements the Shift Intent Event Layer for accepted/suppressed diagnostics. Stage 2H adds capture workflow and metadata tooling for later protocol research. Stage 2I adds read-only capture analysis. Stage 2J adds protocol hypotheses. Stage 2K adds mock-only P-HPR protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. These stages do not implement P-HPR routing or any live output path.
 
 ## Default Event Flow
 
@@ -151,9 +151,9 @@ Stage 2F persists only shift-intent enabled state and mode. It does not persist 
 
 ## Routing
 
-Stage 2F does not route accepted `ShiftIntentEvent` values to haptics. Stage 2M should later route accepted events to mock P-HPR gear pulses after the mock safety/routing stages exist.
+Stage 2F does not route accepted `ShiftIntentEvent` values to haptics. Stage 2M should later route accepted events to mock P-HPR gear pulses through the Stage 2L safety layer.
 
-Stages 2H through 2K do not change this routing boundary. Stage 2H creates capture metadata workflow tooling, Stage 2I analyzes captures read-only, Stage 2J documents hypotheses, and Stage 2K creates mock protocol/output diagnostics. They do not route accepted shift intents.
+Stages 2H through 2L do not change this routing boundary. Stage 2H creates capture metadata workflow tooling, Stage 2I analyzes captures read-only, Stage 2J documents hypotheses, Stage 2K creates mock protocol/output diagnostics, and Stage 2L creates mock safety limiting. They do not route accepted shift intents.
 
 A later accepted `ShiftIntentEvent` should be able to route to:
 

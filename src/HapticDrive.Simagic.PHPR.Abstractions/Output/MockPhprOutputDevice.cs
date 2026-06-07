@@ -86,13 +86,24 @@ public sealed class MockPhprOutputDevice(PHprSafetyLimits? safetyLimits = null) 
         }
     }
 
+    public void ClearEmergencyStop()
+    {
+        lock (_gate)
+        {
+            _emergencyStopActive = false;
+            _lastStatus = null;
+            _lastMessage = "Mock P-HPR emergency stop cleared; no hardware write was performed.";
+        }
+    }
+
     public ValueTask<PHprCommandResult> SendAsync(PHprCommand command, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         lock (_gate)
         {
-            if (!_isConnected)
+            var isSafeStop = IsSafeStop(command);
+            if (!_isConnected && !isSafeStop)
             {
                 return Reject(PHprCommandStatus.RejectedInvalidCommand, "Mock P-HPR output is disconnected; command suppressed.", command);
             }
@@ -102,7 +113,7 @@ public sealed class MockPhprOutputDevice(PHprSafetyLimits? safetyLimits = null) 
                 return Reject(PHprCommandStatus.RejectedInvalidCommand, _rejectReason ?? "Mock P-HPR rejection simulation is active.", command);
             }
 
-            if (_emergencyStopActive)
+            if (_emergencyStopActive && !isSafeStop)
             {
                 return Reject(PHprCommandStatus.RejectedEmergencyStop, "Mock P-HPR emergency stop is active; command suppressed.", command);
             }
@@ -112,7 +123,7 @@ public sealed class MockPhprOutputDevice(PHprSafetyLimits? safetyLimits = null) 
                 return Reject(PHprCommandStatus.RejectedInvalidCommand, "Mock P-HPR command has an invalid target module.", command);
             }
 
-            if (!IsTargetAvailable(command.TargetModule))
+            if (!isSafeStop && !IsTargetAvailable(command.TargetModule))
             {
                 return Reject(PHprCommandStatus.RejectedInvalidCommand, "Mock P-HPR target module is unavailable.", command);
             }
@@ -216,6 +227,14 @@ public sealed class MockPhprOutputDevice(PHprSafetyLimits? safetyLimits = null) 
             PHprModuleId.Both => _brakeAvailable && _throttleAvailable,
             _ => false
         };
+    }
+
+    private static bool IsSafeStop(PHprCommand command)
+    {
+        return command.Source == PHprCommandSource.EmergencyStop
+            || command.SafetyFlags.HasFlag(PHprSafetyFlags.EmergencyStop)
+            || command.DurationMs <= 0
+            || command.Strength01 <= 0d;
     }
 
     private ValueTask<PHprCommandResult> Reject(PHprCommandStatus status, string message, PHprCommand? command)

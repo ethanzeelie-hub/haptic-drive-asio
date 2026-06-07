@@ -304,4 +304,4 @@ P-HPR modules not appearing separately:
 
 Stage 2I performs read-only capture analysis and sanitized summary export only. It can observe payload counts, payload fingerprints, pcap container structure, and byte differences, but it does not infer protocol fields, create protocol hypotheses, create command encoders/decoders, route haptics, or send USB writes.
 
-Stage 2J protocol hypotheses are documented in `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md`. Stage 2K mock protocol/output is documented in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`. Stage 2L is next for the P-HPR safety layer.
+Stage 2J protocol hypotheses are documented in `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md`. Stage 2K mock protocol/output is documented in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`. Stage 2L safety limiting is documented in `docs/SIMAGIC_P_HPR_SAFETY_LAYER.md`. Stage 2M is next for mock gear-pulse routing.

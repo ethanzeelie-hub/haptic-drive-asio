@@ -170,20 +170,25 @@ Safe mock-only commands:
 
 The commands print a no-write safety banner and only display or export sanitized mock examples.
 
-## Stage 2L Follow-Up
+## Stage 2L Safety Layer
 
-Stage 2L should add the full P-HPR safety layer:
+Stage 2L adds the full mock-only P-HPR safety layer documented in `docs/SIMAGIC_P_HPR_SAFETY_LAYER.md`:
 
 - command rate limits,
 - continuous duration limits,
-- per-pedal and per-effect limits,
 - stronger validation and rejection diagnostics,
-- telemetry-lost stop integration for later routing,
+- telemetry stale / haptics stopped / emergency mute / `DrivingArmed` context gates for later routing,
+- module availability and disconnected-device start rejection,
+- emergency-stop latching and clear behavior,
+- real-write blocking diagnostics,
+- safety-limited mock output wrapping,
 - and explicit safety-limiter tests.
+
+Stage 2L still does not route `ShiftIntentEvent` values, `VehicleState`, road/slip/lock effects, ASIO output, audio effects, or mixer output to P-HPR.
 
 ## Stage 2M Follow-Up
 
-Stage 2M should add mock gear-pulse routing from accepted shift intent to mock P-HPR output after Stage 2L safety exists.
+Stage 2M should add mock gear-pulse routing from accepted shift intent to mock P-HPR output through the Stage 2L safety layer.
 
 Stage 2K does not route `ShiftIntentEvent` values.
 

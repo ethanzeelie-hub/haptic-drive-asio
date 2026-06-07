@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2K includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, and mock-only protocol/output diagnostics, but no real P-HPR output implementation or routing exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2L includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, and a reusable mock-only P-HPR safety limiter. No real P-HPR output implementation or routing exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -290,6 +290,29 @@ The SimPro `80 1E 89` family remains `SimProUnknownMock` and `NeedsMoreCaptures`
 ```
 
 These commands print/export sanitized mock examples only. Nothing in the Stage 2K mock protocol may be sent to real hardware.
+
+## Stage 2L P-HPR Safety Layer
+
+Stage 2L extends `HapticDrive.Simagic.PHPR.Abstractions` with a reusable safety boundary under `Safety`:
+
+- `PHprSafetyLimiter`
+- `IPHprSafetyLimiter`
+- `PHprSafetyContext`
+- `PHprSafetyDecision`
+- `PHprSafetySnapshot`
+- `IPHprSafetyClock`
+
+The limiter clamps strength, duration, and frequency to `PHprSafetyLimits`, rejects excessive command rate, rejects excessive estimated continuous duration, rejects unavailable modules, rejects disconnected-device starts, latches emergency stop, blocks starts while emergency stop is active, and exposes context gates for telemetry stale, haptics stopped, emergency mute active, `DrivingArmed` false, SimPro/SimHub conflict placeholder, and real-write blocking.
+
+`SafetyLimitedPhprOutputDevice` wraps `MockPhprOutputDevice` so accepted or clamped commands can produce mock frames while rejected commands do not reach the mock output. Emergency stop forwards to the mock output, clears pending scheduled mock stop frames, records immediate brake/throttle stop frames, clears limiter timing state, and requires `ClearEmergencyStop` before later start commands are accepted.
+
+`HapticDrive.Simagic.PHPR.Research` adds:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples
+```
+
+This command prints mock safety decisions only. Stage 2L does not route `ShiftIntentEvent`, `VehicleState`, audio effects, ASIO output, or the mixer to P-HPR output. It does not open device handles, send HID output reports, send feature reports, write USB data, control SimPro Manager, control SimHub, or create a production protocol adapter.
 
 ## Early Development Rule
 

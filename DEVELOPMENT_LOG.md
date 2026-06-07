@@ -1225,3 +1225,51 @@ Self-review:
 - The ASIO/BST-1 audio path was not changed.
 - Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated mock/hypothesis exports were not committed.
 - Stage 2L P-HPR Safety Layer is next; Stage 2K stops here.
+
+## Stage 2L - P-HPR Safety Layer
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Implement the reusable P-HPR safety layer around the existing mock P-HPR command/protocol/output path without creating real hardware writes, haptic routing, production protocol adapters, or controlled write testing.
+
+Notes:
+
+- Added `PHprSafetyLimiter`, `IPHprSafetyLimiter`, `PHprSafetyContext`, `PHprSafetyDecision`, `PHprSafetySnapshot`, `PHprSafetyViolation`, `PHprSafetyClampDetails`, `PHprSoftwareConflictStatus`, and `IPHprSafetyClock` under `HapticDrive.Simagic.PHPR.Abstractions.Safety`.
+- Kept `PHprSafetyLimits.Default` conservative: max strength 0.10, max duration 100 ms, min frequency 5 Hz, max frequency 250 Hz, max command rate 10 commands/s, max continuous duration 500 ms, and `AllowRealDeviceWrites` false.
+- Implemented safety clamping for strength, duration, and frequency, with deterministic decision and clamp diagnostics.
+- Implemented deterministic command-rate limiting with an injected fake clock for tests.
+- Implemented per-module continuous-duration estimation and rejection for sustained mock starts.
+- Implemented synthetic safety context gates for disconnected device, unavailable brake/throttle modules, telemetry stale, haptics stopped, emergency mute active, `DrivingArmed` false, SimPro/SimHub conflict placeholder, and real-write blocking.
+- Added emergency-stop latching to the safety limiter. Emergency stop clears command-rate and continuous-duration tracking, blocks future start commands until cleared, and records safety diagnostics.
+- Added `SafetyLimitedPhprOutputDevice` to wrap `MockPhprOutputDevice`; accepted and clamped commands are forwarded to the mock output, rejected commands are not forwarded, and emergency stop is forwarded to produce immediate mock stop frames.
+- Extended `MockPhprOutputDevice` with `ClearEmergencyStop` and safe stop handling so stop/emergency-stop commands can be recorded safely in restrictive mock states.
+- Added safe research CLI command `safety-examples` with a no-write safety banner.
+- Added `docs/SIMAGIC_P_HPR_SAFETY_LAYER.md` and updated README, architecture, roadmap, known issues, Simagic research/safety/mock-protocol/hypotheses/capture/inventory/shift/wheel/user-data docs for Stage 2L completion and Stage 2M next.
+- Added hardware-free tests for defaults, strength/duration/frequency clamps, command-rate limit and recovery, continuous-duration rejection, emergency stop and clear, disconnected-device behavior, module availability, restrictive context gates, safe stop allowance, real-write blocking diagnostics, deterministic fake clock behavior, safety wrapper forwarding, rejected-command suppression, and no HID/USB write API surface.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 40 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Research.Tests\HapticDrive.Simagic.PHPR.Research.Tests.csproj --no-build` passed with 46 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 332 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- hypotheses-list` passed and reported 6 hypotheses, 3 unknowns, and 12 real-write blockers.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Stage 2L stayed within safety infrastructure, mock-output wrapping, docs, tests, and safe CLI examples.
+- No mock gear-pulse routing, mock road/slip/lock routing, SimPro/SimHub coexistence detection, controlled write test plan, production encoder, production decoder, real output adapter, or real P-HPR control was implemented.
+- No real P-HPR USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- No haptic routing was added from paddle input, `ShiftIntentEvent`, `VehicleState`, audio effects, ASIO output, or the mixer.
+- `MockPhprOutputDevice` remains memory-only and is used only by tests, mock-only abstractions, diagnostics, and the safety-limited mock wrapper.
+- The ASIO/BST-1 audio path was not changed.
+- Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated local analysis exports were not committed.
+- Stage 2M Mock Gear Pulse Routing is next; Stage 2L stops here.

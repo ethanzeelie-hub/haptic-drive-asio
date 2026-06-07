@@ -33,6 +33,7 @@
 - Stage 2I: Capture analysis framework complete.
 - Stage 2J: P-HPR protocol hypotheses complete.
 - Stage 2K: Mock P-HPR protocol and output complete.
+- Stage 2L: P-HPR safety layer complete.
 
 ## Planned Stages
 
@@ -72,8 +73,8 @@ Phase 2 safe sequence:
 9. Stage 2I: Capture analysis framework. Complete.
 10. Stage 2J: P-HPR protocol hypotheses. Complete.
 11. Stage 2K: Mock P-HPR protocol and output. Complete.
-12. Stage 2L: P-HPR safety layer. Next.
-13. Stage 2M: Mock gear pulse routing.
+12. Stage 2L: P-HPR safety layer. Complete.
+13. Stage 2M: Mock gear pulse routing. Next.
 14. Stage 2N: Mock road vibration, wheel slip, and wheel lock routing.
 15. Stage 2O: SimPro / SimHub coexistence detection.
 16. Stage 2P: Controlled write test plan.
@@ -106,4 +107,5 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - Stage 2H adds capture workflow documentation, scenario definitions, metadata templates, filename building, validation, sanitization, sanitized manifest export, and CLI commands only; it does not parse `.pcap/.pcapng`, analyze USB transfers, hypothesize protocols, call P-HPR output, create `PHprCommand`, send USB writes, or route haptics.
 - Stage 2I adds read-only capture analysis tooling for Wireshark CSV/text summaries, payload fingerprints, byte-diff observations, pcap/pcapng container summaries, sanitized JSON exports, and synthetic tests only; it does not hypothesize protocol fields, create encoders/decoders, call P-HPR output, create `PHprCommand`, send USB writes, or route haptics.
 - Stage 2J adds formal protocol hypothesis records, sanitized hypothesis docs, SimHub F1 EC mock-only readiness notes, conservative SimPro 80 1E 89 unknowns, Stage 2K mock-only surface definition, real-write blockers, and tests only; it does not create production encoders/decoders, call P-HPR output, create `PHprCommand`, send USB writes, or route haptics.
-- Stage 2K adds mock-only protocol records, SimHub F1 EC mock encoding/decoding, deterministic duration scheduling, SimProUnknownMock classification, mock output frame diagnostics, safe CLI examples, and tests only; it does not add a full P-HPR safety limiter, mock routing, production encoders/decoders, real output, USB writes, or haptic routing.
+- Stage 2K adds mock-only protocol records, SimHub F1 EC mock encoding/decoding, deterministic duration scheduling, SimProUnknownMock classification, mock output frame diagnostics, safe CLI examples, and tests only; it does not add mock routing, production encoders/decoders, real output, USB writes, or haptic routing.
+- Stage 2L adds reusable P-HPR safety limiter models, context gates, diagnostics, command clamping/rejection, command-rate limiting, continuous-duration limiting, emergency-stop latching/clear behavior, real-write blocking diagnostics, a safety-limited mock output wrapper, safe CLI examples, and tests only; it does not add mock gear-pulse routing, mock road/slip/lock routing, production encoders/decoders, real output, USB writes, or haptic routing.

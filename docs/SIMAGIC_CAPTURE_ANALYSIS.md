@@ -104,3 +104,7 @@ Stage 2J still does not send USB writes, issue HID output/feature reports, creat
 Stage 2K uses Stage 2J's SimHub `F1 EC` readiness to create mock-only frames, mock encode/decode tests, deterministic duration schedules, mock output diagnostics, and safe CLI examples.
 
 Stage 2K keeps SimPro `80 1E 89` as `SimProUnknownMock` / `NeedsMoreCaptures`. It still does not send USB writes, issue HID output/feature reports, create production protocol adapters, access hardware, control SimPro Manager or SimHub, create live haptic routing, or validate real P-HPR behavior.
+
+## Stage 2L Handoff
+
+Stage 2L adds mock-only P-HPR safety limiting on top of the Stage 2K mock output path. It still does not send USB writes, issue HID output/feature reports, create production protocol adapters, access hardware, control SimPro Manager or SimHub, create live haptic routing, or validate real P-HPR behavior.

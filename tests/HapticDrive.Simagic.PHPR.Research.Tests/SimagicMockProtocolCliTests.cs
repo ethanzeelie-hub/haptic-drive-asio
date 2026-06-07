@@ -1,6 +1,7 @@
 using System.Text.Json;
 using HapticDrive.Simagic.PHPR.Research;
 using HapticDrive.Simagic.PHPR.Research.MockProtocol;
+using HapticDrive.Simagic.PHPR.Research.Safety;
 
 namespace HapticDrive.Simagic.PHPR.Research.Tests;
 
@@ -78,6 +79,41 @@ public sealed class SimagicMockProtocolCliTests
         Assert.Equal(0, exitCode);
         Assert.Contains("mock-protocol-examples", output.ToString(), StringComparison.Ordinal);
         Assert.Contains("mock-protocol-export", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("safety-examples", output.ToString(), StringComparison.Ordinal);
+        Assert.Equal("", error.ToString());
+    }
+
+    [Fact]
+    public void SafetyExamples_ContainClampRejectionAndEmergencyStopCases()
+    {
+        var examples = SimagicPhprSafetyExamples.Create();
+        var json = JsonSerializer.Serialize(examples);
+
+        Assert.Contains(examples, example => example.Id == "clamped-strength-duration-frequency"
+            && example.DecisionKind == "AcceptedWithClamp");
+        Assert.Contains(examples, example => example.Id == "telemetry-stale-rejects-start"
+            && example.Violation == "TelemetryStale");
+        Assert.Contains(examples, example => example.Id == "real-writes-blocked"
+            && example.Violation == "RealWritesNotAllowed");
+        Assert.Contains(examples, example => example.Id == "emergency-stop-latches"
+            && example.DecisionKind == "EmergencyStopped");
+        Assert.DoesNotContain("C:\\Users", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ethan", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Cli_PrintsSafetyExamplesWithSafetyBanner()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await SimagicResearchCli.RunAsync(["safety-examples"], output, error);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("STAGE 2L P-HPR SAFETY LAYER", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("No USB writes", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("clamped-strength-duration-frequency", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("real-writes-blocked", output.ToString(), StringComparison.Ordinal);
         Assert.Equal("", error.ToString());
     }
 }

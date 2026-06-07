@@ -154,4 +154,6 @@ Do not commit raw USBView exports, screenshots containing private serial numbers
 
 Stage 2K Mock P-HPR Protocol and Output is complete. It does not require real P700/P-HPR hardware and does not send USB writes.
 
-Stage 2G stops at inventory. Stage 2H stops at capture workflow and metadata tooling. Stage 2I stops at read-only capture analysis and sanitized summary export. Stage 2J stops at protocol hypotheses. Stage 2K stops at mock protocol/output. Stage 2L is next for the P-HPR safety layer.
+Stage 2L P-HPR Safety Layer is complete. It adds mock-only safety decisions, context gates, emergency-stop latching, command-rate limits, continuous-duration limits, and a safety-limited mock output wrapper, but still does not route haptics or send USB writes.
+
+Stage 2G stops at inventory. Stage 2H stops at capture workflow and metadata tooling. Stage 2I stops at read-only capture analysis and sanitized summary export. Stage 2J stops at protocol hypotheses. Stage 2K stops at mock protocol/output. Stage 2L stops at mock safety limiting. Stage 2M is next for mock gear-pulse routing.
