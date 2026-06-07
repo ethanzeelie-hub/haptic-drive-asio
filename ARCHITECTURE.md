@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2L includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, and a reusable mock-only P-HPR safety limiter. No real P-HPR output implementation or routing exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2M includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, and mock-only gear pulse routing. No real P-HPR output implementation exists.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -46,6 +46,34 @@ GT Neo paddle input and VehicleState
 The future default P-HPR gear-pulse path is `InstantPaddleOnly`: read-only GT Neo paddle press, cached `DrivingArmed` gate, then immediate pedal gear pulse. It must not wait for a fresh telemetry packet at paddle-press time and must not fire a default second telemetry-confirmed pulse.
 
 Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
+
+## Stage 2M Mock Gear Pulse Routing
+
+Stage 2M adds `HapticDrive.Actuation.PHpr` as the mock-only routing layer after accepted shift intent.
+
+The implemented mock gear path is:
+
+```text
+Stage 2E mapped paddle input
+-> Stage 2F ShiftIntentProcessor
+-> accepted ShiftIntentEvent
+-> PHprGearPulseRouter
+-> SafetyLimitedPhprOutputDevice
+-> MockPhprOutputDevice
+-> in-memory mock command/frame diagnostics
+```
+
+`PHprGearPulseRouter` creates conservative `PaddleShiftIntent` commands only when the event has already passed cached `DrivingArmed` gating. The default target is both brake and throttle modules with strength `0.05`, frequency `50 Hz`, duration `50 ms`, and priority `100`. `SafetyLimitedPhprOutputDevice` still applies Stage 2L context gates, clamps, command-rate limits, continuous-duration limits, and emergency-stop latching before the mock output can record frames.
+
+The WPF app owns a private mock stack for diagnostics:
+
+- `MockPhprOutputDevice`
+- `SafetyLimitedPhprOutputDevice`
+- `PHprGearPulseRouter`
+
+Devices-page controls expose mock routing enabled/disabled, target, strength, frequency, duration, clear diagnostics, mock emergency stop, and clear mock emergency stop. Persisted settings are limited to mock routing preferences. Emergency-stop state and mock histories are not persisted.
+
+Stage 2M does not route road vibration, wheel slip, wheel lock, `VehicleState`, audio effects, ASIO output, or mixer output to P-HPR. It does not open device handles, send HID output reports, send HID feature reports, write USB data, control SimPro Manager, control SimHub, or create a production protocol adapter.
 
 ## Stage 2B Input and P-HPR Abstractions
 
@@ -155,7 +183,7 @@ The default mode is `InstantPaddleOnly`. It accepts mapped left/right paddle pre
 
 The WPF Devices and Diagnostics pages show shift-intent enabled state, mode, cached `DrivingArmed` state/reason, telemetry age, menu-safe/recent-telemetry settings, last paddle side, last direction, accepted/suppressed counters, last accepted event, last suppression reason, last known telemetry gear/speed/RPM/frame, pending confirmations, and errors. App settings persist only shift-intent enabled state and mode.
 
-Stage 2F does not call `IPHprOutputDevice`, `MockPhprOutputDevice`, `PHprCommand`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, `AsioAudioOutputDevice`, or any USB write path. Stage 2M will later route accepted shift intents to mock P-HPR gear pulses.
+Stage 2F does not call `IPHprOutputDevice`, `MockPhprOutputDevice`, `PHprCommand`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, `AsioAudioOutputDevice`, or any USB write path. Stage 2M now routes accepted shift intents to mock P-HPR gear pulses in a separate router layer.
 
 ## Stage 2G Read-Only P700 / P-HPR Inventory
 
@@ -312,7 +340,7 @@ The limiter clamps strength, duration, and frequency to `PHprSafetyLimits`, reje
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples
 ```
 
-This command prints mock safety decisions only. Stage 2L does not route `ShiftIntentEvent`, `VehicleState`, audio effects, ASIO output, or the mixer to P-HPR output. It does not open device handles, send HID output reports, send feature reports, write USB data, control SimPro Manager, control SimHub, or create a production protocol adapter.
+This command prints mock safety decisions only. Stage 2L itself does not route `ShiftIntentEvent`, `VehicleState`, audio effects, ASIO output, or the mixer to P-HPR output. Stage 2M routes accepted shift intents through the Stage 2L safety-limited mock output only. Neither stage opens device handles, sends HID output reports, sends feature reports, writes USB data, controls SimPro Manager, controls SimHub, or creates a production protocol adapter.
 
 ## Early Development Rule
 

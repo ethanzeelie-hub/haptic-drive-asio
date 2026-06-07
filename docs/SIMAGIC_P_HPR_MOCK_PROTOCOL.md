@@ -15,7 +15,7 @@ This stage exists so later routing and safety stages can exercise deterministic 
 - No real P-HPR vibration.
 - No hardware access.
 - No production protocol adapter.
-- No live routing from `ShiftIntentEvent` or `VehicleState`.
+- Stage 2M live routing is limited to accepted `ShiftIntentEvent` values into safety-limited mock output diagnostics. There is still no `VehicleState` road/slip/lock routing.
 
 Nothing in this mock protocol may be sent to real hardware.
 
@@ -188,9 +188,9 @@ Stage 2L still does not route `ShiftIntentEvent` values, `VehicleState`, road/sl
 
 ## Stage 2M Follow-Up
 
-Stage 2M should add mock gear-pulse routing from accepted shift intent to mock P-HPR output through the Stage 2L safety layer.
+Stage 2M adds mock gear-pulse routing from accepted shift intent to mock P-HPR output through the Stage 2L safety layer.
 
-Stage 2K does not route `ShiftIntentEvent` values.
+Stage 2K itself does not route `ShiftIntentEvent` values; Stage 2M owns that router.
 
 ## Final Statement
 

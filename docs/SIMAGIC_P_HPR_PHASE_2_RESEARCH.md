@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling. Stage 2I adds read-only capture analysis tooling and sanitized summary export. Stage 2J adds formal protocol hypotheses and sanitized hypothesis export. Stage 2K adds mock-only protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling. Stage 2I adds read-only capture analysis tooling and sanitized summary export. Stage 2J adds formal protocol hypotheses and sanitized hypothesis export. Stage 2K adds mock-only protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. Stage 2M adds mock-only gear pulse routing from accepted shift intents. These stages do not add USB writes, real P-HPR output, protocol control, or road/slip/lock P-HPR routing.
 
 ## Current Repository Baseline
 
@@ -20,6 +20,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 2J now extends `HapticDrive.Simagic.PHPR.Research` with analysis-only protocol hypothesis records, sanitized JSON/Markdown export commands, Stage 2K mock-only boundary definition, real-write blockers, and hardware-free tests.
 - Stage 2K now extends `HapticDrive.Simagic.PHPR.Abstractions` with mock-only protocol records, SimHub F1 EC mock encoding/decoding, deterministic duration scheduling, SimProUnknownMock classification, enhanced `MockPhprOutputDevice` diagnostics, and safe research CLI examples.
 - Stage 2L now extends `HapticDrive.Simagic.PHPR.Abstractions` with `PHprSafetyLimiter`, safety decision/context/snapshot models, deterministic command-rate and continuous-duration limiting, emergency-stop latching/clear behavior, real-write blocking diagnostics, and a safety-limited mock output wrapper.
+- Stage 2M now extends `HapticDrive.Actuation` with `PHprGearPulseRouter`, conservative mock gear pulse defaults, safety-limited mock routing from accepted `ShiftIntentEvent` values, WPF mock routing diagnostics, and hardware-free tests.
 
 ## User Hardware Context
 
@@ -439,6 +440,31 @@ Not implemented in Stage 2L:
 - No output reports, feature reports, HID writes, device-handle writes, driver changes, SimPro/SimHub control, or controlled write testing.
 - No haptic routing from paddle input, `ShiftIntentEvent`, `VehicleState`, audio effects, ASIO output, or the mixer.
 
+## Stage 2M Scope
+
+Implemented in Stage 2M:
+
+- `PHprGearPulseRouter`, `PHprGearPulseRouterOptions`, `PHprGearPulseProfile`, route result/status/snapshot models, and target mapping under `HapticDrive.Actuation.PHpr`.
+- Conservative mock gear pulse defaults: enabled, target `Both`, strength `0.05`, frequency `50 Hz`, duration `50 ms`, priority `100`, and source `PaddleShiftIntent`.
+- Routing only from accepted `ShiftIntentEvent` values to `SafetyLimitedPhprOutputDevice` wrapping `MockPhprOutputDevice`.
+- Ignored route diagnostics for disabled, missing, not-armed, or unknown-direction events.
+- Safety rejection diagnostics when Stage 2L context gates or limits block a command.
+- Mock emergency-stop and clear pass-through.
+- WPF Devices-page mock gear routing diagnostics and controls.
+- App-settings persistence for mock routing preferences only.
+- Hardware-free router tests and existing Stage 2L safety test coverage.
+- `docs/SIMAGIC_P_HPR_MOCK_GEAR_ROUTING.md`.
+
+Not implemented in Stage 2M:
+
+- No mock road vibration, wheel slip, or wheel lock routing.
+- No SimPro / SimHub coexistence detection.
+- No controlled write test plan.
+- No production encoder or decoder.
+- No real P-HPR output.
+- No USB writes, HID output reports, HID feature reports, device-handle writes, driver changes, SimPro/SimHub control, or controlled write testing.
+- No `VehicleState`, audio effects, ASIO output, or mixer routing to P-HPR.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
@@ -454,7 +480,7 @@ The highest-value first items after Stage 2I are:
 7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
-USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is next.
+USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is next.
 
 ## Write Safety Gate
 
@@ -464,7 +490,7 @@ No real P-HPR USB writes may be implemented or executed until the user says exac
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-That approval phrase has not been provided as of Stage 2L.
+That approval phrase has not been provided as of Stage 2M.
 
 Before that phrase, work is limited to read-only discovery, input observation, documentation, mock output, mock safety limiting, protocol hypotheses, tests, and diagnostics.
 

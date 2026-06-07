@@ -12,11 +12,15 @@ using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Actuation.Driving;
+using HapticDrive.Actuation.PHpr;
 using HapticDrive.Actuation.Shift;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
 using HapticDrive.Input.Windows;
+using HapticDrive.Simagic.PHPR.Abstractions.Commands;
+using HapticDrive.Simagic.PHPR.Abstractions.Output;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -40,6 +44,9 @@ public partial class MainWindow : Window
         new WindowsGameControllerButtonStateReader());
     private readonly DrivingArmedStateService _drivingArmedStateService = new();
     private readonly ShiftIntentProcessor _shiftIntentProcessor;
+    private readonly MockPhprOutputDevice _mockGearPulseOutput = new();
+    private readonly SafetyLimitedPhprOutputDevice _mockGearPulseSafetyOutput;
+    private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
@@ -62,6 +69,7 @@ public partial class MainWindow : Window
     ];
     private readonly IReadOnlyList<int> _asioOutputChannelChoices = Enumerable.Range(0, 8).ToArray();
     private readonly IReadOnlyList<ShiftIntentMode> _shiftIntentModeOptions = Enum.GetValues<ShiftIntentMode>();
+    private readonly IReadOnlyList<PHprGearPulseTarget> _mockGearPulseTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
 
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
@@ -238,6 +246,7 @@ public partial class MainWindow : Window
     private bool _updatingSettingsUi;
     private bool _updatingPaddleInputUi;
     private bool _updatingShiftIntentUi;
+    private bool _updatingMockGearPulseUi;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -258,6 +267,10 @@ public partial class MainWindow : Window
         _shiftIntentProcessor = new ShiftIntentProcessor(
             _drivingArmedStateService,
             CreateShiftIntentOptions(appSettings.ShiftIntent));
+        _mockGearPulseSafetyOutput = new SafetyLimitedPhprOutputDevice(_mockGearPulseOutput);
+        _mockGearPulseRouter = new PHprGearPulseRouter(
+            _mockGearPulseSafetyOutput,
+            CreateMockGearPulseRouterOptions(appSettings.MockGearPulseRouting));
         _hapticPipeline = CreatePipelineForSelectedOutput();
 
         _updatingOutputUi = true;
@@ -276,6 +289,7 @@ public partial class MainWindow : Window
         TestBenchSignalComboBox.ItemsSource = _testBenchSignals;
         TestBenchSignalComboBox.SelectedIndex = 1;
         ShiftIntentModeComboBox.ItemsSource = _shiftIntentModeOptions;
+        MockGearPulseTargetComboBox.ItemsSource = _mockGearPulseTargetOptions;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
@@ -283,6 +297,7 @@ public partial class MainWindow : Window
         UpdateProfileStatus("Default conservative profile loaded.", []);
         ApplyPaddleMappingToControls();
         ApplyShiftIntentSettingsToControls();
+        ApplyMockGearPulseSettingsToControls();
         _paddleInputSource.RawButtonChanged += PaddleInputSource_InputChanged;
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_InputChanged;
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_PaddleInputReceived;
@@ -543,6 +558,60 @@ public partial class MainWindow : Window
         FooterStatusText.Text = "Shift intent diagnostics cleared.";
     }
 
+    private void MockGearPulseControl_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingMockGearPulseUi)
+        {
+            return;
+        }
+
+        ApplyMockGearPulseOptionsFromControls("Mock P-HPR gear routing preferences updated.");
+    }
+
+    private void MockGearPulseControl_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingMockGearPulseUi)
+        {
+            return;
+        }
+
+        ApplyMockGearPulseOptionsFromControls("Mock P-HPR gear routing target updated.");
+    }
+
+    private void MockGearPulseControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_updatingMockGearPulseUi)
+        {
+            return;
+        }
+
+        ApplyMockGearPulseOptionsFromControls("Mock P-HPR gear pulse profile updated.");
+    }
+
+    private void ClearMockGearPulseDiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _mockGearPulseRouter.ClearDiagnostics();
+        UpdateMockGearPulseStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Mock P-HPR gear routing diagnostics cleared.";
+    }
+
+    private async void MockGearPulseEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = await _mockGearPulseRouter.EmergencyStopAsync();
+        UpdateMockGearPulseStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = result.Message;
+    }
+
+    private void ClearMockGearPulseEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        _mockGearPulseRouter.ClearEmergencyStop();
+        UpdateMockGearPulseStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Mock P-HPR emergency stop cleared; no hardware write was performed.";
+    }
+
     private void ApplyShiftIntentOptionsFromControls(string footerMessage)
     {
         var mode = ShiftIntentModeComboBox.SelectedItem is ShiftIntentMode selectedMode
@@ -555,6 +624,22 @@ public partial class MainWindow : Window
         });
         SaveAppSettings();
         UpdateShiftIntentStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = footerMessage;
+    }
+
+    private void ApplyMockGearPulseOptionsFromControls(string footerMessage)
+    {
+        if (!TryBuildMockGearPulseOptionsFromControls(out var options, out var message))
+        {
+            MockGearPulseStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return;
+        }
+
+        _mockGearPulseRouter.Configure(options);
+        SaveAppSettings();
+        UpdateMockGearPulseStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = footerMessage;
     }
@@ -885,6 +970,54 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private bool TryBuildMockGearPulseOptionsFromControls(
+        out PHprGearPulseRouterOptions options,
+        out string message)
+    {
+        var current = _mockGearPulseRouter.GetSnapshot().Options;
+        options = current;
+
+        if (!double.TryParse(MockGearPulseStrengthTextBox.Text.Trim(), out var strength)
+            || !double.IsFinite(strength)
+            || strength is < 0d or > 1d)
+        {
+            message = "Mock P-HPR strength must be a number from 0.00 to 1.00.";
+            return false;
+        }
+
+        if (!double.TryParse(MockGearPulseFrequencyTextBox.Text.Trim(), out var frequency)
+            || !double.IsFinite(frequency)
+            || frequency is < 1d or > 1_000d)
+        {
+            message = "Mock P-HPR frequency must be a number from 1 to 1000 Hz.";
+            return false;
+        }
+
+        if (!int.TryParse(MockGearPulseDurationTextBox.Text.Trim(), out var duration)
+            || duration is < 0 or > 1_000)
+        {
+            message = "Mock P-HPR duration must be between 0 and 1000 ms.";
+            return false;
+        }
+
+        var target = MockGearPulseTargetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
+            ? selectedTarget
+            : PHprGearPulseTarget.Both;
+        options = new PHprGearPulseRouterOptions
+        {
+            IsEnabled = MockGearPulseEnabledCheckBox.IsChecked == true,
+            TargetModule = target,
+            Profile = PHprGearPulseProfile.Default with
+            {
+                Strength01 = strength,
+                FrequencyHz = frequency,
+                DurationMs = duration
+            }
+        }.Normalize();
+        message = "Mock P-HPR gear pulse routing ready.";
+        return true;
+    }
+
     private static bool TryParseOptionalButtonId(string text, out int? buttonId, out string message)
     {
         buttonId = null;
@@ -971,6 +1104,21 @@ public partial class MainWindow : Window
         }.Normalize();
     }
 
+    private static PHprGearPulseRouterOptions CreateMockGearPulseRouterOptions(MockGearPulseRoutingSetting setting)
+    {
+        return new PHprGearPulseRouterOptions
+        {
+            IsEnabled = setting.IsEnabled,
+            TargetModule = setting.TargetModule,
+            Profile = PHprGearPulseProfile.Default with
+            {
+                Strength01 = setting.Strength01,
+                FrequencyHz = setting.FrequencyHz,
+                DurationMs = setting.DurationMs
+            }
+        }.Normalize();
+    }
+
     private ShiftIntentSetting CreateShiftIntentSetting()
     {
         var snapshot = _shiftIntentProcessor.GetDiagnosticsSnapshot();
@@ -978,6 +1126,19 @@ public partial class MainWindow : Window
         {
             IsEnabled = snapshot.IsEnabled,
             Mode = snapshot.Mode
+        };
+    }
+
+    private MockGearPulseRoutingSetting CreateMockGearPulseRoutingSetting()
+    {
+        var snapshot = _mockGearPulseRouter.GetSnapshot();
+        return new MockGearPulseRoutingSetting
+        {
+            IsEnabled = snapshot.Options.IsEnabled,
+            TargetModule = snapshot.Options.TargetModule,
+            Strength01 = snapshot.Options.Profile.Strength01,
+            FrequencyHz = snapshot.Options.Profile.FrequencyHz,
+            DurationMs = snapshot.Options.Profile.DurationMs
         };
     }
 
@@ -991,6 +1152,19 @@ public partial class MainWindow : Window
         UpdateShiftIntentStatus();
     }
 
+    private void ApplyMockGearPulseSettingsToControls()
+    {
+        var snapshot = _mockGearPulseRouter.GetSnapshot();
+        _updatingMockGearPulseUi = true;
+        MockGearPulseEnabledCheckBox.IsChecked = snapshot.Options.IsEnabled;
+        MockGearPulseTargetComboBox.SelectedItem = snapshot.Options.TargetModule;
+        MockGearPulseStrengthTextBox.Text = snapshot.Options.Profile.Strength01.ToString("0.###");
+        MockGearPulseFrequencyTextBox.Text = snapshot.Options.Profile.FrequencyHz.ToString("0.###");
+        MockGearPulseDurationTextBox.Text = snapshot.Options.Profile.DurationMs.ToString();
+        _updatingMockGearPulseUi = false;
+        UpdateMockGearPulseStatus();
+    }
+
     private void SaveAppSettings()
     {
         try
@@ -1002,7 +1176,8 @@ public partial class MainWindow : Window
                 LastAsioOutputChannel = _selectedAsioOutputChannel,
                 ForwardingDestinations = _forwardingDestinations.ToList(),
                 PaddleInputMapping = CreatePaddleMappingSetting(),
-                ShiftIntent = CreateShiftIntentSetting()
+                ShiftIntent = CreateShiftIntentSetting(),
+                MockGearPulseRouting = CreateMockGearPulseRoutingSetting()
             });
             _settingsError = null;
         }
@@ -1677,12 +1852,13 @@ public partial class MainWindow : Window
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
+        UpdateMockGearPulseStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}.";
         }
     }
 
@@ -1695,7 +1871,8 @@ public partial class MainWindow : Window
             ? string.Join(" ", validationMessages)
             : "Profile values are clamped to conservative software ranges on load and save.";
         var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -1798,7 +1975,7 @@ public partial class MainWindow : Window
             $"Shift intent: {(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}.";
         ShiftIntentItemsControl.ItemsSource = new[]
         {
-            "Safety: Stage 2F evaluates mapped paddle intent only. It does not trigger haptic output, call MockPhprOutputDevice, create PHprCommand, or touch the ASIO/BST-1 audio path.",
+            "Safety: Stage 2F evaluates mapped paddle intent only. Stage 2M routes accepted events separately to safety-limited mock P-HPR output and still does not touch the ASIO/BST-1 audio path.",
             $"DrivingArmed current state: {driving.Current.IsArmed}; reason {driving.Current.Reason}",
             $"DrivingArmed telemetry age: {telemetryAge}; menu safe mode {driving.MenuSafeModeEnabled}; require recent telemetry {driving.RequireRecentTelemetry}",
             $"Last paddle side: {diagnostics.LastPaddleSide}; direction {diagnostics.LastDirection}; last paddle event {(diagnostics.LastPaddleEvent is null ? "none" : diagnostics.LastPaddleEvent.TimestampUtc.ToLocalTime().ToString("T"))}",
@@ -1807,6 +1984,35 @@ public partial class MainWindow : Window
             $"Last suppression reason: {diagnostics.LastSuppressionReason ?? "none"}",
             $"Last known telemetry: gear {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownGear)}, speed {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownSpeedKph)} km/h, RPM {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownRpm)}, frame {FormatOptionalUInt(diagnostics.LastTelemetry.LastKnownFrameIdentifier)}",
             $"Pending confirmation records: {diagnostics.PendingConfirmationCount:N0}; error {diagnostics.LastError ?? "none"}"
+        };
+    }
+
+    private void UpdateMockGearPulseStatus()
+    {
+        var snapshot = _mockGearPulseRouter.GetSnapshot();
+        var options = snapshot.Options;
+        var lastDirection = snapshot.LastShiftDirection;
+        var lastCommand = FormatPhprCommand(snapshot.LastCommand);
+        var lastSafety = snapshot.LastSafetyDecision is null
+            ? "none"
+            : $"{snapshot.LastSafetyDecision.Kind}: {snapshot.LastSafetyDecision.Message}";
+        var lastViolation = snapshot.LastSafetyViolation?.Code.ToString() ?? "none";
+        var lastResult = snapshot.LastResult is null
+            ? "none"
+            : $"{snapshot.LastResult.Status}: {snapshot.LastResult.Message}";
+
+        MockGearPulseStatusText.Text =
+            $"Mock gear routing: {(options.IsEnabled ? "enabled" : "disabled")}; target {options.TargetModule}; strength {options.Profile.Strength01:0.###}; frequency {options.Profile.FrequencyHz:0.###} Hz; duration {options.Profile.DurationMs} ms; routed {snapshot.AcceptedRouteCount:N0}; ignored {snapshot.IgnoredRouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}.";
+        MockGearPulseItemsControl.ItemsSource = new[]
+        {
+            "Safety: mock only, no hardware output. Stage 2M does not send USB commands, HID output reports, HID feature reports, or real P-HPR vibration.",
+            $"Default source: {PHprCommandSource.PaddleShiftIntent}; target {options.TargetModule}; same pulse for upshift and downshift.",
+            $"Last shift direction: {lastDirection}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}",
+            $"Last PHprCommand: {lastCommand}",
+            $"Last routing result: {lastResult}",
+            $"Safety decision: {lastSafety}; violation {lastViolation}",
+            $"Mock output commands: {snapshot.OutputSnapshot.AcceptedCommandCount:N0}; rejected {snapshot.OutputSnapshot.RejectedCommandCount:N0}; frames {snapshot.OutputSnapshot.GeneratedFrameCount:N0}; pending scheduled stops {snapshot.OutputSnapshot.PendingScheduledStopCount:N0}",
+            $"Emergency stop active: {snapshot.EmergencyStopActive}; mock emergency count {snapshot.OutputSnapshot.EmergencyStopCount:N0}; last error {snapshot.LastError ?? "none"}"
         };
     }
 
@@ -1856,9 +2062,10 @@ public partial class MainWindow : Window
             $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
             $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
             $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
+            $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; ASIO armed state, haptics running state, emergency mute, and P-HPR control are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; ASIO armed state, haptics running state, emergency mute, P-HPR emergency stop state, and mock histories are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
@@ -1918,7 +2125,15 @@ public partial class MainWindow : Window
             ? "none"
             : $"{diagnostics.LastSuppressedEvent.PaddleEvent.PaddleSide} seq {diagnostics.LastSuppressedEvent.PaddleEvent.SequenceNumber} reason {diagnostics.LastSuppressedEvent.SuppressionReason}";
 
-        return $"{(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed} reason {driving.Current.Reason}; menu safe {driving.MenuSafeModeEnabled}; require recent telemetry {driving.RequireRecentTelemetry}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}; pending confirmations {diagnostics.PendingConfirmationCount:N0}; no haptic output.";
+        return $"{(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed} reason {driving.Current.Reason}; menu safe {driving.MenuSafeModeEnabled}; require recent telemetry {driving.RequireRecentTelemetry}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}; pending confirmations {diagnostics.PendingConfirmationCount:N0}; accepted events may feed mock-only P-HPR gear routing.";
+    }
+
+    private string BuildMockGearPulseDiagnosticsText()
+    {
+        var snapshot = _mockGearPulseRouter.GetSnapshot();
+        var lastResult = snapshot.LastResult is null ? "none" : $"{snapshot.LastResult.Status}";
+        var violation = snapshot.LastSafetyViolation?.Code.ToString() ?? "none";
+        return $"{(snapshot.Options.IsEnabled ? "enabled" : "disabled")}; target {snapshot.Options.TargetModule}; strength {snapshot.Options.Profile.Strength01:0.###}; frequency {snapshot.Options.Profile.FrequencyHz:0.###} Hz; duration {snapshot.Options.Profile.DurationMs} ms; routed {snapshot.AcceptedRouteCount:N0}; ignored {snapshot.IgnoredRouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; last result {lastResult}; safety violation {violation}; mock commands {snapshot.OutputSnapshot.AcceptedCommandCount:N0}; mock frames {snapshot.OutputSnapshot.GeneratedFrameCount:N0}; pending stops {snapshot.OutputSnapshot.PendingScheduledStopCount:N0}; emergency stop {snapshot.EmergencyStopActive}; mock only, no hardware output.";
     }
 
     private static string FormatDiscoveryMethods(IReadOnlyList<InputDiscoveryMethod> methods)
@@ -1946,6 +2161,13 @@ public partial class MainWindow : Window
     private static string FormatButtonMapping(int? buttonId)
     {
         return buttonId is null ? "unmapped" : $"button {buttonId}";
+    }
+
+    private static string FormatPhprCommand(PHprCommand? command)
+    {
+        return command is null
+            ? "none"
+            : $"{command.Source} -> {command.TargetModule}, strength {command.Strength01:0.###}, {command.FrequencyHz:0.###} Hz, {command.DurationMs} ms, priority {command.Priority}, flags {command.SafetyFlags}";
     }
 
     private static string FormatOptionalInt(int? value)
@@ -2023,14 +2245,25 @@ public partial class MainWindow : Window
         });
     }
 
-    private void PaddleInputSource_PaddleInputReceived(object? sender, WheelPaddleInputEvent e)
+    private async void PaddleInputSource_PaddleInputReceived(object? sender, WheelPaddleInputEvent e)
     {
         var result = _shiftIntentProcessor.HandlePaddleInput(e);
+        PHprGearPulseRoutingResult? routingResult = null;
+        if (result.WasAccepted && result.ShiftIntentEvent is not null)
+        {
+            routingResult = await _mockGearPulseRouter.RouteAsync(
+                result.ShiftIntentEvent,
+                BuildMockGearPulseSafetyContext(result.ShiftIntentEvent));
+        }
+
         _ = Dispatcher.InvokeAsync(() =>
         {
             UpdateShiftIntentStatus();
+            UpdateMockGearPulseStatus();
             UpdateDiagnosticsStatus();
-            FooterStatusText.Text = result.Message;
+            FooterStatusText.Text = routingResult is null
+                ? result.Message
+                : $"{result.Message} {routingResult.Message}";
         });
     }
 
@@ -2063,6 +2296,24 @@ public partial class MainWindow : Window
         _drivingArmedStateService.UpdateFromPipelineSnapshot(snapshot);
         _shiftIntentProcessor.UpdateFromPipelineSnapshot(snapshot);
         return snapshot;
+    }
+
+    private PHprSafetyContext BuildMockGearPulseSafetyContext(ShiftIntentEvent shiftIntentEvent)
+    {
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+        var outputSnapshot = _mockGearPulseSafetyOutput.GetSnapshot();
+        return new PHprSafetyContext(
+            IsMockOutput: true,
+            IsDeviceConnected: outputSnapshot.IsConnected,
+            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
+            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
+            TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
+            HapticsStopped: !pipelineSnapshot.IsRunning,
+            EmergencyMuteActive: _emergencyMuted,
+            DrivingArmed: shiftIntentEvent.DrivingArmedAtEvent.IsArmed,
+            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
+            SoftwareConflictStatus: PHprSoftwareConflictStatus.Clear,
+            RequiresRealDeviceWrites: false);
     }
 
     private void UpdateTelemetryStatus()

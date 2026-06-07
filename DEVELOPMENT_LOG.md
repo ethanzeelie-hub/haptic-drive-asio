@@ -1273,3 +1273,53 @@ Self-review:
 - The ASIO/BST-1 audio path was not changed.
 - Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated local analysis exports were not committed.
 - Stage 2M Mock Gear Pulse Routing is next; Stage 2L stops here.
+
+## Stage 2M - Mock Gear Pulse Routing
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Route accepted `ShiftIntentEvent` values to the Stage 2L safety-limited mock P-HPR output path without creating any real P-HPR output, USB write, HID report, road/slip/lock routing, or ASIO/BST-1 audio-path change.
+
+Notes:
+
+- Added `HapticDrive.Actuation.PHpr` with `PHprGearPulseRouter`, router options, conservative profile defaults, routing result/status/snapshot models, and mock target mapping.
+- Default mock gear pulse routing is enabled, targets both brake and throttle, uses strength `0.05`, frequency `50 Hz`, duration `50 ms`, priority `100`, and source `PaddleShiftIntent`.
+- The router ignores disabled routing, missing events, events not accepted by `DrivingArmed`, and unknown-direction events.
+- Accepted events create a mock-only `PHprCommand` and pass it through `SafetyLimitedPhprOutputDevice` before `MockPhprOutputDevice` can record commands or frames.
+- Stage 2L safety remains authoritative: clamps are preserved, restrictive safety contexts reject starts, telemetry stale / haptics stopped / emergency mute / driving-not-armed gates still block, and emergency stop latches until cleared.
+- Integrated a private WPF mock stack: `MockPhprOutputDevice`, `SafetyLimitedPhprOutputDevice`, and `PHprGearPulseRouter`.
+- Added Devices-page mock gear routing diagnostics and controls for enabled state, target, strength, frequency, duration, clear diagnostics, mock emergency stop, and clear mock emergency stop.
+- Persisted only mock routing preferences. Emergency-stop state, safety latch state, mock command history, mock frame history, real write approval, and real output state are not persisted.
+- Added `docs/SIMAGIC_P_HPR_MOCK_GEAR_ROUTING.md` and updated README, architecture, roadmap, known issues, shift-intent, safety, mock protocol, research, and protocol-hypothesis docs.
+- Added hardware-free router tests for accepted/suppressed/disabled routing, default both-target mock frames, default pulse settings, upshift/downshift equivalence, command source, safety clamps, blocked contexts, emergency stop, mock command/frame diagnostics, and no USB/HID/audio/road/slip/lock route surface.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj --no-build` passed with 43 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 40 passing tests.
+- First full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` hit the known timing-sensitive `NullOutput_OutputOwnedStreamingReportsCallbackCadence` assertion; no Stage 2M tests failed.
+- Rerun full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 347 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed and printed 6 safety examples.
+- The first attempt to run all three research CLI commands in parallel failed with `.deps.json` file locks from concurrent project builds; rerunning the same commands sequentially passed.
+
+Self-review:
+
+- Stage 2M stayed within mock gear pulse routing from accepted `ShiftIntentEvent` values only.
+- Suppressed shift intents do not route.
+- `DrivingArmed` is not bypassed, no telemetry wait is added, and no second confirmation pulse is created by default.
+- No road vibration, wheel slip, or wheel lock routing was implemented.
+- No SimPro / SimHub coexistence detection was implemented.
+- No controlled write testing was implemented.
+- No production encoder, production decoder, real output adapter, or real P-HPR control was implemented.
+- No real P-HPR USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- The ASIO/BST-1 audio path was not changed.
+- Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated local analysis exports were not committed.
+- Stage 2N Mock Road Vibration, Wheel Slip, and Wheel Lock Routing is next; Stage 2M stops here.

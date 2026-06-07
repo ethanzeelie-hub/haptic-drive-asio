@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using HapticDrive.Actuation.PHpr;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
@@ -92,7 +93,8 @@ internal sealed class AppSettingsStore
                 : null,
             ForwardingDestinations = destinations,
             PaddleInputMapping = SanitizePaddleInputMapping(settings.PaddleInputMapping),
-            ShiftIntent = SanitizeShiftIntent(settings.ShiftIntent)
+            ShiftIntent = SanitizeShiftIntent(settings.ShiftIntent),
+            MockGearPulseRouting = SanitizeMockGearPulseRouting(settings.MockGearPulseRouting)
         };
     }
 
@@ -135,6 +137,30 @@ internal sealed class AppSettingsStore
         };
     }
 
+    private static MockGearPulseRoutingSetting SanitizeMockGearPulseRouting(MockGearPulseRoutingSetting? setting)
+    {
+        if (setting is null)
+        {
+            return new MockGearPulseRoutingSetting();
+        }
+
+        var target = Enum.IsDefined(setting.TargetModule)
+            ? setting.TargetModule
+            : PHprGearPulseTarget.Both;
+
+        return setting with
+        {
+            TargetModule = target,
+            Strength01 = double.IsFinite(setting.Strength01)
+                ? Math.Clamp(setting.Strength01, 0d, 1d)
+                : 0.05d,
+            FrequencyHz = double.IsFinite(setting.FrequencyHz)
+                ? Math.Clamp(setting.FrequencyHz, 1d, 1_000d)
+                : 50d,
+            DurationMs = Math.Clamp(setting.DurationMs, 0, 1_000)
+        };
+    }
+
     private static int? NormalizeButtonId(int? buttonId)
     {
         return buttonId is > 0 and <= 128 ? buttonId : null;
@@ -154,6 +180,8 @@ internal sealed record AppSettings
     public PaddleInputMappingSetting PaddleInputMapping { get; init; } = new();
 
     public ShiftIntentSetting ShiftIntent { get; init; } = new();
+
+    public MockGearPulseRoutingSetting MockGearPulseRouting { get; init; } = new();
 
     public string? LastStatusMessage { get; init; }
 
@@ -178,6 +206,19 @@ internal sealed record ShiftIntentSetting
     public bool IsEnabled { get; init; } = true;
 
     public ShiftIntentMode Mode { get; init; } = ShiftIntentMode.InstantPaddleOnly;
+}
+
+internal sealed record MockGearPulseRoutingSetting
+{
+    public bool IsEnabled { get; init; } = true;
+
+    public PHprGearPulseTarget TargetModule { get; init; } = PHprGearPulseTarget.Both;
+
+    public double Strength01 { get; init; } = 0.05d;
+
+    public double FrequencyHz { get; init; } = 50d;
+
+    public int DurationMs { get; init; } = 50;
 }
 
 internal sealed record ForwardingDestinationSetting

@@ -13,7 +13,7 @@ The implementation lives in `HapticDrive.Simagic.PHPR.Abstractions`:
 - `PHprSafetySnapshot`
 - `SafetyLimitedPhprOutputDevice`
 
-Stage 2L may evaluate commands and forward accepted or clamped commands to `MockPhprOutputDevice` only. It does not route live paddle input, `ShiftIntentEvent`, `VehicleState`, telemetry effects, ASIO effects, or mixer output to P-HPR.
+Stage 2L may evaluate commands and forward accepted or clamped commands to `MockPhprOutputDevice` only. Stage 2M now routes accepted `ShiftIntentEvent` values through this safety-limited mock path. Stage 2L/2M do not route `VehicleState`, telemetry road/slip/lock effects, ASIO effects, or mixer output to P-HPR.
 
 ## Safety Boundary
 
@@ -97,7 +97,7 @@ Emergency stop:
 
 ## Runtime Context Gates
 
-`PHprSafetyContext` includes fields for later Stage 2M/2N routing:
+`PHprSafetyContext` includes fields used by Stage 2M gear routing and later Stage 2N road/slip/lock routing:
 
 - `TelemetryStale`
 - `HapticsStopped`
@@ -153,7 +153,7 @@ The command prints mock safety decisions only. It does not export hardware packe
 
 ## Stage 2M Follow-Up
 
-Stage 2M should route accepted mock gear-pulse commands through this safety layer before they reach `MockPhprOutputDevice`.
+Stage 2M routes accepted mock gear-pulse commands through this safety layer before they reach `MockPhprOutputDevice`.
 
 ## Stage 2N Follow-Up
 

@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\HapticDrive.Actuation\HapticDrive.Actuation.csproj" />
+    <ProjectReference Include="..\..\src\HapticDrive.Simagic.PHPR.Abstractions\HapticDrive.Simagic.PHPR.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

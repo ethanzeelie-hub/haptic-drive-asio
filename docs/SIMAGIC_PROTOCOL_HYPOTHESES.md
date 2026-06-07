@@ -4,7 +4,7 @@
 
 Stage 2J converts the Stage 2I capture-analysis results and related sanitized input evidence into formal P-HPR protocol hypotheses.
 
-This document prepared Stage 2K mock protocol/output work and now feeds the Stage 2L safety layer. It does not approve, implement, or execute direct P-HPR control.
+This document prepared Stage 2K mock protocol/output work, feeds the Stage 2L safety layer, and remains the evidence background for Stage 2M mock gear routing. It does not approve, implement, or execute direct P-HPR control.
 
 ## Safety Boundary
 
@@ -17,7 +17,7 @@ This document prepared Stage 2K mock protocol/output work and now feeds the Stag
 - No live hardware protocol decoder that creates `PHprCommand` values.
 - No `IPHprOutputDevice` calls.
 - No `MockPhprOutputDevice` calls in Stage 2J.
-- No route from `ShiftIntentEvent` to haptic output.
+- Stage 2M routes accepted `ShiftIntentEvent` values to safety-limited mock output only.
 - No ASIO/BST-1 audio path change.
 
 Nothing in this document authorises real USB writes.
@@ -234,7 +234,7 @@ Recommended mock-only command model:
 | EvidenceConfidence | copied from Stage 2J hypothesis |
 | MockOnly | always true |
 
-Stage 2K must not:
+Stage 2K/2M must not:
 
 - write to hardware,
 - open Simagic device handles for write,

@@ -1,6 +1,6 @@
 # Simagic P-HPR Safety Plan
 
-This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds mock-only safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. None of these stages implements USB writes, P-HPR routing, or real P-HPR output.
+This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds mock-only safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. Stage 2M adds mock-only gear pulse routing from accepted shift intents through that safety-limited mock output wrapper. None of these stages implements USB writes or real P-HPR output.
 
 ## Required Approval Phrase
 
@@ -10,7 +10,7 @@ No real P-HPR USB writes, output reports, write-capable feature reports, or real
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-That phrase has not been provided as of Stage 2L.
+That phrase has not been provided as of Stage 2M.
 
 Stage 2B keeps `PHprSafetyLimits.AllowRealDeviceWrites` false by default, and `MockPhprOutputDevice` only records mock commands in memory.
 
@@ -27,6 +27,8 @@ Stage 2J documents hypotheses from sanitized evidence and exports sanitized hypo
 Stage 2K implements mock-only SimHub F1 EC frame modelling, mock encode/decode tests, deterministic duration scheduling, SimProUnknownMock classification, mock output frame diagnostics, and safe CLI mock examples. It does not create a production encoder/decoder, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, control SimPro Manager or SimHub, route `ShiftIntentEvent` values, route `VehicleState`, or touch the ASIO/BST-1 output path. Nothing in the Stage 2K mock protocol may be sent to real hardware.
 
 Stage 2L implements `PHprSafetyLimiter`, safety result/context/snapshot models, command clamping/rejection, command-rate limiting, continuous-duration limiting, synthetic telemetry/haptics/emergency-mute/driving/conflict context gates, real-write blocking diagnostics, emergency-stop latching/clear behavior, and a `SafetyLimitedPhprOutputDevice` wrapper for `MockPhprOutputDevice`. It does not create a production encoder/decoder, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, control SimPro Manager or SimHub, route `ShiftIntentEvent` values, route `VehicleState`, route telemetry effects, or touch the ASIO/BST-1 output path.
+
+Stage 2M implements `PHprGearPulseRouter`, conservative mock gear pulse defaults, accepted-route/ignored/safety-rejected diagnostics, WPF mock gear routing diagnostics, and mock routing preferences. It routes only accepted `ShiftIntentEvent` values to `SafetyLimitedPhprOutputDevice` wrapping `MockPhprOutputDevice`. It does not create a production encoder/decoder, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, control SimPro Manager or SimHub, route `VehicleState`, route road/slip/lock effects, or touch the ASIO/BST-1 output path.
 
 ## Allowed Before Approval
 

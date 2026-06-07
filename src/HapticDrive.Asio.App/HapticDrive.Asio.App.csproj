@@ -9,6 +9,7 @@
     <ProjectReference Include="..\HapticDrive.Actuation\HapticDrive.Actuation.csproj" />
     <ProjectReference Include="..\HapticDrive.Input.Abstractions\HapticDrive.Input.Abstractions.csproj" />
     <ProjectReference Include="..\HapticDrive.Input.Windows\HapticDrive.Input.Windows.csproj" />
+    <ProjectReference Include="..\HapticDrive.Simagic.PHPR.Abstractions\HapticDrive.Simagic.PHPR.Abstractions.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

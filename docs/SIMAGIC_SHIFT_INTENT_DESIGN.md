@@ -1,6 +1,6 @@
 # Simagic Shift Intent Design
 
-Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds a read-only Windows game-controller paddle listener with manual left/right mapping diagnostics. Stage 2F implements the Shift Intent Event Layer for accepted/suppressed diagnostics. Stage 2H adds capture workflow and metadata tooling for later protocol research. Stage 2I adds read-only capture analysis. Stage 2J adds protocol hypotheses. Stage 2K adds mock-only P-HPR protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. These stages do not implement P-HPR routing or any live output path.
+Stage 2A captures the design for low-latency gear-pulse intent. Stage 2B defines the input abstraction models and interfaces only. Stage 2C adds the cached `DrivingArmedStateService`. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds a read-only Windows game-controller paddle listener with manual left/right mapping diagnostics. Stage 2F implements the Shift Intent Event Layer for accepted/suppressed diagnostics. Stage 2H adds capture workflow and metadata tooling for later protocol research. Stage 2I adds read-only capture analysis. Stage 2J adds protocol hypotheses. Stage 2K adds mock-only P-HPR protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. Stage 2M adds mock-only gear pulse routing from accepted shift intents through the Stage 2L safety-limited mock output path. These stages do not implement real P-HPR output or any live hardware write path.
 
 ## Default Event Flow
 
@@ -10,7 +10,7 @@ GT Neo paddle press
 -> ShiftIntentEvent
 -> cached DrivingArmed gate
 -> accepted/suppressed diagnostics
--> later mock/P-HPR gear pulse
+-> Stage 2M mock-only gear pulse routing
 ```
 
 The paddle event path must not block waiting for a fresh F1 25 telemetry packet.
@@ -25,7 +25,7 @@ Behavior:
 - The event uses cached driving state only.
 - The event does not wait for telemetry confirmation.
 - The event does not fire a second normal telemetry-confirmed pulse by default.
-- Stage 2F records the accepted event for diagnostics only.
+- Stage 2F records the accepted event for diagnostics, and Stage 2M may route that accepted event to mock-only P-HPR gear pulse diagnostics.
 - Future routing should use the same pulse for left and right by default while retaining direction in diagnostics.
 
 ## Other Planned Modes
@@ -151,24 +151,23 @@ Stage 2F persists only shift-intent enabled state and mode. It does not persist 
 
 ## Routing
 
-Stage 2F does not route accepted `ShiftIntentEvent` values to haptics. Stage 2M should later route accepted events to mock P-HPR gear pulses through the Stage 2L safety layer.
+Stage 2F does not directly route accepted `ShiftIntentEvent` values to haptics. Stage 2M adds a separate `PHprGearPulseRouter` that routes accepted events to mock P-HPR gear pulses through the Stage 2L safety layer.
 
 Stages 2H through 2L do not change this routing boundary. Stage 2H creates capture metadata workflow tooling, Stage 2I analyzes captures read-only, Stage 2J documents hypotheses, Stage 2K creates mock protocol/output diagnostics, and Stage 2L creates mock safety limiting. They do not route accepted shift intents.
 
-A later accepted `ShiftIntentEvent` should be able to route to:
+An accepted `ShiftIntentEvent` can now route in mock mode to:
 
 - Brake P-HPR.
 - Throttle P-HPR.
 - Both P-HPR modules.
-- BST-1 / ASIO gear effect later if suitable.
+- BST-1 / ASIO gear effect later if suitable, but Stage 2M does not do this.
 
 P-HPR output must not block ASIO output, and ASIO output must not block P-HPR output.
 
-Stage 2F safety confirmations:
+Stage 2F/2M safety confirmations:
 
-- No `MockPhprOutputDevice` call.
-- No `IPHprOutputDevice` call.
-- No `PHprCommand` creation.
+- Stage 2F still has no `MockPhprOutputDevice` call, `IPHprOutputDevice` call, or `PHprCommand` creation.
+- Stage 2M creates `PHprCommand` values only for safety-limited mock output through `PHprGearPulseRouter`.
 - No real P-HPR output.
 - No ASIO gear pulse from paddle input.
 - No `GearShiftEffect` call from paddle input.
