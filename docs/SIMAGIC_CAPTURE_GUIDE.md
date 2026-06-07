@@ -1,12 +1,12 @@
 # Simagic Capture Guide
 
-Stage 2H prepares the future Simagic P700 / P-HPR USB capture workflow. It does not analyze captures and it does not send any USB writes or vibration commands.
+Stage 2H prepares the Simagic P700 / P-HPR USB capture workflow. Stage 2I adds read-only capture analysis tooling. Neither stage sends USB writes or vibration commands.
 
 ## Stage 2H Purpose
 
 Stage 2H creates the safe capture workflow, scenario checklist, metadata schema, metadata template command, validation command, and sanitized manifest export command needed before Stage 2I analysis.
 
-Stage 2H can complete without real captures. Real USB captures are pending user collection before Stage 2I analysis.
+Stage 2H can complete without real captures. Stage 2I can analyze actual local captures, sanitized Wireshark CSV/text exports, or sanitized transfer summaries when they are available.
 
 ## Safety Boundary
 
@@ -210,6 +210,26 @@ The manifest is written by default to `capture-metadata/generated/simagic-captur
 
 All Stage 2H capture commands print a safety banner confirming metadata/template/manifest tooling only, no capture analysis, no USB writes, no output reports, no feature reports, no vibration commands, no P-HPR commands, and no SimPro/SimHub control.
 
+## Stage 2I Analysis Commands
+
+Analyze one capture/export file or a folder recursively:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- capture-analysis <capture-or-export-path>
+```
+
+Compare two capture/export sources and report closest byte-level payload differences:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- capture-diff <left-capture-or-export-path> <right-capture-or-export-path>
+```
+
+The analysis output is written by default to ignored `capture-metadata/generated/`.
+
+Stage 2I analysis reports contain sanitized source file names, payload counts, payload-length counts, source-column counts, short payload previews, truncated payload fingerprints, byte-diff observations, pcap/pcapng container summaries, and warnings. They do not serialize raw payload byte arrays.
+
+All Stage 2I analysis commands print a safety banner confirming read-only analysis only, no USB writes, no output reports, no feature reports, no vibration commands, no P-HPR commands, no protocol hypotheses, and no SimPro/SimHub control.
+
 ## Private Storage
 
 Recommended layout:
@@ -242,7 +262,7 @@ For Stage 2I, provide one of:
 - sanitized transfer summaries,
 - or sanitized capture manifest plus enough private local context to inspect captures without committing them.
 
-Stage 2I capture analysis will require either actual captures or sanitized transfer summaries. Stage 2H can complete without captures.
+Stage 2I capture analysis can use actual captures in a private local workspace or sanitized transfer summaries. Stage 2H can complete without captures.
 
 ## Troubleshooting
 
@@ -282,4 +302,6 @@ P-HPR modules not appearing separately:
 
 ## Stage 2I Boundary
 
-Stage 2I will perform capture analysis later. Stage 2H stops at capture workflow and metadata tooling.
+Stage 2I performs read-only capture analysis and sanitized summary export only. It can observe payload counts, payload fingerprints, pcap container structure, and byte differences, but it does not infer protocol fields, create protocol hypotheses, create command encoders/decoders, route haptics, or send USB writes.
+
+Stage 2J is next for protocol hypotheses.

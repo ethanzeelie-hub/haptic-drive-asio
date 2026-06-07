@@ -190,7 +190,7 @@
 - `ShiftIntentEvent` and source interfaces exist, but no shift intent router or paddle input event pipeline exists yet.
 - `MockPhprOutputDevice` records clamped mock commands only; it is not a real protocol adapter and does not send USB writes.
 - P-HPR safety defaults exist, but the full `PHprSafetyLimiter` is still deferred to Stage 2L.
-- No P700/P-HPR read-only inventory, USB capture analysis, protocol hypothesis, SimPro/SimHub coexistence detection, or controlled write plan exists yet.
+- P700/P-HPR read-only inventory and capture analysis tooling now exist in later stages, but no protocol hypothesis, SimPro/SimHub coexistence detection, or controlled write plan exists yet.
 
 ## Stage 2C
 
@@ -221,7 +221,7 @@
 ## Stage 2F
 
 - The Shift Intent Event Layer exists and can accept or suppress mapped paddle intent through cached `DrivingArmed` state, but no P-HPR routing exists yet.
-- No P-HPR protocol discovery or capture analysis exists yet.
+- No P-HPR protocol hypothesis exists yet. Capture analysis tooling exists in Stage 2I.
 - No mock P-HPR gear-pulse routing exists yet; `MockPhprOutputDevice` is not called by Stage 2F.
 - No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.
 - No rejected-shift feedback output exists yet. `InstantWithRejectedShiftFeedback` records pending confirmation diagnostics only.
@@ -234,17 +234,27 @@
 - The local Stage 2G inventory run found no Simagic-specific P700, P-HPR, Alpha Evo, or GT Neo candidates; no validated VID/PID, endpoint, report length, or P-HPR visibility claim is made.
 - P-HPR modules may not appear as separate USB/HID devices and may be visible only through the P700 pedal controller.
 - Registry, Raw Input, and Windows game-controller metadata can be incomplete, stale, or non-authoritative; candidate scoring is a research hint only.
-- USB capture workflow and metadata tooling exists in Stage 2H, but no capture analysis exists yet.
-- No capture analysis exists yet; that is Stage 2I.
+- USB capture workflow and metadata tooling exists in Stage 2H, and read-only capture analysis tooling exists in Stage 2I.
 - No protocol hypotheses exist yet; that is Stage 2J.
 - No mock P-HPR gear-pulse routing exists yet.
 - No real P-HPR output, USB output report, feature report, vibration command, controlled write testing, SimPro control, or SimHub integration is implemented.
 
 ## Stage 2H
 
-- Capture workflow documentation, scenario definitions, metadata template generation, filename building, metadata validation, sanitization, and sanitized manifest export are implemented, but no USB capture analysis exists yet.
-- Real USB captures may still be pending user collection. Stage 2I requires actual captures or sanitized transfer summaries before real analysis claims can be made.
+- Capture workflow documentation, scenario definitions, metadata template generation, filename building, metadata validation, sanitization, and sanitized manifest export are implemented. Stage 2I adds read-only capture analysis, but Stage 2H itself remains metadata-only.
+- Real raw USB captures remain private and uncommitted. Stage 2I can analyze actual local captures or sanitized transfer summaries before any evidence-backed conclusions are made.
 - The Stage 2H manifest intentionally contains sanitized metadata only and excludes raw capture bytes/content.
+- No protocol hypotheses exist yet; that is Stage 2J.
+- No mock P-HPR protocol or output exists yet; that is Stage 2K.
+- No mock P-HPR gear-pulse routing exists yet.
+- No real P-HPR output, USB output report, feature report, vibration command, HID write, controlled write testing, SimPro control, or SimHub integration is implemented.
+
+## Stage 2I
+
+- Capture analysis tooling can read Wireshark CSV/text summaries and summarize pcap/pcapng containers, but it does not infer protocol fields or classify commands.
+- pcap/pcapng support is container-level summary only; USBPcap protocol semantics remain future work if needed.
+- Generated analysis reports under `capture-metadata/generated/` are ignored and should remain private unless deliberately reviewed as sanitized artifacts.
+- The local `Complete Files Required` P-HPR evidence bundle was used as private/sanitized input context, but the bundle and generated analysis output are not committed.
 - No protocol hypotheses exist yet; that is Stage 2J.
 - No mock P-HPR protocol or output exists yet; that is Stage 2K.
 - No mock P-HPR gear-pulse routing exists yet.

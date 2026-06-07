@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling for later Stage 2I analysis. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling. Stage 2I adds read-only capture analysis tooling and sanitized summary export. These stages do not add USB writes, real P-HPR output, protocol control, P-HPR routing, or haptic routing from paddle input.
 
 ## Current Repository Baseline
 
@@ -16,6 +16,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 2F now defines `ShiftIntentProcessor`, `ShiftIntentMode`, `ShiftIntentDirection`, `ShiftIntentSource`, accepted/suppressed shift-intent diagnostics, safe in-memory accepted-event storage, and WPF diagnostics/settings for shift intent enabled state and mode.
 - Stage 2G now defines `HapticDrive.Simagic.PHPR.Research` for read-only P700 / P-HPR inventory, sanitized local JSON/Markdown exports, redaction, candidate classification, and hardware-free tests.
 - Stage 2H now extends `HapticDrive.Simagic.PHPR.Research` with capture scenario definitions, metadata templates, filename building, validation, sanitization, sanitized manifest export, CLI commands, and hardware-free tests.
+- Stage 2I now extends `HapticDrive.Simagic.PHPR.Research` with read-only capture analysis for Wireshark CSV/text exports, payload fingerprints, byte-diff observations, pcap/pcapng container summaries, sanitized JSON export, CLI commands, and hardware-free tests.
 
 ## User Hardware Context
 
@@ -317,13 +318,42 @@ Not implemented in Stage 2H:
 - No `PHprCommand` creation.
 - No output reports, feature reports, HID writes, driver changes, SimPro/SimHub control, or controlled write testing.
 
-Real captures remain pending user collection before Stage 2I unless the user provides actual captures or sanitized transfer summaries.
+Real raw captures remain private and uncommitted. Stage 2I can use actual local captures or sanitized transfer summaries, and the local `Complete Files Required` bundle provides sanitized Wireshark-derived evidence for private analysis.
+
+## Stage 2I Scope
+
+Implemented in Stage 2I:
+
+- `SimagicCaptureAnalysisReport`, file summaries, payload observations, payload summaries, byte-diff observations, pcap summaries, and warnings.
+- Wireshark CSV import for payload columns such as `payload_spaced`, `usb.data_fragment`, and `usbhid.data`.
+- Wireshark text-summary import for payload counts and `payload=` records.
+- Compare-summary import for byte-diff observations.
+- `SimagicPayloadDiffAnalyzer` for closest-pair byte comparisons between two capture/export sources.
+- pcap/pcapng container summaries for sections, interfaces, packets, link types, and captured-byte totals.
+- `SimagicCaptureAnalysisExporter` for sanitized JSON reports under ignored `capture-metadata/generated/`.
+- CLI commands `capture-analysis` and `capture-diff`.
+- `docs/SIMAGIC_CAPTURE_ANALYSIS.md`.
+- Hardware-free tests using synthetic CSV, text summary, compare summary, and pcapng fixtures.
+
+Not implemented in Stage 2I:
+
+- No protocol hypotheses.
+- No protocol field naming.
+- No report ID, checksum, endpoint semantic, module, strength, frequency, duration, active, stop, or command classification.
+- No protocol decoder or encoder.
+- No mock P-HPR protocol or output.
+- No mock gear-pulse routing.
+- No real P-HPR output.
+- No `IPHprOutputDevice` or `MockPhprOutputDevice` calls.
+- No `PHprCommand` creation.
+- No output reports, feature reports, HID writes, driver changes, SimPro/SimHub control, or controlled write testing.
+- No raw/private captures, screenshots, serial numbers, or unsanitized hardware data are committed.
 
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
 
-The highest-value first items after Stage 2H are:
+The highest-value first items after Stage 2I are:
 
 1. Stage 2G sanitized inventory output from the `inventory` command with the real P700 / Alpha Evo / GT Neo hardware connected.
 2. Device Manager hardware IDs for the P700 and Alpha Evo / GT Neo-visible devices.
@@ -334,7 +364,7 @@ The highest-value first items after Stage 2H are:
 7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
-USBPcap/Wireshark captures are now the next major input for Stage 2I analysis, but Stage 2H itself can complete without them.
+USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J is next for protocol hypotheses, and any hypothesis must remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence.
 
 ## Write Safety Gate
 

@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2H includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, and capture metadata workflow tooling, but no P-HPR output implementation or routing exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2I includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, and read-only capture analysis tooling, but no P-HPR output implementation or routing exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -222,6 +222,25 @@ The CLI commands are:
 Default generated metadata output goes under ignored `capture-metadata/generated/`. Raw captures remain under private ignored paths such as `captures/private/simagic/`.
 
 Stage 2H does not parse `.pcap` or `.pcapng` files, inspect USB transfer bytes, infer report IDs, infer checksums, generate protocol hypotheses, create encoders/decoders, call `IPHprOutputDevice`, call `MockPhprOutputDevice`, create `PHprCommand`, send USB writes, send HID output reports, send HID feature reports, control SimPro Manager, control SimHub, or touch the ASIO/BST-1 output path.
+
+## Stage 2I Capture Analysis Framework
+
+Stage 2I extends `HapticDrive.Simagic.PHPR.Research` with read-only capture analysis tooling.
+
+The project owns:
+
+- `SimagicCaptureAnalysisReader` for recursive file/folder analysis.
+- Wireshark CSV payload import for columns such as `payload_spaced`, `usb.data_fragment`, and `usbhid.data`.
+- Wireshark text-summary import for payload counts and `payload=` records.
+- Compare-summary import for byte-diff observations.
+- `SimagicPayloadDiffAnalyzer` for closest-pair byte comparisons between two capture/export sources.
+- pcap/pcapng container summaries that count sections, interfaces, packets, link types, and captured bytes without interpreting protocol fields.
+- `SimagicCaptureAnalysisExporter` for sanitized JSON output under ignored `capture-metadata/generated/`.
+- CLI commands `capture-analysis` and `capture-diff`.
+
+Analysis exports contain source file names, payload counts, length counts, source-column counts, short payload previews, truncated SHA-256 fingerprints, byte-diff observations, pcap/pcapng container summaries, and warnings. Raw payload byte arrays are used only in memory for analysis and are not serialized to JSON.
+
+Stage 2I may observe byte differences, but it does not name protocol fields, infer report IDs, infer checksums, classify commands, create protocol hypotheses, create encoders/decoders, call `IPHprOutputDevice`, call `MockPhprOutputDevice`, create `PHprCommand`, send USB writes, send HID output reports, send HID feature reports, control SimPro Manager, control SimHub, or touch the ASIO/BST-1 output path.
 
 ## Early Development Rule
 

@@ -1037,3 +1037,52 @@ Self-review:
 - No raw/private captures, USB captures, serial numbers, screenshots, or unsanitized hardware data were committed.
 - Capture workflow and metadata tooling are complete. Real USB captures are pending user collection before Stage 2I analysis.
 - Stage 2I Capture Analysis Framework is next; Stage 2H stops here.
+
+## Stage 2I - Capture Analysis Framework
+
+Date: 2026-06-07
+
+Status: Complete.
+
+Goal: Implement read-only Simagic P700 / P-HPR capture analysis tooling without generating protocol hypotheses, routing haptics, or sending any USB writes.
+
+Notes:
+
+- Parsed the attached Stage 2H brief as safety/background context, verified the repo already had Stage 2H complete, and proceeded with the local roadmap's Stage 2I capture analysis framework.
+- Added `HapticDrive.Simagic.PHPR.Research.CaptureAnalysis` models for analysis reports, source kinds, file summaries, payload observations, payload summaries, byte-diff observations, pcap summaries, and warnings.
+- Added Wireshark CSV import for payload columns such as `payload_spaced`, `usb.data_fragment`, and `usbhid.data`.
+- Added Wireshark text-summary import for payload counts and `payload=` records.
+- Added compare-summary import for byte-diff observations.
+- Added `SimagicPayloadDiffAnalyzer` for closest-pair byte comparisons between two capture/export sources.
+- Added pcap/pcapng container-summary parsing for sections, interfaces, packets, link types, and captured-byte totals without decoding protocol semantics.
+- Added sanitized JSON export for capture analysis and capture diff reports under ignored `capture-metadata/generated/`.
+- Added safe Stage 2I CLI commands: `capture-analysis` and `capture-diff`.
+- Added `docs/SIMAGIC_CAPTURE_ANALYSIS.md` and updated README, architecture, roadmap, known issues, capture guide, Phase 2 research notes, user-data request, USB inventory notes, wheel-input research notes, and safety plan.
+- Added hardware-free tests for synthetic Wireshark CSV, text summary, compare summary, capture diffing, pcapng container summary, sanitized export, and CLI help.
+- Ran `capture-analysis` against the local sanitized P-HPR evidence bundle at `C:\Users\ethan\Downloads\Complete Files Required\P-HPR Haptics\phpr_codex_upload_bundle`. The tool observed 7 source files, 3,854 payload observations, 63 unique payload fingerprints, and 1 expected warning for a timing-only SimHub duration CSV with no payload column.
+- Ran `capture-diff` against two sanitized SimPro compare-summary files and produced sanitized byte-diff observations under ignored `capture-metadata/generated/`.
+- Raw/private captures, external evidence bundles, and generated analysis reports remain uncommitted.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed. NuGet emitted `NU1900` because restricted network access prevented vulnerability-feed metadata from loading.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 errors. The same `NU1900` warning was reported from restored package assets.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 283 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed. The formatter reported generic workspace-load warnings only.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- capture-analysis "C:\Users\ethan\Downloads\Complete Files Required\P-HPR Haptics\phpr_codex_upload_bundle"` passed and wrote a sanitized analysis report under ignored `capture-metadata/generated/`.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- capture-diff <two sanitized SimPro compare summaries>` passed and wrote a sanitized diff report under ignored `capture-metadata/generated/`.
+
+Self-review:
+
+- Stage 2I stayed within read-only capture analysis and sanitized summary export only.
+- No protocol hypotheses, protocol field names, report ID inference, checksum inference, endpoint semantics, command classification, decoder, encoder, mock protocol, or mock output were implemented.
+- No real P-HPR USB writes, HID writes, output reports, feature reports, vibration commands, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- No haptic routing was added from paddle input or `ShiftIntentEvent` values.
+- `MockPhprOutputDevice` is not called.
+- `IPHprOutputDevice` is not called.
+- `PHprCommand` is not created.
+- The research project still does not reference the P-HPR output abstraction project, `HapticDrive.Asio.Audio`, `GearShiftEffect`, `AudioRenderPipeline`, `AudioMixer`, ASIO output, or the ASIO/BST-1 audio path.
+- No raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, or generated analysis reports were committed.
+- Stage 2J P-HPR protocol hypotheses is next; Stage 2I stops here.

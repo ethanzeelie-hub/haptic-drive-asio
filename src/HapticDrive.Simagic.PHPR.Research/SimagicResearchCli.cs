@@ -1,5 +1,6 @@
 using System.Text.Json;
 using HapticDrive.Simagic.PHPR.Research.Capture;
+using HapticDrive.Simagic.PHPR.Research.CaptureAnalysis;
 using HapticDrive.Simagic.PHPR.Research.Inventory;
 
 namespace HapticDrive.Simagic.PHPR.Research;
@@ -25,6 +26,8 @@ public static class SimagicResearchCli
             "capture-template" => await RunCaptureTemplateAsync(args[1..], output, error),
             "validate-capture-metadata" => await RunValidateCaptureMetadataAsync(args[1..], output, error),
             "capture-manifest" => await RunCaptureManifestAsync(args[1..], output, error),
+            "capture-analysis" => await RunCaptureAnalysisAsync(args[1..], output, error),
+            "capture-diff" => await RunCaptureDiffAsync(args[1..], output, error),
             _ => UnknownCommand(args[0], output, error)
         };
     }
@@ -230,6 +233,74 @@ public static class SimagicResearchCli
         return 0;
     }
 
+    private static async Task<int> RunCaptureAnalysisAsync(string[] args, TextWriter output, TextWriter error)
+    {
+        if (args.Length is < 1 or > 4)
+        {
+            await error.WriteLineAsync("capture-analysis requires <capture-or-export-path> and optional --output-dir <path>.");
+            return 2;
+        }
+
+        var inputPath = Path.GetFullPath(args[0]);
+        var outputDirectory = Path.Combine(Environment.CurrentDirectory, "capture-metadata", "generated");
+        for (var index = 1; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--output-dir", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                outputDirectory = Path.GetFullPath(args[++index]);
+            }
+            else
+            {
+                await error.WriteLineAsync($"Unknown capture-analysis option '{args[index]}'.");
+                return 2;
+            }
+        }
+
+        await output.WriteLineAsync(SimagicCaptureAnalysisFormatter.SafetyBanner);
+        await output.WriteLineAsync();
+
+        var report = await new SimagicCaptureAnalysisReader().AnalyzePathAsync(inputPath);
+        var path = await new SimagicCaptureAnalysisExporter().ExportJsonAsync(report, outputDirectory);
+        await output.WriteLineAsync(SimagicCaptureAnalysisFormatter.FormatReport(report, path));
+        return 0;
+    }
+
+    private static async Task<int> RunCaptureDiffAsync(string[] args, TextWriter output, TextWriter error)
+    {
+        if (args.Length is < 2 or > 5)
+        {
+            await error.WriteLineAsync("capture-diff requires <left-capture-or-export-path> <right-capture-or-export-path> and optional --output-dir <path>.");
+            return 2;
+        }
+
+        var leftPath = Path.GetFullPath(args[0]);
+        var rightPath = Path.GetFullPath(args[1]);
+        var outputDirectory = Path.Combine(Environment.CurrentDirectory, "capture-metadata", "generated");
+        for (var index = 2; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--output-dir", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                outputDirectory = Path.GetFullPath(args[++index]);
+            }
+            else
+            {
+                await error.WriteLineAsync($"Unknown capture-diff option '{args[index]}'.");
+                return 2;
+            }
+        }
+
+        await output.WriteLineAsync(SimagicCaptureAnalysisFormatter.SafetyBanner);
+        await output.WriteLineAsync();
+
+        var report = await new SimagicCaptureAnalysisReader().AnalyzeDiffAsync(leftPath, rightPath);
+        var path = await new SimagicCaptureAnalysisExporter().ExportJsonAsync(
+            report,
+            outputDirectory,
+            "simagic-capture-diff-sanitized.json");
+        await output.WriteLineAsync(SimagicCaptureAnalysisFormatter.FormatDiff(report, path));
+        return 0;
+    }
+
     private static int UnknownCommand(string command, TextWriter output, TextWriter error)
     {
         error.WriteLine($"Unknown command '{command}'.");
@@ -256,6 +327,8 @@ public static class SimagicResearchCli
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- capture-template --scenario BrakeTestVibration --target Brake");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- validate-capture-metadata <path>");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- capture-manifest <metadata-folder>");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- capture-analysis <capture-or-export-path>");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- capture-diff <left-capture-or-export-path> <right-capture-or-export-path>");
         output.WriteLine();
         output.WriteLine("Inventory options:");
         output.WriteLine("  --output-dir <path>  Export sanitized files to this directory. Default: local-device-inventory");
@@ -269,6 +342,9 @@ public static class SimagicResearchCli
         output.WriteLine("  --output-dir <path>  Default: capture-metadata/generated.");
         output.WriteLine("  --stdout             Print template JSON instead of writing a file.");
         output.WriteLine();
-        output.WriteLine("Capture tooling is Stage 2H metadata/template/manifest tooling only. It does not parse captures, send USB writes, or create vibration commands.");
+        output.WriteLine("Capture analysis options:");
+        output.WriteLine("  --output-dir <path>  Default: capture-metadata/generated.");
+        output.WriteLine();
+        output.WriteLine("Capture metadata tooling is Stage 2H. Capture analysis is Stage 2I. Neither sends USB writes, creates vibration commands, controls SimPro/SimHub, or creates protocol hypotheses.");
     }
 }

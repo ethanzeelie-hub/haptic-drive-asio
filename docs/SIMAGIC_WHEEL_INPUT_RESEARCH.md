@@ -1,6 +1,6 @@
 # Simagic Wheel Input Research
 
-Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling that also helps correlate the Alpha Evo / GT Neo / P700 device identities before later capture work. Stage 2H adds capture workflow and metadata tooling for later Stage 2I USB capture analysis.
+Stage 2A records the intended read-only input discovery path for the GT Neo paddles. Stage 2D implements read-only device discovery and candidate scoring. Stage 2E implements a read-only Windows game-controller paddle listener and manual mapping diagnostics. Stage 2F evaluates mapped paddle presses into accepted or suppressed shift-intent diagnostics through cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling that also helps correlate the Alpha Evo / GT Neo / P700 device identities before later capture work. Stage 2H adds capture workflow and metadata tooling. Stage 2I adds read-only USB capture analysis tooling and sanitized summary export.
 
 ## Goal
 
