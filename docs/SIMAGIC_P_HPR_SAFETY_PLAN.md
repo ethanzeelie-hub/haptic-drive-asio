@@ -1,6 +1,6 @@
 # Simagic P-HPR Safety Plan
 
-This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. None of these stages implements USB writes, P-HPR routing, or real P-HPR output.
+This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. None of these stages implements USB writes, P-HPR routing, or real P-HPR output.
 
 ## Required Approval Phrase
 
@@ -10,7 +10,7 @@ No real P-HPR USB writes, output reports, write-capable feature reports, or real
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-That phrase has not been provided as of Stage 2J.
+That phrase has not been provided as of Stage 2K.
 
 Stage 2B keeps `PHprSafetyLimits.AllowRealDeviceWrites` false by default, and `MockPhprOutputDevice` only records mock commands in memory.
 
@@ -23,6 +23,8 @@ Stage 2H does not parse USB captures, analyze USB transfers, hypothesize protoco
 Stage 2I analyzes local captures or sanitized Wireshark exports read-only and exports sanitized summaries only. It does not hypothesize protocol fields, classify commands, create encoders/decoders, call `MockPhprOutputDevice`, call `IPHprOutputDevice`, create `PHprCommand`, send output reports, send feature reports, send HID writes, or open P700/P-HPR device handles for control.
 
 Stage 2J documents hypotheses from sanitized evidence and exports sanitized hypothesis records only. It does not create production encoders/decoders, call `MockPhprOutputDevice`, call `IPHprOutputDevice`, create `PHprCommand`, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, or route `ShiftIntentEvent` values to haptic output.
+
+Stage 2K implements mock-only SimHub F1 EC frame modelling, mock encode/decode tests, deterministic duration scheduling, SimProUnknownMock classification, mock output frame diagnostics, and safe CLI mock examples. It does not create a production encoder/decoder, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, control SimPro Manager or SimHub, route `ShiftIntentEvent` values, route `VehicleState`, or touch the ASIO/BST-1 output path. Nothing in the Stage 2K mock protocol may be sent to real hardware.
 
 ## Allowed Before Approval
 

@@ -182,14 +182,17 @@ public sealed class SimagicCaptureMetadataTests
     }
 
     [Fact]
-    public void ResearchAssembly_StillDoesNotReferencePhrOutputOrAudioProjects()
+    public void ResearchAssembly_ReferencesMockAbstractionsButNotAudioRuntimeOrLiveRoutingProjects()
     {
         var referencedAssemblyNames = typeof(SimagicCaptureMetadata).Assembly.GetReferencedAssemblies()
             .Select(assembly => assembly.Name)
             .ToArray();
 
-        Assert.DoesNotContain("HapticDrive.Simagic.PHPR.Abstractions", referencedAssemblyNames);
+        Assert.Contains("HapticDrive.Simagic.PHPR.Abstractions", referencedAssemblyNames);
         Assert.DoesNotContain("HapticDrive.Asio.Audio", referencedAssemblyNames);
+        Assert.DoesNotContain("HapticDrive.Asio.Runtime", referencedAssemblyNames);
+        Assert.DoesNotContain("HapticDrive.Asio.App", referencedAssemblyNames);
+        Assert.DoesNotContain("HapticDrive.Actuation", referencedAssemblyNames);
     }
 
     private static SimagicCaptureMetadata CreateCompleteMetadata()

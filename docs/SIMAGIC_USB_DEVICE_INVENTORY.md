@@ -152,6 +152,6 @@ Do not commit raw USBView exports, screenshots containing private serial numbers
 - Stage 2I Capture Analysis can summarize captures and sanitized Wireshark exports, but correct device/interface identification is still required before real capture summaries are treated as authoritative.
 - Stage 2J Protocol Hypotheses are now documented from sanitized evidence, but they remain hypotheses and do not authorise writes.
 
-Stage 2K Mock P-HPR Protocol and Output is next. It still must not require real P700/P-HPR hardware or send USB writes.
+Stage 2K Mock P-HPR Protocol and Output is complete. It does not require real P700/P-HPR hardware and does not send USB writes.
 
-Stage 2G stops at inventory. Stage 2H stops at capture workflow and metadata tooling. Stage 2I stops at read-only capture analysis and sanitized summary export. Stage 2J stops at protocol hypotheses. Stage 2K is next for mock P-HPR protocol and output.
+Stage 2G stops at inventory. Stage 2H stops at capture workflow and metadata tooling. Stage 2I stops at read-only capture analysis and sanitized summary export. Stage 2J stops at protocol hypotheses. Stage 2K stops at mock protocol/output. Stage 2L is next for the P-HPR safety layer.

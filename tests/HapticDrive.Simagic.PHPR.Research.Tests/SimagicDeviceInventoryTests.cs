@@ -191,14 +191,17 @@ public sealed class SimagicDeviceInventoryTests
     }
 
     [Fact]
-    public void ResearchAssembly_DoesNotReferencePhrOutputOrAudioProjects()
+    public void ResearchAssembly_DoesNotReferenceAudioRuntimeOrLiveRoutingProjects()
     {
         var referencedAssemblyNames = typeof(SimagicDeviceInventoryItem).Assembly.GetReferencedAssemblies()
             .Select(assembly => assembly.Name)
             .ToArray();
 
-        Assert.DoesNotContain("HapticDrive.Simagic.PHPR.Abstractions", referencedAssemblyNames);
+        Assert.Contains("HapticDrive.Simagic.PHPR.Abstractions", referencedAssemblyNames);
         Assert.DoesNotContain("HapticDrive.Asio.Audio", referencedAssemblyNames);
+        Assert.DoesNotContain("HapticDrive.Asio.Runtime", referencedAssemblyNames);
+        Assert.DoesNotContain("HapticDrive.Asio.App", referencedAssemblyNames);
+        Assert.DoesNotContain("HapticDrive.Actuation", referencedAssemblyNames);
     }
 
     [Fact]

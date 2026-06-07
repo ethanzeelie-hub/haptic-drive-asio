@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2J includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, and analysis-only protocol hypotheses, but no P-HPR output implementation or routing exists yet.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2K includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, and mock-only protocol/output diagnostics, but no real P-HPR output implementation or routing exists yet.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -53,9 +53,9 @@ Stage 2B adds contract-only projects for the future actuator path:
 
 - `HapticDrive.Input.Abstractions` defines input-device descriptors, read-only discovery contracts, paddle shift-intent contracts, `ShiftIntentEvent`, `PaddleSide`, `ShiftIntentDirection`, `ShiftIntentMode`, `ShiftIntentSource`, `DrivingArmedState`, and `IDrivingArmedStateProvider`.
 - `HapticDrive.Input.Windows` is the Windows read-only input discovery and button-state reading home. Stage 2D implements Raw Input metadata enumeration and Windows game-controller capability enumeration there; Stage 2E adds read-only Windows game-controller button-state polling for paddle diagnostics.
-- `HapticDrive.Simagic.PHPR.Abstractions` defines `PHprCommand`, module/source enums, safety flags/defaults, `IPHprOutputDevice`, output snapshots/results, and a `MockPhprOutputDevice`.
+- `HapticDrive.Simagic.PHPR.Abstractions` defines `PHprCommand`, module/source enums, safety flags/defaults, mock protocol records/encoders/decoders/schedulers, `IPHprOutputDevice`, output snapshots/results, and a `MockPhprOutputDevice`.
 
-`MockPhprOutputDevice` is mock-only. It records clamped commands in memory for tests and diagnostics, marks commands as `MockOnly`, and performs no hardware writes.
+`MockPhprOutputDevice` is mock-only. It records clamped commands and generated mock protocol frames in memory for tests and diagnostics, marks commands as `MockOnly`, and performs no hardware writes.
 
 ## Stage 2C DrivingArmed State Service
 
@@ -260,6 +260,36 @@ The project owns:
 The built-in hypotheses document confirmed input mappings, the SimHub `F1 EC` active/stop/duration observations, the separate SimPro `80 1E 89` family, runtime identity rules, Stage 2K mock-only boundaries, and real-write blockers.
 
 Stage 2J does not create a production encoder or decoder, does not generate packets for live hardware, does not call `IPHprOutputDevice`, does not call `MockPhprOutputDevice`, does not create `PHprCommand`, does not send USB writes, does not send HID output or feature reports, does not control SimPro Manager or SimHub, and does not touch the ASIO/BST-1 output path.
+
+## Stage 2K Mock P-HPR Protocol And Output
+
+Stage 2K extends `HapticDrive.Simagic.PHPR.Abstractions` with a mock-only protocol boundary under `MockProtocol`:
+
+- `PHprMockProtocolCommand`
+- `PHprMockProtocolFrame`
+- mock family/state/support-status models
+- `SimHubF1EcMockEncoder`
+- `SimHubF1EcMockDecoder`
+- `PHprMockDurationScheduler`
+- `SimProUnknownMockFrame`
+- `SimProUnknownMockEncoder`
+
+The SimHub F1 EC mock encoder models the Stage 2J hypothesis as 64-byte mock payloads. Brake uses module byte `01`, throttle uses module byte `02`, start uses state byte `01`, stop uses state byte `00`, frequency is represented as direct Hz, and strength is represented as direct percent. A `Both` target expands into explicit brake and throttle frames; Stage 2K does not use module `00` as a both-module command.
+
+Duration is modelled deterministically as start frames at offset zero plus stop frames at `DurationMs`. A zero-duration start request produces stop-only mock frames. Emergency stop produces immediate stop frames for brake and throttle.
+
+The SimPro `80 1E 89` family remains `SimProUnknownMock` and `NeedsMoreCaptures`. Stage 2K can classify the prefix and safely refuse detailed mock encoding, but it does not infer SimPro module, strength, frequency, duration, checksum, or keepalive semantics.
+
+`MockPhprOutputDevice` records generated mock protocol frames, simulated connection/module availability, rejected-command simulation, emergency-stop count, pending scheduled stop count, and last frame diagnostics. It still does not open device handles, send output reports, send feature reports, control SimPro Manager, control SimHub, route `ShiftIntentEvent` values, or touch the ASIO/BST-1 output path.
+
+`HapticDrive.Simagic.PHPR.Research` now references the P-HPR abstraction project for safe Stage 2K CLI examples:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-export --output capture-metadata\generated\simagic-mock-protocol-examples.json
+```
+
+These commands print/export sanitized mock examples only. Nothing in the Stage 2K mock protocol may be sent to real hardware.
 
 ## Early Development Rule
 

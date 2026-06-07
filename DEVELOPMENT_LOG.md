@@ -1160,3 +1160,68 @@ Self-review:
 - The ASIO/BST-1 audio path was not changed.
 - No raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, or generated hypothesis exports were committed.
 - Stage 2K Mock P-HPR Protocol and Output is next; Stage 2J stops here.
+
+## Stage 2K - Mock P-HPR Protocol and Output
+
+Date: 2026-06-07
+
+Status: Complete.
+
+Goal: Implement a mock-only P-HPR protocol and mock output layer based on the Stage 2J protocol hypotheses without creating real hardware writes, production protocol adapters, haptic routing, or controlled write testing.
+
+Notes:
+
+- Added mock-only protocol models under `HapticDrive.Simagic.PHPR.Abstractions.MockProtocol` for command intent, frames, protocol family, state, support status, encoding results, and decode results.
+- Added `SimHubF1EcMockEncoder` and `SimHubF1EcMockDecoder` for Stage 2K fixtures only.
+- SimHub F1 EC mock active/start frames use `F1 EC [module] 01 [frequency_hz] [strength_percent] 00 ...` with 64-byte mock payloads.
+- SimHub F1 EC mock stop frames use `F1 EC [module] 00 0A 00 00 00 ...`.
+- Brake maps to module byte `01`, throttle maps to module byte `02`, and `Both` expands to explicit brake plus throttle frames instead of using low-confidence module `00`.
+- Added deterministic mock duration planning as start frames at offset 0 ms plus stop frames at `DurationMs`; zero-duration start requests produce stop-only mock frames.
+- Emergency stop produces immediate stop frames for brake and throttle.
+- Added `SimProUnknownMockFrame` and `SimProUnknownMockEncoder`; SimPro `80 1E 89` is classified separately but remains `NeedsMoreCaptures` and unsupported for detailed mock encoding.
+- Extended `MockPhprOutputDevice` to record generated mock frames, connection/module availability simulation, rejected-command simulation, emergency-stop count, generated frame count, last frame, and pending scheduled stop count.
+- Added safe research CLI commands:
+  - `mock-protocol-examples`
+  - `mock-protocol-export --output <path>`
+- Added `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
+- Updated README, architecture, roadmap, known issues, Simagic protocol/safety/research/capture/inventory/shift/wheel docs, and P-HPR evidence notes.
+- Added hardware-free tests for SimHub mock payload examples, stop frames, both-target expansion, emergency stop, duration scheduling, clamping, invalid module/payload failures, decoder round-trip, SimProUnknownMock, mock output diagnostics, CLI examples/export, and no write-capable mock protocol API names.
+- During full-suite verification, fixed a pre-existing `PollingWheelPaddleInputSource` start/stop race where the polling task captured `_listenerCancellation` through the field after `StopAsync` could null it.
+
+SimHub F1 EC mock status:
+
+- `ReadyForMockProtocol` only.
+- Mock encoding/decoding is test/diagnostic-only.
+- Nothing in the SimHub F1 EC mock protocol may be sent to real hardware.
+
+SimProUnknownMock status:
+
+- `80 1E 89` prefix classification is supported.
+- Detailed SimPro mock encoding remains unsupported.
+- Status remains `NeedsMoreCaptures`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 22 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Research.Tests\HapticDrive.Simagic.PHPR.Research.Tests.csproj --no-build` passed with 44 passing tests.
+- First full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` attempts exposed the pre-existing input polling race and one timing-sensitive output-cadence assertion. After the input race fix and rebuild, the full suite passed with 288 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- hypotheses-list` passed and reported 6 hypotheses, 3 unknowns, and 12 real-write blockers.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- hypotheses-export --output capture-metadata\generated\simagic-protocol-hypotheses.json` passed and wrote a sanitized ignored export.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-export --output capture-metadata\generated\simagic-mock-protocol-examples.json` passed and wrote a sanitized ignored export.
+
+Self-review:
+
+- Stage 2K stayed within mock protocol, mock output diagnostics, docs, tests, and safe CLI examples.
+- No production P-HPR encoder, production decoder, live protocol adapter, hardware sender, HID writer, output-report writer, feature-report writer, or device-control path was implemented.
+- No real P-HPR USB writes, HID output reports, feature reports, vibration commands, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- No haptic routing was added from paddle input, `ShiftIntentEvent`, `VehicleState`, audio effects, ASIO output, or the mixer.
+- `MockPhprOutputDevice` is used only by tests and mock-only abstractions/diagnostics.
+- The ASIO/BST-1 audio path was not changed.
+- Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated mock/hypothesis exports were not committed.
+- Stage 2L P-HPR Safety Layer is next; Stage 2K stops here.

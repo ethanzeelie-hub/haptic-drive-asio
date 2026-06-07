@@ -59,8 +59,10 @@ public sealed class PollingWheelPaddleInputSource : IWheelPaddleInputSource
         {
             await _reader.StartAsync(selection, cancellationToken).ConfigureAwait(false);
             _processor.RefreshStatus(InputListenerStatus.Listening);
-            _listenerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _listenerTask = Task.Run(() => PollAsync(_listenerCancellation.Token), CancellationToken.None);
+            var listenerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var listenerToken = listenerCancellation.Token;
+            _listenerCancellation = listenerCancellation;
+            _listenerTask = Task.Run(() => PollAsync(listenerToken), CancellationToken.None);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -78,18 +80,24 @@ public sealed class PollingWheelPaddleInputSource : IWheelPaddleInputSource
         if (cancellation is not null)
         {
             await cancellation.CancelAsync().ConfigureAwait(false);
-            cancellation.Dispose();
         }
 
-        if (listenerTask is not null)
+        try
         {
-            try
+            if (listenerTask is not null)
             {
-                await listenerTask.ConfigureAwait(false);
+                try
+                {
+                    await listenerTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
             }
-            catch (OperationCanceledException)
-            {
-            }
+        }
+        finally
+        {
+            cancellation?.Dispose();
         }
 
         try

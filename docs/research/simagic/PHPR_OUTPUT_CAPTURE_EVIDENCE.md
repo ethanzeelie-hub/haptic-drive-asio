@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This sanitized note records Stage 2J P-HPR output observations without approving or implementing direct hardware writes.
+This sanitized note records P-HPR output observations used by Stage 2J hypotheses and Stage 2K mock-only protocol modelling without approving or implementing direct hardware writes.
 
 ## Safety Boundary
 
@@ -13,6 +13,7 @@ This sanitized note records Stage 2J P-HPR output observations without approving
 - No protocol encoder for live hardware.
 - No protocol decoder producing live `PHprCommand` values.
 - No P-HPR routing.
+- Stage 2K mock frames are test fixtures only and may not be sent to real hardware.
 
 Nothing in this document authorises real USB writes.
 
@@ -52,6 +53,8 @@ Observed active fields:
 
 Duration appears software-timed for tested SimHub captures: active/start then stop/idle after the requested interval.
 
+Stage 2K mock modelling implements this as deterministic start-at-0 plus stop-at-duration frame plans only.
+
 ## SimPro 80 1E 89 Observation
 
 SimPro Manager appears to use a separate 64-byte SET_REPORT family beginning with:
@@ -67,6 +70,12 @@ Current Stage 2J status:
 - family prefix: ConfirmedObservation,
 - field meanings: Low/Unknown,
 - Stage 2K surface: `SimProUnknownMock` only unless a later mock-only stage deliberately scopes more.
+
+Current Stage 2K status:
+
+- `80 1E 89` payloads can be classified as `SimProUnknownMock`,
+- detailed SimPro mock encoding remains unsupported,
+- status remains `NeedsMoreCaptures`.
 
 ## Evidence References
 

@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface and Fosi Audio BT20A amplifier are now availa
 
 ## Current Stage
 
-Stage 2J: P-HPR protocol hypotheses complete. Stage 18 remains the final Phase 1 pre-shaker readiness package.
+Stage 2K: Mock P-HPR protocol and output complete. Stage 18 remains the final Phase 1 pre-shaker readiness package.
 
 The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute, dark theme default, persisted light/dark theme setting, safe tuning controls, profile save/load/reset, runtime diagnostics, recording/replay library controls, persisted UDP forwarding destination controls, ASIO driver visibility diagnostics, and explicit ASIO output readiness controls.
 
@@ -24,7 +24,7 @@ Stage 17 adds an NAudio-backed native ASIO streaming backend behind `IAsioOutput
 
 Stage 18 adds a root launch script with .NET 8 Desktop Runtime preflight, app-settings persistence separate from haptic profiles, persisted UDP forwarding destination editing, a recordings library with metadata summaries and selected replay, packet-ID diagnostics, diagnostics copy/report support, and final pre-shaker UI/documentation cleanup. ASIO output still requires explicit output mode selection, driver selection, channel selection, arming, and Start Haptics.
 
-Stage 2A starts the Simagic P-HPR / GT Neo paddle-input phase with documentation and safety gates only. Stage 2B adds safe input and P-HPR abstraction projects, a mock-only P-HPR output skeleton, conservative P-HPR safety defaults, and focused model tests. Stage 2C adds a cached `DrivingArmedStateService` that evaluates existing `VehicleState` and runtime snapshots for fresh active-driving telemetry before future paddle pulses may route. Stage 2D adds read-only Windows input discovery snapshots, Raw Input metadata enumeration, Windows game-controller capability enumeration, candidate scoring for likely Simagic / Alpha / GT Neo / P700 devices, and a manual Devices-page diagnostics refresh. Stage 2E adds a read-only Windows game-controller paddle listener, manual left/right button mapping, rising-edge detection, conservative debounce, UTC plus stopwatch timestamps, safe disconnect/error diagnostics, and local app-settings persistence for input mapping only. Stage 2F adds the Shift Intent Event Layer: mapped paddle presses are evaluated against cached `DrivingArmed` state, accepted/suppressed diagnostics are recorded, `InstantPaddleOnly` is the default mode, `TelemetryConfirmedOnly` remains diagnostic-only, and `InstantWithRejectedShiftFeedback` records a future pending-confirmation count without feedback output. Stage 2G adds a read-only Simagic P700 / P-HPR research utility with sanitized inventory exports, PnP/HID/USB registry metadata collection, reuse of existing input discovery metadata, candidate classification, redaction, and hardware-free tests. Stage 2H adds capture workflow documentation, required scenario definitions, metadata templates, filename building, metadata validation, sanitized manifest export, CLI commands, ignored metadata output paths, and hardware-free tests. Stage 2I adds read-only capture analysis for Wireshark CSV/text summaries, payload fingerprinting, byte-diff observations, pcap/pcapng container summaries, sanitized JSON exports, and hardware-free tests. Stage 2J adds formal protocol hypothesis records, sanitized evidence docs, JSON/Markdown hypothesis export commands, and hardware-free tests. P-HPR is a separate non-audio actuator path, not an ASIO or `IAudioOutputDevice` output. No real P-HPR USB writes, production protocol adapter, vibration commands, P-HPR routing, paddle-to-haptic routing, mock P-HPR gear pulse routing, or controlled write testing are implemented, and future real writes are gated behind the exact approval phrase documented in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
+Stage 2A starts the Simagic P-HPR / GT Neo paddle-input phase with documentation and safety gates only. Stage 2B adds safe input and P-HPR abstraction projects, a mock-only P-HPR output skeleton, conservative P-HPR safety defaults, and focused model tests. Stage 2C adds a cached `DrivingArmedStateService` that evaluates existing `VehicleState` and runtime snapshots for fresh active-driving telemetry before future paddle pulses may route. Stage 2D adds read-only Windows input discovery snapshots, Raw Input metadata enumeration, Windows game-controller capability enumeration, candidate scoring for likely Simagic / Alpha / GT Neo / P700 devices, and a manual Devices-page diagnostics refresh. Stage 2E adds a read-only Windows game-controller paddle listener, manual left/right button mapping, rising-edge detection, conservative debounce, UTC plus stopwatch timestamps, safe disconnect/error diagnostics, and local app-settings persistence for input mapping only. Stage 2F adds the Shift Intent Event Layer: mapped paddle presses are evaluated against cached `DrivingArmed` state, accepted/suppressed diagnostics are recorded, `InstantPaddleOnly` is the default mode, `TelemetryConfirmedOnly` remains diagnostic-only, and `InstantWithRejectedShiftFeedback` records a future pending-confirmation count without feedback output. Stage 2G adds a read-only Simagic P700 / P-HPR research utility with sanitized inventory exports, PnP/HID/USB registry metadata collection, reuse of existing input discovery metadata, candidate classification, redaction, and hardware-free tests. Stage 2H adds capture workflow documentation, required scenario definitions, metadata templates, filename building, metadata validation, sanitized manifest export, CLI commands, ignored metadata output paths, and hardware-free tests. Stage 2I adds read-only capture analysis for Wireshark CSV/text summaries, payload fingerprinting, byte-diff observations, pcap/pcapng container summaries, sanitized JSON exports, and hardware-free tests. Stage 2J adds formal protocol hypothesis records, sanitized evidence docs, JSON/Markdown hypothesis export commands, and hardware-free tests. Stage 2K adds mock-only SimHub F1 EC protocol records, mock encoding/decoding, deterministic duration planning, SimProUnknownMock classification, mock output frame diagnostics, and safe mock protocol CLI examples. P-HPR is a separate non-audio actuator path, not an ASIO or `IAudioOutputDevice` output. No real P-HPR USB writes, production protocol adapter, real vibration commands, P-HPR routing, paddle-to-haptic routing, mock P-HPR gear pulse routing, or controlled write testing are implemented, and future real writes are gated behind the exact approval phrase documented in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
 
 The app does not yet implement advanced routing matrices, live graphing, real WASAPI output, physical shaker calibration, or physical shaker validation. Physical shaker feel, safe gain, physical latency, and final frequency tuning remain unvalidated until the Dayton BST-1 arrives and the full chain is tested locally.
 
@@ -38,8 +38,8 @@ The app does not yet implement advanced routing matrices, live graphing, real WA
 - `src/HapticDrive.Asio.Recording`: telemetry recording and replay.
 - `src/HapticDrive.Input.Abstractions`: read-only input discovery snapshots, candidate scoring, paddle mapping/listener diagnostics, paddle shift-intent contracts for later routing, and cached driving-state contracts for Phase 2.
 - `src/HapticDrive.Input.Windows`: read-only Windows Raw Input and game-controller discovery plus Stage 2E Windows game-controller button-state reading; it does not send device commands or route haptics.
-- `src/HapticDrive.Simagic.PHPR.Abstractions`: non-audio P-HPR command, safety, output, and mock-output contracts.
-- `src/HapticDrive.Simagic.PHPR.Research`: Stage 2G read-only P700 / P-HPR inventory utility, Stage 2H capture metadata tooling, and Stage 2I sanitized capture analysis tooling.
+- `src/HapticDrive.Simagic.PHPR.Abstractions`: non-audio P-HPR command, safety, output, mock protocol, and mock-output contracts.
+- `src/HapticDrive.Simagic.PHPR.Research`: Stage 2G read-only P700 / P-HPR inventory utility, Stage 2H capture metadata tooling, Stage 2I sanitized capture analysis tooling, Stage 2J hypotheses, and Stage 2K mock protocol examples.
 - `src/HapticDrive.Actuation`: cached driving-state and Stage 2F shift-intent event evaluation that stay separate from the ASIO audio path and do not route haptic output.
 - `tests/*`: xUnit test projects.
 
@@ -50,6 +50,7 @@ The app does not yet implement advanced routing matrices, live graphing, real WA
 - `docs/SIMAGIC_CAPTURE_GUIDE.md`: capture naming, metadata, and raw-capture handling rules.
 - `docs/SIMAGIC_CAPTURE_ANALYSIS.md`: Stage 2I read-only capture analysis commands, outputs, and safety boundary.
 - `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md`: Stage 2J protocol hypotheses, confidence levels, Stage 2K mock boundary, and real-write blockers.
+- `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`: Stage 2K mock-only protocol, SimHub F1 EC fixture bytes, duration scheduling, SimProUnknownMock status, and mock output diagnostics.
 - `docs/SIMAGIC_USB_DEVICE_INVENTORY.md`: Stage 2G read-only P700 / P-HPR inventory status, tooling command, missing data, and optional user checklist.
 - `docs/SIMAGIC_WHEEL_INPUT_RESEARCH.md`: read-only GT Neo paddle input discovery plan.
 - `docs/SIMAGIC_SHIFT_INTENT_DESIGN.md`: instant paddle shift-intent design and `DrivingArmed` gating.
@@ -89,6 +90,17 @@ These commands export sanitized hypothesis records only. They do not send USB wr
 ```
 
 Default generated hypothesis exports should remain under ignored `capture-metadata/generated/`.
+
+## Simagic Stage 2K Mock Protocol Commands
+
+These commands display or export sanitized mock protocol examples only. They do not send USB writes, issue output or feature reports, create production protocol adapters, route haptics, or vibrate hardware.
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-export --output capture-metadata\generated\simagic-mock-protocol-examples.json
+```
+
+Default generated mock protocol exports should remain under ignored `capture-metadata/generated/`.
 
 ## Launch
 

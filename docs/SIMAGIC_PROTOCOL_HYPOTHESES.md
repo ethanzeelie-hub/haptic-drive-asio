@@ -206,9 +206,9 @@ Do not assume these payload families are interchangeable.
 
 ## Stage 2K Allowed Mock Surface
 
-Stage 2K should be: Stage 2K - Mock P-HPR Protocol and Output.
+Stage 2K is complete as: Stage 2K - Mock P-HPR Protocol and Output.
 
-Stage 2K may:
+Stage 2K implements:
 
 - create mock protocol objects from Stage 2J hypotheses,
 - create mock start/stop packet representations,
@@ -218,6 +218,8 @@ Stage 2K may:
 - run tests without hardware,
 - validate routing later in mock mode,
 - model duration as mock start plus scheduled stop.
+- classify SimPro `80 1E 89` as `SimProUnknownMock` / `NeedsMoreCaptures`.
+- expose safe `mock-protocol-examples` and `mock-protocol-export` CLI commands.
 
 Recommended mock-only command model:
 
@@ -240,6 +242,8 @@ Stage 2K must not:
 - send HID feature reports,
 - trigger real P-HPR vibration,
 - claim direct control is safe.
+
+Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 ## Real Write Blockers
 

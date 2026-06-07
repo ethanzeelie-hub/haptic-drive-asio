@@ -37,7 +37,7 @@ Forbidden:
 - SimPro Manager / SimHub control,
 - ASIO/BST-1 audio path changes.
 
-Stage 2J documents protocol hypotheses separately in `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md`.
+Stage 2J documents protocol hypotheses separately in `docs/SIMAGIC_PROTOCOL_HYPOTHESES.md`. Stage 2K documents mock-only protocol modelling in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 ## Commands
 
@@ -98,3 +98,9 @@ Stage 2J converts reviewed Stage 2I analysis outputs into formal hypotheses:
 - and real-write blockers.
 
 Stage 2J still does not send USB writes, issue HID output/feature reports, create production encoders/decoders, create live `PHprCommand` values, or route haptics.
+
+## Stage 2K Handoff
+
+Stage 2K uses Stage 2J's SimHub `F1 EC` readiness to create mock-only frames, mock encode/decode tests, deterministic duration schedules, mock output diagnostics, and safe CLI examples.
+
+Stage 2K keeps SimPro `80 1E 89` as `SimProUnknownMock` / `NeedsMoreCaptures`. It still does not send USB writes, issue HID output/feature reports, create production protocol adapters, access hardware, control SimPro Manager or SimHub, create live haptic routing, or validate real P-HPR behavior.

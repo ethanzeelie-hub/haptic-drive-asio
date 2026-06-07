@@ -245,7 +245,7 @@
 - Real raw USB captures remain private and uncommitted. Stage 2I can analyze actual local captures or sanitized transfer summaries before any evidence-backed conclusions are made.
 - The Stage 2H manifest intentionally contains sanitized metadata only and excludes raw capture bytes/content.
 - Protocol hypotheses exist in Stage 2J, but no production protocol implementation exists.
-- No mock P-HPR protocol or output exists yet; that is Stage 2K.
+- Mock P-HPR protocol and output diagnostics now exist in Stage 2K, but no mock routing exists yet.
 - No mock P-HPR gear-pulse routing exists yet.
 - No real P-HPR output, USB output report, feature report, vibration command, HID write, controlled write testing, SimPro control, or SimHub integration is implemented.
 
@@ -256,7 +256,7 @@
 - Generated analysis reports under `capture-metadata/generated/` are ignored and should remain private unless deliberately reviewed as sanitized artifacts.
 - The local `Complete Files Required` P-HPR evidence bundle was used as private/sanitized input context, but the bundle and generated analysis output are not committed.
 - Protocol hypotheses now exist in Stage 2J, but no production protocol implementation exists.
-- No mock P-HPR protocol or output exists yet; that is Stage 2K.
+- Mock P-HPR protocol and output diagnostics now exist in Stage 2K, but no mock routing exists yet.
 - No mock P-HPR gear-pulse routing exists yet.
 - No real P-HPR output, USB output report, feature report, vibration command, HID write, controlled write testing, SimPro control, or SimHub integration is implemented.
 
@@ -266,7 +266,20 @@
 - SimHub `F1 EC` is a high-confidence observation and is marked ready for Stage 2K mock protocol only; it is not approved for real writes.
 - SimPro `80 1E 89` is represented as a separate family, but field meanings remain conservative and are not promoted to a mock-ready command surface in Stage 2J.
 - No production encoder or decoder exists.
-- No mock P-HPR output integration exists yet; Stage 2K is next.
+- Mock P-HPR protocol and output diagnostics now exist in Stage 2K, but they remain mock-only and are not a production implementation.
 - No real P-HPR output exists.
 - No USB writes, HID output reports, HID feature reports, or vibration commands are implemented.
 - Real write blockers remain: approval phrase, controlled write plan, stop validation, device/report/interface identity, coexistence behavior, emergency stop path, and `PHprSafetyLimiter`.
+
+## Stage 2K
+
+- Mock protocol exists, but no real P-HPR output exists.
+- SimHub `F1 EC` mock frames are based on the Stage 2J `ReadyForMockProtocol` hypothesis and are not approved for hardware writes.
+- SimPro `80 1E 89` remains `SimProUnknownMock` / `NeedsMoreCaptures`; detailed SimPro mock encoding is unsupported.
+- `MockPhprOutputDevice` records commands and generated mock frames in memory only.
+- The full P-HPR safety limiter is not implemented yet; Stage 2L is next.
+- No mock gear-pulse routing from `ShiftIntentEvent` exists yet.
+- No mock road vibration, wheel slip, or wheel lock routing exists yet.
+- No production encoder or production decoder exists.
+- No real P-HPR output, USB write, HID output report, HID feature report, vibration command, controlled write testing, SimPro control, or SimHub control is implemented.
+- The ASIO/BST-1 audio path is unchanged by Stage 2K.
