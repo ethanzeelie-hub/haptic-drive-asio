@@ -1821,3 +1821,43 @@ Self-review:
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - The ASIO/BST-1 audio path was not changed.
 - Phase 3G Live F1 P-HPR Validation Workflow is next; Phase 3F stops here.
+
+## Phase 3G - Live F1 P-HPR Validation Workflow
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Create the manual live F1 25 validation workflow for P-HPR routing without claiming live or physical validation before Ethan performs a supervised local run.
+
+Notes:
+
+- Added `PhprLiveF1ValidationGuide` to build a passive twelve-step live F1 validation checklist from existing runtime snapshots.
+- Added a Devices-page `P-HPR Live F1 Validation` section showing live telemetry, `DrivingArmed`, paddle listener, shift intent, P-HPR output mode, selected-output readiness, SimPro/SimHub coexistence, emergency stop, road vibration, and slip/lock status.
+- Added a copied Diagnostics report line for the same live F1 validation workflow while excluding raw private HID paths, serial numbers, captures, and private validation data.
+- Covered the required manual sequence: app open with direct control disabled, live telemetry, `DrivingArmed`, accepted paddle press, mock gear-pulse diagnostics, manual real arming, brake/throttle gear pulse, road vibration, slip/lock if safe, menu/tabbing suppression, emergency stop, and SimPro/SimHub conflict warnings.
+- Added `docs/SIMAGIC_P_HPR_LIVE_F1_VALIDATION.md`.
+- Updated user guide, Simagic P-HPR user guide, safety plan, Phase 2 research notes, README, architecture, roadmap, and known issues for Phase 3G.
+- Added app-level tests for checklist coverage, ready mock-validation gates, real-mode manual/session-scoped status, physical-validation pending language, and private-data exclusion.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed with 15 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 460 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3G adds checklist and diagnostics workflow only; it does not add a new output route, HID write path, USB protocol path, synthetic paddle source, telemetry parser field, ASIO/BST-1 route, or live F1 execution.
+- Automated tests use app models only and do not open hardware, send HID reports, send feature reports, control SimPro/SimHub, or vibrate P-HPR modules.
+- Real direct-control enablement, arming, selected private device path, emergency-stop latch, command history, write history, and private validation results remain runtime-only or private local data.
+- No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, SimPro/SimHub real-device coexistence, or live F1 behavior claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- The ASIO/BST-1 audio path was not changed.
+- Phase 3H Final P-HPR Acceptance Package is next; Phase 3G stops here.

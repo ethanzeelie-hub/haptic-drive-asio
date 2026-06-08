@@ -793,6 +793,24 @@
                             </ItemsControl>
                             <TextBlock Margin="0,18,0,0"
                                        FontWeight="SemiBold"
+                                       Text="P-HPR Live F1 Validation" />
+                            <TextBlock x:Name="PhprLiveF1ValidationStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                            <ItemsControl x:Name="PhprLiveF1ValidationItemsControl"
+                                          Margin="0,10,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,0,0,8"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   Text="{Binding}"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,18,0,0"
+                                       FontWeight="SemiBold"
                                        Text="P-HPR Software Coexistence" />
                             <TextBlock x:Name="PhprCoexistenceStatusText"
                                        Margin="0,8,0,0"

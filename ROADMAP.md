@@ -46,6 +46,7 @@
 - Phase 3D: P-HPR wheel slip and wheel lock production integration complete.
 - Phase 3E: P-HPR UI, profiles, diagnostics, and user workflow complete.
 - Phase 3F: Integrated replay validation complete.
+- Phase 3G: Manual live F1 25 validation workflow complete.
 
 ## Planned Stages
 
@@ -98,9 +99,10 @@ Phase 2 safe sequence:
 22. Phase 3D: P-HPR wheel slip and wheel lock production integration. Complete.
 23. Phase 3E: P-HPR UI, profiles, diagnostics, and user workflow. Complete.
 24. Phase 3F: Integrated replay validation. Complete.
-25. Phase 3G: Manual live F1 25 validation workflow. Next.
+25. Phase 3G: Manual live F1 25 validation workflow. Complete.
+26. Phase 3H: Final P-HPR acceptance package. Next.
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path, controlled validation harness, adapter hardening, instant gear-pulse route, road-vibration route, wheel-slip/wheel-lock route, P-HPR UI/profile/diagnostics workflow, and integrated replay validation. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path, controlled validation harness, adapter hardening, instant gear-pulse route, road-vibration route, wheel-slip/wheel-lock route, P-HPR UI/profile/diagnostics workflow, integrated replay validation, and manual live F1 validation workflow. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
 
 ## Post-BT-1 Hardware Phases
 
@@ -142,3 +144,4 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Phase 3D completes real wheel-slip and wheel-lock production integration with safe target/strength/frequency/duration persistence, deterministic route-interval suppression, priority above road and below gear pulse, stale telemetry and `DrivingArmed` gates, SimPro/SimHub conflict blocking, and mock/fake-real tests; it does not persist direct-control enable/arm/device state, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
 - Phase 3E completes P-HPR workflow UI polish, safe P-HPR effect profile save/load, diagnostics report coverage, and user-guide coverage; it does not persist direct-control enable/arm/device state, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
 - Phase 3F completes integrated replay validation for P-HPR road/slip/lock routing with deterministic synthetic replay tests, replay-source diagnostics, `DrivingArmed` replay checks, stale/emergency/profile-setting coverage, and no synthetic gear-paddle events; it does not run real writes, validate live F1 25 behavior, or prove physical P-HPR behavior.
+- Phase 3G completes a passive manual live F1 25 P-HPR validation workflow with Devices-page checklist and diagnostics coverage for telemetry, `DrivingArmed`, paddle listener, output mode, coexistence, emergency stop, gear pulse, road, slip/lock, menu suppression, and conflict warnings; it does not execute hardware writes, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.

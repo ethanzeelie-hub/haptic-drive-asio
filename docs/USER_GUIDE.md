@@ -182,6 +182,7 @@ The Diagnostics page and copied report include:
 - mock and real P-HPR settings,
 - real write status and last error,
 - validation status,
+- live F1 validation checklist status,
 - profile paths,
 - persistence boundary notes.
 
@@ -195,6 +196,29 @@ It does not trigger hardware output. It evaluates readiness and exports private 
 
 Do not commit private validation results.
 
+## Live F1 25 P-HPR Validation
+
+The Devices page includes `P-HPR Live F1 Validation`.
+
+Use it after replay/mock checks when you are physically present. The checklist shows live telemetry status, `DrivingArmed`, paddle listener status, P-HPR mode, selected output readiness, SimPro/SimHub coexistence, emergency stop, road vibration, and slip/lock status.
+
+Manual order:
+
+1. App open, direct control disabled.
+2. F1 25 telemetry active.
+3. `DrivingArmed` true in session.
+4. Paddle press accepted.
+5. Mock mode gear pulse diagnostics.
+6. Real mode armed manually.
+7. Brake/throttle gear pulse test.
+8. Road vibration test.
+9. Slip/lock test if safe.
+10. Menu/tabbing suppression.
+11. Emergency stop.
+12. SimPro/SimHub conflict warning.
+
+The checklist and diagnostics do not trigger hardware output. They do not prove physical safety, latency, pedal mapping, road feel, slip feel, lock feel, or SimPro/SimHub real-device coexistence until a supervised local run is completed and recorded.
+
 ## Safety Reminders
 
 - Do not run unattended P-HPR output.
@@ -204,4 +228,4 @@ Do not commit private validation results.
 - Stop immediately if behavior is wrong or stronger than expected.
 - Do not commit raw captures, private device paths, serial numbers, or unsanitized hardware inventories.
 
-Stage 2Q through Phase 3F do not prove physical safety, latency, pedal mapping, road feel, slip feel, or lock feel. Use only supervised local validation.
+Stage 2Q through Phase 3G do not prove physical safety, latency, pedal mapping, road feel, slip feel, or lock feel. Use only supervised local validation.

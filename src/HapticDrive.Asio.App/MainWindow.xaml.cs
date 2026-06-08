@@ -3226,6 +3226,8 @@ public partial class MainWindow : Window
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot();
         var pipelineSnapshot = _hapticPipeline.GetSnapshot();
         var validation = _phprManualValidationReadiness;
+        var liveValidation = PhprLiveF1ValidationGuide.Build(
+            BuildPhprLiveF1ValidationSnapshot(pipelineSnapshot, realDiagnostics));
         var selectedDevice = realDiagnostics.Options.Selector.IsSelected
             ? "selected for this session"
             : "not selected";
@@ -3247,6 +3249,42 @@ public partial class MainWindow : Window
             $"Mock routing: gear {(mockGear.Options.IsEnabled ? "enabled" : "disabled")} target {mockGear.Options.TargetModule}; pedal effects {(mockPedalEffects.Options.IsEnabled ? "enabled" : "disabled")}; shared mock commands {mockGear.OutputSnapshot.AcceptedCommandCount:N0}; pending stops {mockGear.OutputSnapshot.PendingScheduledStopCount:N0}.",
             $"Real output counters: writes {realDiagnostics.ReportWriteCount:N0}; failures {realDiagnostics.FailedReportWriteCount:N0}; connection {realDiagnostics.Connection.State}; last error {realDiagnostics.LastError ?? "none"}."
         };
+        PhprLiveF1ValidationStatusText.Text = liveValidation.Summary;
+        PhprLiveF1ValidationItemsControl.ItemsSource = liveValidation.Checklist;
+    }
+
+    private PhprLiveF1ValidationSnapshot BuildPhprLiveF1ValidationSnapshot(
+        HapticPipelineSnapshot pipelineSnapshot,
+        PHprRealOutputDiagnostics realDiagnostics)
+    {
+        var receiverSnapshot = _telemetryReceiver.GetSnapshot();
+        var driving = _drivingArmedStateService.GetSnapshot();
+        var paddle = _paddleInputSource.GetPaddleSnapshot();
+        var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+
+        return new PhprLiveF1ValidationSnapshot(
+            TelemetryInputSource: pipelineSnapshot.InputSource.ToString(),
+            PipelineRunning: pipelineSnapshot.IsRunning,
+            UdpReceiverRunning: receiverSnapshot.IsRunning,
+            UdpPacketCount: receiverSnapshot.PacketCount,
+            ParserSuccessCount: pipelineSnapshot.ParserSuccessCount,
+            TelemetryAge: pipelineSnapshot.TelemetryAge,
+            TelemetryTimedOutMuted: pipelineSnapshot.TelemetryTimedOutMuted,
+            DrivingArmed: driving.Current.IsArmed,
+            DrivingArmedReason: driving.Current.Reason,
+            PaddleListenerStatus: paddle.Status.ToString(),
+            ShiftIntentEnabled: shiftIntent.IsEnabled,
+            AcceptedShiftIntentCount: shiftIntent.AcceptedShiftIntentCount,
+            SuppressedShiftIntentCount: shiftIntent.SuppressedShiftIntentCount,
+            OutputMode: GetPhprWorkflowModeText(),
+            MockGearRoutingEnabled: _mockGearPulseRouter.GetSnapshot().Options.IsEnabled,
+            DirectControlEnabled: realDiagnostics.Options.DirectControlEnabled,
+            DirectControlArmed: realDiagnostics.Options.DirectControlArmed,
+            SelectedOutputConfigured: realDiagnostics.Options.Selector.IsSelected,
+            CoexistenceStatus: _phprSoftwareCoexistenceSnapshot.Status.ToString(),
+            EmergencyStopActive: realDiagnostics.Output.IsEmergencyStopActive,
+            RealRoadVibrationEnabled: _realRoadVibrationOptions.IsEnabled,
+            RealSlipLockEnabled: _realSlipLockOptions.IsEnabled);
     }
 
     private string GetPhprWorkflowModeText()
@@ -3404,6 +3442,9 @@ public partial class MainWindow : Window
                 _mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled,
                 _realRoadVibrationOptions.IsEnabled,
                 _realSlipLockOptions.IsEnabled)),
+            PhprLiveF1ValidationGuide.Build(BuildPhprLiveF1ValidationSnapshot(
+                pipelineSnapshot,
+                _realPhprOutput.GetDiagnostics())).DiagnosticsLine,
             $"P-HPR software coexistence: {BuildPhprCoexistenceDiagnosticsText()}",
             $"P-HPR direct write readiness: {BuildPhprControlledWriteReadinessDiagnosticsText()}",
             $"P-HPR real direct control: {BuildRealPhprDirectDiagnosticsText()}",

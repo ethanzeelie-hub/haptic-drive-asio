@@ -48,9 +48,11 @@ The P-HPR profile includes:
 
 The P-HPR profile does not include direct-control enablement, arming, selected private HID path, emergency-stop latch, command history, write history, or validation result data.
 
-The Diagnostics page and copied report include P-HPR workflow mode, profile paths, mock status, real status, coexistence state, validation status, gear/road/slip/lock settings, last write status, and persistence boundary notes.
+The Diagnostics page and copied report include P-HPR workflow mode, profile paths, mock status, real status, coexistence state, validation status, live F1 validation checklist status, gear/road/slip/lock settings, last write status, and persistence boundary notes.
 
 Phase 3F diagnostics also include pipeline input source, replay source file name or in-memory replay status, and replay packet count. Replay does not synthesize GT Neo paddle events.
+
+Phase 3G diagnostics add a passive live F1 25 validation checklist covering telemetry, `DrivingArmed`, paddle listener, shift-intent acceptance, P-HPR mode, selected output readiness, SimPro/SimHub coexistence, emergency stop, mock gear pulse, real manual arming, road, slip/lock, and menu suppression.
 
 ## First Safe Manual Settings
 
@@ -137,6 +139,27 @@ If `pass` is entered, export is blocked until the required fields and hardware c
 
 Private exports go under `local-validation-results/` when the repo root is available. Do not commit those results.
 
+## Live F1 25 Validation Workflow
+
+Phase 3G adds `P-HPR Live F1 Validation` to the Devices page.
+
+Use it for the final supervised live session order:
+
+1. App open, direct control disabled.
+2. F1 25 telemetry active.
+3. `DrivingArmed` true in session.
+4. Paddle press accepted.
+5. Mock mode gear pulse diagnostics.
+6. Real mode armed manually.
+7. Brake/throttle gear pulse test.
+8. Road vibration test.
+9. Slip/lock test if safe.
+10. Menu/tabbing suppression.
+11. Emergency stop.
+12. SimPro/SimHub conflict warning.
+
+The checklist is passive. It does not trigger output, open hardware, or prove physical behavior.
+
 ## What Is Not Saved
 
 These runtime states are not persisted:
@@ -153,4 +176,4 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q through Phase 3F do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.
+Stage 2Q through Phase 3G do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.

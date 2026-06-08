@@ -421,4 +421,12 @@
 - Replay can drive road, slip, and lock software routing from `VehicleState`, but real direct-control output still requires explicit manual enablement, arming, selected device/interface/report, clear coexistence, and local supervision.
 - Replay does not synthesize GT Neo paddle events. Instant gear-pulse validation still requires read-only paddle input or a later explicit synthetic-input test path.
 - Replay-source diagnostics show the source file name or in-memory status only. Raw captures, full private paths, serial numbers, and unsanitized device inventories remain excluded.
-- Live menu suppression, pause behavior, SimPro/SimHub coexistence on the real device, and physical pedal response remain pending Phase 3G/manual validation.
+- Live menu suppression, pause behavior, SimPro/SimHub coexistence on the real device, and physical pedal response remain pending manual live validation.
+
+## Phase 3G
+
+- The manual live F1 25 P-HPR validation workflow is implemented as a passive checklist and diagnostics line, but no live F1 25 session or physical P-HPR hardware validation has been completed or recorded by Codex.
+- The checklist reports current telemetry, `DrivingArmed`, paddle listener, shift-intent, output mode, coexistence, selected-output, and emergency-stop state, but it cannot prove physical truth.
+- Automated tests cover checklist generation only and do not run F1 25, open HID devices, send P-HPR reports, or vibrate hardware.
+- Actual brake/throttle mapping, emergency-stop physical behavior, wrong-pedal checks, sustained vibration, safe strength, physical latency, road feel, slip feel, lock feel, and real SimPro/SimHub coexistence remain pending Ethan's supervised local run.
+- The ASIO/BST-1 audio path is unchanged by Phase 3G.
