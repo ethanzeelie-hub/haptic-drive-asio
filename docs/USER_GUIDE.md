@@ -34,6 +34,25 @@ Use the Dashboard, Telemetry / UDP Router page, and Diagnostics page to confirm:
 
 Unknown or malformed packets are ignored safely. Raw UDP bytes are preserved for recording, replay, and forwarding.
 
+## Wheel / Paddle Input
+
+Use Devices to refresh input devices, select the GT Neo / wheel input candidate, and map the left and right paddles from last-changed button diagnostics.
+
+The paddle listener is read-only. It observes button changes and feeds the Shift Intent layer; it does not write to wheel hardware.
+
+Shift Intent Diagnostics show:
+
+- listener state,
+- selected device,
+- mapped left/right buttons,
+- last raw button change,
+- last mapped paddle event,
+- accepted shift-intent count,
+- suppressed shift-intent count,
+- current `DrivingArmed` state and reason.
+
+Keep `InstantPaddleOnly` as the default mode for immediate gear pulse routing. It still requires cached `DrivingArmed` true.
+
 ## UDP Forwarding
 
 Use the Telemetry / UDP Router page to add forwarding destinations.
@@ -103,6 +122,15 @@ mapped paddle press
 It does not wait for F1 25 telemetry gear-change confirmation. Upshift and downshift use the same default pulse.
 
 Brake and throttle gear-pulse settings are independent: enabled, strength, frequency, and duration.
+
+To configure brake or throttle gear pulse, use Devices `P-HPR Real Direct Control`:
+
+- enable or disable the brake pedal pulse,
+- set brake strength, frequency, and duration,
+- enable or disable the throttle pedal pulse,
+- set throttle strength, frequency, and duration.
+
+Use low strength and short duration first. Upshift and downshift use the same default pulse.
 
 ## Road Vibration
 
@@ -228,4 +256,47 @@ The checklist and diagnostics do not trigger hardware output. They do not prove 
 - Stop immediately if behavior is wrong or stronger than expected.
 - Do not commit raw captures, private device paths, serial numbers, or unsanitized hardware inventories.
 
-Stage 2Q through Phase 3G do not prove physical safety, latency, pedal mapping, road feel, slip feel, or lock feel. Use only supervised local validation.
+Stage 2Q through Phase 3H do not prove physical safety, latency, pedal mapping, road feel, slip feel, or lock feel. Use only supervised local validation.
+
+## Troubleshooting Summary
+
+No vibration:
+
+- confirm mock diagnostics update first,
+- confirm F1 25 telemetry is live and parsed,
+- confirm `DrivingArmed` is true,
+- confirm paddle presses are accepted,
+- confirm direct control is enabled, armed, selected, coexistence `Clear`, and emergency stop clear.
+
+Wrong pedal:
+
+- press emergency stop,
+- disable direct control,
+- verify brake/throttle module wiring and selected report/interface,
+- retry one low-strength pedal at a time only after the issue is understood.
+
+Menu suppression:
+
+- check `DrivingArmed` reason,
+- keep Menu Safe Mode enabled,
+- confirm shift-intent diagnostics show suppressed events when paused, in menus, garage, results, or tabbed out.
+
+SimPro/SimHub conflicts:
+
+- close SimPro Manager and SimHub for first tests,
+- refresh coexistence diagnostics,
+- keep real direct control disabled unless status is `Clear`.
+
+Device/interface selection:
+
+- confirm report ID and report length,
+- reselect the device for the current session,
+- do not commit private device paths or serial numbers.
+
+More detail: `docs\TROUBLESHOOTING.md`.
+
+## Final Reference Docs
+
+- Quick start: `docs\QUICK_START.md`
+- Troubleshooting: `docs\TROUBLESHOOTING.md`
+- Final acceptance: `docs\FINAL_P_HPR_ACCEPTANCE.md`

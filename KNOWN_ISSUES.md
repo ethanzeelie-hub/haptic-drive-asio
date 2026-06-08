@@ -430,3 +430,10 @@
 - Automated tests cover checklist generation only and do not run F1 25, open HID devices, send P-HPR reports, or vibrate hardware.
 - Actual brake/throttle mapping, emergency-stop physical behavior, wrong-pedal checks, sustained vibration, safe strength, physical latency, road feel, slip feel, lock feel, and real SimPro/SimHub coexistence remain pending Ethan's supervised local run.
 - The ASIO/BST-1 audio path is unchanged by Phase 3G.
+
+## Phase 3H
+
+- The final P-HPR acceptance package is documentation-only and does not complete physical validation.
+- `docs/QUICK_START.md`, `docs/TROUBLESHOOTING.md`, and `docs/FINAL_P_HPR_ACCEPTANCE.md` summarize current workflows, but local hardware evidence is still required before marking P-HPR physically accepted.
+- Remaining physical risks are unchanged: pedal mapping, emergency-stop physical behavior, wrong-pedal behavior, sustained vibration, safe gain, physical latency, road feel, slip feel, lock feel, and real SimPro/SimHub coexistence.
+- The ASIO/BST-1 audio path is unchanged by Phase 3H.

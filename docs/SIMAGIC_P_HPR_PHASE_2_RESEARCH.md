@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling. Stage 2I adds read-only capture analysis tooling and sanitized summary export. Stage 2J adds formal protocol hypotheses and sanitized hypothesis export. Stage 2K adds mock-only protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. Stage 2M adds mock-only gear pulse routing from accepted shift intents. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from `VehicleState`. Stage 2O adds read-only SimPro Manager / SimHub coexistence detection and safety-context warning integration. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write diagnostics. Stage 2Q adds a gated real direct adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the adapter. Phase 3B completes instant paddle gear-pulse production integration. Phase 3C completes real road-vibration production integration. Phase 3D completes real wheel-slip and wheel-lock production integration. Phase 3E completes P-HPR UI, profiles, diagnostics, and user workflow. Phase 3F completes integrated replay validation. Phase 3G completes a passive manual live F1 25 validation workflow. No stage through Phase 3G executes unattended hardware writes or proves real P-HPR vibration.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling. Stage 2I adds read-only capture analysis tooling and sanitized summary export. Stage 2J adds formal protocol hypotheses and sanitized hypothesis export. Stage 2K adds mock-only protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. Stage 2M adds mock-only gear pulse routing from accepted shift intents. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from `VehicleState`. Stage 2O adds read-only SimPro Manager / SimHub coexistence detection and safety-context warning integration. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write diagnostics. Stage 2Q adds a gated real direct adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the adapter. Phase 3B completes instant paddle gear-pulse production integration. Phase 3C completes real road-vibration production integration. Phase 3D completes real wheel-slip and wheel-lock production integration. Phase 3E completes P-HPR UI, profiles, diagnostics, and user workflow. Phase 3F completes integrated replay validation. Phase 3G completes a passive manual live F1 25 validation workflow. Phase 3H completes the final P-HPR acceptance documentation package. No stage through Phase 3H executes unattended hardware writes or proves real P-HPR vibration.
 
 ## Current Repository Baseline
 
@@ -33,6 +33,7 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Phase 3E now completes the P-HPR workflow summary, safe P-HPR effect profiles, diagnostics report coverage, user guide coverage, and app-level profile tests.
 - Phase 3F now completes integrated replay validation for road/slip/lock software routing, replay source diagnostics, `DrivingArmed` replay checks, stale/emergency/profile-setting tests, and no synthetic gear-paddle events.
 - Phase 3G now completes the passive live F1 25 validation checklist and diagnostics line for telemetry, `DrivingArmed`, paddle listener, shift intent, P-HPR mode, coexistence, emergency stop, manual gear/road/slip/lock checks, menu suppression, and conflict warnings.
+- Phase 3H now completes final quick-start, troubleshooting, final acceptance, safety review, and user-guide packaging.
 
 ## User Hardware Context
 
@@ -738,6 +739,25 @@ Not implemented or not claimed in Phase 3G:
 - No raw/private capture, device path, or serial data in live validation diagnostics.
 - No ASIO/BST-1 audio path change.
 
+## Phase 3H Scope
+
+Implemented in Phase 3H:
+
+- Final quick-start documentation in `docs/QUICK_START.md`.
+- Final troubleshooting documentation in `docs/TROUBLESHOOTING.md`.
+- Final P-HPR acceptance checklist in `docs/FINAL_P_HPR_ACCEPTANCE.md`.
+- Updated final user guide, README, architecture, roadmap, known issues, and development log.
+
+Not implemented or not claimed in Phase 3H:
+
+- No unattended hardware writes.
+- No physical P-HPR validation.
+- No completed live F1 25 validation run.
+- No safe-gain, physical latency, stop behavior, sustained-vibration, pedal-mapping, road-feel, slip-feel, or lock-feel claim.
+- No persisted real direct-control enable/arm/device selection.
+- No raw/private capture, device path, serial data, or private validation result committed.
+- No ASIO/BST-1 audio path change.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
@@ -753,7 +773,7 @@ The highest-value first items after Stage 2I are:
 7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
-USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is complete. Stage 2R controlled real P-HPR validation harness is complete. Phase 3A production P-HPR output adapter hardening is complete. Phase 3B instant paddle gear pulse production integration is complete. Phase 3C P-HPR road vibration production integration is complete. Phase 3D P-HPR wheel slip and wheel lock production integration is complete. Phase 3E P-HPR UI, profiles, diagnostics, and user workflow is complete. Phase 3F integrated replay validation is complete. Phase 3G manual live F1 25 validation workflow is complete. Phase 3H final P-HPR acceptance package is next.
+USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is complete. Stage 2R controlled real P-HPR validation harness is complete. Phase 3A production P-HPR output adapter hardening is complete. Phase 3B instant paddle gear pulse production integration is complete. Phase 3C P-HPR road vibration production integration is complete. Phase 3D P-HPR wheel slip and wheel lock production integration is complete. Phase 3E P-HPR UI, profiles, diagnostics, and user workflow is complete. Phase 3F integrated replay validation is complete. Phase 3G manual live F1 25 validation workflow is complete. Phase 3H final P-HPR acceptance package is complete. Physical validation remains pending Ethan's supervised local run.
 
 ## Write Safety Gate
 
@@ -763,7 +783,7 @@ No unattended real P-HPR USB writes may be executed until the user says exactly:
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path, Stage 2R validation harness, Phase 3A adapter hardening, Phase 3B instant gear-pulse integration, Phase 3C road-vibration integration, Phase 3D wheel-slip/wheel-lock integration, Phase 3E UI/profile/diagnostics workflow, Phase 3F replay validation, and Phase 3G manual live F1 workflow. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Phase 3G, the real-write code path and validation harness are implemented but remain default-off, manually armed, fake/model tested, and not physically validated.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path, Stage 2R validation harness, Phase 3A adapter hardening, Phase 3B instant gear-pulse integration, Phase 3C road-vibration integration, Phase 3D wheel-slip/wheel-lock integration, Phase 3E UI/profile/diagnostics workflow, Phase 3F replay validation, Phase 3G manual live F1 workflow, and Phase 3H final acceptance package. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Phase 3H, the real-write code path and validation harness are implemented but remain default-off, manually armed, fake/model tested, and not physically validated.
 
 Before an explicit manual validation run, work is limited to read-only discovery, input observation, documentation, mock output, mock safety limiting, protocol hypotheses, gated implementation, fake-writer tests, and diagnostics.
 

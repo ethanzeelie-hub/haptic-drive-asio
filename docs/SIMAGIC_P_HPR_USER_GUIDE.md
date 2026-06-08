@@ -176,4 +176,13 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q through Phase 3G do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.
+Stage 2Q through Phase 3H do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.
+
+## Final Reference Docs
+
+- Quick start: `docs\QUICK_START.md`
+- App user guide: `docs\USER_GUIDE.md`
+- Troubleshooting: `docs\TROUBLESHOOTING.md`
+- Final acceptance: `docs\FINAL_P_HPR_ACCEPTANCE.md`
+
+Phase 3H adds the final documentation package. It does not complete physical validation.

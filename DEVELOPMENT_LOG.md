@@ -1861,3 +1861,41 @@ Self-review:
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - The ASIO/BST-1 audio path was not changed.
 - Phase 3H Final P-HPR Acceptance Package is next; Phase 3G stops here.
+
+## Phase 3H - Final P-HPR Acceptance Package
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Package the final P-HPR implementation status, safety review, user guide, quick start, troubleshooting guide, acceptance checklist, and run commands without claiming physical validation.
+
+Notes:
+
+- Added `docs/QUICK_START.md` with run command, telemetry confirmation, paddle mapping, mock P-HPR, real direct mode, effect settings, replay validation, live validation, and final doc pointers.
+- Added `docs/TROUBLESHOOTING.md` covering no vibration, wrong pedal, menu suppression, SimPro/SimHub conflicts, device/interface selection, telemetry, replay gear-pulse expectations, and emergency-stop latch behavior.
+- Added `docs/FINAL_P_HPR_ACCEPTANCE.md` with final feature status, safety status, manual acceptance checklist, verification expectations, physical-validation status, run command, and doc links.
+- Expanded `docs/USER_GUIDE.md` with wheel/paddle input, brake/throttle gear-pulse configuration, strength/frequency/duration guidance, troubleshooting summary, and final reference docs.
+- Updated README, architecture, roadmap, known issues, Simagic safety plan, Simagic Phase 2 research notes, and Simagic P-HPR user guide for Phase 3H.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 15 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 460 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3H is documentation and acceptance packaging only; it does not add runtime output routes, HID write paths, USB protocol paths, parser fields, synthetic input sources, ASIO/BST-1 changes, or new automated hardware behavior.
+- Real direct-control enablement, arming, selected private device path, emergency-stop latch, command history, write history, and private validation results remain runtime-only or private local data.
+- Automated verification did not open hardware, send HID reports, send feature reports, control SimPro/SimHub, run F1 25, or vibrate P-HPR modules.
+- No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, SimPro/SimHub real-device coexistence, live F1 behavior, or UI usability claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- The ASIO/BST-1 audio path was not changed.
+- Phase 3H completes the final stage in the pasted master prompt.
