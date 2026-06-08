@@ -2,13 +2,15 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through the same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage.
 
 No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
 
 ## Devices Page Controls
 
 Open the Devices page and find `P-HPR Real Direct Control`.
+
+The `P-HPR Workflow Summary` section shows the current mode (`Disabled`, `Mock`, or `Real Direct Control`), selected-output status, coexistence state, direct-control arm state, emergency-stop state, validation status, settings summaries, counters, and warnings without printing private device paths.
 
 The section starts disabled and unarmed every app launch. The selected device path is not saved.
 
@@ -30,6 +32,23 @@ Controls:
 The pulse buttons remain disabled until direct control is enabled, armed, a device is selected, coexistence status is `Clear`, and emergency stop is clear.
 
 Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. Phase 3B adds last gear-pulse latency diagnostics: paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. Phase 3C adds real road-vibration enabled state, per-pedal road settings, and last road route result diagnostics. Phase 3D adds real slip/lock enabled state, effect settings, and last slip/lock route result diagnostics. These diagnostics do not auto-run output and do not prove physical latency, road feel, slip feel, or lock feel.
+
+## Profiles And Diagnostics
+
+The Profiles page saves and loads a P-HPR effect profile beside the existing audio profile.
+
+The P-HPR profile includes:
+
+- shift-intent mode,
+- mock gear routing,
+- mock road/slip/lock routing,
+- real gear-pulse preferences,
+- real road-vibration preferences,
+- real wheel-slip and wheel-lock preferences.
+
+The P-HPR profile does not include direct-control enablement, arming, selected private HID path, emergency-stop latch, command history, write history, or validation result data.
+
+The Diagnostics page and copied report include P-HPR workflow mode, profile paths, mock status, real status, coexistence state, validation status, gear/road/slip/lock settings, last write status, and persistence boundary notes.
 
 ## First Safe Manual Settings
 
@@ -132,4 +151,4 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q through Phase 3D do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.
+Stage 2Q through Phase 3E do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.

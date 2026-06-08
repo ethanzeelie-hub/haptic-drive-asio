@@ -405,3 +405,12 @@
 - The route depends on telemetry freshness, cached `DrivingArmed` / Menu Safe state, haptics running state, emergency mute, SimPro/SimHub coexistence status, selected output readiness, and the safety limiter. Live menu, pause, garage, pit-lane, start-line, and stale-telemetry behavior may need local refinement after real F1 25 sessions.
 - Gear pulse remains the highest-priority P-HPR route, wheel lock is above wheel slip, and both are above road vibration, but physical priority feel and interaction with real pedal modules remain unvalidated.
 - The ASIO/BST-1 slip and brake-lock audio effect remains separate and unchanged by Phase 3D.
+
+## Phase 3E
+
+- P-HPR workflow UI, P-HPR effect profile save/load, and diagnostics report coverage are implemented, but no physical P-HPR validation has been executed or recorded by Codex.
+- P-HPR profiles save safe effect preferences only. Direct-control enablement, arming, selected private HID path, emergency-stop latch, command history, write history, and validation result data remain runtime-only or private local data.
+- Loading a P-HPR profile can change active safe effect preferences while preserving the current runtime direct-control arm/device state; users should keep real direct control disabled/unarmed while editing profiles until manual validation is complete.
+- Diagnostics intentionally summarize selected-output status without printing private raw HID paths, serial numbers, raw captures, or unsanitized hardware inventories.
+- The UI is still WPF code-behind rather than a full MVVM workflow. Further polish may be useful after live replay and live F1 validation.
+- Physical P-HPR workflow usability, wrong-pedal checks, sustained-vibration behavior, safe gain, and physical latency remain pending supervised local validation.

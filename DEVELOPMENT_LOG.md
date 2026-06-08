@@ -1733,3 +1733,46 @@ Self-review:
 - No physical P-HPR slip feel, lock feel, safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, or SimPro/SimHub real-device coexistence claim is made.
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - Phase 3E P-HPR UI, Profiles, Diagnostics, And User Workflow is next; Phase 3D stops here.
+
+## Phase 3E - P-HPR UI, Profiles, Diagnostics, And User Workflow
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Polish the P-HPR workflow around Devices, Profiles, Settings, Diagnostics, and user documentation without adding a new hardware output path or persisting runtime-only direct-control state.
+
+Notes:
+
+- Added a Devices-page `P-HPR Workflow Summary` covering mode, selected-output status, SimPro/SimHub coexistence, direct-control arm state, emergency stop, validation readiness, settings summaries, counters, and warnings.
+- Added `PhprEffectProfileStore` for safe P-HPR effect-profile save/load beside the existing audio profile.
+- P-HPR profiles save shift intent, mock gear routing, mock pedal effects, real gear pulse, road vibration, wheel slip, and wheel lock preferences only.
+- Kept real direct-control enablement, arming, selected private device path, emergency-stop latch, command history, write history, and validation results runtime-only and out of profiles.
+- Integrated P-HPR profile save/load/reset into the Profiles page while preserving runtime-only arm/device state.
+- Added diagnostics report lines for profile boundaries, P-HPR workflow mode, mock/real routing status, coexistence, validation, and selected-output state without raw private device paths.
+- Added `docs/SIMAGIC_P_HPR_UI_PROFILES_DIAGNOSTICS.md`.
+- Expanded `docs/USER_GUIDE.md` to cover ASIO/BST-1, F1 telemetry, UDP forwarding, recording/replay, P-HPR mock mode, real direct mode, instant gear pulse, road vibration, slip, lock, emergency stop, SimPro/SimHub warnings, profiles, diagnostics, and validation workflow.
+- Updated README, architecture, roadmap, known issues, safety plan, Phase 2 research notes, and Simagic P-HPR user guide for Phase 3E.
+- Added app tests for P-HPR profile round-trip, safe clamping, corrupt/missing/unsupported load failures, profile privacy boundaries, and diagnostics report text.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 12 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 453 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3E adds workflow polish, profiles, diagnostics, and user documentation only; no new HID write path, USB protocol path, ASIO/BST-1 route, or telemetry parser field was added.
+- Real direct-control enablement, arming, selected device path, emergency-stop latch, command history, write history, and private validation data are not persisted in app settings or P-HPR profiles.
+- Diagnostics report selected-output status is summarized without raw private device paths or serial numbers.
+- Automated tests use app models, mock output, and fake/model diagnostics only and do not open real hardware.
+- No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, or UI usability claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- Phase 3F Integrated Replay Validation is next; Phase 3E stops here.

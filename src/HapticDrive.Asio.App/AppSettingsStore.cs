@@ -65,7 +65,7 @@ internal sealed class AppSettingsStore
             "appsettings.json");
     }
 
-    private static AppSettings Sanitize(AppSettings? settings)
+    internal static AppSettings Sanitize(AppSettings? settings)
     {
         if (settings is null)
         {

@@ -63,6 +63,7 @@ public partial class MainWindow : Window
         new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider());
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
+    private readonly PhprEffectProfileStore _phprProfileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
     {
         Interval = TimeSpan.FromMilliseconds(500)
@@ -2743,10 +2744,66 @@ public partial class MainWindow : Window
         SafetyOutputCeilingValueText.Text = $"{profile.Safety.OutputGainCeiling:0.00}";
     }
 
+    private PhprEffectProfile BuildPhprEffectProfileFromCurrentSettings(string name)
+    {
+        return PhprEffectProfile.FromAppSettings(
+            string.IsNullOrWhiteSpace(name) ? _currentProfile.Name : name,
+            new AppSettings
+            {
+                ShiftIntent = CreateShiftIntentSetting(),
+                MockGearPulseRouting = CreateMockGearPulseRoutingSetting(),
+                MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting(),
+                RealPhprGearPulseRouting = CreateRealPhprGearPulseRoutingSetting(),
+                RealPhprRoadVibrationRouting = CreateRealPhprRoadVibrationRoutingSetting(),
+                RealPhprSlipLockRouting = CreateRealPhprSlipLockRoutingSetting()
+            });
+    }
+
+    private void ApplyPhprEffectProfileToRuntime(PhprEffectProfile profile)
+    {
+        var validation = PhprEffectProfileValidator.Validate(profile);
+        var settings = validation.Profile.ApplyTo(AppSettings.Default);
+
+        _shiftIntentProcessor.Configure(CreateShiftIntentOptions(settings.ShiftIntent));
+        _mockGearPulseRouter.Configure(CreateMockGearPulseRouterOptions(settings.MockGearPulseRouting));
+        _mockPedalEffectsRouter.Configure(CreateMockPedalEffectsRouterOptions(settings.MockPedalEffectsRouting));
+
+        var realProfileOptions = CreateRealPhprOutputOptions(settings.RealPhprGearPulseRouting);
+        _realPhprOptions = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits) with
+        {
+            BrakeGearPulse = realProfileOptions.BrakeGearPulse,
+            ThrottleGearPulse = realProfileOptions.ThrottleGearPulse
+        };
+        _realRoadVibrationOptions = CreateRealRoadVibrationRouterOptions(settings.RealPhprRoadVibrationRouting);
+        _realSlipLockOptions = CreateRealSlipLockRouterOptions(settings.RealPhprSlipLockRouting);
+
+        _realPhprOutput.Configure(_realPhprOptions);
+        _realPhprGearPulseRouter.Configure(_realPhprOptions);
+        _realRoadVibrationRouter.Configure(_realRoadVibrationOptions);
+        _realSlipLockRouter.Configure(_realSlipLockOptions);
+
+        ApplyShiftIntentSettingsToControls();
+        ApplyMockGearPulseSettingsToControls();
+        ApplyMockPedalEffectsSettingsToControls();
+        ApplyRealPhprOptionsToControls();
+        UpdatePhprWorkflowStatus();
+        UpdateDeviceStatus();
+        UpdateDiagnosticsStatus();
+    }
+
+    private static IReadOnlyList<string> CombineValidationMessages(
+        IReadOnlyList<string> audioMessages,
+        IReadOnlyList<string> phprMessages)
+    {
+        return audioMessages.Concat(phprMessages).ToArray();
+    }
+
     private async void SaveProfileButton_Click(object sender, RoutedEventArgs e)
     {
         var profile = BuildProfileFromControls();
+        var phprProfile = BuildPhprEffectProfileFromCurrentSettings(profile.Name);
         var result = await _profileStore.SaveAsync(profile, HapticProfileStore.GetDefaultProfilePath());
+        var phprResult = await _phprProfileStore.SaveAsync(phprProfile, PhprEffectProfileStore.GetDefaultProfilePath());
 
         if (result.Succeeded)
         {
@@ -2755,15 +2812,18 @@ public partial class MainWindow : Window
             ApplyProfileToRuntime(_currentProfile);
         }
 
-        UpdateProfileStatus(result.Message, result.ValidationMessages);
-        FooterStatusText.Text = result.Succeeded
-            ? $"Saved profile {Path.GetFileName(result.Path)}."
-            : result.Message;
+        UpdateProfileStatus(
+            $"{result.Message} {phprResult.Message}",
+            CombineValidationMessages(result.ValidationMessages, phprResult.ValidationMessages));
+        FooterStatusText.Text = result.Succeeded && phprResult.Succeeded
+            ? $"Saved profiles {Path.GetFileName(result.Path)} and {Path.GetFileName(phprResult.Path)}."
+            : $"{result.Message} {phprResult.Message}";
     }
 
     private async void LoadProfileButton_Click(object sender, RoutedEventArgs e)
     {
         var result = await _profileStore.LoadAsync(HapticProfileStore.GetDefaultProfilePath());
+        var phprResult = await _phprProfileStore.LoadAsync(PhprEffectProfileStore.GetDefaultProfilePath());
         if (result.Succeeded && result.Profile is not null)
         {
             ApplyProfileToControls(result.Profile);
@@ -2772,17 +2832,27 @@ public partial class MainWindow : Window
             UpdateMixerStatus();
         }
 
-        UpdateProfileStatus(result.Message, result.ValidationMessages);
-        FooterStatusText.Text = result.Message;
+        if (phprResult.Succeeded && phprResult.Profile is not null)
+        {
+            ApplyPhprEffectProfileToRuntime(phprResult.Profile);
+            SaveAppSettings();
+        }
+
+        UpdateProfileStatus(
+            $"{result.Message} {phprResult.Message}",
+            CombineValidationMessages(result.ValidationMessages, phprResult.ValidationMessages));
+        FooterStatusText.Text = $"{result.Message} {phprResult.Message}";
     }
 
     private void ResetProfileButton_Click(object sender, RoutedEventArgs e)
     {
         ApplyProfileToControls(HapticDriveProfile.Default);
         ApplyProfileToRuntime(HapticDriveProfile.Default);
+        ApplyPhprEffectProfileToRuntime(PhprEffectProfile.Default);
+        SaveAppSettings();
         UpdateEffectStatus();
         UpdateMixerStatus();
-        UpdateProfileStatus("Reset to conservative defaults.", []);
+        UpdateProfileStatus("Reset to conservative audio and P-HPR defaults.", []);
 
         if (_hapticsStarted)
         {
@@ -2946,6 +3016,7 @@ public partial class MainWindow : Window
         UpdatePhprControlledWriteReadinessStatus();
         UpdateRealPhprDirectControlStatus();
         UpdatePhprValidationStatus();
+        UpdatePhprWorkflowStatus();
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
@@ -2963,8 +3034,10 @@ public partial class MainWindow : Window
     private void UpdateProfileStatus(string? message = null, IReadOnlyList<string>? validationMessages = null)
     {
         var path = HapticProfileStore.GetDefaultProfilePath();
+        var phprPath = PhprEffectProfileStore.GetDefaultProfilePath();
         ProfileStatusText.Text = message ?? $"Active profile: {_currentProfile.Name}.";
-        ProfilePathText.Text = $"Default profile path: {path}";
+        ProfilePathText.Text = $"Audio profile path: {path}";
+        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; profile saves shift intent, mock gear/pedal effects, real gear, road, slip, and lock preferences only.";
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
             : "Profile values are clamped to conservative software ranges on load and save.";
@@ -2977,7 +3050,7 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Profiles" })
         {
-            PageStatusText.Text = $"Active profile {_currentProfile.Name}; JSON version {HapticDriveProfile.CurrentVersion}; emergency mute is not saved.";
+            PageStatusText.Text = $"Active profile {_currentProfile.Name}; audio JSON version {HapticDriveProfile.CurrentVersion}; P-HPR JSON version {PhprEffectProfile.CurrentVersion}; emergency mute and direct-control arming are not saved.";
         }
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Settings" })
@@ -3145,6 +3218,46 @@ public partial class MainWindow : Window
         };
     }
 
+    private void UpdatePhprWorkflowStatus()
+    {
+        var mode = GetPhprWorkflowModeText();
+        var realDiagnostics = _realPhprOutput.GetDiagnostics();
+        var mockGear = _mockGearPulseRouter.GetSnapshot();
+        var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot();
+        var validation = _phprManualValidationReadiness;
+        var selectedDevice = realDiagnostics.Options.Selector.IsSelected
+            ? "selected for this session"
+            : "not selected";
+        var warning = realDiagnostics.Options.DirectControlEnabled
+            ? "Real direct-control state is runtime-only; profile/app settings do not save enable, arm, private device path, emergency stop, or write history."
+            : "Real direct control is currently disabled; mock routing and diagnostics remain hardware-safe.";
+
+        PhprWorkflowStatusText.Text =
+            $"P-HPR mode: {mode}; selected output {selectedDevice}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; direct control {(realDiagnostics.Options.DirectControlEnabled ? "enabled" : "disabled")}/{(realDiagnostics.Options.DirectControlArmed ? "armed" : "unarmed")}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; validation {(validation.IsBlocked ? "blocked" : "ready")}.";
+        PhprWorkflowItemsControl.ItemsSource = new[]
+        {
+            warning,
+            $"Profiles: audio {Path.GetFileName(HapticProfileStore.GetDefaultProfilePath())}; P-HPR {Path.GetFileName(PhprEffectProfileStore.GetDefaultProfilePath())}; P-HPR profile saves effect preferences only.",
+            $"Instant gear pulse: brake {FormatRealPhprPulse(realDiagnostics.Options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(realDiagnostics.Options.ThrottleGearPulse)}; last latency {BuildRealPhprGearPulseLatencyText()}.",
+            $"Road vibration: {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)}; throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)}; last {BuildRealRoadVibrationRoutingText()}.",
+            $"Slip/lock: {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)}; lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)}; last {BuildRealSlipLockRoutingText()}.",
+            $"Mock routing: gear {(mockGear.Options.IsEnabled ? "enabled" : "disabled")} target {mockGear.Options.TargetModule}; pedal effects {(mockPedalEffects.Options.IsEnabled ? "enabled" : "disabled")}; shared mock commands {mockGear.OutputSnapshot.AcceptedCommandCount:N0}; pending stops {mockGear.OutputSnapshot.PendingScheduledStopCount:N0}.",
+            $"Real output counters: writes {realDiagnostics.ReportWriteCount:N0}; failures {realDiagnostics.FailedReportWriteCount:N0}; connection {realDiagnostics.Connection.State}; last error {realDiagnostics.LastError ?? "none"}."
+        };
+    }
+
+    private string GetPhprWorkflowModeText()
+    {
+        if (_realPhprOptions.DirectControlEnabled)
+        {
+            return "Real Direct Control";
+        }
+
+        var mockGearEnabled = _mockGearPulseRouter.GetSnapshot().Options.IsEnabled;
+        var mockPedalEffectsEnabled = _mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled;
+        return mockGearEnabled || mockPedalEffectsEnabled ? "Mock" : "Disabled";
+    }
+
     private void UpdatePhprSoftwareCoexistenceStatus()
     {
         var snapshot = _phprSoftwareCoexistenceSnapshot;
@@ -3273,6 +3386,18 @@ public partial class MainWindow : Window
             $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
             $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
             $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
+            PhprWorkflowDiagnosticsReport.BuildProfilePersistenceLine(
+                HapticProfileStore.GetDefaultProfilePath(),
+                PhprEffectProfileStore.GetDefaultProfilePath()),
+            PhprWorkflowDiagnosticsReport.BuildWorkflowLine(new PhprWorkflowDiagnosticsSnapshot(
+                GetPhprWorkflowModeText(),
+                _realPhprOptions.DirectControlEnabled,
+                _realPhprOptions.DirectControlArmed,
+                _realPhprOptions.Selector.IsSelected,
+                _mockGearPulseRouter.GetSnapshot().Options.IsEnabled,
+                _mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled,
+                _realRoadVibrationOptions.IsEnabled,
+                _realSlipLockOptions.IsEnabled)),
             $"P-HPR software coexistence: {BuildPhprCoexistenceDiagnosticsText()}",
             $"P-HPR direct write readiness: {BuildPhprControlledWriteReadinessDiagnosticsText()}",
             $"P-HPR real direct control: {BuildRealPhprDirectDiagnosticsText()}",

@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. Phase 3D completes real wheel-slip and wheel-lock production integration with safe per-effect settings, route-interval suppression, and priority above road and below gear pulse. The real adapter is disabled/unarmed by default and is not physically validated.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. Phase 3D completes real wheel-slip and wheel-lock production integration with safe per-effect settings, route-interval suppression, and priority above road and below gear pulse. Phase 3E adds UI workflow summaries, safe P-HPR effect profiles, and diagnostics report coverage around those existing routes. The real adapter is disabled/unarmed by default and is not physically validated.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -285,6 +285,25 @@ The router consumes existing `VehicleState` / `HapticPipelineSnapshot` state and
 Slip and lock settings are independent. Each effect has enabled state, target module, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration settings. Safe preferences persist through app settings; real direct-control enabled state, armed state, selected private HID path, emergency-stop state, command history, and write history remain runtime-only.
 
 Priority stays per target module: gear pulse remains highest, wheel lock is above wheel slip, and both are above road vibration. The WPF routing tick lets road vibration yield when a slip/lock command has just routed. The ASIO/BST-1 slip and brake-lock audio effect remains separate and unchanged.
+
+## Phase 3E P-HPR UI, Profiles, And Diagnostics
+
+Phase 3E stays in the WPF app layer and does not add a new output backend.
+
+The UI/profile stack is:
+
+```text
+Devices page controls
+-> safe app settings / P-HPR effect profile
+-> mock routers or gated real routers
+-> diagnostics report
+```
+
+`PhprEffectProfileStore` saves a separate local JSON file beside the existing audio profile. The P-HPR profile contains shift-intent, mock routing, real gear, road, slip, and lock effect preferences only. It does not contain direct-control enablement, direct-control arming, selected private HID path, emergency-stop state, command history, write history, or validation result data.
+
+The Devices page now exposes a P-HPR workflow summary that reports `Disabled`, `Mock`, or `Real Direct Control` mode from current runtime state. Detailed lower sections remain the source of truth for coexistence, readiness, real direct control, validation, paddle input, shift intent, mock gear, and mock pedal effects.
+
+The Diagnostics page and copied report include profile paths, workflow mode, coexistence, mock/real settings, validation status, last write status, and persistence boundary notes while avoiding raw captures, serial numbers, private validation results, and unsanitized device inventories.
 
 ## Stage 2B Input and P-HPR Abstractions
 
