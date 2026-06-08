@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. Phase 3D completes real wheel-slip and wheel-lock production integration with safe per-effect settings, route-interval suppression, and priority above road and below gear pulse. Phase 3E adds UI workflow summaries, safe P-HPR effect profiles, and diagnostics report coverage around those existing routes. The real adapter is disabled/unarmed by default and is not physically validated.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. Phase 3D completes real wheel-slip and wheel-lock production integration with safe per-effect settings, route-interval suppression, and priority above road and below gear pulse. Phase 3E adds UI workflow summaries, safe P-HPR effect profiles, and diagnostics report coverage around those existing routes. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock output only. The real adapter is disabled/unarmed by default and is not physically validated.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -304,6 +304,28 @@ Devices page controls
 The Devices page now exposes a P-HPR workflow summary that reports `Disabled`, `Mock`, or `Real Direct Control` mode from current runtime state. Detailed lower sections remain the source of truth for coexistence, readiness, real direct control, validation, paddle input, shift intent, mock gear, and mock pedal effects.
 
 The Diagnostics page and copied report include profile paths, workflow mode, coexistence, mock/real settings, validation status, last write status, and persistence boundary notes while avoiding raw captures, serial numbers, private validation results, and unsanitized device inventories.
+
+## Phase 3F P-HPR Replay Validation
+
+Phase 3F stays in automated replay validation and app diagnostics. It does not add a new output backend, parser field, or real hardware path.
+
+The replay validation path is:
+
+```text
+TelemetryRecording / .hdrec
+-> TelemetryReplayService
+-> HapticPipelineCoordinator
+-> F1 25 v3 parser
+-> VehicleState adapter
+-> DrivingArmedStateService
+-> P-HPR road/slip/lock routers
+-> SafetyLimitedPhprOutputDevice
+-> MockPhprOutputDevice
+```
+
+Runtime tests build synthetic F1 25 v3 packets from the existing parser definitions and verify road, slip, and lock routing from replayed telemetry. They also verify stale telemetry, emergency mute, profile-style target/enable settings, and that replay does not create `PaddleShiftIntent` commands.
+
+The WPF P-HPR workflow and copied diagnostics report include pipeline input source, replay source file name or in-memory replay status, and replay packet count. Raw private paths, captures, serial numbers, and hardware inventories remain out of P-HPR replay diagnostics.
 
 ## Stage 2B Input and P-HPR Abstractions
 

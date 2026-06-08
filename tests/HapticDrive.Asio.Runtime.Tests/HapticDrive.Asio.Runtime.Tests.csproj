@@ -21,12 +21,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\HapticDrive.Actuation\HapticDrive.Actuation.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Asio.Audio\HapticDrive.Asio.Audio.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Asio.Core\HapticDrive.Asio.Core.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Asio.Recording\HapticDrive.Asio.Recording.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Asio.Runtime\HapticDrive.Asio.Runtime.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Asio.Telemetry.F1_25\HapticDrive.Asio.Telemetry.F1_25.csproj" />
+    <ProjectReference Include="..\..\src\HapticDrive.Simagic.PHPR.Abstractions\HapticDrive.Simagic.PHPR.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>
-

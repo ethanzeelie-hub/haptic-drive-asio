@@ -48,6 +48,10 @@ Use the Recordings page to record raw telemetry packets and replay saved `.hdrec
 
 Replay feeds recorded packets through the same parser, VehicleState adapter, effects, mixer, and diagnostics path as live telemetry. Automated replay does not generate real P-HPR hardware writes.
 
+For P-HPR, replay can validate road vibration, wheel slip, and wheel lock software routing through mock/fake output because those effects come from `VehicleState`. Replay does not create GT Neo paddle events, so it does not validate instant gear-pulse input unless a later explicit synthetic-input test path is added.
+
+The Devices P-HPR workflow summary and Diagnostics report show the current pipeline input source, replay source file name or in-memory replay status, and replay packet count.
+
 ## P-HPR Mock Mode
 
 Use the Devices page.
@@ -200,4 +204,4 @@ Do not commit private validation results.
 - Stop immediately if behavior is wrong or stronger than expected.
 - Do not commit raw captures, private device paths, serial numbers, or unsanitized hardware inventories.
 
-Stage 2Q through Phase 3E do not prove physical safety, latency, pedal mapping, road feel, slip feel, or lock feel. Use only supervised local validation.
+Stage 2Q through Phase 3F do not prove physical safety, latency, pedal mapping, road feel, slip feel, or lock feel. Use only supervised local validation.

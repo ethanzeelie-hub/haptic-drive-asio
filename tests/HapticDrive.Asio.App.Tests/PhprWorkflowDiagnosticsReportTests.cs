@@ -9,6 +9,9 @@ public sealed class PhprWorkflowDiagnosticsReportTests
     {
         var line = PhprWorkflowDiagnosticsReport.BuildWorkflowLine(new PhprWorkflowDiagnosticsSnapshot(
             "Real Direct Control",
+            "Replay",
+            "test-session.hdrec",
+            ReplayPacketsReplayed: 5,
             RealDirectControlEnabled: true,
             RealDirectControlArmed: true,
             SelectedOutputIsConfigured: true,
@@ -18,6 +21,9 @@ public sealed class PhprWorkflowDiagnosticsReportTests
             RealSlipLockEnabled: false));
 
         Assert.Contains("P-HPR workflow: mode Real Direct Control", line, StringComparison.Ordinal);
+        Assert.Contains("telemetry input Replay", line, StringComparison.Ordinal);
+        Assert.Contains("replay source test-session.hdrec", line, StringComparison.Ordinal);
+        Assert.Contains("replay packets 5", line, StringComparison.Ordinal);
         Assert.Contains("real direct enabled/armed", line, StringComparison.Ordinal);
         Assert.Contains("selected output True", line, StringComparison.Ordinal);
         Assert.Contains("mock pedal effects enabled", line, StringComparison.Ordinal);

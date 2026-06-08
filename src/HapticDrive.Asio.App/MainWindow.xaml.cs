@@ -3224,19 +3224,22 @@ public partial class MainWindow : Window
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var mockGear = _mockGearPulseRouter.GetSnapshot();
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot();
+        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
         var validation = _phprManualValidationReadiness;
         var selectedDevice = realDiagnostics.Options.Selector.IsSelected
             ? "selected for this session"
             : "not selected";
+        var replaySource = FormatReplaySource(pipelineSnapshot);
         var warning = realDiagnostics.Options.DirectControlEnabled
             ? "Real direct-control state is runtime-only; profile/app settings do not save enable, arm, private device path, emergency stop, or write history."
             : "Real direct control is currently disabled; mock routing and diagnostics remain hardware-safe.";
 
         PhprWorkflowStatusText.Text =
-            $"P-HPR mode: {mode}; selected output {selectedDevice}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; direct control {(realDiagnostics.Options.DirectControlEnabled ? "enabled" : "disabled")}/{(realDiagnostics.Options.DirectControlArmed ? "armed" : "unarmed")}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; validation {(validation.IsBlocked ? "blocked" : "ready")}.";
+            $"P-HPR mode: {mode}; telemetry input {pipelineSnapshot.InputSource}; replay source {replaySource}; selected output {selectedDevice}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; direct control {(realDiagnostics.Options.DirectControlEnabled ? "enabled" : "disabled")}/{(realDiagnostics.Options.DirectControlArmed ? "armed" : "unarmed")}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; validation {(validation.IsBlocked ? "blocked" : "ready")}.";
         PhprWorkflowItemsControl.ItemsSource = new[]
         {
             warning,
+            $"Replay validation: input {pipelineSnapshot.InputSource}; replay source {replaySource}; replay packets {pipelineSnapshot.Replay.PacketsReplayed:N0}; replay does not synthesize gear-paddle events.",
             $"Profiles: audio {Path.GetFileName(HapticProfileStore.GetDefaultProfilePath())}; P-HPR {Path.GetFileName(PhprEffectProfileStore.GetDefaultProfilePath())}; P-HPR profile saves effect preferences only.",
             $"Instant gear pulse: brake {FormatRealPhprPulse(realDiagnostics.Options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(realDiagnostics.Options.ThrottleGearPulse)}; last latency {BuildRealPhprGearPulseLatencyText()}.",
             $"Road vibration: {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)}; throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)}; last {BuildRealRoadVibrationRoutingText()}.",
@@ -3378,7 +3381,7 @@ public partial class MainWindow : Window
             $"Packet IDs: {packetDiagnostics}",
             $"VehicleState: {vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
             $"Recording: {(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
-            $"Replay: {(replaySnapshot.IsReplaying ? "active" : "inactive")}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
+            $"Replay: {(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
             $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
             $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
             $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
@@ -3391,6 +3394,9 @@ public partial class MainWindow : Window
                 PhprEffectProfileStore.GetDefaultProfilePath()),
             PhprWorkflowDiagnosticsReport.BuildWorkflowLine(new PhprWorkflowDiagnosticsSnapshot(
                 GetPhprWorkflowModeText(),
+                pipelineSnapshot.InputSource.ToString(),
+                FormatReplaySource(pipelineSnapshot),
+                pipelineSnapshot.Replay.PacketsReplayed,
                 _realPhprOptions.DirectControlEnabled,
                 _realPhprOptions.DirectControlArmed,
                 _realPhprOptions.Selector.IsSelected,
@@ -3437,6 +3443,20 @@ public partial class MainWindow : Window
 
         var errors = snapshot.Errors.Count == 0 ? "none" : string.Join("; ", snapshot.Errors);
         return $"{snapshot.DeviceCount:N0} device(s); methods {FormatDiscoveryMethods(snapshot.Methods)}; wheelbase {snapshot.LikelySimagicWheelBaseCandidates.Count:N0}; GT Neo/wheel {snapshot.LikelyGtNeoWheelInputCandidates.Count:N0}; P700 {snapshot.LikelyP700PedalCandidates.Count:N0}; unknown HID/game-controller {snapshot.UnknownHidOrGameControllerCandidates.Count:N0}; errors {errors}; read-only discovery with Stage 2E Windows game-controller listener and Stage 2F shift intent diagnostics available separately.";
+    }
+
+    private static string FormatReplaySource(HapticPipelineSnapshot snapshot)
+    {
+        if (snapshot.InputSource == HapticPipelineInputSource.Replay)
+        {
+            return string.IsNullOrWhiteSpace(snapshot.Replay.SourceFilePath)
+                ? "in-memory replay"
+                : Path.GetFileName(snapshot.Replay.SourceFilePath);
+        }
+
+        return string.IsNullOrWhiteSpace(snapshot.Replay.SourceFilePath)
+            ? "none"
+            : Path.GetFileName(snapshot.Replay.SourceFilePath);
     }
 
     private string BuildPaddleInputDiagnosticsText()

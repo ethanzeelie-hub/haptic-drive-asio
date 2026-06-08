@@ -2,6 +2,9 @@ namespace HapticDrive.Asio.App;
 
 internal sealed record PhprWorkflowDiagnosticsSnapshot(
     string Mode,
+    string PipelineInputSource,
+    string ReplaySource,
+    long ReplayPacketsReplayed,
     bool RealDirectControlEnabled,
     bool RealDirectControlArmed,
     bool SelectedOutputIsConfigured,
@@ -19,7 +22,7 @@ internal static class PhprWorkflowDiagnosticsReport
 
     public static string BuildWorkflowLine(PhprWorkflowDiagnosticsSnapshot snapshot)
     {
-        return $"P-HPR workflow: mode {snapshot.Mode}; real direct {FormatEnabled(snapshot.RealDirectControlEnabled)}/{FormatArmed(snapshot.RealDirectControlArmed)}; selected output {snapshot.SelectedOutputIsConfigured}; mock gear {FormatEnabled(snapshot.MockGearRoutingEnabled)}; mock pedal effects {FormatEnabled(snapshot.MockPedalEffectsEnabled)}; road {FormatEnabled(snapshot.RealRoadVibrationEnabled)}; slip/lock {FormatEnabled(snapshot.RealSlipLockEnabled)}.";
+        return $"P-HPR workflow: mode {snapshot.Mode}; telemetry input {snapshot.PipelineInputSource}; replay source {snapshot.ReplaySource}; replay packets {snapshot.ReplayPacketsReplayed:N0}; real direct {FormatEnabled(snapshot.RealDirectControlEnabled)}/{FormatArmed(snapshot.RealDirectControlArmed)}; selected output {snapshot.SelectedOutputIsConfigured}; mock gear {FormatEnabled(snapshot.MockGearRoutingEnabled)}; mock pedal effects {FormatEnabled(snapshot.MockPedalEffectsEnabled)}; road {FormatEnabled(snapshot.RealRoadVibrationEnabled)}; slip/lock {FormatEnabled(snapshot.RealSlipLockEnabled)}.";
     }
 
     private static string FormatEnabled(bool enabled)

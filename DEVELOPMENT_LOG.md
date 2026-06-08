@@ -1776,3 +1776,48 @@ Self-review:
 - No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, or UI usability claim is made.
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - Phase 3F Integrated Replay Validation is next; Phase 3E stops here.
+
+## Phase 3F - P-HPR Integrated Replay Validation
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Validate P-HPR road, wheel-slip, and wheel-lock routing from recorded or synthetic replay telemetry without requiring live F1 25, live pedal input, or real P-HPR writes.
+
+Notes:
+
+- Added deterministic replay-validation tests that drive the existing `TelemetryReplayService` through `HapticPipelineCoordinator` and then route fake P-HPR effects through mock output only.
+- Validated replay updates `DrivingArmed` from F1 25 session, lap, and car-status packets.
+- Validated replay road-vibration routing from F1 25 car telemetry without creating gear-paddle events.
+- Validated replay wheel-slip and wheel-lock routing from F1 25 motion and car-telemetry packets without creating synthetic gear-paddle events.
+- Validated profile settings for replay-driven pedal effects, including road target selection and disabled slip/lock behavior.
+- Validated stale telemetry after replay and emergency mute rejection before commands reach mock output.
+- Added replay source, replay packet count, and pipeline input source to P-HPR workflow diagnostics.
+- Added `docs/SIMAGIC_P_HPR_REPLAY_VALIDATION.md`.
+- Updated user guide, Simagic P-HPR user guide, safety plan, Phase 2 research notes, README, architecture, roadmap, and known issues for Phase 3F.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj --no-build` passed with 22 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 12 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 457 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3F validates integrated replay routing only; it does not validate live F1 25 telemetry, live GT Neo paddle input, real P-HPR hardware, physical pedal mapping, physical safety, or physical latency.
+- Automated replay tests use mock output only and do not open real hardware or enable real direct-control writes.
+- Replay-driven validation does not synthesize gear-paddle events unless a future explicit synthetic-input test is added.
+- The F1 25 parser source-of-truth boundary was preserved; no packet layouts, offsets, lengths, enum values, or parser fields were guessed or expanded beyond the existing tested packet helpers.
+- Direct-control enablement, arming, selected device path, emergency-stop latch, command history, write history, and private validation results remain runtime-only and are not persisted.
+- No physical P-HPR road feel, slip feel, lock feel, safety, pedal mapping, stop behavior, safe gain, physical latency, or sustained-vibration behavior claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- The ASIO/BST-1 audio path was not changed.
+- Phase 3G Live F1 P-HPR Validation Workflow is next; Phase 3F stops here.

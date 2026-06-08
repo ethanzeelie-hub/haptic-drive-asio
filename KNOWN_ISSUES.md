@@ -414,3 +414,11 @@
 - Diagnostics intentionally summarize selected-output status without printing private raw HID paths, serial numbers, raw captures, or unsanitized hardware inventories.
 - The UI is still WPF code-behind rather than a full MVVM workflow. Further polish may be useful after live replay and live F1 validation.
 - Physical P-HPR workflow usability, wrong-pedal checks, sustained-vibration behavior, safe gain, and physical latency remain pending supervised local validation.
+
+## Phase 3F
+
+- Integrated replay validation uses deterministic synthetic replay packets and mock P-HPR output only; it does not validate live F1 25 sessions or physical P-HPR behavior.
+- Replay can drive road, slip, and lock software routing from `VehicleState`, but real direct-control output still requires explicit manual enablement, arming, selected device/interface/report, clear coexistence, and local supervision.
+- Replay does not synthesize GT Neo paddle events. Instant gear-pulse validation still requires read-only paddle input or a later explicit synthetic-input test path.
+- Replay-source diagnostics show the source file name or in-memory status only. Raw captures, full private paths, serial numbers, and unsanitized device inventories remain excluded.
+- Live menu suppression, pause behavior, SimPro/SimHub coexistence on the real device, and physical pedal response remain pending Phase 3G/manual validation.
