@@ -80,6 +80,7 @@ public sealed class SimagicMockProtocolCliTests
         Assert.Contains("mock-protocol-examples", output.ToString(), StringComparison.Ordinal);
         Assert.Contains("mock-protocol-export", output.ToString(), StringComparison.Ordinal);
         Assert.Contains("safety-examples", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("controlled-write-test", output.ToString(), StringComparison.Ordinal);
         Assert.Equal("", error.ToString());
     }
 

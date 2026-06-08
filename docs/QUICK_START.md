@@ -49,6 +49,16 @@ Use real direct mode only under local supervision.
 
 Direct-control enablement, arming, selected private device path, emergency-stop latch, command history, and write history are not persisted.
 
+## Controlled P-HPR Smoke Test
+
+Before using real direct mode in a full session, run the CLI dry-run with the selected private HID path:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
+```
+
+Add `--execute` only when physically present, SimPro/SimHub coexistence is clear, and emergency stop is visible.
+
 ## Configure P-HPR Effects
 
 Use Devices to configure:

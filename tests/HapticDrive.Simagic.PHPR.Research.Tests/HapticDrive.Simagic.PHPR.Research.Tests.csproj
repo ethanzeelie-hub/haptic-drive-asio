@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\HapticDrive.Simagic.PHPR.Output.Windows\HapticDrive.Simagic.PHPR.Output.Windows.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj" />
   </ItemGroup>
 

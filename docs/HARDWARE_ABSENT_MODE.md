@@ -40,7 +40,7 @@ Hardware-absent mode is the default development and automated-test posture until
 - Do not claim final haptic feel, safe gain, physical latency, or frequency tuning.
 - Do not make automated tests depend on output hardware.
 - Do not fall back from ASIO to WASAPI automatically.
-- Keep hardware-dependent tests skipped by default.
+- Keep hardware-dependent tests hardware-safe by default. Readiness/pending tests may run with zero skipped tests, but they must not energize ASIO/BST-1 or P-HPR hardware without explicit local flags or a controlled manual command.
 - Do not treat Windows sound output selector visibility as proof of ASIO usage.
 - Do not treat callback/drop/underrun diagnostics as final physical latency or safe gain measurements.
 - Do not treat persisted ASIO driver/channel selection as hardware arming.

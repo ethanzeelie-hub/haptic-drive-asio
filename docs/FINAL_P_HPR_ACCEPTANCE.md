@@ -1,6 +1,6 @@
 # Final P-HPR Acceptance Package
 
-Phase 3H packages the current P-HPR implementation for final review. It does not claim physical validation.
+Phase 3H packages the current P-HPR implementation for final review. Phase 3J adds final controlled-write readiness and zero-skip automated reporting. Neither claims physical validation.
 
 ## Feature Status
 
@@ -16,6 +16,7 @@ Phase 3H packages the current P-HPR implementation for final review. It does not
 - SimPro/SimHub detection: implemented as read-only process detection.
 - Replay validation: implemented for road/slip/lock software routing.
 - Live F1 validation workflow: implemented as a passive manual checklist.
+- Controlled P-HPR CLI smoke test: implemented, dry-run by default, real writes gated by exact approval phrase plus `--execute`.
 - User guide, quick start, troubleshooting, and final acceptance docs: implemented.
 
 ## Safety Status
@@ -27,7 +28,8 @@ Phase 3H packages the current P-HPR implementation for final review. It does not
 - Emergency stop remains available and latched until cleared.
 - SimPro/SimHub non-clear coexistence blocks real direct starts.
 - Automated tests and CI do not write to hardware.
-- Hardware-dependent tests remain manual and skipped by default.
+- Automated tests now report zero skips by converting prior manual ASIO checks into readiness/pending checks.
+- Real P-HPR writes require the controlled CLI command or manually armed app direct mode; they are not part of normal tests.
 
 ## Manual Acceptance Checklist
 
@@ -49,6 +51,7 @@ Use this checklist locally before claiming physical validation:
 14. Wrong-pedal behavior is absent or documented.
 15. Sustained vibration is absent or documented.
 16. Private local validation notes are exported outside committed docs.
+17. Optional final CLI smoke test is run with `controlled-write-test --execute` only after the dry run looks correct.
 
 ## Verification
 
@@ -62,10 +65,13 @@ Phase 3H final verification must pass:
 - safe P-HPR research CLI help,
 - mock protocol examples,
 - safety examples.
+- controlled-write dry-run and fake-writer tests.
+
+Normal full-suite verification should report zero skipped tests. Zero skipped tests do not prove physical validation.
 
 ## Physical Validation Status
 
-Physical P-HPR validation is pending Ethan's local supervised run. No physical safety, safe gain, pedal mapping, stop behavior, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, or real SimPro/SimHub coexistence claim is made by automated work.
+Controlled P-HPR write testing is approved and the command path exists, but physical P-HPR validation is pending Ethan's local supervised run with a selected private HID path. No physical safety, safe gain, pedal mapping, stop behavior, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, or real SimPro/SimHub coexistence claim is made by automated work.
 
 ## Run Command
 

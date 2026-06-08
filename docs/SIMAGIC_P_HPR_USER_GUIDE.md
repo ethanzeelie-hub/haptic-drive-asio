@@ -2,7 +2,7 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock/fake output only. Phase 3I simplifies normal Devices controls and moves research internals behind Advanced diagnostics.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock/fake output only. Phase 3I simplifies normal Devices controls and moves research internals behind Advanced diagnostics. Phase 3J adds the final controlled CLI smoke-test command and zero-skip readiness reporting.
 
 No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
 
@@ -139,6 +139,16 @@ If `pass` is entered, export is blocked until the required fields and hardware c
 
 Private exports go under `local-validation-results/` when the repo root is available. Do not commit those results.
 
+## Controlled CLI Smoke Test
+
+Use this dry-run before executing any real CLI pulse:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
+```
+
+Add `--execute` only when physically present, the selected private HID path is correct, SimPro/SimHub coexistence is clear, and emergency stop is visible. The command hides the private HID path in console output, requests emergency stop at the end, and does not export local validation evidence.
+
 ## Live F1 25 Validation Workflow
 
 Phase 3G adds `P-HPR Live F1 Validation` to the Devices page.
@@ -176,7 +186,7 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q through Phase 3H do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.
+Stage 2Q through Phase 3J do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.
 
 ## Final Reference Docs
 
@@ -185,4 +195,4 @@ Stage 2Q through Phase 3H do not prove physical pedal mapping, safe output stren
 - Troubleshooting: `docs\TROUBLESHOOTING.md`
 - Final acceptance: `docs\FINAL_P_HPR_ACCEPTANCE.md`
 
-Phase 3H adds the final documentation package. It does not complete physical validation.
+Phase 3J adds the final controlled CLI smoke-test path. It does not complete physical validation.

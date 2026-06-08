@@ -1935,3 +1935,47 @@ Self-review:
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - The F1 25 telemetry parser and ASIO/BST-1 audio path were not changed.
 - Phase 3I completes the pasted P-HPR UI simplification prompt.
+
+## Phase 3J - Final Controlled P-HPR Hardware Readiness And Zero-Skip Tests
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Convert the remaining manual skipped-test reporting into hardware-safe readiness checks, add a final controlled P-HPR smoke-test command after Ethan supplied the exact approval phrase, and preserve private hardware-data boundaries before Ethan's local physical validation.
+
+Missing Items Addressed:
+
+- Added an explicit `controlled-write-test` CLI path for final P-HPR brake/throttle smoke testing.
+- Kept the CLI dry-run by default and required `--execute`, selected private HID path, clear SimPro/SimHub coexistence, and exact approval phrase before real writes.
+- Converted the three previously skipped ASIO/BST-1 manual tests into zero-skip readiness/pending tests.
+- Added fake-writer controlled-write coverage for brake, throttle, and emergency-stop reports without opening real hardware.
+- Updated manual hardware, P-HPR validation, acceptance, safety, quick-start, roadmap, known-issues, README, and architecture docs for Phase 3J.
+
+Notes:
+
+- Ethan supplied the exact approval phrase `I approve Phase 2 controlled P-HPR write testing`, so controlled P-HPR write testing is now permitted only through explicit manual gates.
+- The read-only local inventory command observed 168 inventory items, 0 specific Simagic candidates, 0 P700 candidates, and 0 P-HPR/module-controller candidates.
+- Because no Simagic-specific P700/P-HPR candidate or selected private HID path was available from read-only tooling, no real P-HPR hardware pulse was executed by Codex in this stage.
+- `controlled-write-test` hides the private HID path in console output and does not export validation artifacts.
+- Zero skipped tests do not mean physical validation has passed; they mean normal automated tests now report readiness/pending states instead of xUnit skips.
+
+Verification:
+
+- Read-only `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- inventory --console-only` passed and observed no Simagic-specific P700/P-HPR candidates.
+- Dry-run `controlled-write-test` passed with approval phrase recognized, coexistence `Clear`, sequence plan brake/throttle at 10%, 50 Hz, 50 ms, no HID writer opened, and no private path echoed.
+- `rg -n "Skip\s*=" tests` found no xUnit skip markers.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 480 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Phase 3J adds a controlled CLI route and readiness tests only; it does not add unattended hardware vibration, startup writes, loops, persisted direct arming, or physical validation claims.
+- Automated tests use fake writers, fake ASIO backends/catalogs, readiness flags, and Null output; they do not vibrate P-HPR modules, ASIO hardware, or the Dayton BST-1 path.
+- Real P-HPR execution remains local/manual and requires `controlled-write-test --execute` or explicitly armed app Direct mode with selected private HID path and clear coexistence.
+- No raw captures, serial numbers, private HID paths, unsanitized inventories, generated local analysis exports, command-history private data, or private manual validation results were committed.
+- Physical P-HPR pedal mapping, stop behavior, emergency-stop effectiveness, safe gain, sustained vibration, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.
+- The F1 25 telemetry parser and ASIO/BST-1 audio path were not changed.
+- Phase 3J is the final readiness stage before Ethan's local physical validation attempt.

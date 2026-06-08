@@ -1,16 +1,26 @@
 # Manual Hardware Tests
 
-Manual hardware tests are opt-in checks for real output devices. They must stay skipped by default until the user confirms the full hardware chain is available and a manual test is intended.
+Manual hardware tests are opt-in checks for real output devices. They now run as readiness checks instead of xUnit skips, so the normal suite can report zero skipped tests without silently energizing hardware.
 
-These tests must not be required for automated validation until the user confirms hardware is available.
+These tests must not require physical output for automated validation until the matching hardware path is explicitly enabled through local flags or a controlled manual command.
 
 Current Stage 18 hardware status: the M-Audio M-Track Solo is connected to the user's Windows PC and the driver is installed. The Fosi amplifier has been received. The Dayton BST-1 shaker has not arrived, so physical shaker output testing is deferred. Stage 18 diagnostics may report ASIO driver visibility, render callbacks, backend callbacks, drops, underruns, jitter, telemetry age, forwarding destinations, recording library state, and packet-ID counts, but automated tests still use fake ASIO catalogs/backends and Null output.
 
-## Stage 02 Manual Test Marker
+## Manual Test Markers
 
-`HapticDrive.Asio.Audio.Tests.OutputDeviceTests.Manual_AsioOutputDevice_OpensRealDriverWhenHardwareIsAvailable` is skipped by default.
+- `HapticDrive.Asio.Audio.Tests.OutputDeviceTests.Manual_AsioOutputDevice_ReportsPendingOrOpensRealDriverWhenExplicitlyEnabled`
+- `HapticDrive.Asio.Audio.Tests.AsioOutputReadinessTests.Manual_MAudioAsioDriverDiscovery_ReportsPendingOrVisibleWhenExplicitlyEnabled`
+- `HapticDrive.Asio.Audio.Tests.AsioOutputReadinessTests.Manual_DaytonBst1PhysicalOutput_ReportsPendingUntilExplicitlyValidated`
 
-It remains skipped by default. Stage 17 adds native streaming and fake-backend coverage, but physical shaker validation is still manual/local work.
+These are no longer skipped. Without local environment flags they verify that readiness checks complete safely and report physical validation as pending. With local flags, they become stricter ASIO/BST-1 checks:
+
+```powershell
+$env:HAPTICDRIVE_RUN_ASIO_HARDWARE_TESTS = "1"
+$env:HAPTICDRIVE_BST1_ARRIVED = "1"
+$env:HAPTICDRIVE_BST1_PHYSICAL_OUTPUT_VALIDATED = "1"
+```
+
+Do not set the BST-1 validation flag until the shaker output check has actually been completed locally.
 
 ## Before Running Any Manual Hardware Test
 
@@ -24,6 +34,27 @@ It remains skipped by default. Stage 17 adds native streaming and fake-backend c
 - Confirm Windows default audio/WASAPI debug output is not being mistaken for ASIO.
 - Confirm the test is expected to make sound or haptic movement before enabling it.
 - Confirm the app is not using `NullAudioOutputDevice` if the goal is a future physical-output test.
+- Confirm whether the test path is ASIO/BST-1 or Simagic P-HPR. P-HPR modules are not ASIO audio devices and use the separate controlled P-HPR write command.
+
+## Controlled P-HPR Write Smoke Test
+
+Ethan has approved controlled Phase 2 P-HPR write testing with the exact phrase:
+
+```text
+I approve Phase 2 controlled P-HPR write testing
+```
+
+The command below is the only CLI path that can send real P-HPR HID reports. It defaults to dry-run unless `--execute` is present, hides the private HID path from console output, blocks non-clear SimPro/SimHub coexistence, sends a low-strength pulse plan, and requests emergency stop at the end.
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
+```
+
+Add `--execute` only when physically present, the selected private HID path is correct, SimPro/SimHub are closed or clear, and emergency stop is visible:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50 --execute
+```
 
 ## Stage 16 Manual Readiness Checklist
 
@@ -75,4 +106,5 @@ Before the BT-1 arrives, the safe software package should be checked through:
 - With no ASIO driver available, ASIO output returns a failure result instead of crashing.
 - With a matching fake driver catalog and fake backend in tests, ASIO output can validate explicit driver selection, arming, channel routing, lifecycle, stop, dispose, and safety-processed buffer submission.
 - Stage 17 fake-backend tests also validate output-owned callback cadence, dropped-buffer diagnostics, stale telemetry mute, emergency mute, and stop/dispose behavior.
-- No automated test requires real ASIO, WASAPI, M-Audio, Fosi, Dayton BST-1, F1 25, or live telemetry.
+- No automated test requires real ASIO, WASAPI, M-Audio, Fosi, Dayton BST-1, Simagic P700/P-HPR hardware, F1 25, or live telemetry.
+- Normal test runs should report zero skipped tests. A zero-skip test run is not the same as physical validation.

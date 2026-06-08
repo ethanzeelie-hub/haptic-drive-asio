@@ -1,10 +1,10 @@
 # Simagic P-HPR Controlled Real Validation
 
-## Stage 2R Purpose
+## Stage 2R / Phase 3J Purpose
 
 Stage 2R adds the validation harness for later supervised real P-HPR testing.
 
-It does not run hardware vibration automatically, does not mark physical validation as passed, and does not add automated hardware tests.
+Phase 3J adds a final controlled CLI smoke-test command after Ethan provided the exact controlled-write approval phrase. It still does not run hardware vibration automatically and does not mark physical validation as passed.
 
 ## Implemented Harness
 
@@ -34,6 +34,31 @@ The app checklist combines user confirmations with current runtime state:
 - gear paddle test planned.
 
 The harness never triggers a pulse. Brake, throttle, and paddle tests remain manual actions through the Stage 2Q direct-control controls.
+
+## Controlled CLI Smoke Test
+
+`controlled-write-test` is the explicit command-line route for a final local P-HPR smoke test. It defaults to dry-run and does not open the HID writer unless `--execute` is supplied with the exact approval phrase.
+
+Dry run:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
+```
+
+Execute, only when physically ready:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50 --execute
+```
+
+The command:
+
+- requires selected private HID path, clear SimPro/SimHub coexistence, and exact approval phrase for real writes,
+- uses normalized 0-100% strength, 1-50 Hz frequency, and 10-1000 ms duration,
+- defaults to a 10%, 50 Hz, 50 ms brake-then-throttle sequence,
+- requests emergency stop at the end,
+- hides the private HID path in console output,
+- does not commit or export local validation data.
 
 ## Result Export
 
@@ -72,7 +97,7 @@ Draft and fail exports are allowed for local notes. A pass export is blocked unt
 
 ## Automated Tests
 
-Stage 2R tests are fake/model-only. They cover:
+Stage 2R / Phase 3J tests are fake/model-only. They cover:
 
 - checklist blocking when coexistence is not clear,
 - checklist readiness when gates are complete,
@@ -81,12 +106,15 @@ Stage 2R tests are fake/model-only. They cover:
 - complete pass-ready result evaluation,
 - private local export formatting,
 - local Markdown file export.
+- controlled CLI dry-run output without private path leakage.
+- controlled CLI execution blocking without the exact approval phrase.
+- fake-writer brake/throttle sequence and emergency-stop reports.
 
-No test opens a real HID device or sends a real P-HPR report.
+No automated test opens a real HID device or sends a real P-HPR report.
 
 ## Physical Validation Status
 
-Physical validation is pending Ethan's local supervised run.
+Controlled P-HPR write testing is approved, but physical validation is pending Ethan's local supervised run with a selected private HID path.
 
 Until real results are supplied, do not claim:
 

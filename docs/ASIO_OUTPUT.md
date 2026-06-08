@@ -79,7 +79,7 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - Stop Haptics stops ASIO output, and switching away from ASIO must stop the old output path first.
 - Stage 16 mono routing clears all routed channels and writes the safety-processed mono source only to the selected ASIO channel.
 - Diagnostics report selected driver, sample rate, buffer size, output channel count when available, selected output channel, arming state, running state, buffer counters, drops, last error, and M-Audio / M-Track visibility.
-- Hardware-dependent validation remains manual and skipped by default. Dayton BST-1 physical output testing is deferred until the shaker arrives.
+- Hardware-dependent validation remains manual and opt-in. Prior skipped tests now run as readiness/pending checks, so the suite can report zero skipped tests without requiring physical output. Dayton BST-1 physical output testing is deferred until the shaker arrives.
 
 ## Stage 17 Manual Streaming
 

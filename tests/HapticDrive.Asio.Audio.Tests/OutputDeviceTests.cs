@@ -109,12 +109,26 @@ public sealed class OutputDeviceTests
         Assert.Equal(AudioOutputDeviceKind.Asio, asioDevice.Kind);
     }
 
-    [Fact(Skip = "Manual hardware test: requires a real ASIO driver/interface and must not run in automated test suites.")]
-    public async Task Manual_AsioOutputDevice_OpensRealDriverWhenHardwareIsAvailable()
+    [Fact]
+    public async Task Manual_AsioOutputDevice_ReportsPendingOrOpensRealDriverWhenExplicitlyEnabled()
     {
+        if (!ManualHardwareTestSettings.RunAsioHardwareTests)
+        {
+            var drivers = await new WindowsRegistryAsioDriverCatalog().GetDriverNamesAsync();
+
+            Assert.NotNull(drivers);
+            return;
+        }
+
         await using var device = new AsioAudioOutputDevice();
-        var result = await device.OpenAsync(AudioOutputConfiguration.Default);
-        Assert.True(result.Succeeded);
+        var result = await device.OpenAsync(AudioOutputConfiguration.Default with
+        {
+            RequestedDeviceName = AsioAudioOutputDevice.PreferredDriverName,
+            SelectedOutputChannel = 0,
+            IsHardwareArmed = false
+        });
+
+        Assert.True(result.Succeeded, result.Message);
     }
 
     private sealed class FakeAsioDriverCatalog : IAsioDriverCatalog

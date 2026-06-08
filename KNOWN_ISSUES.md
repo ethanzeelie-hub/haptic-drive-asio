@@ -161,7 +161,7 @@
 - The ASIO backend uses a small preallocated queue between app rendering and the driver callback; underrun and dropped-buffer diagnostics are surfaced, but they are not a final latency measurement.
 - Stale telemetry is muted by wall-clock timeout so old live samples cannot drive effects indefinitely; effect behavior under network loss or game pause may need future refinement after real sessions.
 - ASIO driver selection, output channel selection, and arming remain explicit. The app still must not auto-switch to ASIO or WASAPI.
-- `NullAudioOutputDevice` remains the automated-test default. Hardware-dependent tests remain manual and skipped by default.
+- `NullAudioOutputDevice` remains the automated-test default. Hardware-dependent tests now run as hardware-safe readiness/pending checks by default rather than xUnit skips.
 - Recording library polish, forwarding destination UI, advanced routing matrices, live graphing, real WASAPI output, physical calibration UI, and Simagic P-HPR output remain deferred.
 
 ## Stage 18
@@ -181,7 +181,7 @@
 - No cached `DrivingArmed` service has been implemented yet.
 - No shift-intent event router has been implemented yet.
 - No P700/P-HPR USB inventory or protocol hypothesis has been implemented yet.
-- No real P-HPR USB writes are allowed unless the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
+- Before Phase 3J approval, no real P-HPR USB writes were allowed unless the user said exactly: `I approve Phase 2 controlled P-HPR write testing`.
 - Raw captures and private device inventories must stay uncommitted.
 
 ## Stage 2B
@@ -445,3 +445,12 @@
 - The user-facing P-HPR range is now 0-100% strength, 1-50 Hz, and 10-1000 ms; these are software limits and still are not validated safe physical gain or final tuning.
 - Mock test pulses are software/mock only unless Direct mode is explicitly ready; they do not prove physical brake/throttle mapping, stop behavior, or sustained-vibration safety.
 - The ASIO/BST-1 audio path is unchanged by Phase 3I.
+
+## Phase 3J
+
+- Controlled P-HPR write testing is approved and the `controlled-write-test` CLI exists, but this commit did not execute a real hardware pulse because the read-only inventory run observed no Simagic-specific P700/P-HPR candidates on this machine.
+- The CLI requires `--execute`, the exact approval phrase, selected private HID path, clear SimPro/SimHub coexistence, and local physical presence before real writes.
+- Console output intentionally hides private HID paths, but command history or local validation notes may still contain private local data if Ethan types a path manually; do not commit those artifacts.
+- The full automated suite now reports zero skipped tests, but zero skipped tests are readiness coverage, not physical validation.
+- Physical P-HPR brake/throttle mapping, emergency-stop behavior, wrong-pedal checks, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.
+- The ASIO/BST-1 audio path is unchanged by Phase 3J.

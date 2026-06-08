@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HapticDrive.Simagic.PHPR.Research.ControlledWrite;
 using HapticDrive.Simagic.PHPR.Research.Capture;
 using HapticDrive.Simagic.PHPR.Research.CaptureAnalysis;
 using HapticDrive.Simagic.PHPR.Research.Hypotheses;
@@ -36,6 +37,7 @@ public static class SimagicResearchCli
             "mock-protocol-examples" => RunMockProtocolExamples(output),
             "mock-protocol-export" => await RunMockProtocolExportAsync(args[1..], output, error),
             "safety-examples" => RunSafetyExamples(output),
+            "controlled-write-test" => await RunControlledWriteTestAsync(args[1..], output, error),
             _ => UnknownCommand(args[0], output, error)
         };
     }
@@ -414,6 +416,22 @@ public static class SimagicResearchCli
         return 0;
     }
 
+    private static async Task<int> RunControlledWriteTestAsync(string[] args, TextWriter output, TextWriter error)
+    {
+        var parseResult = TryParseControlledWriteOptions(args, out var options, out var parseError);
+        if (!parseResult)
+        {
+            await error.WriteLineAsync(parseError);
+            await output.WriteLineAsync();
+            PrintHelp(output);
+            return 2;
+        }
+
+        var result = await new ControlledPhprWriteTestRunner().RunAsync(options);
+        await output.WriteLineAsync(ControlledPhprWriteTestFormatter.FormatConsole(result));
+        return result.Succeeded ? 0 : 1;
+    }
+
     private static int UnknownCommand(string command, TextWriter output, TextWriter error)
     {
         error.WriteLine($"Unknown command '{command}'.");
@@ -472,6 +490,132 @@ public static class SimagicResearchCli
         output.WriteLine("P-HPR safety command:");
         output.WriteLine("  safety-examples      Print Stage 2L mock safety decisions only.");
         output.WriteLine();
-        output.WriteLine("Capture metadata tooling is Stage 2H. Capture analysis is Stage 2I. Protocol hypotheses are Stage 2J. Mock protocol examples are Stage 2K. Safety examples are Stage 2L. None sends USB writes, creates real vibration commands, controls SimPro/SimHub, creates live hardware encoders, or routes haptics.");
+        output.WriteLine("Controlled P-HPR write command:");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval \"I approve Phase 2 controlled P-HPR write testing\" --device-path <private-hid-path> [--execute]");
+        output.WriteLine("  Options: --target brake|throttle|both|sequence, --report-id <0-255>, --report-length 64, --strength-percent 10, --frequency-hz 50, --duration-ms 50, --write-timeout-ms 250.");
+        output.WriteLine();
+        output.WriteLine("Capture metadata tooling is Stage 2H. Capture analysis is Stage 2I. Protocol hypotheses are Stage 2J. Mock protocol examples are Stage 2K. Safety examples are Stage 2L. controlled-write-test is the only command that can send real P-HPR HID reports, and only with --execute plus the exact approval phrase.");
+    }
+
+    private static bool TryParseControlledWriteOptions(
+        string[] args,
+        out ControlledPhprWriteTestOptions options,
+        out string error)
+    {
+        options = new ControlledPhprWriteTestOptions();
+        error = string.Empty;
+
+        for (var index = 0; index < args.Length; index++)
+        {
+            var arg = args[index];
+            if (string.Equals(arg, "--execute", StringComparison.OrdinalIgnoreCase))
+            {
+                options = options with { Execute = true };
+            }
+            else if (string.Equals(arg, "--approval", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                options = options with { ApprovalPhraseText = args[++index] };
+            }
+            else if (string.Equals(arg, "--device-path", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                options = options with { DevicePath = args[++index] };
+            }
+            else if (string.Equals(arg, "--target", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!TryParseControlledWriteTarget(args[++index], out var target))
+                {
+                    error = $"Unknown controlled-write-test target '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { Target = target };
+            }
+            else if (string.Equals(arg, "--report-id", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                var value = args[++index];
+                if (string.Equals(value, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    options = options with { ReportId = null };
+                }
+                else if (byte.TryParse(value, out var reportId))
+                {
+                    options = options with { ReportId = reportId };
+                }
+                else
+                {
+                    error = $"Invalid report ID '{value}'. Use 0-255 or none.";
+                    return false;
+                }
+            }
+            else if (string.Equals(arg, "--report-length", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!int.TryParse(args[++index], out var reportLength))
+                {
+                    error = $"Invalid report length '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { ReportLength = reportLength };
+            }
+            else if (string.Equals(arg, "--strength-percent", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!double.TryParse(args[++index], out var strengthPercent))
+                {
+                    error = $"Invalid strength percent '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { StrengthPercent = strengthPercent };
+            }
+            else if (string.Equals(arg, "--frequency-hz", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!double.TryParse(args[++index], out var frequencyHz))
+                {
+                    error = $"Invalid frequency value '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { FrequencyHz = frequencyHz };
+            }
+            else if (string.Equals(arg, "--duration-ms", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!int.TryParse(args[++index], out var durationMs))
+                {
+                    error = $"Invalid duration value '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { DurationMs = durationMs };
+            }
+            else if (string.Equals(arg, "--write-timeout-ms", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!int.TryParse(args[++index], out var writeTimeoutMs))
+                {
+                    error = $"Invalid write timeout value '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { WriteTimeoutMs = writeTimeoutMs };
+            }
+            else
+            {
+                error = $"Unknown controlled-write-test option '{arg}'.";
+                return false;
+            }
+        }
+
+        options = options.Normalize();
+        return true;
+    }
+
+    private static bool TryParseControlledWriteTarget(string value, out ControlledPhprWriteTarget target)
+    {
+        if (Enum.TryParse(value, ignoreCase: true, out target))
+        {
+            return true;
+        }
+
+        target = ControlledPhprWriteTarget.Sequence;
+        return false;
     }
 }

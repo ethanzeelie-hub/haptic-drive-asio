@@ -811,3 +811,18 @@ Automated tests still use Null output and fake ASIO backends. Stage 17 does not 
 - Successful results preserve a copy of the raw datagram bytes.
 
 The WPF shell parses headers from incoming UDP packets for diagnostics while forwarding still uses the original raw UDP payload. Packet body parsing and `VehicleState` mapping remain scheduled for later stages.
+
+## Phase 3J Controlled Hardware Readiness
+
+`HapticDrive.Simagic.PHPR.Research.ControlledWrite` owns the final controlled P-HPR smoke-test command.
+
+The command:
+
+- defaults to dry-run and does not open a HID writer unless `--execute` is supplied,
+- requires the exact approval phrase `I approve Phase 2 controlled P-HPR write testing`,
+- requires a selected private HID path and clear SimPro/SimHub coexistence,
+- plans low-strength 0-100% user-facing pulse settings through the existing `SimagicPhprOutputDevice`,
+- requests emergency stop at the end of execution,
+- hides private HID paths in console output.
+
+Automated coverage uses a fake HID writer and does not open real devices. Prior skipped ASIO manual tests were converted into readiness/pending tests so full-suite output can be zero-skip while keeping physical ASIO/BST-1 and P-HPR actuation opt-in. This does not change the ASIO/BST-1 audio path and does not validate physical P-HPR behavior.
