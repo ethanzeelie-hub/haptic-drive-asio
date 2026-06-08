@@ -27,6 +27,8 @@ usb-captures/
 private-captures/
 local-device-inventory/
 capture-metadata/
+manual-validation/
+local-validation-results/
 *.pcap
 *.pcapng
 *.etl

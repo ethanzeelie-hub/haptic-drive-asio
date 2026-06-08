@@ -357,3 +357,12 @@
 - Stop and emergency-stop behavior is implemented in code with fake-writer tests, but real stop/off behavior on hardware remains unvalidated.
 - Automated tests use fake HID writers only; no CI or automated verification writes to hardware.
 - The ASIO/BST-1 audio path is unchanged by Stage 2Q.
+
+## Stage 2R
+
+- The controlled validation harness exists, but no real P-HPR validation run has been completed or recorded.
+- Exported validation results are private local files and must not be committed if they contain raw captures, private device paths, serial numbers, or unsanitized hardware data.
+- A `pass` decision is blocked in the result model until required manual fields and hardware confirmations are present, but the app cannot independently verify physical truth.
+- The harness does not trigger hardware output; brake, throttle, emergency stop, and paddle tests remain manual user actions.
+- Physical P-HPR validation, wrong-pedal checks, sustained-vibration checks, safe-gain confirmation, emergency-stop physical behavior, and direct-pulse latency remain pending Ethan's local supervised run.
+- The ASIO/BST-1 audio path is unchanged by Stage 2R.

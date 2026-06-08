@@ -39,6 +39,7 @@
 - Stage 2O: SimPro / SimHub coexistence detection complete.
 - Stage 2P: Controlled write test plan complete.
 - Stage 2Q: Gated minimal real P-HPR write implementation complete.
+- Stage 2R: Controlled real P-HPR validation harness complete.
 
 ## Planned Stages
 
@@ -84,7 +85,8 @@ Phase 2 safe sequence:
 15. Stage 2O: SimPro / SimHub coexistence detection. Complete.
 16. Stage 2P: Controlled write test plan. Complete.
 17. Stage 2Q: Gated minimal real P-HPR write implementation. Complete.
-18. Stage 2R: Controlled real P-HPR validation harness. Next.
+18. Stage 2R: Controlled real P-HPR validation harness. Complete.
+19. Phase 3A: Production P-HPR output adapter hardening. Next.
 
 The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
 
@@ -121,3 +123,4 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 2O adds read-only SimPro Manager / SimHub process detection, coexistence diagnostics, and `PHprSafetyContext.SoftwareConflictStatus` wiring; it does not kill, hook, inject into, patch, control, or modify either process, and it does not add real output, USB writes, HID reports, controlled write testing, or ASIO/BST-1 routing.
 - Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, WPF disabled direct-write readiness diagnostics, evidence mapping, and tests; it does not add a real adapter, HID writer, write-capable UI, USB writes, real vibration, or ASIO/BST-1 routing.
 - Stage 2Q adds a gated write-capable Windows HID P-HPR adapter, SimHub F1 EC encoder, runtime-only direct-control UI, fake-writer tests, and accepted-paddle direct gear-pulse routing; it does not execute hardware writes automatically, persist enable/arm/device selection, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
+- Stage 2R adds a controlled validation harness, checklist/readiness model, WPF manual result-entry/export surface, private local Markdown export, and fake-only tests; it does not run hardware validation, mark physical validation passed, or add automated hardware writes.

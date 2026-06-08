@@ -23,6 +23,7 @@ using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Readiness;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+using HapticDrive.Simagic.PHPR.Abstractions.Validation;
 using HapticDrive.Simagic.PHPR.Output.Windows;
 using System.Globalization;
 using System.IO;
@@ -53,6 +54,7 @@ public partial class MainWindow : Window
     private readonly WindowsHidReportWriter _realPhprHidWriter = new();
     private readonly SimagicPhprOutputDevice _realPhprOutput;
     private readonly PHprDirectGearPulseRouter _realPhprGearPulseRouter;
+    private readonly PHprManualValidationResultExporter _phprValidationExporter = new();
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
     private readonly IPHprSoftwareCoexistenceDetector _phprSoftwareCoexistenceDetector =
@@ -254,6 +256,8 @@ public partial class MainWindow : Window
     private PHprSoftwareCoexistenceSnapshot _phprSoftwareCoexistenceSnapshot = PHprSoftwareCoexistenceSnapshot.NotScanned;
     private PHprControlledWriteReadiness _phprControlledWriteReadiness =
         PHprControlledWriteReadiness.Evaluate(PHprControlledWriteChecklist.Stage2PNoWriteDefault);
+    private PHprManualValidationReadiness _phprManualValidationReadiness =
+        PHprManualValidationReadiness.Evaluate(PHprManualValidationChecklist.Default);
     private PHprRealOutputOptions _realPhprOptions = PHprRealOutputOptions.Disabled;
     private WheelPaddleMapping _paddleMapping = WheelPaddleMapping.Default;
     private Task? _activeReplayTask;
@@ -266,6 +270,7 @@ public partial class MainWindow : Window
     private bool _updatingMockPedalEffectsUi;
     private bool _routingMockPedalEffects;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
+    private string? _lastPhprValidationExportPath;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -749,6 +754,7 @@ public partial class MainWindow : Window
     {
         await _realPhprOutput.EmergencyStopAsync();
         UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = "Real P-HPR emergency stop latched; stop reports were attempted only if a device was selected.";
     }
@@ -757,8 +763,46 @@ public partial class MainWindow : Window
     {
         _realPhprOutput.ClearEmergencyStop();
         UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = "Real P-HPR emergency stop cleared; direct control still requires enable, arm, and selected device.";
+    }
+
+    private void PhprValidationControl_Changed(object sender, RoutedEventArgs e)
+    {
+        UpdatePhprValidationStatus();
+        UpdateDiagnosticsStatus();
+    }
+
+    private void PhprValidationControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        UpdatePhprValidationStatus();
+        UpdateDiagnosticsStatus();
+    }
+
+    private void RefreshPhprValidationChecklistButton_Click(object sender, RoutedEventArgs e)
+    {
+        UpdatePhprValidationStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "P-HPR validation checklist refreshed; no hardware output was triggered.";
+    }
+
+    private void ExportPhprValidationResultButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = BuildPhprManualValidationResult();
+        var evaluation = result.Evaluate();
+        if (evaluation.IsBlockedPass)
+        {
+            PhprValidationStatusText.Text = $"Cannot mark P-HPR validation as pass yet: {FormatPhprValidationIssues(evaluation.Issues)}";
+            FooterStatusText.Text = "P-HPR validation pass blocked until required manual fields and confirmations are complete.";
+            return;
+        }
+
+        var directory = GetLocalValidationResultsDirectory();
+        _lastPhprValidationExportPath = _phprValidationExporter.ExportMarkdown(result, directory);
+        UpdatePhprValidationStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = $"P-HPR validation result exported locally to {_lastPhprValidationExportPath}.";
     }
 
     private void ApplyShiftIntentOptionsFromControls(string footerMessage)
@@ -826,6 +870,7 @@ public partial class MainWindow : Window
         _realPhprOutput.Configure(options);
         _realPhprGearPulseRouter.Configure(options);
         UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = footerMessage;
         return true;
@@ -845,6 +890,7 @@ public partial class MainWindow : Window
         {
             FooterStatusText.Text = $"Real P-HPR {moduleId} manual pulse ignored because that pedal is disabled.";
             UpdateRealPhprDirectControlStatus();
+            UpdatePhprValidationStatus();
             return;
         }
 
@@ -858,6 +904,7 @@ public partial class MainWindow : Window
             priority: 100);
         var result = await _realPhprOutput.SendAsync(command);
         UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = result.Message;
     }
@@ -2455,6 +2502,7 @@ public partial class MainWindow : Window
         UpdatePhprSoftwareCoexistenceStatus();
         UpdatePhprControlledWriteReadinessStatus();
         UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
@@ -2711,6 +2759,26 @@ public partial class MainWindow : Window
         };
     }
 
+    private void UpdatePhprValidationStatus()
+    {
+        var checklist = BuildPhprManualValidationChecklist();
+        _phprManualValidationReadiness = PHprManualValidationReadiness.Evaluate(checklist);
+        var result = BuildPhprManualValidationResult();
+        var evaluation = result.Evaluate();
+        PhprValidationStatusText.Text =
+            $"P-HPR validation harness: {(_phprManualValidationReadiness.IsBlocked ? "blocked" : "ready")}; brake pulse {_phprManualValidationReadiness.CanRunBrakePulse}; throttle pulse {_phprManualValidationReadiness.CanRunThrottlePulse}; gear paddle {_phprManualValidationReadiness.CanRunGearPaddleTest}; result {(evaluation.CanMarkPass ? "pass-ready" : evaluation.PassRequested ? "pass blocked" : "draft/non-pass")}.";
+        PhprValidationItemsControl.ItemsSource = new[]
+        {
+            "Safety: checklist/export only. This harness does not trigger brake, throttle, or paddle test pulses.",
+            _phprManualValidationReadiness.Status,
+            $"Checklist issues: {FormatPhprValidationIssues(_phprManualValidationReadiness.Issues)}",
+            $"Result issues: {FormatPhprValidationIssues(evaluation.Issues)}",
+            $"Selected real output: {(_realPhprOptions.Selector.IsSelected ? "configured for this session" : "not selected")}; direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.",
+            $"Manual confirmations: user {checklist.UserPhysicallyPresent}; P700 {checklist.P700Connected}; brake module {checklist.BrakeModuleInstalled}; throttle module {checklist.ThrottleModuleInstalled}; gear paddle planned {checklist.GearPaddleTestPlanned}.",
+            $"Last export: {_lastPhprValidationExportPath ?? "none"}; default export folder {GetLocalValidationResultsDirectory()}."
+        };
+    }
+
     private void UpdateDiagnosticsStatus()
     {
         if (DiagnosticsPanel.Visibility != Visibility.Visible
@@ -2760,6 +2828,7 @@ public partial class MainWindow : Window
             $"P-HPR software coexistence: {BuildPhprCoexistenceDiagnosticsText()}",
             $"P-HPR direct write readiness: {BuildPhprControlledWriteReadinessDiagnosticsText()}",
             $"P-HPR real direct control: {BuildRealPhprDirectDiagnosticsText()}",
+            $"P-HPR validation harness: {BuildPhprValidationDiagnosticsText()}",
             $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
             $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
@@ -2850,6 +2919,14 @@ public partial class MainWindow : Window
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
             && !diagnostics.Output.IsEmergencyStopActive;
         return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; selected {selector.IsSelected}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only, not persisted.";
+    }
+
+    private string BuildPhprValidationDiagnosticsText()
+    {
+        var checklist = BuildPhprManualValidationChecklist();
+        var result = BuildPhprManualValidationResult();
+        var evaluation = result.Evaluate();
+        return $"{_phprManualValidationReadiness.Status}; brake {_phprManualValidationReadiness.CanRunBrakePulse}; throttle {_phprManualValidationReadiness.CanRunThrottlePulse}; gear {_phprManualValidationReadiness.CanRunGearPaddleTest}; issues {FormatPhprValidationIssues(_phprManualValidationReadiness.Issues)}; pass requested {evaluation.PassRequested}; can mark pass {evaluation.CanMarkPass}; result issues {FormatPhprValidationIssues(evaluation.Issues)}; confirmations user {checklist.UserPhysicallyPresent}, P700 {checklist.P700Connected}, brake {checklist.BrakeModuleInstalled}, throttle {checklist.ThrottleModuleInstalled}; last export {_lastPhprValidationExportPath ?? "none"}; no hardware output triggered by harness.";
     }
 
     private string BuildMockGearPulseDiagnosticsText()
@@ -2959,6 +3036,13 @@ public partial class MainWindow : Window
             : string.Join("; ", issues.Take(8).Select(issue => $"{issue.Code}: {issue.Message}"));
     }
 
+    private static string FormatPhprValidationIssues(IReadOnlyList<PHprManualValidationIssue> issues)
+    {
+        return issues.Count == 0
+            ? "none"
+            : string.Join("; ", issues.Take(8).Select(issue => $"{issue.Code}: {issue.Message}"));
+    }
+
     private static string FormatOptionalInt(int? value)
     {
         return value is null ? "unknown" : value.Value.ToString("N0");
@@ -3029,6 +3113,7 @@ public partial class MainWindow : Window
         UpdatePhprSoftwareCoexistenceStatus();
         UpdatePhprControlledWriteReadinessStatus();
         UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
     }
 
     private void RefreshPhprSoftwareCoexistenceStatus(bool force = false)
@@ -3056,6 +3141,57 @@ public partial class MainWindow : Window
             SimHubClosed = _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear,
             SoftwareConflictStatus = _phprSoftwareCoexistenceSnapshot.Status
         };
+    }
+
+    private PHprManualValidationChecklist BuildPhprManualValidationChecklist()
+    {
+        var diagnostics = _realPhprOutput.GetDiagnostics();
+        var options = diagnostics.Options;
+        var canPulse = options.DirectControlEnabled
+            && options.DirectControlArmed
+            && options.Selector.IsSelected
+            && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
+            && !diagnostics.Output.IsEmergencyStopActive;
+
+        return new PHprManualValidationChecklist(
+            UserPhysicallyPresent: PhprValidationUserPresentCheckBox.IsChecked == true,
+            P700Connected: PhprValidationP700ConnectedCheckBox.IsChecked == true,
+            BrakeModuleInstalled: PhprValidationBrakeInstalledCheckBox.IsChecked == true,
+            ThrottleModuleInstalled: PhprValidationThrottleInstalledCheckBox.IsChecked == true,
+            DirectControlEnabled: options.DirectControlEnabled,
+            DirectControlArmed: options.DirectControlArmed,
+            DeviceInterfaceReportSelected: options.Selector.IsSelected,
+            SafetyLimitsVisible: true,
+            EmergencyStopVisible: true,
+            EmergencyStopClear: !diagnostics.Output.IsEmergencyStopActive,
+            BrakeTestPulseAvailable: canPulse && options.BrakeGearPulse.IsEnabled,
+            ThrottleTestPulseAvailable: canPulse && options.ThrottleGearPulse.IsEnabled,
+            GearPaddleTestPlanned: PhprValidationGearPaddlePlannedCheckBox.IsChecked == true,
+            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status);
+    }
+
+    private PHprManualValidationResult BuildPhprManualValidationResult()
+    {
+        var selector = _realPhprOptions.Selector;
+        return new PHprManualValidationResult(
+            CreatedAtUtc: DateTimeOffset.UtcNow,
+            AppBranchOrCommit: TryReadGitHeadSummary() ?? string.Empty,
+            P700Connected: PhprValidationP700ConnectedCheckBox.IsChecked == true,
+            BrakeModuleInstalled: PhprValidationBrakeInstalledCheckBox.IsChecked == true,
+            ThrottleModuleInstalled: PhprValidationThrottleInstalledCheckBox.IsChecked == true,
+            P700DeviceInfo: PhprValidationDeviceInfoTextBox.Text.Trim(),
+            SimProStatus: FormatBoolUnknown(_phprSoftwareCoexistenceSnapshot.SimProRunning, _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Unknown),
+            SimHubStatus: FormatBoolUnknown(_phprSoftwareCoexistenceSnapshot.SimHubRunning, _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Unknown),
+            SelectedDeviceInterfaceReport: $"{(selector.IsSelected ? "selected" : "not selected")}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; length {selector.ReportLength:N0} bytes",
+            BrakeTestResult: PhprValidationBrakeResultTextBox.Text.Trim(),
+            ThrottleTestResult: PhprValidationThrottleResultTextBox.Text.Trim(),
+            EmergencyStopResult: PhprValidationEmergencyStopResultTextBox.Text.Trim(),
+            PaddleUpshiftResult: PhprValidationUpshiftResultTextBox.Text.Trim(),
+            PaddleDownshiftResult: PhprValidationDownshiftResultTextBox.Text.Trim(),
+            WrongPedalBehavior: PhprValidationWrongPedalTextBox.Text.Trim(),
+            SustainedVibrationBehavior: PhprValidationSustainedVibrationTextBox.Text.Trim(),
+            Notes: PhprValidationNotesTextBox.Text.Trim(),
+            PassFailDecision: PhprValidationPassFailDecisionTextBox.Text.Trim());
     }
 
     private async Task RouteMockPedalEffectsFromSnapshotAsync(HapticPipelineSnapshot pipelineSnapshot)
@@ -3112,6 +3248,7 @@ public partial class MainWindow : Window
         {
             UpdateShiftIntentStatus();
             UpdateRealPhprDirectControlStatus();
+            UpdatePhprValidationStatus();
             UpdateMockGearPulseStatus();
             UpdateMockPedalEffectsStatus();
             UpdateDiagnosticsStatus();
@@ -3461,6 +3598,73 @@ public partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "HapticDrive.Asio",
             "Recordings");
+    }
+
+    private static string GetLocalValidationResultsDirectory()
+    {
+        var repoRoot = FindRepositoryRoot();
+        return repoRoot is null
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HapticDrive.Asio",
+                "local-validation-results")
+            : Path.Combine(repoRoot, "local-validation-results");
+    }
+
+    private static string? TryReadGitHeadSummary()
+    {
+        var repoRoot = FindRepositoryRoot();
+        if (repoRoot is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var headPath = Path.Combine(repoRoot, ".git", "HEAD");
+            if (!File.Exists(headPath))
+            {
+                return null;
+            }
+
+            var head = File.ReadAllText(headPath).Trim();
+            if (head.StartsWith("ref:", StringComparison.OrdinalIgnoreCase))
+            {
+                var refPath = head["ref:".Length..].Trim().Replace('/', Path.DirectorySeparatorChar);
+                var fullRefPath = Path.Combine(repoRoot, ".git", refPath);
+                if (File.Exists(fullRefPath))
+                {
+                    var sha = File.ReadAllText(fullRefPath).Trim();
+                    return sha.Length >= 7 ? sha[..7] : sha;
+                }
+            }
+
+            return head.Length >= 7 ? head[..7] : head;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static string? FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "HapticDrive.Asio.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
     }
 
     protected override void OnClosed(EventArgs e)

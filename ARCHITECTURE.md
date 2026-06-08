@@ -179,6 +179,24 @@ Accepted `ShiftIntentEvent` values are offered to `PHprDirectGearPulseRouter`, b
 
 Stage 2Q does not validate physical P-HPR behavior, safe gain, stop behavior, pedal mapping, or latency. Automated verification uses fake HID writers only.
 
+## Stage 2R Controlled Validation Harness
+
+Stage 2R adds validation models under `HapticDrive.Simagic.PHPR.Abstractions.Validation`:
+
+- `PHprManualValidationChecklist`
+- `PHprManualValidationReadiness`
+- `PHprManualValidationResult`
+- `PHprManualValidationResultEvaluation`
+- `PHprManualValidationResultExporter`
+
+The WPF Devices page includes a controlled validation harness below the direct-control panel. It reads current direct-control/coexistence/emergency-stop state, combines it with user confirmations, reports readiness, and exports private local Markdown results.
+
+The harness does not send P-HPR commands, does not call the HID writer, and does not trigger brake, throttle, or paddle pulses. It only records checklist and result data for manual validation.
+
+Exports go to `local-validation-results/` when the repo root is available, otherwise LocalAppData. That folder is ignored and should not be committed when it contains private hardware data.
+
+`pass` decisions are blocked unless required manual result fields and hardware confirmations are present. The app still cannot independently verify physical truth; Stage 2R does not mark real P-HPR validation complete without user-supplied results.
+
 ## Stage 2B Input and P-HPR Abstractions
 
 Stage 2B adds contract-only projects for the future actuator path:

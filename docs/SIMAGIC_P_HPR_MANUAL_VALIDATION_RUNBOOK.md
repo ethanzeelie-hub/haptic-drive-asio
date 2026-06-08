@@ -6,6 +6,8 @@ This runbook defines how Ethan should manually validate P-HPR direct control aft
 
 Stage 2Q does not execute this runbook automatically. A gated real adapter and manual pulse UI exist, but no real P-HPR hardware output has been validated by Codex.
 
+Stage 2R adds a Devices-page validation harness for checklist status and private local result export. The harness does not trigger hardware output.
+
 ## Before Starting
 
 Confirm:
@@ -39,6 +41,7 @@ Confirm:
 12. Verify the throttle module does not vibrate.
 13. Verify vibration stops.
 14. Record the result.
+15. Export private local notes from the P-HPR Controlled Validation Harness.
 
 ## First Manual Throttle Pulse
 
@@ -77,6 +80,8 @@ Run these after one-pulse brake/throttle behavior is correct:
 ## Result Template
 
 Save private local results under an ignored path in a later validation stage, such as `manual-validation/private/`.
+
+Stage 2R exports private local Markdown results under `local-validation-results/` when the repo root is available.
 
 ```text
 Date/time:

@@ -60,6 +60,32 @@ mapped paddle press
 
 There is no telemetry gear-confirmation wait and no default second confirmation pulse.
 
+## Controlled Validation Harness
+
+Stage 2R adds a `P-HPR Controlled Validation Harness` section on the Devices page.
+
+It does not trigger hardware output. It evaluates readiness and exports private local notes.
+
+Use it to record:
+
+- user present,
+- P700 connected,
+- brake and throttle modules installed,
+- selected device/interface/report,
+- brake pulse result,
+- throttle pulse result,
+- emergency stop result,
+- paddle upshift result,
+- paddle downshift result,
+- wrong-pedal behavior,
+- sustained-vibration behavior,
+- notes,
+- pass/fail decision.
+
+If `pass` is entered, export is blocked until the required fields and hardware confirmations are complete.
+
+Private exports go under `local-validation-results/` when the repo root is available. Do not commit those results.
+
 ## What Is Not Saved
 
 These runtime states are not persisted:

@@ -1504,3 +1504,44 @@ Self-review:
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - The ASIO/BST-1 audio path was not changed.
 - Stage 2R Controlled Real P-HPR Validation Harness is next; Stage 2Q stops here.
+
+## Stage 2R - Controlled Real P-HPR Validation Harness
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Add a controlled real P-HPR validation harness, checklist, private result export, app workflow, and manual validation guide without executing hardware vibration from automated verification.
+
+Notes:
+
+- Added `HapticDrive.Simagic.PHPR.Abstractions.Validation` with `PHprManualValidationChecklist`, readiness issues, manual result models, result evaluation, and a local Markdown exporter.
+- Added a WPF Devices-page controlled validation harness with user-confirmed checklist inputs, readiness diagnostics, manual result fields, copyable validation diagnostics, and local private result export.
+- The harness derives direct-control readiness from the existing real P-HPR runtime state, selected device/interface/report, coexistence status, safety visibility, emergency-stop state, and user confirmations.
+- Exported validation files are written under `local-validation-results/`, which is ignored by git together with `manual-validation/`.
+- Added `docs/SIMAGIC_P_HPR_CONTROLLED_REAL_VALIDATION.md` and `docs/USER_GUIDE.md`.
+- Updated README, architecture, roadmap, known issues, safety plan, user guide, Phase 2 research notes, and manual validation runbook to describe the controlled validation harness and private evidence boundary.
+- Added hardware-free tests for validation readiness blockers, ready-state behavior, pass-result gating, hardware-confirmation gating, Markdown warnings, and local export behavior.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 84 passing tests.
+- Initial full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` reported two timing-sensitive failures in `OutputStreamingTests.NullOutput_OutputOwnedStreamingReportsCallbackCadence` and `HapticPipelineCoordinatorTests.OutputOwnedRendering_StaleTelemetryMutesEffectsByWallClockTimeout`; both tests passed when rerun individually.
+- Rerun full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 406 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Stage 2R added the validation harness and private result workflow only; no automated real P-HPR pulse or HID write was executed.
+- The harness does not send hardware output and does not bypass the Stage 2Q runtime direct-control enable, arm, selected device/interface/report, coexistence, safety, or emergency-stop gates.
+- Manual result export blocks an attempted pass decision until required observations and hardware-confirmation fields are complete.
+- No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, or feel claim is made.
+- Raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, and private manual validation results were not committed.
+- The ASIO/BST-1 audio path was not changed.
+- Phase 3A Direct Paddle-to-P-HPR Gear Pulse Settings is next; Stage 2R stops here.
