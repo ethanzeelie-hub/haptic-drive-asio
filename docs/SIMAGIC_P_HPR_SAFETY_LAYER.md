@@ -106,11 +106,13 @@ Emergency stop:
 
 When any of these gates disallow starts, the limiter rejects start commands with the matching violation and still allows safe stop/emergency stop behavior.
 
-## SimPro Conflict Placeholder
+## SimPro / SimHub Conflict Status
 
-`PHprSoftwareConflictStatus` is a synthetic Stage 2L context placeholder. `ActiveConflict` rejects start commands with `SimProConflict`.
+`PHprSoftwareConflictStatus` began as a Stage 2L context placeholder. Stage 2O now wires read-only SimPro Manager / SimHub coexistence detection into that field.
 
-Stage 2L does not detect processes, inspect SimPro Manager, inspect SimHub, kill processes, hook processes, inject into processes, or modify either application's settings. Stage 2O owns coexistence detection.
+`ActiveConflict` rejects start commands with `SimProConflict`.
+
+Stage 2O detects process presence only. It does not inspect process memory, kill processes, hook processes, inject into processes, control either application, or modify either application's settings.
 
 ## Real Write Gate
 

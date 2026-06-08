@@ -18,6 +18,7 @@ using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
 using HapticDrive.Input.Windows;
+using HapticDrive.Simagic.PHPR.Abstractions.Coexistence;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
@@ -48,6 +49,8 @@ public partial class MainWindow : Window
     private readonly SafetyLimitedPhprOutputDevice _mockPhprSafetyOutput;
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
+    private readonly IPHprSoftwareCoexistenceDetector _phprSoftwareCoexistenceDetector =
+        new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider());
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
@@ -242,6 +245,7 @@ public partial class MainWindow : Window
     private AsioDriverVisibilitySnapshot _asioVisibilitySnapshot = AsioDriverVisibilitySnapshot.NotChecked;
     private AsioReadinessSnapshot _asioReadinessSnapshot = AsioReadinessSnapshot.NotChecked;
     private InputDeviceDiscoverySnapshot _inputDiscoverySnapshot = InputDeviceDiscoverySnapshot.NotRun;
+    private PHprSoftwareCoexistenceSnapshot _phprSoftwareCoexistenceSnapshot = PHprSoftwareCoexistenceSnapshot.NotScanned;
     private WheelPaddleMapping _paddleMapping = WheelPaddleMapping.Default;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
@@ -251,6 +255,7 @@ public partial class MainWindow : Window
     private bool _updatingMockGearPulseUi;
     private bool _updatingMockPedalEffectsUi;
     private bool _routingMockPedalEffects;
+    private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -320,6 +325,7 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         await RefreshAsioVisibilityDiagnosticsAsync();
+        RefreshPhprSoftwareCoexistenceStatus(force: true);
 
         try
         {
@@ -2142,6 +2148,7 @@ public partial class MainWindow : Window
         AsioStatusText.Text = $"{_asioVisibilitySnapshot.Message} Windows sound output visibility is not proof of ASIO usage; Null output remains default.";
         AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; render callbacks {status.RenderCallbackCount:N0}; backend callbacks {status.BackendCallbackCount:N0}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; underruns {status.UnderrunCount:N0}; last error {status.LastError ?? "none"}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
+        UpdatePhprSoftwareCoexistenceStatus();
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
@@ -2341,6 +2348,22 @@ public partial class MainWindow : Window
         };
     }
 
+    private void UpdatePhprSoftwareCoexistenceStatus()
+    {
+        var snapshot = _phprSoftwareCoexistenceSnapshot;
+        PhprCoexistenceStatusText.Text =
+            $"P-HPR coexistence: {snapshot.Status}; SimPro Manager {FormatBoolUnknown(snapshot.SimProRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; SimHub {FormatBoolUnknown(snapshot.SimHubRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; last scan {FormatScanTime(snapshot.LastScanAtUtc)}.";
+        PhprCoexistenceItemsControl.ItemsSource = new[]
+        {
+            "Safety: read-only process detection only. Haptic Drive ASIO does not kill, hook, inject into, patch, control, or modify SimPro Manager or SimHub.",
+            snapshot.Message,
+            $"Direct-control safety status: {(snapshot.Status == PHprSoftwareConflictStatus.ActiveConflict || snapshot.Status == PHprSoftwareConflictStatus.Unknown ? "blocked until clear" : "no active coexistence block")}. Stage 2O still does not implement real direct P-HPR output.",
+            $"Detected SimPro processes: {FormatDetectedSoftwareProcesses(snapshot.SimProProcesses)}",
+            $"Detected SimHub processes: {FormatDetectedSoftwareProcesses(snapshot.SimHubProcesses)}",
+            $"Detection supported: {snapshot.IsSupported}; error {snapshot.ErrorMessage ?? "none"}"
+        };
+    }
+
     private void UpdateDiagnosticsStatus()
     {
         if (DiagnosticsPanel.Visibility != Visibility.Visible
@@ -2387,6 +2410,7 @@ public partial class MainWindow : Window
             $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
             $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
             $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
+            $"P-HPR software coexistence: {BuildPhprCoexistenceDiagnosticsText()}",
             $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
             $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
@@ -2452,6 +2476,12 @@ public partial class MainWindow : Window
             : $"{diagnostics.LastSuppressedEvent.PaddleEvent.PaddleSide} seq {diagnostics.LastSuppressedEvent.PaddleEvent.SequenceNumber} reason {diagnostics.LastSuppressedEvent.SuppressionReason}";
 
         return $"{(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed} reason {driving.Current.Reason}; menu safe {driving.MenuSafeModeEnabled}; require recent telemetry {driving.RequireRecentTelemetry}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}; pending confirmations {diagnostics.PendingConfirmationCount:N0}; accepted events may feed mock-only P-HPR gear routing.";
+    }
+
+    private string BuildPhprCoexistenceDiagnosticsText()
+    {
+        var snapshot = _phprSoftwareCoexistenceSnapshot;
+        return $"status {snapshot.Status}; SimPro {FormatBoolUnknown(snapshot.SimProRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; SimHub {FormatBoolUnknown(snapshot.SimHubRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; last scan {FormatScanTime(snapshot.LastScanAtUtc)}; supported {snapshot.IsSupported}; direct control blocked {(snapshot.Status == PHprSoftwareConflictStatus.ActiveConflict || snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; read-only process detection only; error {snapshot.ErrorMessage ?? "none"}.";
     }
 
     private string BuildMockGearPulseDiagnosticsText()
@@ -2525,6 +2555,30 @@ public partial class MainWindow : Window
         return $"{FormatPedalEffectKind(diagnostics.Kind)}: {(diagnostics.State.IsEnabled ? "enabled" : "disabled")}; target {diagnostics.State.TargetModule}; active {diagnostics.IsActive}; intensity {diagnostics.Intensity01:0.###}; routed {diagnostics.RouteCount:N0}; safety rejected {diagnostics.SafetyRejectedCount:N0}; interval suppressed {diagnostics.IntervalSuppressedCount:N0}; last target {diagnostics.LastTargetModule?.ToString() ?? "none"}";
     }
 
+    private static string FormatBoolUnknown(bool value, bool unknown)
+    {
+        return unknown ? "unknown" : value ? "yes" : "no";
+    }
+
+    private static string FormatScanTime(DateTimeOffset scanTimeUtc)
+    {
+        return scanTimeUtc == DateTimeOffset.MinValue
+            ? "never"
+            : scanTimeUtc.ToLocalTime().ToString("g");
+    }
+
+    private static string FormatDetectedSoftwareProcesses(IReadOnlyList<PHprDetectedSoftwareProcess> processes)
+    {
+        if (processes.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join("; ", processes
+            .Take(6)
+            .Select(process => $"{process.ProcessName}{(process.ProcessId is null ? "" : $"#{process.ProcessId}")}"));
+    }
+
     private static string FormatOptionalInt(int? value)
     {
         return value is null ? "unknown" : value.Value.ToString("N0");
@@ -2582,6 +2636,7 @@ public partial class MainWindow : Window
 
     private async void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
     {
+        RefreshPhprSoftwareCoexistenceStatus();
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
         UpdateTelemetryStatus();
@@ -2591,6 +2646,21 @@ public partial class MainWindow : Window
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
         UpdateMockPedalEffectsStatus();
+        UpdatePhprSoftwareCoexistenceStatus();
+    }
+
+    private void RefreshPhprSoftwareCoexistenceStatus(bool force = false)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (!force
+            && _lastPhprCoexistenceScanUtc is not null
+            && now - _lastPhprCoexistenceScanUtc.Value < TimeSpan.FromSeconds(5))
+        {
+            return;
+        }
+
+        _phprSoftwareCoexistenceSnapshot = _phprSoftwareCoexistenceDetector.Scan();
+        _lastPhprCoexistenceScanUtc = now;
     }
 
     private async Task RouteMockPedalEffectsFromSnapshotAsync(HapticPipelineSnapshot pipelineSnapshot)
@@ -2711,7 +2781,7 @@ public partial class MainWindow : Window
             EmergencyMuteActive: _emergencyMuted,
             DrivingArmed: drivingArmed,
             EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: PHprSoftwareConflictStatus.Clear,
+            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
             RequiresRealDeviceWrites: false);
     }
 

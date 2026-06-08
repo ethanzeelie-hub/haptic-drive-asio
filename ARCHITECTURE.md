@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2N includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, mock-only gear pulse routing, and mock-only road/slip/lock pedal-effect routing. No real P-HPR output implementation exists.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2O includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, and read-only SimPro / SimHub coexistence detection. No real P-HPR output implementation exists.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -105,6 +105,26 @@ The WPF app shares one mock `MockPhprOutputDevice` and one `SafetyLimitedPhprOut
 Persisted pedal-effect settings are limited to safe mock preferences: global enabled state plus road/slip/lock enabled state, target, strength, frequency, and duration. Emergency-stop state, safety latch state, mock histories, real-write approval, real-write enabled state, and real-write armed state are not persisted.
 
 Stage 2N does not change the ASIO/BST-1 road/slip/lock audio path.
+
+## Stage 2O SimPro / SimHub Coexistence Detection
+
+Stage 2O adds read-only coexistence detection under `HapticDrive.Simagic.PHPR.Abstractions.Coexistence`.
+
+The detector stack is:
+
+```text
+WindowsProcessSnapshotProvider
+-> PHprSoftwareCoexistenceDetector
+-> PHprSoftwareCoexistenceSnapshot
+-> PHprSafetyContext.SoftwareConflictStatus
+-> PHprSafetyLimiter
+```
+
+The implementation enumerates process names only. It reports `Unknown`, `Clear`, `SimProRunning`, `SimHubRunning`, or `ActiveConflict`. `ActiveConflict` is passed into P-HPR safety contexts and rejects start commands through the existing `SimProConflict` safety violation.
+
+The WPF Devices and Diagnostics pages show SimPro Manager running state, SimHub running state, coexistence status, last scan time, direct-control block status, matching process names, and the read-only detection statement.
+
+Stage 2O does not kill, hook, inject into, patch, inspect memory, IPC-control, or modify SimPro Manager or SimHub. It does not add real P-HPR output, USB writes, HID reports, controlled write testing, or ASIO/BST-1 routing.
 
 ## Stage 2B Input and P-HPR Abstractions
 

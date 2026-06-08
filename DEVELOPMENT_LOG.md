@@ -1372,3 +1372,48 @@ Self-review:
 - The ASIO/BST-1 audio path was not changed.
 - Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated local analysis exports were not committed.
 - Stage 2O SimPro / SimHub Coexistence Detection is next; Stage 2N stops here.
+
+## Stage 2O - SimPro / SimHub Coexistence Detection
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Implement safe, read-only SimPro Manager and SimHub coexistence detection and warnings, wire the status into P-HPR safety contexts, and keep Stage 2O free of real P-HPR output, USB writes, process control, or controlled write testing.
+
+Notes:
+
+- Added `HapticDrive.Simagic.PHPR.Abstractions.Coexistence` with `IPHprSoftwareCoexistenceDetector`, `PHprSoftwareCoexistenceDetector`, `IPHprSoftwareProcessProvider`, `WindowsProcessSnapshotProvider`, `PHprSoftwareCoexistenceSnapshot`, `PHprSoftwareProcessSnapshot`, `PHprDetectedSoftwareProcess`, and `PHprCoexistenceOptions`.
+- Implemented conservative read-only process-name matching for SimPro Manager and SimHub.
+- Reported `Unknown`, `Clear`, `SimProRunning`, `SimHubRunning`, and `ActiveConflict` coexistence states.
+- Added safe provider failure and non-Windows fallback handling. Snapshot-level access failures report `Unknown`; per-process metadata failures are skipped without controlling or modifying processes.
+- Wired the latest WPF coexistence snapshot into `PHprSafetyContext.SoftwareConflictStatus`.
+- Kept the Stage 2L `ActiveConflict` rejection path authoritative through `PHprSafetyViolationCode.SimProConflict`.
+- Added WPF Devices-page coexistence diagnostics for SimPro Manager running state, SimHub running state, status, last scan time, direct-control block status, detected process matches, read-only detection statement, and errors.
+- Added the same coexistence status to the copyable diagnostics report.
+- Added `docs/SIMAGIC_SIMPRO_SIMHUB_COEXISTENCE.md` and updated README, architecture, roadmap, known issues, safety layer, safety plan, and Phase 2 research docs.
+- Documented that the extended Phase 2 / Phase 3 master prompt authorizes implementing the later gated Stage 2Q real-write code path, while still forbidding unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, and claims of physical validation.
+- Added hardware-free tests for status mapping, safe provider errors, non-Windows fallback, safety limiter conflict rejection, and absence of control/hook/kill/write API surface in coexistence types.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 49 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 371 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Stage 2O stayed within read-only SimPro Manager / SimHub process-name detection and safety-context warning integration.
+- No process kill, hook, injection, patching, memory inspection, IPC control, file modification, settings modification, or external software control was implemented.
+- No controlled write test plan was implemented.
+- No production encoder, production decoder, real output adapter, or real P-HPR control was implemented.
+- No real P-HPR USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- The ASIO/BST-1 audio path was not changed.
+- Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated local analysis exports were not committed.
+- Stage 2P Controlled Write Test Plan is next; Stage 2O stops here.

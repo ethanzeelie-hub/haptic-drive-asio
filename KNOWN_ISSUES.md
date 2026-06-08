@@ -320,3 +320,16 @@
 - No controlled write plan exists yet.
 - Emergency-stop state, safety latch state, mock command history, mock frame history, real-write enabled state, and real-write armed state are runtime-only and not persisted.
 - The ASIO/BST-1 audio path is unchanged by Stage 2N.
+
+## Stage 2O
+
+- Read-only SimPro Manager / SimHub process detection exists and reports coexistence status into WPF diagnostics and P-HPR safety contexts.
+- Detection is process-name based and conservative. It does not prove which application currently owns a P-HPR device, endpoint, interface, or report.
+- Process access errors and unsupported platforms report `Unknown`; direct control remains blocked/warned until status is clear.
+- `ActiveConflict` blocks P-HPR starts through `PHprSafetyLimiter`, but no real direct-control mode exists yet.
+- No process kill, hook, injection, patching, memory inspection, IPC, settings modification, or external software control is implemented.
+- No controlled write plan exists yet.
+- No production encoder or production decoder exists.
+- No real P-HPR output exists.
+- No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented.
+- The ASIO/BST-1 audio path is unchanged by Stage 2O.
