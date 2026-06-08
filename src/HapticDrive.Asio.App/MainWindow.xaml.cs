@@ -271,6 +271,7 @@ public partial class MainWindow : Window
     private bool _routingMockPedalEffects;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
+    private PHprDirectGearPulseRoutingResult? _lastRealPhprGearPulseRoutingResult;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -288,6 +289,7 @@ public partial class MainWindow : Window
         _selectedAsioOutputChannel = appSettings.LastAsioOutputChannel;
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
         _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
+        _realPhprOptions = CreateRealPhprOutputOptions(appSettings.RealPhprGearPulseRouting);
         _shiftIntentProcessor = new ShiftIntentProcessor(
             _drivingArmedStateService,
             CreateShiftIntentOptions(appSettings.ShiftIntent));
@@ -853,7 +855,7 @@ public partial class MainWindow : Window
         FooterStatusText.Text = footerMessage;
     }
 
-    private bool ConfigureRealPhprOutputFromControls(string footerMessage)
+    private bool ConfigureRealPhprOutputFromControls(string footerMessage, bool saveSafeSettings = true)
     {
         if (!TryBuildRealPhprOptionsFromControls(out var options, out var message))
         {
@@ -869,6 +871,11 @@ public partial class MainWindow : Window
         _realPhprHidWriter.Configure(options.Selector);
         _realPhprOutput.Configure(options);
         _realPhprGearPulseRouter.Configure(options);
+        if (saveSafeSettings)
+        {
+            SaveAppSettings();
+        }
+
         UpdateRealPhprDirectControlStatus();
         UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
@@ -1640,6 +1647,26 @@ public partial class MainWindow : Window
         }.Normalize();
     }
 
+    private static PHprRealOutputOptions CreateRealPhprOutputOptions(RealPhprGearPulseRoutingSetting setting)
+    {
+        return PHprRealOutputOptions.Disabled with
+        {
+            BrakeGearPulse = CreateRealGearPulseSettings(setting.Brake),
+            ThrottleGearPulse = CreateRealGearPulseSettings(setting.Throttle)
+        };
+    }
+
+    private static PHprRealGearPulseSettings CreateRealGearPulseSettings(RealPhprGearPulseSetting setting)
+    {
+        return new PHprRealGearPulseSettings
+        {
+            IsEnabled = setting.IsEnabled,
+            Strength01 = setting.Strength01,
+            FrequencyHz = setting.FrequencyHz,
+            DurationMs = setting.DurationMs
+        }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+    }
+
     private static PHprPedalEffectState CreatePedalEffectState(
         PHprPedalEffectKind kind,
         MockPedalEffectSetting setting)
@@ -1690,6 +1717,16 @@ public partial class MainWindow : Window
             RoadVibration = CreateMockPedalEffectSetting(snapshot.Options.RoadVibration),
             WheelSlip = CreateMockPedalEffectSetting(snapshot.Options.WheelSlip),
             WheelLock = CreateMockPedalEffectSetting(snapshot.Options.WheelLock)
+        };
+    }
+
+    private RealPhprGearPulseRoutingSetting CreateRealPhprGearPulseRoutingSetting()
+    {
+        var options = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        return new RealPhprGearPulseRoutingSetting
+        {
+            Brake = RealPhprGearPulseSetting.From(options.BrakeGearPulse),
+            Throttle = RealPhprGearPulseSetting.From(options.ThrottleGearPulse)
         };
     }
 
@@ -1781,7 +1818,7 @@ public partial class MainWindow : Window
             RealPhprThrottleFrequencyTextBox,
             RealPhprThrottleDurationTextBox);
         _updatingRealPhprDirectControlUi = false;
-        ConfigureRealPhprOutputFromControls("Real P-HPR direct control initialized disabled and unarmed.");
+        ConfigureRealPhprOutputFromControls("Real P-HPR direct control initialized disabled and unarmed.", saveSafeSettings: false);
     }
 
     private static void ApplyRealGearPulseSettingsToControls(
@@ -1826,7 +1863,8 @@ public partial class MainWindow : Window
                 PaddleInputMapping = CreatePaddleMappingSetting(),
                 ShiftIntent = CreateShiftIntentSetting(),
                 MockGearPulseRouting = CreateMockGearPulseRoutingSetting(),
-                MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting()
+                MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting(),
+                RealPhprGearPulseRouting = CreateRealPhprGearPulseRoutingSetting()
             });
             _settingsError = null;
         }
@@ -2756,6 +2794,7 @@ public partial class MainWindow : Window
             $"Throttle pulse: {(options.ThrottleGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {options.ThrottleGearPulse.Strength01:0.###}; frequency {options.ThrottleGearPulse.FrequencyHz:0.###} Hz; duration {options.ThrottleGearPulse.DurationMs} ms.",
             $"Manual pulse buttons: {(canPulse ? "available" : "blocked")}; requires enabled, armed, selected device, clear coexistence, and no emergency stop latch.",
             $"Last command: {FormatPhprCommand(diagnostics.Output.LastCommand)}; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; message {diagnostics.Output.LastMessage ?? "none"}.",
+            $"Last gear-pulse latency: {BuildRealPhprGearPulseLatencyText()}.",
             $"Last HID report: {diagnostics.LastReportState?.ToString() ?? "none"}; target {diagnostics.LastTarget?.ToString() ?? "none"}; length {diagnostics.LastReportLength:N0}; summary {diagnostics.LastReportSummary ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; error {diagnostics.LastError ?? "none"}.",
             $"Failure counters: disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; stop reports {diagnostics.Connection.StopReportWriteCount:N0}."
         };
@@ -2920,7 +2959,22 @@ public partial class MainWindow : Window
             && selector.IsSelected
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
             && !diagnostics.Output.IsEmergencyStopActive;
-        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; selected {selector.IsSelected}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only, not persisted.";
+        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; selected {selector.IsSelected}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; gear latency {BuildRealPhprGearPulseLatencyText()}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only enable/arm/device not persisted; safe gear-pulse settings persisted.";
+    }
+
+    private string BuildRealPhprGearPulseLatencyText()
+    {
+        var result = _lastRealPhprGearPulseRoutingResult;
+        if (result is null)
+        {
+            return "none";
+        }
+
+        var paddleToAccepted = DurationBetween(result.PaddleEventAtUtc, result.ShiftIntentAcceptedAtUtc);
+        var acceptedToCommand = DurationBetween(result.ShiftIntentAcceptedAtUtc, result.FirstCommandCreatedAtUtc);
+        var commandToWrite = DurationBetween(result.FirstCommandCreatedAtUtc, result.FirstWriteCompletedAtUtc);
+        var traceCount = result.CommandTraces?.Count ?? 0;
+        return $"routed {result.Routed}; paddle {FormatTimestamp(result.PaddleEventAtUtc)}; accepted {FormatTimestamp(result.ShiftIntentAcceptedAtUtc)} ({FormatDuration(paddleToAccepted)}); command {FormatTimestamp(result.FirstCommandCreatedAtUtc)} ({FormatDuration(acceptedToCommand)}); write {FormatTimestamp(result.FirstWriteCompletedAtUtc)} ({FormatDuration(commandToWrite)}); traces {traceCount:N0}";
     }
 
     private string BuildPhprValidationDiagnosticsText()
@@ -3000,6 +3054,16 @@ public partial class MainWindow : Window
     private static string FormatRealPhprPulse(PHprRealGearPulseSettings settings)
     {
         return $"{(settings.IsEnabled ? "on" : "off")} {settings.Strength01:0.###}/{settings.FrequencyHz:0.###} Hz/{settings.DurationMs} ms";
+    }
+
+    private static TimeSpan? DurationBetween(DateTimeOffset? start, DateTimeOffset? end)
+    {
+        return start is null || end is null ? null : end.Value - start.Value;
+    }
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp)
+    {
+        return timestamp is null ? "none" : timestamp.Value.ToString("O", CultureInfo.InvariantCulture);
     }
 
     private static string FormatPedalEffectDiagnostics(PHprPedalEffectDiagnostics diagnostics)
@@ -3248,12 +3312,18 @@ public partial class MainWindow : Window
 
         _ = Dispatcher.InvokeAsync(() =>
         {
+            if (realRoutingResult is not null)
+            {
+                _lastRealPhprGearPulseRoutingResult = realRoutingResult;
+            }
+
             UpdateShiftIntentStatus();
             UpdateRealPhprDirectControlStatus();
             UpdatePhprValidationStatus();
             UpdateMockGearPulseStatus();
             UpdateMockPedalEffectsStatus();
             UpdateDiagnosticsStatus();
+
             var realMessage = realRoutingResult is not null
                 && (_realPhprOptions.DirectControlEnabled || realRoutingResult.Routed)
                     ? $" {realRoutingResult.Message}"

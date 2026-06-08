@@ -1,6 +1,6 @@
 # Simagic P-HPR Phase 2 Research
 
-Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling. Stage 2I adds read-only capture analysis tooling and sanitized summary export. Stage 2J adds formal protocol hypotheses and sanitized hypothesis export. Stage 2K adds mock-only protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. Stage 2M adds mock-only gear pulse routing from accepted shift intents. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from `VehicleState`. Stage 2O adds read-only SimPro Manager / SimHub coexistence detection and safety-context warning integration. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write diagnostics. These stages do not add USB writes, real P-HPR output, protocol control, or real P-HPR vibration.
+Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, documentation, and safety intake only. Stage 2B adds safe abstraction projects and a mock-only output skeleton. Stage 2C adds cached driving-state evaluation. Stage 2D adds read-only wheel / paddle input discovery and candidate scoring. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds the Shift Intent Event Layer for cached `DrivingArmed` evaluation and accepted/suppressed diagnostics. Stage 2G adds read-only P700 / P-HPR device inventory tooling and sanitized exports. Stage 2H adds capture workflow documentation and metadata tooling. Stage 2I adds read-only capture analysis tooling and sanitized summary export. Stage 2J adds formal protocol hypotheses and sanitized hypothesis export. Stage 2K adds mock-only protocol/output modelling. Stage 2L adds mock-only P-HPR safety limiting. Stage 2M adds mock-only gear pulse routing from accepted shift intents. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from `VehicleState`. Stage 2O adds read-only SimPro Manager / SimHub coexistence detection and safety-context warning integration. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write diagnostics. Stage 2Q adds a gated real direct adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the adapter. Phase 3B completes instant paddle gear-pulse production integration. No stage through Phase 3B executes unattended hardware writes or proves real P-HPR vibration.
 
 ## Current Repository Baseline
 
@@ -24,6 +24,10 @@ Stage 2A starts the Simagic P-HPR and GT Neo paddle-input phase as research, doc
 - Stage 2N now extends `HapticDrive.Actuation` with `PHprPedalEffectsRouter`, mock road/slip/lock defaults, priority/interval routing, shared WPF mock output diagnostics, safe settings persistence, and hardware-free tests.
 - Stage 2O now extends `HapticDrive.Simagic.PHPR.Abstractions` with read-only SimPro Manager / SimHub process detection, coexistence snapshots, WPF diagnostics, safety-context status wiring, and hardware-free tests.
 - Stage 2P now extends `HapticDrive.Simagic.PHPR.Abstractions` with a no-write direct-control readiness model, WPF disabled readiness diagnostics, controlled write test plan, manual validation runbook, and hardware-free tests.
+- Stage 2Q now adds the gated Windows HID direct-output adapter, SimHub F1 EC encoder, runtime-only direct-control UI, accepted-paddle real routing, and fake-writer tests.
+- Stage 2R now adds the controlled validation harness, checklist/readiness model, manual result models, private local export, and fake/model tests.
+- Phase 3A now hardens the real direct-output adapter with explicit lifecycle, timeout handling, disconnect classification, report validation, and close-on-dispose behavior.
+- Phase 3B now completes instant paddle gear-pulse production integration with independent brake/throttle settings, safe settings persistence, no telemetry-confirmation wait, and software latency trace diagnostics.
 
 ## User Hardware Context
 
@@ -581,6 +585,48 @@ Not implemented or not claimed in Stage 2R:
 - No raw/private validation result committed.
 - No ASIO/BST-1 audio path change.
 
+## Phase 3A Scope
+
+Implemented in Phase 3A:
+
+- Explicit `IPhprHidReportWriter` open/write/close lifecycle.
+- Lazy writer open only for explicit start, stop, or emergency-stop operations.
+- Write timeout handling.
+- Selected interface/report validation.
+- Disconnect, timeout, invalid-report, open, write, stop, close, and dispose diagnostics.
+- Close-on-dispose behavior with stop attempts where safe.
+- WPF direct-control lifecycle diagnostics.
+- Fake-writer tests for lifecycle and failure cases.
+
+Not implemented or not claimed in Phase 3A:
+
+- No startup output.
+- No persisted direct-control enable/arm/device selection.
+- No automated hardware writes.
+- No physical P-HPR validation.
+- No ASIO/BST-1 audio path change.
+
+## Phase 3B Scope
+
+Implemented in Phase 3B:
+
+- `ShiftIntentEvent` accepted timestamp diagnostics.
+- Direct gear-pulse latency traces for paddle event, accepted shift intent, command creation, and fake-writer write completion.
+- Independent brake/throttle gear-pulse enabled state, strength, frequency, and duration.
+- Safe app-settings persistence for real gear-pulse preferences.
+- WPF real direct-control diagnostics for last gear-pulse latency and persisted-safe-settings status.
+- Fake-writer tests for accepted upshift/downshift routing, default same up/down pulse, default-off real mode, SimPro conflict rejection, per-pedal enable/disable, brake-only, throttle-only, both-pedal writes, and expected start/stop reports.
+- App-settings tests confirming safe real gear-pulse settings persist without direct-control enable, arm, or device-path state.
+
+Not implemented or not claimed in Phase 3B:
+
+- No real road vibration, wheel slip, or wheel lock routing.
+- No unattended hardware writes.
+- No physical P-HPR validation.
+- No safe-gain, physical latency, stop behavior, sustained-vibration, or pedal-mapping claim.
+- No persisted real direct-control enable/arm/device selection.
+- No ASIO/BST-1 audio path change.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
@@ -596,7 +642,7 @@ The highest-value first items after Stage 2I are:
 7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
-USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is complete. Stage 2R controlled real P-HPR validation harness is complete. Phase 3A production P-HPR output adapter hardening is complete. Phase 3B instant paddle gear pulse production integration is next.
+USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is complete. Stage 2R controlled real P-HPR validation harness is complete. Phase 3A production P-HPR output adapter hardening is complete. Phase 3B instant paddle gear pulse production integration is complete. Phase 3C P-HPR road vibration production integration is next.
 
 ## Write Safety Gate
 
@@ -606,7 +652,7 @@ No unattended real P-HPR USB writes may be executed until the user says exactly:
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path, Stage 2R validation harness, and Phase 3A adapter hardening. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Phase 3A, the real-write code path and validation harness are implemented but remain default-off, manually armed, fake/model tested, and not physically validated.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path, Stage 2R validation harness, Phase 3A adapter hardening, and Phase 3B instant gear-pulse integration. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Phase 3B, the real-write code path and validation harness are implemented but remain default-off, manually armed, fake/model tested, and not physically validated.
 
 Before an explicit manual validation run, work is limited to read-only discovery, input observation, documentation, mock output, mock safety limiting, protocol hypotheses, gated implementation, fake-writer tests, and diagnostics.
 

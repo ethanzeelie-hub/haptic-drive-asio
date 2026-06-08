@@ -318,6 +318,105 @@ public sealed class PHprRealOutputTests
         Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.Start));
     }
 
+    [Theory]
+    [InlineData(PaddleSide.Right, ShiftIntentDirection.Upshift)]
+    [InlineData(PaddleSide.Left, ShiftIntentDirection.Downshift)]
+    public async Task AcceptedPaddleShiftRoutesImmediatelyWithLatencyTrace(
+        PaddleSide paddleSide,
+        ShiftIntentDirection expectedDirection)
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var router = new PHprDirectGearPulseRouter(device, ArmedOptions());
+        var paddleAtUtc = DateTimeOffset.UtcNow.AddMilliseconds(-12);
+        var acceptedAtUtc = paddleAtUtc.AddMilliseconds(1);
+        var shift = AcceptedShift(paddleSide, paddleAtUtc, acceptedAtUtc);
+
+        var result = await router.RouteAsync(shift, RealSafetyContext());
+
+        Assert.True(result.Routed);
+        Assert.Equal(expectedDirection, result.ShiftIntentEvent?.Direction);
+        Assert.Equal(paddleAtUtc, result.PaddleEventAtUtc);
+        Assert.Equal(acceptedAtUtc, result.ShiftIntentAcceptedAtUtc);
+        Assert.NotNull(result.FirstCommandCreatedAtUtc);
+        Assert.NotNull(result.FirstWriteCompletedAtUtc);
+        Assert.True(result.FirstCommandCreatedAtUtc >= acceptedAtUtc);
+        Assert.True(result.FirstWriteCompletedAtUtc >= result.FirstCommandCreatedAtUtc);
+        Assert.Equal(2, result.CommandTraces?.Count);
+        Assert.All(result.CommandTraces!, trace => Assert.Equal(trace.CommandCreatedAtUtc, trace.Command.TimestampUtc));
+        Assert.Equal(2, writer.WriteAttempts.Count(report => report.State == PHprHidReportState.Start));
+    }
+
+    [Fact]
+    public async Task UpshiftAndDownshiftUseSameDefaultPulse()
+    {
+        var upWriter = new FakeHidReportWriter(SelectedDevice());
+        var upDevice = new SimagicPhprOutputDevice(upWriter, ArmedOptions());
+        var upRouter = new PHprDirectGearPulseRouter(upDevice, ArmedOptions());
+        var downWriter = new FakeHidReportWriter(SelectedDevice());
+        var downDevice = new SimagicPhprOutputDevice(downWriter, ArmedOptions());
+        var downRouter = new PHprDirectGearPulseRouter(downDevice, ArmedOptions());
+
+        await upRouter.RouteAsync(AcceptedShift(PaddleSide.Right), RealSafetyContext());
+        await downRouter.RouteAsync(AcceptedShift(PaddleSide.Left), RealSafetyContext());
+
+        var upStarts = upWriter.Reports.Where(report => report.State == PHprHidReportState.Start).ToArray();
+        var downStarts = downWriter.Reports.Where(report => report.State == PHprHidReportState.Start).ToArray();
+        Assert.Equal(2, upStarts.Length);
+        Assert.Equal(2, downStarts.Length);
+        Assert.Equal(upStarts[0].Payload, downStarts[0].Payload);
+        Assert.Equal(upStarts[1].Payload, downStarts[1].Payload);
+    }
+
+    [Fact]
+    public async Task DirectGearPulseDisabledByDefaultDoesNotWrite()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, PHprRealOutputOptions.Disabled);
+        var router = new PHprDirectGearPulseRouter(device, PHprRealOutputOptions.Disabled);
+
+        var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
+
+        Assert.False(result.Routed);
+        Assert.Empty(writer.Reports);
+        Assert.Contains("disabled or unarmed", result.Message);
+    }
+
+    [Fact]
+    public async Task DirectGearPulseSimProConflictRejectsWithoutWriting()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var router = new PHprDirectGearPulseRouter(device, ArmedOptions());
+
+        var result = await router.RouteAsync(
+            AcceptedShift(),
+            RealSafetyContext() with { SoftwareConflictStatus = PHprSoftwareConflictStatus.SimProRunning });
+
+        Assert.False(result.Routed);
+        Assert.Empty(writer.Reports);
+        Assert.Contains("SimProRunning", result.Message);
+    }
+
+    [Fact]
+    public async Task DirectGearPulseBrakeOnlySuppressesThrottle()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var options = ArmedOptions() with
+        {
+            BrakeGearPulse = PHprRealGearPulseSettings.Default with { IsEnabled = true, DurationMs = 1 },
+            ThrottleGearPulse = PHprRealGearPulseSettings.Default with { IsEnabled = false }
+        };
+        var device = new SimagicPhprOutputDevice(writer, options);
+        var router = new PHprDirectGearPulseRouter(device, options);
+
+        var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
+
+        Assert.True(result.Routed);
+        var start = Assert.Single(writer.Reports.Where(report => report.State == PHprHidReportState.Start));
+        Assert.Equal(PHprModuleId.Brake, start.TargetModule);
+    }
+
     [Fact]
     public async Task SuppressedShiftIntentDoesNotWrite()
     {
@@ -416,11 +515,16 @@ public sealed class PHprRealOutputTests
         };
     }
 
-    private static ShiftIntentEvent AcceptedShift()
+    private static ShiftIntentEvent AcceptedShift(
+        PaddleSide paddleSide = PaddleSide.Right,
+        DateTimeOffset? timestampUtc = null,
+        DateTimeOffset? acceptedAtUtc = null)
     {
         return ShiftIntentEvent.CreatePaddlePress(
-            PaddleSide.Right,
-            DrivingArmedState.Armed("test driving armed"));
+            paddleSide,
+            DrivingArmedState.Armed("test driving armed"),
+            timestampUtc: timestampUtc,
+            acceptedAtUtc: acceptedAtUtc);
     }
 
     private static ShiftIntentEvent SuppressedShift()

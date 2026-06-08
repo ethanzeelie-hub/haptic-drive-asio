@@ -376,3 +376,13 @@
 - Stop and emergency-stop report behavior is code-tested with fakes only; real stop/off behavior remains pending supervised local validation.
 - Direct control remains disabled and unarmed by default, and enable/arm/device selection remain runtime-only and not persisted.
 - The ASIO/BST-1 audio path is unchanged by Phase 3A.
+
+## Phase 3B
+
+- Instant paddle gear-pulse production integration is implemented, but no real P-HPR hardware pulse has been executed or validated by Codex.
+- Software latency diagnostics show paddle, accepted-intent, command-created, and fake-writer write-completion timestamps; they are not physical latency measurements.
+- Brake/throttle gear-pulse settings are persisted safely, but direct-control enablement, arming, selected private HID path, emergency-stop latch, command history, and write history remain runtime-only.
+- The route still depends on cached `DrivingArmed` / Menu Safe state for suppression. Live menu, pause, garage, pit-lane, start-line, and stale-telemetry behavior may need local refinement after real F1 25 sessions.
+- Real road vibration, wheel slip, and wheel lock routing are not implemented in Phase 3B; they remain later Phase 3 production-integration stages.
+- Physical pedal mapping, safe strength, stop/off behavior, sustained-vibration behavior, SimPro/SimHub real-device coexistence, and physical latency remain pending supervised local validation.
+- The ASIO/BST-1 audio path is unchanged by Phase 3B.

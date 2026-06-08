@@ -1,8 +1,10 @@
 # Simagic P-HPR Output Adapter
 
-## Phase 3A Status
+## Phase 3A / 3B Status
 
 Phase 3A hardens the Stage 2Q direct P-HPR backend into a production-quality adapter boundary while preserving every direct-control safety gate.
+
+Phase 3B completes instant paddle gear-pulse production integration on top of the same adapter. It adds safe persistence for per-pedal gear-pulse preferences and software latency trace diagnostics for accepted paddle routes.
 
 The adapter remains disabled and unarmed by default. Automated verification uses fake HID writers only and does not send hardware output.
 
@@ -15,7 +17,7 @@ The real direct-control backend lives in `HapticDrive.Simagic.PHPR.Output.Window
 - `WindowsHidReportWriter`: Windows selected-HID-path writer.
 - `SimHubF1EcRealReportEncoder`: 64-byte SimHub `F1 EC` start/stop encoder.
 - `PHprRealOutputDiagnostics`: command, report, connection, lifecycle, and failure diagnostics.
-- `PHprDirectGearPulseRouter`: accepted shift-intent to brake/throttle command routing.
+- `PHprDirectGearPulseRouter`: accepted shift-intent to brake/throttle command routing with per-pedal settings and latency trace diagnostics.
 
 The adapter is separate from ASIO, `IAudioOutputDevice`, the audio mixer, and the BST-1 output path.
 
@@ -79,6 +81,8 @@ The Devices page `P-HPR Real Direct Control` panel now shows:
 
 No new automatic output trigger is added in Phase 3A.
 
+Phase 3B adds last gear-pulse latency lines for paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. These are software timestamps only.
+
 ## Tests
 
 Phase 3A fake-writer tests cover:
@@ -93,6 +97,7 @@ Phase 3A fake-writer tests cover:
 - dispose stop plus close behavior,
 - emergency stop,
 - no persisted armed state,
+- safe per-pedal gear-pulse settings persistence without persisting enable/arm/device path,
 - safety-bypass prevention.
 
 No test opens the real Windows HID writer against hardware.

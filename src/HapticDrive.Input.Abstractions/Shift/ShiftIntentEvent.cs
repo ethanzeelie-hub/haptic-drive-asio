@@ -18,7 +18,8 @@ public sealed record ShiftIntentEvent(
     int? LastKnownRpm = null,
     float? LastKnownSessionTime = null,
     uint? LastKnownFrameIdentifier = null,
-    Guid? CorrelationId = null)
+    Guid? CorrelationId = null,
+    DateTimeOffset? AcceptedAtUtc = null)
 {
     public bool IsAcceptedByDrivingGate => DrivingArmedAtEvent.IsArmed;
 
@@ -38,7 +39,8 @@ public sealed record ShiftIntentEvent(
         int? lastKnownRpm = null,
         float? lastKnownSessionTime = null,
         uint? lastKnownFrameIdentifier = null,
-        Guid? correlationId = null)
+        Guid? correlationId = null,
+        DateTimeOffset? acceptedAtUtc = null)
     {
         return new ShiftIntentEvent(
             paddleSide,
@@ -56,7 +58,8 @@ public sealed record ShiftIntentEvent(
             lastKnownRpm,
             lastKnownSessionTime,
             lastKnownFrameIdentifier,
-            correlationId ?? Guid.NewGuid());
+            correlationId ?? Guid.NewGuid(),
+            acceptedAtUtc);
     }
 
     public static ShiftIntentDirection DirectionForPaddle(PaddleSide paddleSide)

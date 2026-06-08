@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. The real adapter is disabled/unarmed by default and is not physically validated.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. The real adapter is disabled/unarmed by default and is not physically validated.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -43,7 +43,7 @@ GT Neo paddle input and VehicleState
 -> P-HPR pedal output
 ```
 
-The future default P-HPR gear-pulse path is `InstantPaddleOnly`: read-only GT Neo paddle press, cached `DrivingArmed` gate, then immediate pedal gear pulse. It must not wait for a fresh telemetry packet at paddle-press time and must not fire a default second telemetry-confirmed pulse.
+The default P-HPR gear-pulse path is `InstantPaddleOnly`: read-only GT Neo paddle press, cached `DrivingArmed` gate, then immediate pedal gear pulse. It does not wait for a fresh telemetry packet at paddle-press time and does not fire a default second telemetry-confirmed pulse.
 
 Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
 
@@ -218,6 +218,29 @@ The writer boundary now separates lifecycle from command routing. `SimagicPhprOu
 Adapter diagnostics include connection state, writer-open state, open/close attempts and successes, write/stop status, report counters, stop-report counters, timeout counters, disconnect counters, invalid-report counters, and last error. Dispose attempts emergency-stop-style brake/throttle stop reports only when a selected device is armed or a stop is pending, then closes the writer where possible.
 
 Start commands still require explicit enable, explicit arm, selected device/interface/report, clear SimPro/SimHub coexistence, clear emergency stop, and `PHprSafetyLimiter` acceptance. Stop and emergency-stop paths can attempt safe stop reports with a selected valid interface. Phase 3A does not add startup output, persisted arming, automated hardware writes, or ASIO/BST-1 routing.
+
+## Phase 3B Instant Paddle Gear Pulse Production Integration
+
+Phase 3B keeps the Phase 3A output adapter as the only real direct-output backend and completes the instant gear-pulse route.
+
+The production gear-pulse path is:
+
+```text
+Stage 2E mapped paddle input
+-> Stage 2F ShiftIntentProcessor
+-> accepted ShiftIntentEvent
+-> PHprDirectGearPulseRouter
+-> SimagicPhprOutputDevice gates
+-> PHprSafetyLimiter
+-> SimHubF1EcRealReportEncoder
+-> IPhprHidReportWriter
+```
+
+`ShiftIntentEvent` now carries the accepted timestamp so diagnostics can distinguish paddle event time from accepted shift-intent time. `PHprDirectGearPulseRouter` stamps command creation, records per-command traces, and surfaces first write completion time from the output diagnostics. These are software timestamps for route visibility, not physical latency measurements.
+
+Brake and throttle gear-pulse profiles are independent for real direct control. Each pedal has enabled, strength, frequency, and duration settings. Safe values persist through app settings; real direct-control enabled state, armed state, selected private HID path, emergency-stop state, command history, and write history remain runtime-only.
+
+Phase 3B does not route road vibration, wheel slip, or wheel lock through the real direct-output backend. Those remain later production-integration stages. The ASIO/BST-1 audio path remains independent and unchanged.
 
 ## Stage 2B Input and P-HPR Abstractions
 

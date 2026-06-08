@@ -31,7 +31,7 @@ manual test pulse or accepted ShiftIntentEvent
 
 The direct path does not use ASIO, `IAudioOutputDevice`, the BST-1 mixer, or the audio render callback.
 
-Phase 3A hardens this same adapter boundary with explicit writer `OpenAsync` / `CloseAsync` lifecycle, write timeout handling, connection-state diagnostics, selected-interface/report validation, disconnect classification, and close-on-dispose behavior. See `docs/SIMAGIC_P_HPR_OUTPUT_ADAPTER.md`.
+Phase 3A hardens this same adapter boundary with explicit writer `OpenAsync` / `CloseAsync` lifecycle, write timeout handling, connection-state diagnostics, selected-interface/report validation, disconnect classification, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration with independent brake/throttle settings, safe settings persistence, and route latency traces. See `docs/SIMAGIC_P_HPR_OUTPUT_ADAPTER.md` and `docs/SIMAGIC_P_HPR_INSTANT_SHIFT_GUIDE.md`.
 
 ## Protocol Surface
 
@@ -83,6 +83,7 @@ The Devices page now has a `P-HPR Real Direct Control` section showing:
 - emergency stop and clear emergency stop,
 - last command status,
 - last write status/error/report length/target/command,
+- last gear-pulse latency timestamps,
 - coexistence and safety status.
 
 Test pulse buttons are disabled unless enable, arm, selected device, clear coexistence, and clear emergency-stop conditions are all satisfied.
@@ -100,8 +101,10 @@ Automated tests use fake HID writers only. They cover:
 - duration-scheduled stop reports,
 - emergency stop stop frames,
 - accepted paddle routing only when enabled and armed,
+- accepted upshift/downshift routing without telemetry gear-confirmation wait,
 - suppressed shift intent not writing,
 - per-pedal settings and disabled-pedal suppression,
+- safe real gear-pulse settings persistence without persisted enable/arm/device state,
 - no ASIO audio path reference from the output project,
 - existing mock output behavior remaining mock-only.
 

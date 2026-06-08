@@ -119,7 +119,8 @@ public sealed class ShiftIntentProcessor : IShiftIntentSource
                 telemetry.LastKnownSpeedKph,
                 telemetry.LastKnownRpm,
                 telemetry.LastKnownSessionTime,
-                telemetry.LastKnownFrameIdentifier);
+                telemetry.LastKnownFrameIdentifier,
+                acceptedAtUtc: evaluatedAtUtc);
             var message = options.Mode == ShiftIntentMode.InstantWithRejectedShiftFeedback
                 ? "Shift intent accepted immediately; telemetry rejection feedback remains diagnostics-only in Stage 2F."
                 : "Shift intent accepted immediately from mapped paddle input.";

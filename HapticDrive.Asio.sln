@@ -49,6 +49,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticDrive.Simagic.PHPR.Re
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticDrive.Simagic.PHPR.Output.Windows", "src\HapticDrive.Simagic.PHPR.Output.Windows\HapticDrive.Simagic.PHPR.Output.Windows.csproj", "{6B62E2EA-DF16-436B-A91C-39FEEFD3C5EE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticDrive.Asio.App.Tests", "tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj", "{06CCAFD1-C498-41D6-B050-9BCE685585B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -142,6 +144,10 @@ Global
 		{6B62E2EA-DF16-436B-A91C-39FEEFD3C5EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6B62E2EA-DF16-436B-A91C-39FEEFD3C5EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6B62E2EA-DF16-436B-A91C-39FEEFD3C5EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06CCAFD1-C498-41D6-B050-9BCE685585B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06CCAFD1-C498-41D6-B050-9BCE685585B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06CCAFD1-C498-41D6-B050-9BCE685585B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06CCAFD1-C498-41D6-B050-9BCE685585B1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A5DC7D1B-6AEC-409B-B323-1112CEC17707} = {28E7AAF1-13E9-4EF1-B4F7-2328274433B4}
@@ -165,5 +171,6 @@ Global
 		{76B216FA-80A2-4EC9-B6B3-8F5CACD4D5F0} = {28E7AAF1-13E9-4EF1-B4F7-2328274433B4}
 		{6B5A7DF2-F5BC-44E2-AE54-813FEBB15FDE} = {8D7BE964-9AEB-4415-A5E2-12A92974D96C}
 		{6B62E2EA-DF16-436B-A91C-39FEEFD3C5EE} = {28E7AAF1-13E9-4EF1-B4F7-2328274433B4}
+		{06CCAFD1-C498-41D6-B050-9BCE685585B1} = {8D7BE964-9AEB-4415-A5E2-12A92974D96C}
 	EndGlobalSection
 EndGlobal

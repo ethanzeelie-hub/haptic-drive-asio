@@ -4,6 +4,7 @@ using HapticDrive.Actuation.PHpr;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
+using HapticDrive.Simagic.PHPR.Output.Windows;
 
 namespace HapticDrive.Asio.App;
 
@@ -95,7 +96,8 @@ internal sealed class AppSettingsStore
             PaddleInputMapping = SanitizePaddleInputMapping(settings.PaddleInputMapping),
             ShiftIntent = SanitizeShiftIntent(settings.ShiftIntent),
             MockGearPulseRouting = SanitizeMockGearPulseRouting(settings.MockGearPulseRouting),
-            MockPedalEffectsRouting = SanitizeMockPedalEffectsRouting(settings.MockPedalEffectsRouting)
+            MockPedalEffectsRouting = SanitizeMockPedalEffectsRouting(settings.MockPedalEffectsRouting),
+            RealPhprGearPulseRouting = SanitizeRealPhprGearPulseRouting(settings.RealPhprGearPulseRouting)
         };
     }
 
@@ -177,6 +179,45 @@ internal sealed class AppSettingsStore
         };
     }
 
+    private static RealPhprGearPulseRoutingSetting SanitizeRealPhprGearPulseRouting(RealPhprGearPulseRoutingSetting? setting)
+    {
+        if (setting is null)
+        {
+            return new RealPhprGearPulseRoutingSetting();
+        }
+
+        return setting with
+        {
+            Brake = SanitizeRealPhprGearPulseSetting(setting.Brake),
+            Throttle = SanitizeRealPhprGearPulseSetting(setting.Throttle)
+        };
+    }
+
+    private static RealPhprGearPulseSetting SanitizeRealPhprGearPulseSetting(RealPhprGearPulseSetting? setting)
+    {
+        if (setting is null)
+        {
+            return RealPhprGearPulseSetting.Default;
+        }
+
+        var limits = SimagicPhprOutputDevice.DirectControlSafetyLimits;
+        var normalized = new PHprRealGearPulseSettings
+        {
+            IsEnabled = setting.IsEnabled,
+            Strength01 = setting.Strength01,
+            FrequencyHz = setting.FrequencyHz,
+            DurationMs = setting.DurationMs
+        }.Normalize(limits);
+
+        return setting with
+        {
+            IsEnabled = normalized.IsEnabled,
+            Strength01 = normalized.Strength01,
+            FrequencyHz = normalized.FrequencyHz,
+            DurationMs = normalized.DurationMs
+        };
+    }
+
     private static MockPedalEffectSetting SanitizeMockPedalEffect(
         MockPedalEffectSetting? setting,
         PHprPedalEffectKind kind)
@@ -229,6 +270,8 @@ internal sealed record AppSettings
 
     public MockPedalEffectsRoutingSetting MockPedalEffectsRouting { get; init; } = new();
 
+    public RealPhprGearPulseRoutingSetting RealPhprGearPulseRouting { get; init; } = new();
+
     public string? LastStatusMessage { get; init; }
 
     public static AppSettings Default { get; } = new();
@@ -279,6 +322,38 @@ internal sealed record MockPedalEffectsRoutingSetting
 
     public MockPedalEffectSetting WheelLock { get; init; } =
         MockPedalEffectSetting.DefaultFor(PHprPedalEffectKind.WheelLock);
+}
+
+internal sealed record RealPhprGearPulseRoutingSetting
+{
+    public RealPhprGearPulseSetting Brake { get; init; } = RealPhprGearPulseSetting.Default;
+
+    public RealPhprGearPulseSetting Throttle { get; init; } = RealPhprGearPulseSetting.Default;
+}
+
+internal sealed record RealPhprGearPulseSetting
+{
+    public static RealPhprGearPulseSetting Default { get; } = From(PHprRealGearPulseSettings.Default);
+
+    public bool IsEnabled { get; init; } = true;
+
+    public double Strength01 { get; init; } = 0.05d;
+
+    public double FrequencyHz { get; init; } = 50d;
+
+    public int DurationMs { get; init; } = 50;
+
+    public static RealPhprGearPulseSetting From(PHprRealGearPulseSettings settings)
+    {
+        var normalized = settings.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        return new RealPhprGearPulseSetting
+        {
+            IsEnabled = normalized.IsEnabled,
+            Strength01 = normalized.Strength01,
+            FrequencyHz = normalized.FrequencyHz,
+            DurationMs = normalized.DurationMs
+        };
+    }
 }
 
 internal sealed record MockPedalEffectSetting

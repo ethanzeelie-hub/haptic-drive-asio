@@ -33,7 +33,13 @@ Manual direct-control pulse buttons require:
 
 Phase 3A adds hardened output-adapter diagnostics. The Devices page shows connection state, writer-open state, open/close counters, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and the active write timeout. These are diagnostics only; they do not auto-open the device or auto-trigger vibration.
 
-Stage 2Q/2R do not prove physical safety or pedal mapping. Use only supervised local validation.
+Phase 3B adds production instant paddle gear-pulse integration. Accepted GT Neo paddle presses can route immediately to brake and/or throttle P-HPR gear pulses when direct control is explicitly enabled and armed. Brake and throttle gear-pulse enabled state, strength, frequency, and duration are persisted as safe preferences; direct-control enable, arm, device path, emergency stop, and write history remain runtime-only.
+
+The instant route does not wait for F1 25 telemetry gear-change confirmation. Cached `DrivingArmed` / Menu Safe state still suppresses paddle pulses in menus, stale telemetry, stopped haptics, emergency mute, and other unsafe states.
+
+The Devices page reports software latency timestamps for the last real gear-pulse route: paddle event, accepted shift intent, command creation, and write completion. These are diagnostics only, not physical latency measurements.
+
+Stage 2Q through Phase 3B do not prove physical safety, latency, or pedal mapping. Use only supervised local validation.
 
 ## Controlled Validation Harness
 

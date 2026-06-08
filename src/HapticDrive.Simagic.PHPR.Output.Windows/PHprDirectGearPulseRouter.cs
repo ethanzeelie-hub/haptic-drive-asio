@@ -5,11 +5,23 @@ using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
+public sealed record PHprDirectGearPulseCommandTrace(
+    PHprCommand Command,
+    DateTimeOffset CommandCreatedAtUtc,
+    DateTimeOffset? WriteCompletedAtUtc,
+    PHprCommandResult Result);
+
 public sealed record PHprDirectGearPulseRoutingResult(
     bool Routed,
     string Message,
     IReadOnlyList<PHprCommandResult> OutputResults,
-    DateTimeOffset CompletedAtUtc);
+    DateTimeOffset CompletedAtUtc,
+    ShiftIntentEvent? ShiftIntentEvent = null,
+    DateTimeOffset? PaddleEventAtUtc = null,
+    DateTimeOffset? ShiftIntentAcceptedAtUtc = null,
+    DateTimeOffset? FirstCommandCreatedAtUtc = null,
+    DateTimeOffset? FirstWriteCompletedAtUtc = null,
+    IReadOnlyList<PHprDirectGearPulseCommandTrace>? CommandTraces = null);
 
 public sealed class PHprDirectGearPulseRouter
 {
@@ -42,30 +54,38 @@ public sealed class PHprDirectGearPulseRouter
 
         if (!shiftIntentEvent.IsAcceptedByDrivingGate)
         {
-            return Ignored("ShiftIntentEvent was suppressed by DrivingArmed/Menu Safe Mode.");
+            return Ignored("ShiftIntentEvent was suppressed by DrivingArmed/Menu Safe Mode.", shiftIntentEvent);
         }
 
         if (shiftIntentEvent.Direction == ShiftIntentDirection.Unknown)
         {
-            return Ignored("ShiftIntentEvent direction is unknown.");
+            return Ignored("ShiftIntentEvent direction is unknown.", shiftIntentEvent);
         }
 
         if (!_options.DirectControlEnabled || !_options.DirectControlArmed)
         {
-            return Ignored("Real direct gear pulse routing is disabled or unarmed.");
+            return Ignored("Real direct gear pulse routing is disabled or unarmed.", shiftIntentEvent);
         }
 
         _output.SetSafetyContext(safetyContext);
         var commands = BuildCommands(shiftIntentEvent).ToArray();
         if (commands.Length == 0)
         {
-            return Ignored("All real direct gear pulse pedals are disabled.");
+            return Ignored("All real direct gear pulse pedals are disabled.", shiftIntentEvent);
         }
 
         var results = new List<PHprCommandResult>();
+        var traces = new List<PHprDirectGearPulseCommandTrace>();
         foreach (var command in commands)
         {
-            results.Add(await _output.SendAsync(command, cancellationToken));
+            var result = await _output.SendAsync(command.Command, cancellationToken);
+            results.Add(result);
+            var diagnostics = _output.GetDiagnostics();
+            traces.Add(new PHprDirectGearPulseCommandTrace(
+                command.Command,
+                command.CommandCreatedAtUtc,
+                diagnostics.Connection.LastWriteAtUtc,
+                result));
         }
 
         return new PHprDirectGearPulseRoutingResult(
@@ -74,40 +94,59 @@ public sealed class PHprDirectGearPulseRouter
                 ? "Accepted ShiftIntentEvent routed to gated real P-HPR output."
                 : string.Join(" ", results.Select(result => result.Message)),
             results,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            shiftIntentEvent,
+            shiftIntentEvent.TimestampUtc,
+            shiftIntentEvent.AcceptedAtUtc ?? shiftIntentEvent.TimestampUtc,
+            traces.FirstOrDefault()?.CommandCreatedAtUtc,
+            traces.FirstOrDefault()?.WriteCompletedAtUtc,
+            traces);
     }
 
-    private IEnumerable<PHprCommand> BuildCommands(ShiftIntentEvent shiftIntentEvent)
+    private IEnumerable<DirectGearPulseCommand> BuildCommands(ShiftIntentEvent shiftIntentEvent)
     {
         var brake = _options.BrakeGearPulse.Normalize();
         if (brake.IsEnabled)
         {
-            yield return PHprCommand.Create(
-                PHprModuleId.Brake,
-                brake.Strength01,
-                brake.FrequencyHz,
-                brake.DurationMs,
-                PHprCommandSource.PaddleShiftIntent,
-                priority: 100,
-                timestampUtc: shiftIntentEvent.TimestampUtc);
+            yield return CreateCommand(PHprModuleId.Brake, brake);
         }
 
         var throttle = _options.ThrottleGearPulse.Normalize();
         if (throttle.IsEnabled)
         {
-            yield return PHprCommand.Create(
-                PHprModuleId.Throttle,
-                throttle.Strength01,
-                throttle.FrequencyHz,
-                throttle.DurationMs,
-                PHprCommandSource.PaddleShiftIntent,
-                priority: 100,
-                timestampUtc: shiftIntentEvent.TimestampUtc);
+            yield return CreateCommand(PHprModuleId.Throttle, throttle);
         }
     }
 
-    private static PHprDirectGearPulseRoutingResult Ignored(string message)
+    private static DirectGearPulseCommand CreateCommand(
+        PHprModuleId moduleId,
+        PHprRealGearPulseSettings settings)
     {
-        return new PHprDirectGearPulseRoutingResult(false, message, [], DateTimeOffset.UtcNow);
+        var commandCreatedAtUtc = DateTimeOffset.UtcNow;
+        return new DirectGearPulseCommand(
+            PHprCommand.Create(
+                moduleId,
+                settings.Strength01,
+                settings.FrequencyHz,
+                settings.DurationMs,
+                PHprCommandSource.PaddleShiftIntent,
+                priority: 100,
+                timestampUtc: commandCreatedAtUtc),
+            commandCreatedAtUtc);
     }
+
+    private static PHprDirectGearPulseRoutingResult Ignored(string message, ShiftIntentEvent? shiftIntentEvent = null)
+    {
+        return new PHprDirectGearPulseRoutingResult(
+            false,
+            message,
+            [],
+            DateTimeOffset.UtcNow,
+            shiftIntentEvent,
+            shiftIntentEvent?.TimestampUtc,
+            shiftIntentEvent?.AcceptedAtUtc ?? shiftIntentEvent?.TimestampUtc,
+            CommandTraces: []);
+    }
+
+    private sealed record DirectGearPulseCommand(PHprCommand Command, DateTimeOffset CommandCreatedAtUtc);
 }

@@ -2,7 +2,7 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend.
 
 No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
 
@@ -27,7 +27,7 @@ Controls:
 
 The pulse buttons remain disabled until direct control is enabled, armed, a device is selected, coexistence status is `Clear`, and emergency stop is clear.
 
-Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. These diagnostics do not auto-run output.
+Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. Phase 3B adds last gear-pulse latency diagnostics: paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. These diagnostics do not auto-run output and do not prove physical latency.
 
 ## First Safe Manual Settings
 
@@ -61,6 +61,10 @@ mapped paddle press
 ```
 
 There is no telemetry gear-confirmation wait and no default second confirmation pulse.
+
+Brake and throttle gear-pulse settings are independent. Each pedal can be enabled or disabled and can use its own strength, frequency, and duration. Upshift and downshift use the same default pulse; the direction is still visible in diagnostics.
+
+Safe gear-pulse preferences are persisted. Direct-control enablement, arming, selected HID path, emergency-stop latch, command history, write history, and validation result data are not persisted.
 
 ## Controlled Validation Harness
 
@@ -104,4 +108,4 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q/Phase 3A do not prove physical pedal mapping, safe output strength, real stop behavior, SimPro/SimHub coexistence on the device, report descriptor details, or latency.
+Stage 2Q through Phase 3B do not prove physical pedal mapping, safe output strength, real stop behavior, SimPro/SimHub coexistence on the device, report descriptor details, or latency.

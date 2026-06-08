@@ -1590,3 +1590,51 @@ Self-review:
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - The ASIO/BST-1 audio path was not changed.
 - Phase 3B Instant Paddle Gear Pulse Production Integration is next; Phase 3A stops here.
+
+## Phase 3B - Instant Paddle Gear Pulse Production Integration
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Complete the instant GT Neo paddle to P-HPR gear-pulse production path without waiting for F1 25 telemetry gear confirmation, while preserving direct-control gates and hardware-free automated verification.
+
+Notes:
+
+- Added accepted-time diagnostics to `ShiftIntentEvent` and `ShiftIntentProcessor` so paddle event time and accepted shift-intent time can be tracked separately.
+- Extended `PHprDirectGearPulseRouter` with command-created timestamps, per-command trace records, first write-completion timestamp, and route result access to the accepted shift intent.
+- Kept upshift/downshift on the same default pulse while preserving direction in diagnostics.
+- Preserved independent brake/throttle real gear-pulse settings for enabled state, strength, frequency, and duration.
+- Persisted safe real gear-pulse settings in app settings while keeping direct-control enablement, arming, selected device path, emergency-stop latch, command history, and write history runtime-only.
+- Added WPF diagnostics for last real gear-pulse latency and safe-settings persistence status.
+- Added `docs/SIMAGIC_P_HPR_INSTANT_SHIFT_GUIDE.md`.
+- Updated user guide, Simagic P-HPR guide, output adapter notes, real-write implementation notes, shift-intent design, safety plan, Phase 2 research notes, README, architecture, roadmap, and known issues.
+- Added app-settings tests for safe real gear-pulse persistence and clamping.
+- Added fake-writer/router tests for accepted upshift/downshift routing, latency traces, default same up/down pulse, default-off real mode, SimPro conflict rejection, brake-only, throttle-only, both-pedal writes, and expected start/stop reports.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 97 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 2 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj --no-build` passed with 58 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 421 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3B completes the instant paddle gear-pulse production route only; it does not route real road vibration, wheel slip, or wheel lock.
+- The hot path uses accepted shift intent and does not wait for F1 25 telemetry gear-change confirmation.
+- Cached `DrivingArmed` / Menu Safe gating remains the protection against menu, stale telemetry, stopped haptics, and emergency-mute pulses.
+- Direct real output remains disabled and unarmed by default, and enable/arm/device path state is not persisted.
+- Automated tests use fake HID writers only and do not open real hardware.
+- Software latency diagnostics are not physical latency measurements.
+- No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, or feel claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- The ASIO/BST-1 audio path was not changed.
+- Phase 3C P-HPR Road Vibration Production Integration is next; Phase 3B stops here.
