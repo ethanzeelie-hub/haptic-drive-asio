@@ -1,12 +1,14 @@
 # Simagic P-HPR Output Adapter
 
-## Phase 3A / 3B / 3C Status
+## Phase 3A / 3B / 3C / 3D Status
 
 Phase 3A hardens the Stage 2Q direct P-HPR backend into a production-quality adapter boundary while preserving every direct-control safety gate.
 
 Phase 3B completes instant paddle gear-pulse production integration on top of the same adapter. It adds safe persistence for per-pedal gear-pulse preferences and software latency trace diagnostics for accepted paddle routes.
 
 Phase 3C routes road vibration through the same gated backend with safe per-pedal road settings, telemetry freshness and `DrivingArmed` gates, coexistence blocking, route-interval suppression, and fake-writer verification.
+
+Phase 3D routes wheel slip and wheel lock through the same gated backend with safe per-effect settings, telemetry freshness and `DrivingArmed` gates, coexistence blocking, route-interval suppression, priority above road and below gear pulse, and fake-writer verification.
 
 The adapter remains disabled and unarmed by default. Automated verification uses fake HID writers only and does not send hardware output.
 
@@ -22,6 +24,8 @@ The real direct-control backend lives in `HapticDrive.Simagic.PHPR.Output.Window
 - `PHprDirectGearPulseRouter`: accepted shift-intent to brake/throttle command routing with per-pedal settings and latency trace diagnostics.
 
 `PHprRoadVibrationRouter` lives in `HapticDrive.Actuation.PHpr` and uses the same `IPHprOutputDevice` boundary for road-vibration commands. It does not create another real output backend.
+
+`PHprSlipLockRouter` lives in `HapticDrive.Actuation.PHpr` and uses the same `IPHprOutputDevice` boundary for wheel-slip and wheel-lock commands. It does not create another real output backend.
 
 The adapter is separate from ASIO, `IAudioOutputDevice`, the audio mixer, and the BST-1 output path.
 
@@ -89,6 +93,8 @@ Phase 3B adds last gear-pulse latency lines for paddle event time, accepted shif
 
 Phase 3C adds road-vibration enabled state, brake/throttle road setting summaries, and last road route result diagnostics. These are software routing diagnostics only and do not prove physical road feel.
 
+Phase 3D adds slip/lock enabled state, per-effect setting summaries, and last slip/lock route result diagnostics. These are software routing diagnostics only and do not prove physical slip or lock feel.
+
 ## Tests
 
 Phase 3A fake-writer tests cover:
@@ -110,6 +116,8 @@ No test opens the real Windows HID writer against hardware.
 
 Phase 3C tests add mock/fake-real coverage for road vibration routing, stale telemetry blocking, cached `DrivingArmed` blocking, SimPro conflict rejection, command-interval suppression, priority ordering, per-pedal settings persistence, and ASIO independence.
 
+Phase 3D tests add mock/fake-real coverage for wheel-slip and wheel-lock routing, stale telemetry and cached `DrivingArmed` gates, SimPro conflict rejection, command-interval suppression, priority ordering, settings persistence, fake-writer commands, and ASIO independence.
+
 ## Non-Claims
 
 The current adapter stages do not prove:
@@ -121,6 +129,7 @@ The current adapter stages do not prove:
 - physical latency,
 - sustained-vibration safety,
 - physical road feel,
+- physical slip or lock feel,
 - SimPro/SimHub real-device coexistence.
 
 Those remain local supervised validation tasks.

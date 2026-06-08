@@ -1685,3 +1685,51 @@ Self-review:
 - No physical P-HPR road feel, safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, or SimPro/SimHub real-device coexistence claim is made.
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - Phase 3D P-HPR Wheel Slip And Wheel Lock Production Integration is next; Phase 3C stops here.
+
+## Phase 3D - P-HPR Wheel Slip And Wheel Lock Production Integration
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Route wheel slip and wheel lock to the production P-HPR output path through the same safe backend, while keeping ASIO/BST-1 slip effects independent and keeping real output disabled by default.
+
+Notes:
+
+- Added `PHprSlipLockRouter` and related options, settings, result, status, and snapshot models under `HapticDrive.Actuation.PHpr`.
+- Routed production wheel slip and wheel lock from existing `VehicleState` / `HapticPipelineSnapshot` data through mock or gated real `IPHprOutputDevice` backends without adding new F1 25 parser fields.
+- Added wheel-slip and wheel-lock settings for enabled state, target module, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration.
+- Kept gear pulse as highest priority, wheel lock above wheel slip, and both slip/lock effects above road vibration.
+- Added deterministic per-module route-interval suppression to avoid command storms before commands reach the safety limiter.
+- Preserved gates for telemetry freshness, haptics running, emergency mute, cached `DrivingArmed`, selected real output readiness, SimPro/SimHub coexistence, emergency stop, and `PHprSafetyLimiter` acceptance.
+- Persisted safe real slip/lock settings while keeping direct-control enablement, arming, private HID device path, emergency-stop latch, command history, and write history runtime-only.
+- Added WPF real direct-control controls and diagnostics for slip/lock enabled state, effect settings, and last slip/lock route result.
+- Added same-tick coordination so real road vibration yields after a higher-priority slip/lock route.
+- Added `docs/SIMAGIC_P_HPR_SLIP_LOCK_GUIDE.md`.
+- Updated user guides, output adapter notes, real-write implementation notes, safety plan, Phase 2 research notes, README, architecture, roadmap, and known issues.
+- Added mock/fake-real tests for slip routing, lock routing, priority, safety gates, SimPro conflict rejection, command-interval suppression, safe settings persistence, fake-writer command output, and ASIO independence.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj --no-build` passed with 76 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 101 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 6 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 447 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3D routes real wheel slip and wheel lock only through the existing gated real P-HPR backend; no second output path was added.
+- The ASIO/BST-1 slip and brake-lock audio effect remains independent and unchanged.
+- Real slip/lock routing is disabled by default and still requires explicit direct-control enablement and arming at runtime.
+- Direct-control enablement, arming, selected device path, emergency-stop latch, command history, and write history are not persisted.
+- Automated tests use mock output and fake HID writers only and do not open real hardware.
+- No physical P-HPR slip feel, lock feel, safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, or SimPro/SimHub real-device coexistence claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- Phase 3E P-HPR UI, Profiles, Diagnostics, And User Workflow is next; Phase 3D stops here.

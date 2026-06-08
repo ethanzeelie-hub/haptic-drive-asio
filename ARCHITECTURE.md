@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. The real adapter is disabled/unarmed by default and is not physically validated.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. Phase 3D completes real wheel-slip and wheel-lock production integration with safe per-effect settings, route-interval suppression, and priority above road and below gear pulse. The real adapter is disabled/unarmed by default and is not physically validated.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -262,7 +262,29 @@ The router consumes existing `VehicleState` / `HapticPipelineSnapshot` state and
 
 Brake and throttle road settings are independent. Each pedal has enabled, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration settings. Safe preferences persist through app settings; real direct-control enabled state, armed state, selected private HID path, emergency-stop state, command history, and write history remain runtime-only.
 
-Road-vibration priority remains below gear pulse, wheel slip, and wheel lock. Phase 3C does not route wheel slip or wheel lock through the real direct-output backend; those remain Phase 3D. The ASIO/BST-1 road texture effect remains a separate audio effect path and is unchanged.
+Road-vibration priority remains below gear pulse, wheel slip, and wheel lock. Phase 3C itself does not route wheel slip or wheel lock through the real direct-output backend; Phase 3D adds that route separately. The ASIO/BST-1 road texture effect remains a separate audio effect path and is unchanged.
+
+## Phase 3D P-HPR Wheel Slip And Wheel Lock Production Integration
+
+Phase 3D adds `PHprSlipLockRouter` in `HapticDrive.Actuation.PHpr` beside the road-vibration router and real gear-pulse route.
+
+The production slip/lock path is:
+
+```text
+F1 25 telemetry / latest VehicleState
+-> cached DrivingArmed/Menu Safe state
+-> PHprSlipLockRouter
+-> SimagicPhprOutputDevice gates
+-> PHprSafetyLimiter
+-> SimHubF1EcRealReportEncoder
+-> IPhprHidReportWriter
+```
+
+The router consumes existing `VehicleState` / `HapticPipelineSnapshot` state and does not add new F1 25 packet parsing. It is evaluated from the WPF telemetry/status update path rather than the audio render callback. It creates `WheelSlip` and `WheelLock` P-HPR commands only when the relevant effect is active, haptics are running, telemetry is fresh, cached `DrivingArmed` is true, direct control is enabled and armed, selected output is ready, coexistence is `Clear`, emergency stop is clear, and the deterministic per-module interval allows another command.
+
+Slip and lock settings are independent. Each effect has enabled state, target module, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration settings. Safe preferences persist through app settings; real direct-control enabled state, armed state, selected private HID path, emergency-stop state, command history, and write history remain runtime-only.
+
+Priority stays per target module: gear pulse remains highest, wheel lock is above wheel slip, and both are above road vibration. The WPF routing tick lets road vibration yield when a slip/lock command has just routed. The ASIO/BST-1 slip and brake-lock audio effect remains separate and unchanged.
 
 ## Stage 2B Input and P-HPR Abstractions
 

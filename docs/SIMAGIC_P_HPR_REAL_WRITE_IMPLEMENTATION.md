@@ -31,7 +31,7 @@ manual test pulse or accepted ShiftIntentEvent
 
 The direct path does not use ASIO, `IAudioOutputDevice`, the BST-1 mixer, or the audio render callback.
 
-Phase 3A hardens this same adapter boundary with explicit writer `OpenAsync` / `CloseAsync` lifecycle, write timeout handling, connection-state diagnostics, selected-interface/report validation, disconnect classification, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration with independent brake/throttle settings, safe settings persistence, and route latency traces. See `docs/SIMAGIC_P_HPR_OUTPUT_ADAPTER.md` and `docs/SIMAGIC_P_HPR_INSTANT_SHIFT_GUIDE.md`.
+Phase 3A hardens this same adapter boundary with explicit writer `OpenAsync` / `CloseAsync` lifecycle, write timeout handling, connection-state diagnostics, selected-interface/report validation, disconnect classification, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration with independent brake/throttle settings, safe settings persistence, and route latency traces. Phase 3C and Phase 3D reuse the same boundary for road vibration, wheel slip, and wheel lock. See `docs/SIMAGIC_P_HPR_OUTPUT_ADAPTER.md`, `docs/SIMAGIC_P_HPR_INSTANT_SHIFT_GUIDE.md`, `docs/SIMAGIC_P_HPR_ROAD_VIBRATION_GUIDE.md`, and `docs/SIMAGIC_P_HPR_SLIP_LOCK_GUIDE.md`.
 
 ## Protocol Surface
 

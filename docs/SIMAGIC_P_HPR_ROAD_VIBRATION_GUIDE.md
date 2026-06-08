@@ -83,7 +83,9 @@ The app does not persist:
 
 ## Out Of Scope
 
-Phase 3C does not route wheel slip or wheel lock to real P-HPR output. Those remain Phase 3D.
+Phase 3C itself did not route wheel slip or wheel lock to real P-HPR output. Phase 3D now adds that route separately through `PHprSlipLockRouter`.
+
+When Phase 3D slip/lock routing is enabled, road remains lower priority and yields in the same WPF routing tick after a slip/lock command routes.
 
 Phase 3C does not prove:
 

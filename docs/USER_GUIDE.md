@@ -41,7 +41,9 @@ The Devices page reports software latency timestamps for the last real gear-puls
 
 Phase 3C adds real road-vibration routing, disabled by default. Real road settings persist safely for brake and throttle independently, with minimum/maximum strength, minimum/maximum frequency, and duration. The route uses the existing telemetry/status path and does not touch the ASIO/BST-1 road texture effect.
 
-Stage 2Q through Phase 3C do not prove physical safety, latency, or pedal mapping. Use only supervised local validation.
+Phase 3D adds real wheel-slip and wheel-lock routing, disabled by default. Wheel slip defaults to throttle, wheel lock defaults to brake, and each effect can target brake, throttle, or both. Slip/lock settings persist safely for enabled state, target, strength, frequency, and duration. Gear pulse remains highest priority, slip/lock stay above road vibration, and the ASIO/BST-1 slip effect remains separate.
+
+Stage 2Q through Phase 3D do not prove physical safety, latency, pedal mapping, road feel, slip feel, or lock feel. Use only supervised local validation.
 
 ## Controlled Validation Harness
 
@@ -66,5 +68,6 @@ Private results are written under `local-validation-results/` when the repo root
 - Do not use high strength for first tests.
 - Do not loop pulses for first tests.
 - Keep real road vibration disabled until manual one-pulse brake/throttle validation has passed.
+- Keep real slip/lock routing disabled until manual one-pulse brake/throttle validation has passed.
 - Stop immediately if the wrong pedal vibrates, both pedals vibrate unexpectedly, vibration continues after stop, output feels too strong, or SimPro/SimHub conflict appears.
 - Do not commit raw captures, private device paths, serial numbers, or unsanitized hardware inventories.

@@ -83,7 +83,7 @@ These diagnostics are software timestamps for routing visibility and fake-writer
 
 ## Out Of Scope
 
-Phase 3B does not route road vibration, wheel slip, or wheel lock to real P-HPR output. Those remain later Phase 3 stages.
+Phase 3B itself does not route road vibration, wheel slip, or wheel lock to real P-HPR output. Phase 3C and Phase 3D add those telemetry-driven routes separately.
 
 Phase 3B does not prove:
 

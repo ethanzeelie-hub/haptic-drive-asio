@@ -2,7 +2,7 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through the same gated backend.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through the same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend.
 
 No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
 
@@ -22,13 +22,14 @@ Controls:
 - `Report bytes`: expected report length; Stage 2Q encoder emits 64-byte SimHub F1 EC payloads.
 - Brake and throttle pulse settings: enabled, strength, frequency, and duration.
 - Brake and throttle road-vibration settings: enabled, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration.
+- Wheel-slip and wheel-lock settings: enabled, target pedal, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration.
 - `Test Brake Pulse` and `Test Throttle Pulse`: one manual pulse only, no loop.
 - `Emergency Stop`: attempts brake and throttle stop reports when a device is selected, then latches.
 - `Clear Emergency Stop`: clears the latch, but does not enable or arm direct control.
 
 The pulse buttons remain disabled until direct control is enabled, armed, a device is selected, coexistence status is `Clear`, and emergency stop is clear.
 
-Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. Phase 3B adds last gear-pulse latency diagnostics: paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. Phase 3C adds real road-vibration enabled state, per-pedal road settings, and last road route result diagnostics. These diagnostics do not auto-run output and do not prove physical latency or road feel.
+Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. Phase 3B adds last gear-pulse latency diagnostics: paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. Phase 3C adds real road-vibration enabled state, per-pedal road settings, and last road route result diagnostics. Phase 3D adds real slip/lock enabled state, effect settings, and last slip/lock route result diagnostics. These diagnostics do not auto-run output and do not prove physical latency, road feel, slip feel, or lock feel.
 
 ## First Safe Manual Settings
 
@@ -77,6 +78,18 @@ Road vibration requires direct control to be enabled and armed for the current s
 
 The ASIO/BST-1 road texture effect remains separate and unchanged.
 
+## Wheel Slip And Wheel Lock Routing
+
+Real wheel slip and wheel lock routing is disabled by default.
+
+When enabled, wheel slip defaults to the throttle pedal and wheel lock defaults to the brake pedal. Each effect can be enabled independently and can target brake, throttle, or both pedals. Each effect has its own minimum/maximum strength, minimum/maximum frequency, and duration settings.
+
+Wheel lock priority is above wheel slip. Both are above road vibration and below instant gear pulse. Road vibration yields in the same WPF routing tick when a higher-priority slip/lock command just routed.
+
+Slip and lock routing require the same gates as road vibration: direct control enabled and armed for the current session, fresh telemetry, haptics running, emergency mute clear, cached `DrivingArmed` true, SimPro/SimHub coexistence `Clear`, selected output ready, emergency stop clear, safety-limiter acceptance, and the deterministic route interval.
+
+The ASIO/BST-1 slip and brake-lock effect remains separate and unchanged.
+
 ## Controlled Validation Harness
 
 Stage 2R adds a `P-HPR Controlled Validation Harness` section on the Devices page.
@@ -119,4 +132,4 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q through Phase 3C do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, or latency.
+Stage 2Q through Phase 3D do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, slip feel, lock feel, or latency.

@@ -98,7 +98,8 @@ internal sealed class AppSettingsStore
             MockGearPulseRouting = SanitizeMockGearPulseRouting(settings.MockGearPulseRouting),
             MockPedalEffectsRouting = SanitizeMockPedalEffectsRouting(settings.MockPedalEffectsRouting),
             RealPhprGearPulseRouting = SanitizeRealPhprGearPulseRouting(settings.RealPhprGearPulseRouting),
-            RealPhprRoadVibrationRouting = SanitizeRealPhprRoadVibrationRouting(settings.RealPhprRoadVibrationRouting)
+            RealPhprRoadVibrationRouting = SanitizeRealPhprRoadVibrationRouting(settings.RealPhprRoadVibrationRouting),
+            RealPhprSlipLockRouting = SanitizeRealPhprSlipLockRouting(settings.RealPhprSlipLockRouting)
         };
     }
 
@@ -261,6 +262,52 @@ internal sealed class AppSettingsStore
         };
     }
 
+    private static RealPhprSlipLockRoutingSetting SanitizeRealPhprSlipLockRouting(RealPhprSlipLockRoutingSetting? setting)
+    {
+        if (setting is null)
+        {
+            return new RealPhprSlipLockRoutingSetting();
+        }
+
+        return setting with
+        {
+            WheelSlip = SanitizeRealPhprSlipLockEffectSetting(setting.WheelSlip, PHprPedalEffectKind.WheelSlip),
+            WheelLock = SanitizeRealPhprSlipLockEffectSetting(setting.WheelLock, PHprPedalEffectKind.WheelLock)
+        };
+    }
+
+    private static RealPhprSlipLockEffectSetting SanitizeRealPhprSlipLockEffectSetting(
+        RealPhprSlipLockEffectSetting? setting,
+        PHprPedalEffectKind kind)
+    {
+        if (setting is null)
+        {
+            return RealPhprSlipLockEffectSetting.DefaultFor(kind);
+        }
+
+        var normalized = new PHprSlipLockEffectSettings
+        {
+            IsEnabled = setting.IsEnabled,
+            TargetModule = setting.TargetModule,
+            MinimumStrength01 = setting.MinimumStrength01,
+            Strength01 = setting.Strength01,
+            MinimumFrequencyHz = setting.MinimumFrequencyHz,
+            FrequencyHz = setting.FrequencyHz,
+            DurationMs = setting.DurationMs
+        }.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
+
+        return setting with
+        {
+            IsEnabled = normalized.IsEnabled,
+            TargetModule = normalized.TargetModule,
+            MinimumStrength01 = normalized.MinimumStrength01,
+            Strength01 = normalized.Strength01,
+            MinimumFrequencyHz = normalized.MinimumFrequencyHz,
+            FrequencyHz = normalized.FrequencyHz,
+            DurationMs = normalized.DurationMs
+        };
+    }
+
     private static MockPedalEffectSetting SanitizeMockPedalEffect(
         MockPedalEffectSetting? setting,
         PHprPedalEffectKind kind)
@@ -316,6 +363,8 @@ internal sealed record AppSettings
     public RealPhprGearPulseRoutingSetting RealPhprGearPulseRouting { get; init; } = new();
 
     public RealPhprRoadVibrationRoutingSetting RealPhprRoadVibrationRouting { get; init; } = new();
+
+    public RealPhprSlipLockRoutingSetting RealPhprSlipLockRouting { get; init; } = new();
 
     public string? LastStatusMessage { get; init; }
 
@@ -432,6 +481,56 @@ internal sealed record RealPhprRoadVibrationPedalSetting
         return new RealPhprRoadVibrationPedalSetting
         {
             IsEnabled = normalized.IsEnabled,
+            MinimumStrength01 = normalized.MinimumStrength01,
+            Strength01 = normalized.Strength01,
+            MinimumFrequencyHz = normalized.MinimumFrequencyHz,
+            FrequencyHz = normalized.FrequencyHz,
+            DurationMs = normalized.DurationMs
+        };
+    }
+}
+
+internal sealed record RealPhprSlipLockRoutingSetting
+{
+    public bool IsEnabled { get; init; }
+
+    public RealPhprSlipLockEffectSetting WheelSlip { get; init; } =
+        RealPhprSlipLockEffectSetting.DefaultFor(PHprPedalEffectKind.WheelSlip);
+
+    public RealPhprSlipLockEffectSetting WheelLock { get; init; } =
+        RealPhprSlipLockEffectSetting.DefaultFor(PHprPedalEffectKind.WheelLock);
+}
+
+internal sealed record RealPhprSlipLockEffectSetting
+{
+    public bool IsEnabled { get; init; } = true;
+
+    public PHprGearPulseTarget TargetModule { get; init; } = (PHprGearPulseTarget)(-1);
+
+    public double MinimumStrength01 { get; init; } = 0.03d;
+
+    public double Strength01 { get; init; } = 0.08d;
+
+    public double MinimumFrequencyHz { get; init; } = 45d;
+
+    public double FrequencyHz { get; init; } = 75d;
+
+    public int DurationMs { get; init; } = 50;
+
+    public static RealPhprSlipLockEffectSetting DefaultFor(PHprPedalEffectKind kind)
+    {
+        return From(kind, PHprSlipLockEffectSettings.DefaultFor(kind));
+    }
+
+    public static RealPhprSlipLockEffectSetting From(
+        PHprPedalEffectKind kind,
+        PHprSlipLockEffectSettings settings)
+    {
+        var normalized = settings.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        return new RealPhprSlipLockEffectSetting
+        {
+            IsEnabled = normalized.IsEnabled,
+            TargetModule = normalized.TargetModule,
             MinimumStrength01 = normalized.MinimumStrength01,
             Strength01 = normalized.Strength01,
             MinimumFrequencyHz = normalized.MinimumFrequencyHz,

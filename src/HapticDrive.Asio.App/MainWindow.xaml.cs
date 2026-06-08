@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private readonly SimagicPhprOutputDevice _realPhprOutput;
     private readonly PHprDirectGearPulseRouter _realPhprGearPulseRouter;
     private readonly PHprRoadVibrationRouter _realRoadVibrationRouter;
+    private readonly PHprSlipLockRouter _realSlipLockRouter;
     private readonly PHprManualValidationResultExporter _phprValidationExporter = new();
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
@@ -261,6 +262,7 @@ public partial class MainWindow : Window
         PHprManualValidationReadiness.Evaluate(PHprManualValidationChecklist.Default);
     private PHprRealOutputOptions _realPhprOptions = PHprRealOutputOptions.Disabled;
     private PHprRoadVibrationRouterOptions _realRoadVibrationOptions = PHprRoadVibrationRouterOptions.Disabled;
+    private PHprSlipLockRouterOptions _realSlipLockOptions = PHprSlipLockRouterOptions.Disabled;
     private WheelPaddleMapping _paddleMapping = WheelPaddleMapping.Default;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
@@ -272,10 +274,12 @@ public partial class MainWindow : Window
     private bool _updatingMockPedalEffectsUi;
     private bool _routingMockPedalEffects;
     private bool _routingRealRoadVibration;
+    private bool _routingRealSlipLock;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
     private PHprDirectGearPulseRoutingResult? _lastRealPhprGearPulseRoutingResult;
     private PHprRoadVibrationRoutingResult? _lastRealRoadVibrationRoutingResult;
+    private PHprSlipLockRoutingResult? _lastRealSlipLockRoutingResult;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -295,6 +299,7 @@ public partial class MainWindow : Window
         _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
         _realPhprOptions = CreateRealPhprOutputOptions(appSettings.RealPhprGearPulseRouting);
         _realRoadVibrationOptions = CreateRealRoadVibrationRouterOptions(appSettings.RealPhprRoadVibrationRouting);
+        _realSlipLockOptions = CreateRealSlipLockRouterOptions(appSettings.RealPhprSlipLockRouting);
         _shiftIntentProcessor = new ShiftIntentProcessor(
             _drivingArmedStateService,
             CreateShiftIntentOptions(appSettings.ShiftIntent));
@@ -304,6 +309,10 @@ public partial class MainWindow : Window
         _realRoadVibrationRouter = new PHprRoadVibrationRouter(
             _realPhprOutput,
             _realRoadVibrationOptions,
+            _realPhprOutput.SetSafetyContext);
+        _realSlipLockRouter = new PHprSlipLockRouter(
+            _realPhprOutput,
+            _realSlipLockOptions,
             _realPhprOutput.SetSafetyContext);
         _mockGearPulseRouter = new PHprGearPulseRouter(
             _mockPhprSafetyOutput,
@@ -333,6 +342,8 @@ public partial class MainWindow : Window
         RoadPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         SlipPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         LockPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
+        RealSlipTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
+        RealLockTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
@@ -736,6 +747,16 @@ public partial class MainWindow : Window
         ConfigureRealPhprOutputFromControls("Real P-HPR direct-control settings updated for this session only.");
     }
 
+    private void RealPhprDirectControlCheckBox_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingRealPhprDirectControlUi)
+        {
+            return;
+        }
+
+        ConfigureRealPhprOutputFromControls("Real P-HPR direct-control settings updated for this session only.");
+    }
+
     private void RealPhprDirectControl_LostFocus(object sender, RoutedEventArgs e)
     {
         if (_updatingRealPhprDirectControlUi)
@@ -867,7 +888,8 @@ public partial class MainWindow : Window
     private bool ConfigureRealPhprOutputFromControls(string footerMessage, bool saveSafeSettings = true)
     {
         if (!TryBuildRealPhprOptionsFromControls(out var options, out var message)
-            || !TryBuildRealRoadVibrationOptionsFromControls(out var roadOptions, out message))
+            || !TryBuildRealRoadVibrationOptionsFromControls(out var roadOptions, out message)
+            || !TryBuildRealSlipLockOptionsFromControls(out var slipLockOptions, out message))
         {
             TestRealPhprBrakePulseButton.IsEnabled = false;
             TestRealPhprThrottlePulseButton.IsEnabled = false;
@@ -879,10 +901,12 @@ public partial class MainWindow : Window
 
         _realPhprOptions = options;
         _realRoadVibrationOptions = roadOptions;
+        _realSlipLockOptions = slipLockOptions;
         _realPhprHidWriter.Configure(options.Selector);
         _realPhprOutput.Configure(options);
         _realPhprGearPulseRouter.Configure(options);
         _realRoadVibrationRouter.Configure(roadOptions);
+        _realSlipLockRouter.Configure(slipLockOptions);
         if (saveSafeSettings)
         {
             SaveAppSettings();
@@ -1455,6 +1479,52 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private bool TryBuildRealSlipLockOptionsFromControls(
+        out PHprSlipLockRouterOptions options,
+        out string message)
+    {
+        var current = _realSlipLockOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        options = current;
+
+        if (!TryBuildRealSlipLockEffectSettings(
+                "Wheel slip",
+                PHprPedalEffectKind.WheelSlip,
+                RealSlipEnabledCheckBox,
+                RealSlipTargetComboBox,
+                RealSlipMinStrengthTextBox,
+                RealSlipStrengthTextBox,
+                RealSlipMinFrequencyTextBox,
+                RealSlipFrequencyTextBox,
+                RealSlipDurationTextBox,
+                out var slip,
+                out message)
+            || !TryBuildRealSlipLockEffectSettings(
+                "Wheel lock",
+                PHprPedalEffectKind.WheelLock,
+                RealLockEnabledCheckBox,
+                RealLockTargetComboBox,
+                RealLockMinStrengthTextBox,
+                RealLockStrengthTextBox,
+                RealLockMinFrequencyTextBox,
+                RealLockFrequencyTextBox,
+                RealLockDurationTextBox,
+                out var wheelLock,
+                out message))
+        {
+            return false;
+        }
+
+        options = current with
+        {
+            IsEnabled = RealSlipLockEnabledCheckBox.IsChecked == true,
+            WheelSlip = slip,
+            WheelLock = wheelLock
+        };
+        options = options.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        message = "Real P-HPR slip/lock options ready.";
+        return true;
+    }
+
     private static bool TryBuildRealGearPulseSettings(
         string label,
         CheckBox enabledCheckBox,
@@ -1562,6 +1632,74 @@ public partial class MainWindow : Window
             DurationMs = duration
         }.Normalize(limits);
         message = $"{label} real P-HPR road settings ready.";
+        return true;
+    }
+
+    private static bool TryBuildRealSlipLockEffectSettings(
+        string label,
+        PHprPedalEffectKind kind,
+        CheckBox enabledCheckBox,
+        ComboBox targetComboBox,
+        TextBox minimumStrengthTextBox,
+        TextBox strengthTextBox,
+        TextBox minimumFrequencyTextBox,
+        TextBox frequencyTextBox,
+        TextBox durationTextBox,
+        out PHprSlipLockEffectSettings settings,
+        out string message)
+    {
+        var limits = SimagicPhprOutputDevice.DirectControlSafetyLimits;
+        settings = PHprSlipLockEffectSettings.DefaultFor(kind);
+
+        var target = targetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
+            ? selectedTarget
+            : settings.TargetModule;
+
+        if (!double.TryParse(minimumStrengthTextBox.Text.Trim(), out var minimumStrength)
+            || !double.IsFinite(minimumStrength)
+            || minimumStrength < 0d
+            || minimumStrength > limits.MaxStrength01
+            || !double.TryParse(strengthTextBox.Text.Trim(), out var strength)
+            || !double.IsFinite(strength)
+            || strength < 0d
+            || strength > limits.MaxStrength01)
+        {
+            message = $"{label} strength range must use numbers from 0.00 to {limits.MaxStrength01:0.00}.";
+            return false;
+        }
+
+        if (!double.TryParse(minimumFrequencyTextBox.Text.Trim(), out var minimumFrequency)
+            || !double.IsFinite(minimumFrequency)
+            || minimumFrequency < limits.MinFrequencyHz
+            || minimumFrequency > limits.MaxFrequencyHz
+            || !double.TryParse(frequencyTextBox.Text.Trim(), out var frequency)
+            || !double.IsFinite(frequency)
+            || frequency < limits.MinFrequencyHz
+            || frequency > limits.MaxFrequencyHz)
+        {
+            message = $"{label} frequency range must use numbers from {limits.MinFrequencyHz:0} to {limits.MaxFrequencyHz:0} Hz.";
+            return false;
+        }
+
+        if (!int.TryParse(durationTextBox.Text.Trim(), out var duration)
+            || duration < 0
+            || duration > limits.MaxDurationMs)
+        {
+            message = $"{label} duration must be between 0 and {limits.MaxDurationMs} ms.";
+            return false;
+        }
+
+        settings = new PHprSlipLockEffectSettings
+        {
+            IsEnabled = enabledCheckBox.IsChecked == true,
+            TargetModule = target,
+            MinimumStrength01 = minimumStrength,
+            Strength01 = strength,
+            MinimumFrequencyHz = minimumFrequency,
+            FrequencyHz = frequency,
+            DurationMs = duration
+        }.Normalize(kind, limits);
+        message = $"{label} real P-HPR slip/lock settings ready.";
         return true;
     }
 
@@ -1805,6 +1943,32 @@ public partial class MainWindow : Window
         }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
     }
 
+    private static PHprSlipLockRouterOptions CreateRealSlipLockRouterOptions(RealPhprSlipLockRoutingSetting setting)
+    {
+        return PHprSlipLockRouterOptions.Disabled with
+        {
+            IsEnabled = setting.IsEnabled,
+            WheelSlip = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelSlip, setting.WheelSlip),
+            WheelLock = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelLock, setting.WheelLock)
+        };
+    }
+
+    private static PHprSlipLockEffectSettings CreateRealSlipLockEffectSettings(
+        PHprPedalEffectKind kind,
+        RealPhprSlipLockEffectSetting setting)
+    {
+        return new PHprSlipLockEffectSettings
+        {
+            IsEnabled = setting.IsEnabled,
+            TargetModule = setting.TargetModule,
+            MinimumStrength01 = setting.MinimumStrength01,
+            Strength01 = setting.Strength01,
+            MinimumFrequencyHz = setting.MinimumFrequencyHz,
+            FrequencyHz = setting.FrequencyHz,
+            DurationMs = setting.DurationMs
+        }.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
+    }
+
     private static PHprPedalEffectState CreatePedalEffectState(
         PHprPedalEffectKind kind,
         MockPedalEffectSetting setting)
@@ -1876,6 +2040,17 @@ public partial class MainWindow : Window
             IsEnabled = options.IsEnabled,
             Brake = RealPhprRoadVibrationPedalSetting.From(options.Brake),
             Throttle = RealPhprRoadVibrationPedalSetting.From(options.Throttle)
+        };
+    }
+
+    private RealPhprSlipLockRoutingSetting CreateRealPhprSlipLockRoutingSetting()
+    {
+        var options = _realSlipLockOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        return new RealPhprSlipLockRoutingSetting
+        {
+            IsEnabled = options.IsEnabled,
+            WheelSlip = RealPhprSlipLockEffectSetting.From(PHprPedalEffectKind.WheelSlip, options.WheelSlip),
+            WheelLock = RealPhprSlipLockEffectSetting.From(PHprPedalEffectKind.WheelLock, options.WheelLock)
         };
     }
 
@@ -1984,6 +2159,28 @@ public partial class MainWindow : Window
             RealRoadThrottleMinFrequencyTextBox,
             RealRoadThrottleFrequencyTextBox,
             RealRoadThrottleDurationTextBox);
+        var slipLockOptions = _realSlipLockOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        RealSlipLockEnabledCheckBox.IsChecked = slipLockOptions.IsEnabled;
+        ApplyRealSlipLockSettingsToControls(
+            PHprPedalEffectKind.WheelSlip,
+            slipLockOptions.WheelSlip,
+            RealSlipEnabledCheckBox,
+            RealSlipTargetComboBox,
+            RealSlipMinStrengthTextBox,
+            RealSlipStrengthTextBox,
+            RealSlipMinFrequencyTextBox,
+            RealSlipFrequencyTextBox,
+            RealSlipDurationTextBox);
+        ApplyRealSlipLockSettingsToControls(
+            PHprPedalEffectKind.WheelLock,
+            slipLockOptions.WheelLock,
+            RealLockEnabledCheckBox,
+            RealLockTargetComboBox,
+            RealLockMinStrengthTextBox,
+            RealLockStrengthTextBox,
+            RealLockMinFrequencyTextBox,
+            RealLockFrequencyTextBox,
+            RealLockDurationTextBox);
         _updatingRealPhprDirectControlUi = false;
         ConfigureRealPhprOutputFromControls("Real P-HPR direct control initialized disabled and unarmed.", saveSafeSettings: false);
     }
@@ -2013,6 +2210,27 @@ public partial class MainWindow : Window
     {
         var normalized = settings.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
         enabledCheckBox.IsChecked = normalized.IsEnabled;
+        minimumStrengthTextBox.Text = normalized.MinimumStrength01.ToString("0.###", CultureInfo.InvariantCulture);
+        strengthTextBox.Text = normalized.Strength01.ToString("0.###", CultureInfo.InvariantCulture);
+        minimumFrequencyTextBox.Text = normalized.MinimumFrequencyHz.ToString("0.###", CultureInfo.InvariantCulture);
+        frequencyTextBox.Text = normalized.FrequencyHz.ToString("0.###", CultureInfo.InvariantCulture);
+        durationTextBox.Text = normalized.DurationMs.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static void ApplyRealSlipLockSettingsToControls(
+        PHprPedalEffectKind kind,
+        PHprSlipLockEffectSettings settings,
+        CheckBox enabledCheckBox,
+        ComboBox targetComboBox,
+        TextBox minimumStrengthTextBox,
+        TextBox strengthTextBox,
+        TextBox minimumFrequencyTextBox,
+        TextBox frequencyTextBox,
+        TextBox durationTextBox)
+    {
+        var normalized = settings.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        enabledCheckBox.IsChecked = normalized.IsEnabled;
+        targetComboBox.SelectedItem = normalized.TargetModule;
         minimumStrengthTextBox.Text = normalized.MinimumStrength01.ToString("0.###", CultureInfo.InvariantCulture);
         strengthTextBox.Text = normalized.Strength01.ToString("0.###", CultureInfo.InvariantCulture);
         minimumFrequencyTextBox.Text = normalized.MinimumFrequencyHz.ToString("0.###", CultureInfo.InvariantCulture);
@@ -2050,7 +2268,8 @@ public partial class MainWindow : Window
                 MockGearPulseRouting = CreateMockGearPulseRoutingSetting(),
                 MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting(),
                 RealPhprGearPulseRouting = CreateRealPhprGearPulseRoutingSetting(),
-                RealPhprRoadVibrationRouting = CreateRealPhprRoadVibrationRoutingSetting()
+                RealPhprRoadVibrationRouting = CreateRealPhprRoadVibrationRoutingSetting(),
+                RealPhprSlipLockRouting = CreateRealPhprSlipLockRoutingSetting()
             });
             _settingsError = null;
         }
@@ -2737,7 +2956,7 @@ public partial class MainWindow : Window
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}.";
         }
     }
 
@@ -2752,7 +2971,7 @@ public partial class MainWindow : Window
         var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
         var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")} runtime-only. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -2970,7 +3189,7 @@ public partial class MainWindow : Window
         TestRealPhprBrakePulseButton.IsEnabled = canPulse && options.BrakeGearPulse.IsEnabled;
         TestRealPhprThrottlePulseButton.IsEnabled = canPulse && options.ThrottleGearPulse.IsEnabled;
         RealPhprDirectStatusText.Text =
-            $"Real direct control: {(options.DirectControlEnabled ? "enabled" : "disabled")}; {(options.DirectControlArmed ? "armed" : "unarmed")}; device {(selector.IsSelected ? "selected" : "not selected")}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; connection {diagnostics.Connection.State}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {diagnostics.Output.IsEmergencyStopActive}; report writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}.";
+            $"Real direct control: {(options.DirectControlEnabled ? "enabled" : "disabled")}; {(options.DirectControlArmed ? "armed" : "unarmed")}; device {(selector.IsSelected ? "selected" : "not selected")}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; connection {diagnostics.Connection.State}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {diagnostics.Output.IsEmergencyStopActive}; report writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}.";
         RealPhprDirectItemsControl.ItemsSource = new[]
         {
             "Safety: write-capable Stage 2Q path, disabled and unarmed by default. Enable/arm/device selection are runtime-only and are not persisted.",
@@ -2979,6 +3198,7 @@ public partial class MainWindow : Window
             $"Brake pulse: {(options.BrakeGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {options.BrakeGearPulse.Strength01:0.###}; frequency {options.BrakeGearPulse.FrequencyHz:0.###} Hz; duration {options.BrakeGearPulse.DurationMs} ms.",
             $"Throttle pulse: {(options.ThrottleGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {options.ThrottleGearPulse.Strength01:0.###}; frequency {options.ThrottleGearPulse.FrequencyHz:0.###} Hz; duration {options.ThrottleGearPulse.DurationMs} ms.",
             $"Road vibration: {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)}; throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)}; last {BuildRealRoadVibrationRoutingText()}.",
+            $"Slip/lock: {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)}; lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)}; last {BuildRealSlipLockRoutingText()}.",
             $"Manual pulse buttons: {(canPulse ? "available" : "blocked")}; requires enabled, armed, selected device, clear coexistence, and no emergency stop latch.",
             $"Last command: {FormatPhprCommand(diagnostics.Output.LastCommand)}; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; message {diagnostics.Output.LastMessage ?? "none"}.",
             $"Last gear-pulse latency: {BuildRealPhprGearPulseLatencyText()}.",
@@ -3061,7 +3281,7 @@ public partial class MainWindow : Window
             $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR real direct-control enabled/armed/selected device, P-HPR emergency stop state, safety latch state, and mock histories are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR real direct-control enabled/armed/selected device, P-HPR emergency stop state, safety latch state, and mock histories are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
@@ -3146,7 +3366,7 @@ public partial class MainWindow : Window
             && selector.IsSelected
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
             && !diagnostics.Output.IsEmergencyStopActive;
-        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; selected {selector.IsSelected}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")} brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)} throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)} last road {BuildRealRoadVibrationRoutingText()}; gear latency {BuildRealPhprGearPulseLatencyText()}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only enable/arm/device not persisted; safe gear-pulse and road settings persisted.";
+        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; selected {selector.IsSelected}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")} brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)} throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)} last road {BuildRealRoadVibrationRoutingText()}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")} slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)} lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)} last slip/lock {BuildRealSlipLockRoutingText()}; gear latency {BuildRealPhprGearPulseLatencyText()}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only enable/arm/device not persisted; safe gear-pulse, road, and slip/lock settings persisted.";
     }
 
     private string BuildRealRoadVibrationRoutingText()
@@ -3155,6 +3375,22 @@ public partial class MainWindow : Window
         return result is null
             ? "none"
             : $"{result.Status}; routed {result.WasRouted}; intensity {result.Intensity01:0.###}; commands {result.Commands.Count:N0}; at {FormatTimestamp(result.RoutedAtUtc)}";
+    }
+
+    private string BuildRealSlipLockRoutingText()
+    {
+        var result = _lastRealSlipLockRoutingResult;
+        if (result is null)
+        {
+            return "none";
+        }
+
+        var kinds = result.Commands.Count == 0
+            ? "none"
+            : string.Join(
+                ", ",
+                result.Commands.Select(command => $"{command.Kind}->{command.TargetModule}"));
+        return $"{result.Status}; routed {result.WasRouted}; commands {result.Commands.Count:N0}; {kinds}; at {FormatTimestamp(result.RoutedAtUtc)}";
     }
 
     private string BuildRealPhprGearPulseLatencyText()
@@ -3255,6 +3491,14 @@ public partial class MainWindow : Window
     {
         var normalized = settings.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
         return $"{(normalized.IsEnabled ? "on" : "off")} strength {normalized.MinimumStrength01:0.###}-{normalized.Strength01:0.###}; freq {normalized.MinimumFrequencyHz:0.###}-{normalized.FrequencyHz:0.###} Hz; duration {normalized.DurationMs} ms";
+    }
+
+    private static string FormatRealSlipLockEffect(
+        PHprPedalEffectKind kind,
+        PHprSlipLockEffectSettings settings)
+    {
+        var normalized = settings.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        return $"{(normalized.IsEnabled ? "on" : "off")} target {normalized.TargetModule}; strength {normalized.MinimumStrength01:0.###}-{normalized.Strength01:0.###}; freq {normalized.MinimumFrequencyHz:0.###}-{normalized.FrequencyHz:0.###} Hz; duration {normalized.DurationMs} ms";
     }
 
     private static TimeSpan? DurationBetween(DateTimeOffset? start, DateTimeOffset? end)
@@ -3370,7 +3614,8 @@ public partial class MainWindow : Window
         RefreshPhprSoftwareCoexistenceStatus();
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
-        await RouteRealRoadVibrationFromSnapshotAsync(pipelineSnapshot);
+        var slipLockResult = await RouteRealSlipLockFromSnapshotAsync(pipelineSnapshot);
+        await RouteRealRoadVibrationFromSnapshotAsync(pipelineSnapshot, slipLockResult?.WasRouted == true);
         UpdateTelemetryStatus();
         UpdateHapticsStateText();
         UpdateMixerStatus();
@@ -3488,14 +3733,48 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RouteRealRoadVibrationFromSnapshotAsync(HapticPipelineSnapshot pipelineSnapshot)
+    private async Task<PHprSlipLockRoutingResult?> RouteRealSlipLockFromSnapshotAsync(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        if (_routingRealSlipLock)
+        {
+            return null;
+        }
+
+        if (!_realSlipLockRouter.GetSnapshot().Options.IsEnabled
+            || !_realPhprOptions.DirectControlEnabled
+            || !_realPhprOptions.DirectControlArmed
+            || !_realPhprOptions.Selector.IsSelected
+            || pipelineSnapshot.VehicleStateUpdateCount <= 0)
+        {
+            return null;
+        }
+
+        _routingRealSlipLock = true;
+        try
+        {
+            var result = await _realSlipLockRouter.RouteAsync(
+                pipelineSnapshot.VehicleState,
+                BuildRealSlipLockSafetyContext(pipelineSnapshot));
+            _lastRealSlipLockRoutingResult = result;
+            return result;
+        }
+        finally
+        {
+            _routingRealSlipLock = false;
+        }
+    }
+
+    private async Task RouteRealRoadVibrationFromSnapshotAsync(
+        HapticPipelineSnapshot pipelineSnapshot,
+        bool higherPriorityPedalEffectRouted)
     {
         if (_routingRealRoadVibration)
         {
             return;
         }
 
-        if (!_realRoadVibrationRouter.GetSnapshot().Options.IsEnabled
+        if (higherPriorityPedalEffectRouted
+            || !_realRoadVibrationRouter.GetSnapshot().Options.IsEnabled
             || !_realPhprOptions.DirectControlEnabled
             || !_realPhprOptions.DirectControlArmed
             || !_realPhprOptions.Selector.IsSelected
@@ -3630,6 +3909,24 @@ public partial class MainWindow : Window
     }
 
     private PHprSafetyContext BuildRealRoadVibrationSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        var outputSnapshot = _realPhprOutput.GetSnapshot();
+        var driving = _drivingArmedStateService.GetSnapshot();
+        return new PHprSafetyContext(
+            IsMockOutput: false,
+            IsDeviceConnected: outputSnapshot.IsConnected,
+            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
+            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
+            TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
+            HapticsStopped: !pipelineSnapshot.IsRunning,
+            EmergencyMuteActive: _emergencyMuted,
+            DrivingArmed: driving.Current.IsArmed,
+            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
+            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
+            RequiresRealDeviceWrites: true);
+    }
+
+    private PHprSafetyContext BuildRealSlipLockSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
     {
         var outputSnapshot = _realPhprOutput.GetSnapshot();
         var driving = _drivingArmedStateService.GetSnapshot();
