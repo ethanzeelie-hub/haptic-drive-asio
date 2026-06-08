@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2O includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, and read-only SimPro / SimHub coexistence detection. No real P-HPR output implementation exists.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2P includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, and a no-write controlled-write readiness model/runbook. No real P-HPR output implementation exists.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -125,6 +125,23 @@ The implementation enumerates process names only. It reports `Unknown`, `Clear`,
 The WPF Devices and Diagnostics pages show SimPro Manager running state, SimHub running state, coexistence status, last scan time, direct-control block status, matching process names, and the read-only detection statement.
 
 Stage 2O does not kill, hook, inject into, patch, inspect memory, IPC-control, or modify SimPro Manager or SimHub. It does not add real P-HPR output, USB writes, HID reports, controlled write testing, or ASIO/BST-1 routing.
+
+## Stage 2P Controlled Write Readiness
+
+Stage 2P adds no-write readiness planning under `HapticDrive.Simagic.PHPR.Abstractions.Readiness`.
+
+The readiness stack is:
+
+```text
+PHprControlledWriteChecklist
+-> PHprControlledWriteReadiness
+-> WPF Direct Write Readiness diagnostics
+-> manual runbook / result template
+```
+
+`PHprControlledWriteReadiness` always reports Stage 2P as blocked for real output. This remains true even if every future manual checklist item is marked true. The model exists to make blockers explicit before Stage 2Q, not to enable output.
+
+The WPF Devices and Diagnostics pages show disabled direct-write readiness, checklist blockers, and the no-write statement. Stage 2P does not add a real adapter, HID writer, write-capable button, automatic pulse, persisted armed state, or hardware output.
 
 ## Stage 2B Input and P-HPR Abstractions
 

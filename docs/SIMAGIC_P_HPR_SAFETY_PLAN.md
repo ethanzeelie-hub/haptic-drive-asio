@@ -1,6 +1,6 @@
 # Simagic P-HPR Safety Plan
 
-This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds mock-only safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. Stage 2M adds mock-only gear pulse routing from accepted shift intents through that safety-limited mock output wrapper. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` data through the same safety-limited mock output wrapper. Stage 2O adds read-only SimPro Manager / SimHub process detection and safety-context conflict warnings. None of these stages implements USB writes or real P-HPR output.
+This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds mock-only safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. Stage 2M adds mock-only gear pulse routing from accepted shift intents through that safety-limited mock output wrapper. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` data through the same safety-limited mock output wrapper. Stage 2O adds read-only SimPro Manager / SimHub process detection and safety-context conflict warnings. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write readiness diagnostics. None of these stages implements USB writes or real P-HPR output.
 
 ## Required Approval Phrase
 
@@ -10,7 +10,7 @@ No real P-HPR USB writes, output reports, write-capable feature reports, or real
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the later gated Stage 2Q real-write code path. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2O, no real-write code path exists.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the later gated Stage 2Q real-write code path. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2P, no real-write code path exists.
 
 Stage 2B keeps `PHprSafetyLimits.AllowRealDeviceWrites` false by default, and `MockPhprOutputDevice` only records mock commands in memory.
 
@@ -34,6 +34,8 @@ Stage 2N implements `PHprPedalEffectsRouter`, conservative mock road/slip/lock d
 
 Stage 2O implements read-only SimPro Manager / SimHub process detection, coexistence snapshots, WPF diagnostics, and safety-context conflict status wiring. It does not kill, hook, inject into, patch, inspect memory, IPC-control, or modify either application. It does not create a production encoder/decoder, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, implement controlled write testing, or touch the ASIO/BST-1 output path.
 
+Stage 2P implements `PHprControlledWriteChecklist`, `PHprControlledWriteReadiness`, the controlled write test plan, manual validation runbook, manual result template, evidence map, and disabled WPF direct-write readiness diagnostics. It does not create a real adapter, create a HID writer, add pulse buttons, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, execute controlled write testing, persist arming, or touch the ASIO/BST-1 output path.
+
 ## Allowed Before Approval
 
 - Research.
@@ -52,6 +54,8 @@ Stage 2O implements read-only SimPro Manager / SimHub process detection, coexist
 - Mock protocol.
 - Mock P-HPR safety limiting.
 - Mock routing.
+- Controlled write test planning.
+- Disabled direct-write readiness diagnostics.
 - UI placeholders.
 - Diagnostics.
 - Tests.
@@ -99,7 +103,7 @@ No telemetry-driven real P-HPR output may occur until manual low-amplitude pulse
 
 ## First Controlled Write Limits After Approval
 
-If and only if the exact approval phrase is provided and protocol confidence is sufficient, the first controlled write test must use:
+The Stage 2P plan for the first controlled write test requires:
 
 - Strength <= 10%.
 - Duration <= 100 ms.
@@ -120,8 +124,8 @@ Initial target: coexist with SimPro Manager where safe.
 
 Future behavior:
 
-- Detect if SimPro Manager V3 is running.
-- Detect if SimHub is running.
+- Detect if SimPro Manager V3 is running. Stage 2O implements read-only process detection.
+- Detect if SimHub is running. Stage 2O implements read-only process detection.
 - Display process status in diagnostics.
 - Default to read-only/mock mode when SimPro Manager is running.
 - Warn before any direct P-HPR control.

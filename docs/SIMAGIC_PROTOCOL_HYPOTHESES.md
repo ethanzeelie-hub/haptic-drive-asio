@@ -4,7 +4,7 @@
 
 Stage 2J converts the Stage 2I capture-analysis results and related sanitized input evidence into formal P-HPR protocol hypotheses.
 
-This document prepared Stage 2K mock protocol/output work, feeds the Stage 2L safety layer, and remains the evidence background for Stage 2M mock gear routing. It does not approve, implement, or execute direct P-HPR control.
+This document prepared Stage 2K mock protocol/output work, feeds the Stage 2L safety layer, remains the evidence background for Stage 2M/2N mock routing, and feeds the Stage 2P controlled write test plan. It does not execute direct P-HPR control.
 
 ## Safety Boundary
 
@@ -247,8 +247,7 @@ Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 ## Real Write Blockers
 
-- The exact approval phrase has not been provided.
-- No controlled write test plan has been executed.
+- The Stage 2P controlled write test plan exists, but it has not been executed.
 - No real hardware write safety validation exists.
 - Stop command behavior has not been validated on real hardware.
 - SimPro/SimHub coexistence has not been validated for direct control.
@@ -257,7 +256,7 @@ Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 - Any checksum, sequence, or keepalive behavior must be confirmed if present.
 - Behavior when SimPro Manager is running must be understood.
 - Emergency stop path must exist before real writes.
-- `PHprSafetyLimiter` now exists for mock/safety evaluation in Stage 2L, but it has not been validated against real hardware.
+- `PHprSafetyLimiter` exists for mock/safety evaluation, but it has not been validated against real hardware.
 - First real test must be manual, low strength, short duration, one pedal, and no loop.
 
 ## Optional User Data That Would Improve Confidence
@@ -273,4 +272,4 @@ Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 ## Final Safety Statement
 
-Nothing in this document authorises real USB writes.
+Nothing in this document authorises executing real USB writes.

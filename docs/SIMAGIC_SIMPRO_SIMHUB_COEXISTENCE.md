@@ -86,6 +86,14 @@ The Devices page shows:
 
 The Diagnostics page includes the same coexistence status in the copyable diagnostics report.
 
+## Stage 2P Readiness Integration
+
+Stage 2P uses the latest coexistence status in its no-write direct-control readiness model.
+
+For the first later controlled write test, readiness requires coexistence status `Clear`. `Unknown`, `SimProRunning`, `SimHubRunning`, and `ActiveConflict` are all reported as blockers in the Stage 2P readiness diagnostics.
+
+This remains diagnostic only in Stage 2P. No real output adapter, HID writer, write-capable UI, direct pulse button, or hardware vibration is added.
+
 ## Tests
 
 Stage 2O adds hardware-free tests for:
@@ -101,4 +109,4 @@ Stage 2O adds hardware-free tests for:
 
 ## Final Statement
 
-Stage 2O detects process presence only. It does not validate real coexistence behavior with hardware and does not approve direct P-HPR writes.
+Stage 2O detects process presence only. Stage 2P uses that state for the no-write readiness plan. Neither stage validates real coexistence behavior with hardware or executes direct P-HPR writes.

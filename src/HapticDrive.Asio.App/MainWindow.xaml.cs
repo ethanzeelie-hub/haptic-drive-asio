@@ -21,6 +21,7 @@ using HapticDrive.Input.Windows;
 using HapticDrive.Simagic.PHPR.Abstractions.Coexistence;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
+using HapticDrive.Simagic.PHPR.Abstractions.Readiness;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 using System.IO;
 using System.Net;
@@ -246,6 +247,8 @@ public partial class MainWindow : Window
     private AsioReadinessSnapshot _asioReadinessSnapshot = AsioReadinessSnapshot.NotChecked;
     private InputDeviceDiscoverySnapshot _inputDiscoverySnapshot = InputDeviceDiscoverySnapshot.NotRun;
     private PHprSoftwareCoexistenceSnapshot _phprSoftwareCoexistenceSnapshot = PHprSoftwareCoexistenceSnapshot.NotScanned;
+    private PHprControlledWriteReadiness _phprControlledWriteReadiness =
+        PHprControlledWriteReadiness.Evaluate(PHprControlledWriteChecklist.Stage2PNoWriteDefault);
     private WheelPaddleMapping _paddleMapping = WheelPaddleMapping.Default;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
@@ -2149,6 +2152,7 @@ public partial class MainWindow : Window
         AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; render callbacks {status.RenderCallbackCount:N0}; backend callbacks {status.BackendCallbackCount:N0}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; underruns {status.UnderrunCount:N0}; last error {status.LastError ?? "none"}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
         UpdatePhprSoftwareCoexistenceStatus();
+        UpdatePhprControlledWriteReadinessStatus();
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
@@ -2364,6 +2368,20 @@ public partial class MainWindow : Window
         };
     }
 
+    private void UpdatePhprControlledWriteReadinessStatus()
+    {
+        _phprControlledWriteReadiness = PHprControlledWriteReadiness.Evaluate(BuildStage2PControlledWriteChecklist());
+        PhprControlledWriteReadinessStatusText.Text =
+            $"P-HPR direct write readiness: disabled; can enable {_phprControlledWriteReadiness.CanEnableDirectControl}; can arm {_phprControlledWriteReadiness.CanArmDirectControl}; can pulse {_phprControlledWriteReadiness.CanSendManualPulse}; issues {_phprControlledWriteReadiness.Issues.Count:N0}.";
+        PhprControlledWriteReadinessItemsControl.ItemsSource = new[]
+        {
+            _phprControlledWriteReadiness.Status,
+            "Safety: Stage 2P is no-write planning only. No real adapter, no HID writer, no write-capable UI, no direct pulse button, and no hardware vibration are implemented.",
+            "Next manual gate: device/interface/report selection, explicit direct-control enable, explicit arming, visible emergency stop, clear SimPro/SimHub status, and user-supervised low-strength one-pulse test.",
+            $"Blocking issues: {FormatReadinessIssues(_phprControlledWriteReadiness.Issues)}"
+        };
+    }
+
     private void UpdateDiagnosticsStatus()
     {
         if (DiagnosticsPanel.Visibility != Visibility.Visible
@@ -2411,6 +2429,7 @@ public partial class MainWindow : Window
             $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
             $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
             $"P-HPR software coexistence: {BuildPhprCoexistenceDiagnosticsText()}",
+            $"P-HPR direct write readiness: {BuildPhprControlledWriteReadinessDiagnosticsText()}",
             $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
             $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
@@ -2482,6 +2501,12 @@ public partial class MainWindow : Window
     {
         var snapshot = _phprSoftwareCoexistenceSnapshot;
         return $"status {snapshot.Status}; SimPro {FormatBoolUnknown(snapshot.SimProRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; SimHub {FormatBoolUnknown(snapshot.SimHubRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; last scan {FormatScanTime(snapshot.LastScanAtUtc)}; supported {snapshot.IsSupported}; direct control blocked {(snapshot.Status == PHprSoftwareConflictStatus.ActiveConflict || snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; read-only process detection only; error {snapshot.ErrorMessage ?? "none"}.";
+    }
+
+    private string BuildPhprControlledWriteReadinessDiagnosticsText()
+    {
+        var readiness = _phprControlledWriteReadiness;
+        return $"{readiness.Status}; no-write stage {readiness.IsNoWriteStage}; enable {readiness.CanEnableDirectControl}; arm {readiness.CanArmDirectControl}; manual pulse {readiness.CanSendManualPulse}; issues {FormatReadinessIssues(readiness.Issues)}";
     }
 
     private string BuildMockGearPulseDiagnosticsText()
@@ -2579,6 +2604,13 @@ public partial class MainWindow : Window
             .Select(process => $"{process.ProcessName}{(process.ProcessId is null ? "" : $"#{process.ProcessId}")}"));
     }
 
+    private static string FormatReadinessIssues(IReadOnlyList<PHprControlledWriteReadinessIssue> issues)
+    {
+        return issues.Count == 0
+            ? "none"
+            : string.Join("; ", issues.Take(8).Select(issue => $"{issue.Code}: {issue.Message}"));
+    }
+
     private static string FormatOptionalInt(int? value)
     {
         return value is null ? "unknown" : value.Value.ToString("N0");
@@ -2647,6 +2679,7 @@ public partial class MainWindow : Window
         UpdateShiftIntentStatus();
         UpdateMockPedalEffectsStatus();
         UpdatePhprSoftwareCoexistenceStatus();
+        UpdatePhprControlledWriteReadinessStatus();
     }
 
     private void RefreshPhprSoftwareCoexistenceStatus(bool force = false)
@@ -2661,6 +2694,19 @@ public partial class MainWindow : Window
 
         _phprSoftwareCoexistenceSnapshot = _phprSoftwareCoexistenceDetector.Scan();
         _lastPhprCoexistenceScanUtc = now;
+    }
+
+    private PHprControlledWriteChecklist BuildStage2PControlledWriteChecklist()
+    {
+        return PHprControlledWriteChecklist.Stage2PNoWriteDefault with
+        {
+            HapticDriveRunning = true,
+            EmergencyStopVisible = true,
+            RealWritesDefaultOff = true,
+            SimProClosed = _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear,
+            SimHubClosed = _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear,
+            SoftwareConflictStatus = _phprSoftwareCoexistenceSnapshot.Status
+        };
     }
 
     private async Task RouteMockPedalEffectsFromSnapshotAsync(HapticPipelineSnapshot pipelineSnapshot)

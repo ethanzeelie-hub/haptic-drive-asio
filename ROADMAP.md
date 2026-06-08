@@ -37,6 +37,7 @@
 - Stage 2M: Mock gear pulse routing complete.
 - Stage 2N: Mock road vibration, wheel slip, and wheel lock routing complete.
 - Stage 2O: SimPro / SimHub coexistence detection complete.
+- Stage 2P: Controlled write test plan complete.
 
 ## Planned Stages
 
@@ -80,9 +81,10 @@ Phase 2 safe sequence:
 13. Stage 2M: Mock gear pulse routing. Complete.
 14. Stage 2N: Mock road vibration, wheel slip, and wheel lock routing. Complete.
 15. Stage 2O: SimPro / SimHub coexistence detection. Complete.
-16. Stage 2P: Controlled write test plan. Next.
+16. Stage 2P: Controlled write test plan. Complete.
+17. Stage 2Q: Gated minimal real P-HPR write implementation. Next.
 
-Stage 2Q and later real P-HPR write work is gated and must not start unless the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
 
 ## Post-BT-1 Hardware Phases
 
@@ -115,3 +117,4 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - Stage 2M adds mock-only gear pulse routing from accepted `ShiftIntentEvent` values through `PHprGearPulseRouter`, `SafetyLimitedPhprOutputDevice`, and `MockPhprOutputDevice`; it does not add road/slip/lock routing, production encoders/decoders, real output, USB writes, HID reports, SimPro/SimHub detection, or ASIO/BST-1 routing.
 - Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` / `HapticPipelineSnapshot` data through `PHprPedalEffectsRouter`, `SafetyLimitedPhprOutputDevice`, and `MockPhprOutputDevice`; it does not add real output, USB writes, HID reports, SimPro/SimHub detection, controlled write testing, new packet parsing, or ASIO/BST-1 routing.
 - Stage 2O adds read-only SimPro Manager / SimHub process detection, coexistence diagnostics, and `PHprSafetyContext.SoftwareConflictStatus` wiring; it does not kill, hook, inject into, patch, control, or modify either process, and it does not add real output, USB writes, HID reports, controlled write testing, or ASIO/BST-1 routing.
+- Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, WPF disabled direct-write readiness diagnostics, evidence mapping, and tests; it does not add a real adapter, HID writer, write-capable UI, USB writes, real vibration, or ASIO/BST-1 routing.

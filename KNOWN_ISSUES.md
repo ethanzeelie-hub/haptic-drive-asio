@@ -190,7 +190,7 @@
 - `ShiftIntentEvent` and source interfaces exist, but no shift intent router or paddle input event pipeline exists yet.
 - `MockPhprOutputDevice` records clamped mock commands only; it is not a real protocol adapter and does not send USB writes.
 - P-HPR safety defaults exist, and Stage 2L now adds the full mock-only `PHprSafetyLimiter`; no routing uses it yet.
-- P700/P-HPR read-only inventory and capture analysis tooling now exist in later stages, but no protocol hypothesis, SimPro/SimHub coexistence detection, or controlled write plan exists yet.
+- Later stages add protocol hypotheses, SimPro/SimHub coexistence detection, and a controlled write test plan, but no real P-HPR output exists.
 
 ## Stage 2C
 
@@ -304,7 +304,7 @@
 - No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented.
 - Road vibration, wheel slip, and wheel lock mock routing exists in Stage 2N through a separate `PHprPedalEffectsRouter`, not inside `PHprGearPulseRouter`.
 - SimPro / SimHub coexistence detection is not implemented yet.
-- No controlled write plan exists yet.
+- No controlled write plan existed in Stage 2L; Stage 2P later adds the plan without executing hardware writes.
 - Emergency-stop state, safety latch state, mock command history, and mock frame history are runtime-only and not persisted.
 - The ASIO/BST-1 audio path is unchanged by Stage 2M.
 
@@ -317,7 +317,7 @@
 - Gear routing and pedal effects share one WPF mock output stack, so clearing either mock diagnostics surface clears shared mock output history.
 - No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented.
 - SimPro / SimHub coexistence detection is not implemented yet.
-- No controlled write plan exists yet.
+- No controlled write plan existed in Stage 2N; Stage 2P later adds the plan without executing hardware writes.
 - Emergency-stop state, safety latch state, mock command history, mock frame history, real-write enabled state, and real-write armed state are runtime-only and not persisted.
 - The ASIO/BST-1 audio path is unchanged by Stage 2N.
 
@@ -328,8 +328,21 @@
 - Process access errors and unsupported platforms report `Unknown`; direct control remains blocked/warned until status is clear.
 - `ActiveConflict` blocks P-HPR starts through `PHprSafetyLimiter`, but no real direct-control mode exists yet.
 - No process kill, hook, injection, patching, memory inspection, IPC, settings modification, or external software control is implemented.
-- No controlled write plan exists yet.
+- No controlled write plan existed in Stage 2O; Stage 2P later adds the plan without executing hardware writes.
 - No production encoder or production decoder exists.
 - No real P-HPR output exists.
 - No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented.
 - The ASIO/BST-1 audio path is unchanged by Stage 2O.
+
+## Stage 2P
+
+- The controlled write test plan and manual validation runbook exist, but they have not been executed on real hardware.
+- `PHprControlledWriteReadiness` intentionally blocks direct output during Stage 2P, even if future manual checklist fields are all true.
+- WPF direct-write readiness diagnostics are disabled/read-only; no pulse buttons, real adapter, HID writer, or write-capable UI exists yet.
+- Exact P700 VID/PID, report ID, interface, endpoint, descriptor, and device-open behavior still require local confirmation before real validation.
+- SimHub `F1 EC` remains the preferred later minimal direct-control hypothesis; SimPro `80 1E 89` remains separate and not the first direct path.
+- No production encoder or production decoder exists.
+- No real P-HPR output exists.
+- No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented or executed.
+- Physical P-HPR validation is pending a local user-run procedure after gated implementation exists.
+- The ASIO/BST-1 audio path is unchanged by Stage 2P.
