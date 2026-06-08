@@ -30,7 +30,7 @@ Upshift and downshift use the same default pulse. Direction is retained in diagn
 
 The conservative real direct defaults remain:
 
-- strength `0.05`,
+- strength `0.10` / `10%`,
 - frequency `50 Hz`,
 - duration `50 ms`,
 - both brake and throttle enabled.

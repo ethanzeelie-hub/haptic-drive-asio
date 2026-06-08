@@ -31,8 +31,8 @@ Real slip/lock routing starts disabled by default.
 
 When enabled, the defaults are:
 
-- wheel slip: throttle pedal, strength `0.03` to `0.08`, frequency `45 Hz` to `75 Hz`, duration `50 ms`, priority `50`;
-- wheel lock: brake pedal, strength `0.04` to `0.10`, frequency `60 Hz` to `90 Hz`, duration `50 ms`, priority `75`.
+- wheel slip: throttle pedal, strength `0.03` to `0.08`, frequency `35 Hz` to `50 Hz`, duration `50 ms`, priority `50`;
+- wheel lock: brake pedal, strength `0.04` to `0.10`, frequency `40 Hz` to `50 Hz`, duration `50 ms`, priority `75`.
 
 Wheel lock priority is above wheel slip. Both are above road vibration and below instant gear pulse.
 

@@ -16,8 +16,8 @@ public sealed record PHprPedalEffectProfile
     {
         MinimumStrength01 = 0.03d,
         Strength01 = 0.08d,
-        MinimumFrequencyHz = 45d,
-        FrequencyHz = 75d,
+        MinimumFrequencyHz = 35d,
+        FrequencyHz = 50d,
         DurationMs = 50,
         Priority = 50
     };
@@ -26,8 +26,8 @@ public sealed record PHprPedalEffectProfile
     {
         MinimumStrength01 = 0.04d,
         Strength01 = 0.10d,
-        MinimumFrequencyHz = 60d,
-        FrequencyHz = 90d,
+        MinimumFrequencyHz = 40d,
+        FrequencyHz = 50d,
         DurationMs = 50,
         Priority = 75
     };
@@ -60,8 +60,8 @@ public sealed record PHprPedalEffectProfile
         var defaults = DefaultFor(kind);
         var minimumStrength = SanitizeFinite(MinimumStrength01, defaults.MinimumStrength01, 0d, 1d);
         var strength = SanitizeFinite(Strength01, defaults.Strength01, 0d, 1d);
-        var minimumFrequency = SanitizeFinite(MinimumFrequencyHz, defaults.MinimumFrequencyHz, 1d, 1_000d);
-        var frequency = SanitizeFinite(FrequencyHz, defaults.FrequencyHz, 1d, 1_000d);
+        var minimumFrequency = SanitizeFinite(MinimumFrequencyHz, defaults.MinimumFrequencyHz, 1d, 50d);
+        var frequency = SanitizeFinite(FrequencyHz, defaults.FrequencyHz, 1d, 50d);
 
         return this with
         {
@@ -69,7 +69,7 @@ public sealed record PHprPedalEffectProfile
             Strength01 = Math.Max(minimumStrength, strength),
             MinimumFrequencyHz = Math.Min(minimumFrequency, frequency),
             FrequencyHz = Math.Max(minimumFrequency, frequency),
-            DurationMs = Math.Clamp(DurationMs, 0, 1_000),
+            DurationMs = Math.Clamp(DurationMs, 10, 1_000),
             Priority = Math.Clamp(Priority, 0, 1_000)
         };
     }

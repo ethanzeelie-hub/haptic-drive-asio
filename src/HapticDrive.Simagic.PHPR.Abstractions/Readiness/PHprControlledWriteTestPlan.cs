@@ -25,7 +25,7 @@ public sealed record PHprControlledWriteTestPlan(
             "One module only.",
             "Brake first recommended.",
             "Strength <= 10%.",
-            "Duration <= 100 ms.",
+            "Duration is 10-1000 ms and starts from the 50 ms default test pulse.",
             "Conservative known frequency.",
             "No loop or repeated pulse.",
             "Immediate stop available."

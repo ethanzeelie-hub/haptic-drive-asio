@@ -33,7 +33,7 @@ public sealed record PHprRoadVibrationPedalSettings
             Strength01 = Math.Max(minimumStrength, strength),
             MinimumFrequencyHz = Math.Min(minimumFrequency, frequency),
             FrequencyHz = Math.Max(minimumFrequency, frequency),
-            DurationMs = Math.Clamp(DurationMs, 0, safeLimits.MaxDurationMs)
+            DurationMs = Math.Clamp(DurationMs, 10, safeLimits.MaxDurationMs)
         };
     }
 

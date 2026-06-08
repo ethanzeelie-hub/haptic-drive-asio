@@ -17,8 +17,8 @@ public sealed record PHprGearPulseProfile
         return this with
         {
             Strength01 = double.IsFinite(Strength01) ? Math.Clamp(Strength01, 0d, 1d) : Default.Strength01,
-            FrequencyHz = double.IsFinite(FrequencyHz) ? Math.Clamp(FrequencyHz, 1d, 1_000d) : Default.FrequencyHz,
-            DurationMs = Math.Clamp(DurationMs, 0, 1_000),
+            FrequencyHz = double.IsFinite(FrequencyHz) ? Math.Clamp(FrequencyHz, 1d, 50d) : Default.FrequencyHz,
+            DurationMs = Math.Clamp(DurationMs, 10, 1_000),
             Priority = Math.Clamp(Priority, 0, 1_000)
         };
     }

@@ -121,7 +121,7 @@ public sealed class PHprGearPulseRouterTests
     }
 
     [Fact]
-    public async Task SafetyLimiter_ClampsExcessiveStrength()
+    public async Task ProfileNormalizer_ClampsExcessiveStrength()
     {
         await using var inner = new MockPhprOutputDevice();
         await using var output = new SafetyLimitedPhprOutputDevice(inner);
@@ -129,7 +129,7 @@ public sealed class PHprGearPulseRouterTests
             output,
             PHprGearPulseRouterOptions.Default with
             {
-                Profile = PHprGearPulseProfile.Default with { Strength01 = 0.7d }
+                Profile = PHprGearPulseProfile.Default with { Strength01 = 5d }
             });
 
         var result = await router.RouteAsync(CreateShiftIntent(ShiftIntentDirection.Upshift));
@@ -137,8 +137,8 @@ public sealed class PHprGearPulseRouterTests
         Assert.True(result.WasRouted, result.Message);
         var command = Assert.IsType<PHprCommand>(result.Command);
         Assert.Equal(PHprSafetyLimits.Default.MaxStrength01, command.Strength01, precision: 6);
-        Assert.True(command.SafetyFlags.HasFlag(PHprSafetyFlags.ClampedStrength));
-        Assert.Equal(PHprSafetyDecisionKind.AcceptedWithClamp, result.SafetySnapshot?.LastDecision?.Kind);
+        Assert.False(command.SafetyFlags.HasFlag(PHprSafetyFlags.ClampedStrength));
+        Assert.Equal(PHprSafetyDecisionKind.Accepted, result.SafetySnapshot?.LastDecision?.Kind);
     }
 
     [Theory]

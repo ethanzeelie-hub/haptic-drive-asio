@@ -21,7 +21,7 @@ public sealed class PhprEffectProfileStoreTests
                     IsEnabled = false,
                     TargetModule = PHprGearPulseTarget.Brake,
                     Strength01 = 0.07d,
-                    FrequencyHz = 58d,
+                    FrequencyHz = 50d,
                     DurationMs = 64
                 },
                 RealPhprRoadVibrationRouting = new RealPhprRoadVibrationRoutingSetting
@@ -33,7 +33,7 @@ public sealed class PhprEffectProfileStoreTests
                         MinimumStrength01 = 0.02d,
                         Strength01 = 0.06d,
                         MinimumFrequencyHz = 30d,
-                        FrequencyHz = 60d,
+                        FrequencyHz = 50d,
                         DurationMs = 70
                     }
                 },
@@ -44,7 +44,7 @@ public sealed class PhprEffectProfileStoreTests
                     {
                         TargetModule = PHprGearPulseTarget.Both,
                         Strength01 = 0.06d,
-                        FrequencyHz = 65d
+                        FrequencyHz = 50d
                     }
                 }
             });
@@ -80,7 +80,7 @@ public sealed class PhprEffectProfileStoreTests
                     Brake = new RealPhprGearPulseSetting
                     {
                         Strength01 = 0.08d,
-                        FrequencyHz = 55d,
+                        FrequencyHz = 50d,
                         DurationMs = 60
                     }
                 }
@@ -127,9 +127,9 @@ public sealed class PhprEffectProfileStoreTests
         Assert.NotNull(loadResult.Profile);
         Assert.True(saveResult.WasRepaired);
         Assert.Equal(PHprGearPulseTarget.Throttle, loadResult.Profile.RealPhprSlipLockRouting.WheelSlip.TargetModule);
-        Assert.Equal(0.10d, loadResult.Profile.RealPhprSlipLockRouting.WheelSlip.Strength01);
-        Assert.Equal(250d, loadResult.Profile.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
-        Assert.Equal(100, loadResult.Profile.RealPhprSlipLockRouting.WheelSlip.DurationMs);
+        Assert.Equal(1.0d, loadResult.Profile.RealPhprSlipLockRouting.WheelSlip.Strength01);
+        Assert.Equal(50d, loadResult.Profile.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
+        Assert.Equal(1_000, loadResult.Profile.RealPhprSlipLockRouting.WheelSlip.DurationMs);
     }
 
     [Fact]

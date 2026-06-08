@@ -437,3 +437,11 @@
 - `docs/QUICK_START.md`, `docs/TROUBLESHOOTING.md`, and `docs/FINAL_P_HPR_ACCEPTANCE.md` summarize current workflows, but local hardware evidence is still required before marking P-HPR physically accepted.
 - Remaining physical risks are unchanged: pedal mapping, emergency-stop physical behavior, wrong-pedal behavior, sustained vibration, safe gain, physical latency, road feel, slip feel, lock feel, and real SimPro/SimHub coexistence.
 - The ASIO/BST-1 audio path is unchanged by Phase 3H.
+
+## Phase 3I
+
+- The normal Devices UI is simplified, but physical P-HPR behavior is still unvalidated.
+- Advanced diagnostics can be shown from a persisted preference, but real direct control remains disabled/unarmed by default and still requires explicit enable, arm, selected device/interface/report, clear coexistence, and clear emergency stop.
+- The user-facing P-HPR range is now 0-100% strength, 1-50 Hz, and 10-1000 ms; these are software limits and still are not validated safe physical gain or final tuning.
+- Mock test pulses are software/mock only unless Direct mode is explicitly ready; they do not prove physical brake/throttle mapping, stop behavior, or sustained-vibration safety.
+- The ASIO/BST-1 audio path is unchanged by Phase 3I.

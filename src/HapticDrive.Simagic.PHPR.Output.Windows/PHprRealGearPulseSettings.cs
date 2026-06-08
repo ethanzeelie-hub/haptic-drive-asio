@@ -8,7 +8,7 @@ public sealed record PHprRealGearPulseSettings
 
     public bool IsEnabled { get; init; } = true;
 
-    public double Strength01 { get; init; } = 0.05d;
+    public double Strength01 { get; init; } = 0.10d;
 
     public double FrequencyHz { get; init; } = 50d;
 
@@ -21,7 +21,7 @@ public sealed record PHprRealGearPulseSettings
         {
             Strength01 = double.IsFinite(Strength01) ? Math.Clamp(Strength01, 0d, safetyLimits.MaxStrength01) : Default.Strength01,
             FrequencyHz = double.IsFinite(FrequencyHz) ? Math.Clamp(FrequencyHz, safetyLimits.MinFrequencyHz, safetyLimits.MaxFrequencyHz) : Default.FrequencyHz,
-            DurationMs = Math.Clamp(DurationMs, 0, safetyLimits.MaxDurationMs)
+            DurationMs = Math.Clamp(DurationMs, 10, safetyLimits.MaxDurationMs)
         };
     }
 }

@@ -2,15 +2,15 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock/fake output only.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock/fake output only. Phase 3I simplifies normal Devices controls and moves research internals behind Advanced diagnostics.
 
 No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
 
 ## Devices Page Controls
 
-Open the Devices page and find `P-HPR Real Direct Control`.
+Open the Devices page and find `Simagic P-HPR Pedals`.
 
-The `P-HPR Workflow Summary` section shows the current mode (`Disabled`, `Mock`, or `Real Direct Control`), selected-output status, coexistence state, direct-control arm state, emergency-stop state, validation status, settings summaries, counters, and warnings without printing private device paths.
+The normal P-HPR pedals section shows the current mode (`Disabled`, `Mock`, or `Direct`), brake/throttle pulse settings, emergency-stop controls, selected-output status, and last pulse result without printing private device paths. Detailed workflow, direct-control, validation, and mock-routing internals are under `Advanced / Diagnostics` and hidden by default.
 
 The section starts disabled and unarmed every app launch. The selected device path is not saved.
 
@@ -59,9 +59,9 @@ Phase 3G diagnostics add a passive live F1 25 validation checklist covering tele
 For later supervised local validation:
 
 - one pedal at a time,
-- strength no higher than `0.10`,
-- duration no higher than `100 ms`,
-- conservative frequency such as `50 Hz`,
+- start from `10%` strength,
+- start from `50 ms` duration,
+- conservative frequency such as `50 Hz` and never above the user-facing `50 Hz` cap,
 - no loop,
 - emergency stop visible,
 - SimPro Manager closed,

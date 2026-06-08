@@ -48,6 +48,7 @@
 - Phase 3F: Integrated replay validation complete.
 - Phase 3G: Manual live F1 25 validation workflow complete.
 - Phase 3H: Final P-HPR acceptance package complete.
+- Phase 3I: Simplified P-HPR controls and routing UI complete.
 
 ## Planned Stages
 
@@ -102,6 +103,7 @@ Phase 2 safe sequence:
 24. Phase 3F: Integrated replay validation. Complete.
 25. Phase 3G: Manual live F1 25 validation workflow. Complete.
 26. Phase 3H: Final P-HPR acceptance package. Complete.
+27. Phase 3I: Simplified P-HPR controls and routing UI. Complete.
 
 The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path, controlled validation harness, adapter hardening, instant gear-pulse route, road-vibration route, wheel-slip/wheel-lock route, P-HPR UI/profile/diagnostics workflow, integrated replay validation, manual live F1 validation workflow, and final P-HPR acceptance package. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
 
@@ -147,3 +149,4 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Phase 3F completes integrated replay validation for P-HPR road/slip/lock routing with deterministic synthetic replay tests, replay-source diagnostics, `DrivingArmed` replay checks, stale/emergency/profile-setting coverage, and no synthetic gear-paddle events; it does not run real writes, validate live F1 25 behavior, or prove physical P-HPR behavior.
 - Phase 3G completes a passive manual live F1 25 P-HPR validation workflow with Devices-page checklist and diagnostics coverage for telemetry, `DrivingArmed`, paddle listener, output mode, coexistence, emergency stop, gear pulse, road, slip/lock, menu suppression, and conflict warnings; it does not execute hardware writes, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
 - Phase 3H completes final quick-start, troubleshooting, acceptance, safety, and user-guide documentation; it does not change runtime output paths, execute hardware writes, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
+- Phase 3I simplifies the WPF shell into Dashboard, Devices, Effects, Routing / Mixer, Telemetry / UDP, Profiles, and Advanced / Diagnostics; moves P-HPR research/direct internals behind persisted Advanced mode; changes P-HPR UI settings to 0-100% strength, 1-50 Hz frequency, and 10-1000 ms duration; it does not execute hardware writes, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.

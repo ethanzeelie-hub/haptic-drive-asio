@@ -7,6 +7,20 @@ namespace HapticDrive.Asio.App.Tests;
 public sealed class AppSettingsStoreTests
 {
     [Fact]
+    public void RealPhprGearPulseDefaultsUseTenPercentFiftyHzFiftyMs()
+    {
+        var brake = AppSettings.Default.RealPhprGearPulseRouting.Brake;
+        var throttle = AppSettings.Default.RealPhprGearPulseRouting.Throttle;
+
+        Assert.Equal(0.10d, brake.Strength01);
+        Assert.Equal(50d, brake.FrequencyHz);
+        Assert.Equal(50, brake.DurationMs);
+        Assert.Equal(0.10d, throttle.Strength01);
+        Assert.Equal(50d, throttle.FrequencyHz);
+        Assert.Equal(50, throttle.DurationMs);
+    }
+
+    [Fact]
     public void RealPhprGearPulseSettingsPersistWithoutUnsafeDirectControlState()
     {
         using var directory = new TempDirectory();
@@ -21,7 +35,7 @@ public sealed class AppSettingsStoreTests
                 {
                     IsEnabled = true,
                     Strength01 = 0.07d,
-                    FrequencyHz = 55d,
+                    FrequencyHz = 50d,
                     DurationMs = 60
                 },
                 Throttle = new RealPhprGearPulseSetting
@@ -39,7 +53,7 @@ public sealed class AppSettingsStoreTests
 
         Assert.True(loaded.RealPhprGearPulseRouting.Brake.IsEnabled);
         Assert.Equal(0.07d, loaded.RealPhprGearPulseRouting.Brake.Strength01);
-        Assert.Equal(55d, loaded.RealPhprGearPulseRouting.Brake.FrequencyHz);
+        Assert.Equal(50d, loaded.RealPhprGearPulseRouting.Brake.FrequencyHz);
         Assert.Equal(60, loaded.RealPhprGearPulseRouting.Brake.DurationMs);
         Assert.False(loaded.RealPhprGearPulseRouting.Throttle.IsEnabled);
         Assert.Equal(0.04d, loaded.RealPhprGearPulseRouting.Throttle.Strength01);
@@ -68,7 +82,7 @@ public sealed class AppSettingsStoreTests
                     MinimumStrength01 = 0.02d,
                     Strength01 = 0.06d,
                     MinimumFrequencyHz = 30d,
-                    FrequencyHz = 60d,
+                    FrequencyHz = 50d,
                     DurationMs = 70
                 },
                 Throttle = new RealPhprRoadVibrationPedalSetting
@@ -91,7 +105,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.02d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumStrength01);
         Assert.Equal(0.06d, loaded.RealPhprRoadVibrationRouting.Brake.Strength01);
         Assert.Equal(30d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumFrequencyHz);
-        Assert.Equal(60d, loaded.RealPhprRoadVibrationRouting.Brake.FrequencyHz);
+        Assert.Equal(50d, loaded.RealPhprRoadVibrationRouting.Brake.FrequencyHz);
         Assert.Equal(70, loaded.RealPhprRoadVibrationRouting.Brake.DurationMs);
         Assert.False(loaded.RealPhprRoadVibrationRouting.Throttle.IsEnabled);
         Assert.DoesNotContain("DirectControlEnabled", json, StringComparison.Ordinal);
@@ -118,7 +132,7 @@ public sealed class AppSettingsStoreTests
                     MinimumStrength01 = 0.02d,
                     Strength01 = 0.06d,
                     MinimumFrequencyHz = 35d,
-                    FrequencyHz = 65d,
+                    FrequencyHz = 50d,
                     DurationMs = 70
                 },
                 WheelLock = new RealPhprSlipLockEffectSetting
@@ -127,8 +141,8 @@ public sealed class AppSettingsStoreTests
                     TargetModule = PHprGearPulseTarget.Throttle,
                     MinimumStrength01 = 0.03d,
                     Strength01 = 0.08d,
-                    MinimumFrequencyHz = 55d,
-                    FrequencyHz = 85d,
+                    MinimumFrequencyHz = 50d,
+                    FrequencyHz = 50d,
                     DurationMs = 60
                 }
             }
@@ -143,7 +157,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.02d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumStrength01);
         Assert.Equal(0.06d, loaded.RealPhprSlipLockRouting.WheelSlip.Strength01);
         Assert.Equal(35d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumFrequencyHz);
-        Assert.Equal(65d, loaded.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
+        Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
         Assert.Equal(70, loaded.RealPhprSlipLockRouting.WheelSlip.DurationMs);
         Assert.False(loaded.RealPhprSlipLockRouting.WheelLock.IsEnabled);
         Assert.Equal(PHprGearPulseTarget.Throttle, loaded.RealPhprSlipLockRouting.WheelLock.TargetModule);
@@ -179,12 +193,12 @@ public sealed class AppSettingsStoreTests
 
         var loaded = store.Load();
 
-        Assert.Equal(0.10d, loaded.RealPhprGearPulseRouting.Brake.Strength01);
-        Assert.Equal(250d, loaded.RealPhprGearPulseRouting.Brake.FrequencyHz);
-        Assert.Equal(100, loaded.RealPhprGearPulseRouting.Brake.DurationMs);
-        Assert.Equal(0.05d, loaded.RealPhprGearPulseRouting.Throttle.Strength01);
+        Assert.Equal(1.0d, loaded.RealPhprGearPulseRouting.Brake.Strength01);
+        Assert.Equal(50d, loaded.RealPhprGearPulseRouting.Brake.FrequencyHz);
+        Assert.Equal(1_000, loaded.RealPhprGearPulseRouting.Brake.DurationMs);
+        Assert.Equal(0.10d, loaded.RealPhprGearPulseRouting.Throttle.Strength01);
         Assert.Equal(50d, loaded.RealPhprGearPulseRouting.Throttle.FrequencyHz);
-        Assert.Equal(0, loaded.RealPhprGearPulseRouting.Throttle.DurationMs);
+        Assert.Equal(10, loaded.RealPhprGearPulseRouting.Throttle.DurationMs);
     }
 
     [Fact]
@@ -220,16 +234,16 @@ public sealed class AppSettingsStoreTests
         var loaded = store.Load();
 
         Assert.True(loaded.RealPhprRoadVibrationRouting.IsEnabled);
-        Assert.Equal(0.10d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumStrength01);
-        Assert.Equal(0.10d, loaded.RealPhprRoadVibrationRouting.Brake.Strength01);
-        Assert.Equal(250d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumFrequencyHz);
-        Assert.Equal(250d, loaded.RealPhprRoadVibrationRouting.Brake.FrequencyHz);
-        Assert.Equal(100, loaded.RealPhprRoadVibrationRouting.Brake.DurationMs);
+        Assert.Equal(1.0d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumStrength01);
+        Assert.Equal(1.0d, loaded.RealPhprRoadVibrationRouting.Brake.Strength01);
+        Assert.Equal(50d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumFrequencyHz);
+        Assert.Equal(50d, loaded.RealPhprRoadVibrationRouting.Brake.FrequencyHz);
+        Assert.Equal(1_000, loaded.RealPhprRoadVibrationRouting.Brake.DurationMs);
         Assert.Equal(0.01d, loaded.RealPhprRoadVibrationRouting.Throttle.MinimumStrength01);
         Assert.Equal(0.04d, loaded.RealPhprRoadVibrationRouting.Throttle.Strength01);
         Assert.Equal(25d, loaded.RealPhprRoadVibrationRouting.Throttle.MinimumFrequencyHz);
         Assert.Equal(45d, loaded.RealPhprRoadVibrationRouting.Throttle.FrequencyHz);
-        Assert.Equal(0, loaded.RealPhprRoadVibrationRouting.Throttle.DurationMs);
+        Assert.Equal(10, loaded.RealPhprRoadVibrationRouting.Throttle.DurationMs);
     }
 
     [Fact]
@@ -267,17 +281,33 @@ public sealed class AppSettingsStoreTests
 
         Assert.True(loaded.RealPhprSlipLockRouting.IsEnabled);
         Assert.Equal(PHprGearPulseTarget.Throttle, loaded.RealPhprSlipLockRouting.WheelSlip.TargetModule);
-        Assert.Equal(0.10d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumStrength01);
-        Assert.Equal(0.10d, loaded.RealPhprSlipLockRouting.WheelSlip.Strength01);
-        Assert.Equal(250d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumFrequencyHz);
-        Assert.Equal(250d, loaded.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
-        Assert.Equal(100, loaded.RealPhprSlipLockRouting.WheelSlip.DurationMs);
+        Assert.Equal(1.0d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumStrength01);
+        Assert.Equal(1.0d, loaded.RealPhprSlipLockRouting.WheelSlip.Strength01);
+        Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumFrequencyHz);
+        Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
+        Assert.Equal(1_000, loaded.RealPhprSlipLockRouting.WheelSlip.DurationMs);
         Assert.Equal(PHprGearPulseTarget.Brake, loaded.RealPhprSlipLockRouting.WheelLock.TargetModule);
         Assert.Equal(0.04d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumStrength01);
         Assert.Equal(0.10d, loaded.RealPhprSlipLockRouting.WheelLock.Strength01);
-        Assert.Equal(60d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumFrequencyHz);
-        Assert.Equal(90d, loaded.RealPhprSlipLockRouting.WheelLock.FrequencyHz);
-        Assert.Equal(0, loaded.RealPhprSlipLockRouting.WheelLock.DurationMs);
+        Assert.Equal(40d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumFrequencyHz);
+        Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelLock.FrequencyHz);
+        Assert.Equal(10, loaded.RealPhprSlipLockRouting.WheelLock.DurationMs);
+    }
+
+    [Fact]
+    public void AdvancedDiagnosticsPreferenceDefaultsOffAndPersists()
+    {
+        using var directory = new TempDirectory();
+        var store = new AppSettingsStore(Path.Combine(directory.Path, "appsettings.json"));
+
+        Assert.False(store.Load().AdvancedDiagnosticsEnabled);
+
+        store.Save(new AppSettings
+        {
+            AdvancedDiagnosticsEnabled = true
+        });
+
+        Assert.True(store.Load().AdvancedDiagnosticsEnabled);
     }
 
     private sealed class TempDirectory : IDisposable

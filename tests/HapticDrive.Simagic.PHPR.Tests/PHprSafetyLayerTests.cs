@@ -13,12 +13,12 @@ public sealed class PHprSafetyLayerTests
         var limits = PHprSafetyLimits.Default;
 
         Assert.False(limits.AllowRealDeviceWrites);
-        Assert.Equal(0.10d, limits.MaxStrength01, precision: 6);
-        Assert.Equal(100, limits.MaxDurationMs);
-        Assert.Equal(5d, limits.MinFrequencyHz, precision: 6);
-        Assert.Equal(250d, limits.MaxFrequencyHz, precision: 6);
+        Assert.Equal(1.0d, limits.MaxStrength01, precision: 6);
+        Assert.Equal(1_000, limits.MaxDurationMs);
+        Assert.Equal(1d, limits.MinFrequencyHz, precision: 6);
+        Assert.Equal(50d, limits.MaxFrequencyHz, precision: 6);
         Assert.Equal(10, limits.MaxCommandsPerSecond);
-        Assert.Equal(500, limits.MaxContinuousDurationMs);
+        Assert.Equal(1_000, limits.MaxContinuousDurationMs);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class PHprSafetyLayerTests
     {
         var limiter = new PHprSafetyLimiter();
 
-        var decision = limiter.Evaluate(Pulse(PHprModuleId.Brake, 0.8d, 999d, 2_000));
+        var decision = limiter.Evaluate(Pulse(PHprModuleId.Brake, 5d, 999d, 2_000));
         var snapshot = limiter.GetSnapshot();
 
         Assert.Equal(PHprSafetyDecisionKind.AcceptedWithClamp, decision.Kind);
@@ -45,7 +45,7 @@ public sealed class PHprSafetyLayerTests
     [Fact]
     public void Limiter_ClampsLowFrequency()
     {
-        var decision = new PHprSafetyLimiter().Evaluate(Pulse(PHprModuleId.Brake, 0.05d, 1d, 50));
+        var decision = new PHprSafetyLimiter().Evaluate(Pulse(PHprModuleId.Brake, 0.05d, 0d, 50));
 
         Assert.Equal(PHprSafetyDecisionKind.AcceptedWithClamp, decision.Kind);
         Assert.NotNull(decision.Command);
@@ -60,7 +60,7 @@ public sealed class PHprSafetyLayerTests
         await using var output = new SafetyLimitedPhprOutputDevice(inner);
 
         var accepted = await output.SendAsync(Pulse(PHprModuleId.Brake, 0.05d, 50d, 60));
-        var clamped = await output.SendAsync(Pulse(PHprModuleId.Throttle, 0.8d, 999d, 2_000));
+        var clamped = await output.SendAsync(Pulse(PHprModuleId.Throttle, 5d, 999d, 2_000));
 
         Assert.True(accepted.Succeeded, accepted.Message);
         Assert.True(clamped.Succeeded, clamped.Message);

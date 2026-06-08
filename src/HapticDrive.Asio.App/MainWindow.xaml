@@ -712,6 +712,348 @@
                     </Border>
 
                     <Border x:Name="DevicesPanel"
+                            Style="{StaticResource CardBorderStyle}"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <Border Style="{StaticResource CardBorderStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                                   Text="Bass Shaker / ASIO" />
+                                        <TextBlock Grid.Column="1"
+                                                   Style="{StaticResource StatusBadgeTextBlockStyle}"
+                                                   Text="Audio path" />
+                                    </Grid>
+                                    <TextBlock x:Name="CurrentOutputStatusText"
+                                               Margin="0,12,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="NullOutputStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="WasapiDebugStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="AsioStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <WrapPanel Margin="0,16,0,0">
+                                        <ComboBox x:Name="OutputModeComboBox"
+                                                  Width="160"
+                                                  Margin="0,0,8,8"
+                                                  DisplayMemberPath="Label"
+                                                  SelectionChanged="OutputModeComboBox_SelectionChanged" />
+                                        <Button Width="132"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="RefreshAsioButton_Click"
+                                                Content="Refresh ASIO" />
+                                        <ComboBox x:Name="AsioDriverComboBox"
+                                                  Width="280"
+                                                  Margin="0,0,8,8"
+                                                  SelectionChanged="AsioDriverComboBox_SelectionChanged" />
+                                        <ComboBox x:Name="AsioOutputChannelComboBox"
+                                                  Width="120"
+                                                  Margin="0,0,8,8"
+                                                  SelectionChanged="AsioOutputChannelComboBox_SelectionChanged" />
+                                        <CheckBox x:Name="AsioArmCheckBox"
+                                                  Margin="0,4,8,8"
+                                                  Checked="AsioArmCheckBox_Changed"
+                                                  Unchecked="AsioArmCheckBox_Changed"
+                                                  Content="Arm ASIO" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="AsioReadinessStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="HardwareChainStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardBorderStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                                   Text="Simagic P-HPR Pedals" />
+                                        <TextBlock x:Name="PhprPedalsModeBadgeText"
+                                                   Grid.Column="1"
+                                                   Style="{StaticResource StatusBadgeTextBlockStyle}"
+                                                   Text="Disabled" />
+                                    </Grid>
+                                    <WrapPanel Margin="0,16,0,0">
+                                        <CheckBox x:Name="PhprPedalsMasterEnableCheckBox"
+                                                  Margin="0,4,18,8"
+                                                  Checked="PhprPedalsControl_Changed"
+                                                  Unchecked="PhprPedalsControl_Changed"
+                                                  Content="Enable P-HPR Pedals" />
+                                        <ComboBox x:Name="PhprPedalsModeComboBox"
+                                                  Width="160"
+                                                  Margin="0,0,8,8"
+                                                  DisplayMemberPath="Label"
+                                                  SelectionChanged="PhprPedalsModeComboBox_SelectionChanged" />
+                                        <Button Width="150"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                Click="PhprPedalsEmergencyStopButton_Click"
+                                                Content="Emergency Stop" />
+                                        <Button Width="190"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="ClearPhprPedalsEmergencyStopButton_Click"
+                                                Content="Clear Emergency Stop" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="PhprPedalsStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="PhprPedalsDeviceStatusText"
+                                               Margin="0,6,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="PhprPedalsLastResultText"
+                                               Margin="0,6,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <UniformGrid Columns="2"
+                                                 Margin="0,16,0,0">
+                                        <Border Margin="0,0,10,0"
+                                                Padding="16"
+                                                Background="{DynamicResource AppSurfaceAltBrush}"
+                                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold"
+                                                           Text="Brake P-HPR" />
+                                                <WrapPanel Margin="0,12,0,0">
+                                                    <CheckBox x:Name="NormalPhprBrakeEnabledCheckBox"
+                                                              Margin="0,4,12,8"
+                                                              Checked="PhprPedalsControl_Changed"
+                                                              Unchecked="PhprPedalsControl_Changed"
+                                                              Content="Enabled" />
+                                                    <TextBlock Margin="0,4,6,8"
+                                                               Style="{StaticResource MutedTextBlockStyle}"
+                                                               Text="Strength %" />
+                                                    <TextBox x:Name="NormalPhprBrakeStrengthTextBox"
+                                                             Width="64"
+                                                             Margin="0,0,8,8"
+                                                             Style="{StaticResource FieldTextBoxStyle}"
+                                                             LostFocus="PhprPedalsControl_LostFocus" />
+                                                    <TextBlock Margin="0,4,6,8"
+                                                               Style="{StaticResource MutedTextBlockStyle}"
+                                                               Text="Hz" />
+                                                    <TextBox x:Name="NormalPhprBrakeFrequencyTextBox"
+                                                             Width="64"
+                                                             Margin="0,0,8,8"
+                                                             Style="{StaticResource FieldTextBoxStyle}"
+                                                             LostFocus="PhprPedalsControl_LostFocus" />
+                                                    <TextBlock Margin="0,4,6,8"
+                                                               Style="{StaticResource MutedTextBlockStyle}"
+                                                               Text="ms" />
+                                                    <TextBox x:Name="NormalPhprBrakeDurationTextBox"
+                                                             Width="72"
+                                                             Margin="0,0,8,8"
+                                                             Style="{StaticResource FieldTextBoxStyle}"
+                                                             LostFocus="PhprPedalsControl_LostFocus" />
+                                                </WrapPanel>
+                                                <Button x:Name="TestPhprBrakePulseButton"
+                                                        Width="170"
+                                                        Margin="0,8,0,0"
+                                                        HorizontalAlignment="Left"
+                                                        Style="{StaticResource PrimaryButtonStyle}"
+                                                        Click="TestPhprBrakePulseButton_Click"
+                                                        Content="Test Brake Pulse" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Margin="10,0,0,0"
+                                                Padding="16"
+                                                Background="{DynamicResource AppSurfaceAltBrush}"
+                                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold"
+                                                           Text="Throttle P-HPR" />
+                                                <WrapPanel Margin="0,12,0,0">
+                                                    <CheckBox x:Name="NormalPhprThrottleEnabledCheckBox"
+                                                              Margin="0,4,12,8"
+                                                              Checked="PhprPedalsControl_Changed"
+                                                              Unchecked="PhprPedalsControl_Changed"
+                                                              Content="Enabled" />
+                                                    <TextBlock Margin="0,4,6,8"
+                                                               Style="{StaticResource MutedTextBlockStyle}"
+                                                               Text="Strength %" />
+                                                    <TextBox x:Name="NormalPhprThrottleStrengthTextBox"
+                                                             Width="64"
+                                                             Margin="0,0,8,8"
+                                                             Style="{StaticResource FieldTextBoxStyle}"
+                                                             LostFocus="PhprPedalsControl_LostFocus" />
+                                                    <TextBlock Margin="0,4,6,8"
+                                                               Style="{StaticResource MutedTextBlockStyle}"
+                                                               Text="Hz" />
+                                                    <TextBox x:Name="NormalPhprThrottleFrequencyTextBox"
+                                                             Width="64"
+                                                             Margin="0,0,8,8"
+                                                             Style="{StaticResource FieldTextBoxStyle}"
+                                                             LostFocus="PhprPedalsControl_LostFocus" />
+                                                    <TextBlock Margin="0,4,6,8"
+                                                               Style="{StaticResource MutedTextBlockStyle}"
+                                                               Text="ms" />
+                                                    <TextBox x:Name="NormalPhprThrottleDurationTextBox"
+                                                             Width="72"
+                                                             Margin="0,0,8,8"
+                                                             Style="{StaticResource FieldTextBoxStyle}"
+                                                             LostFocus="PhprPedalsControl_LostFocus" />
+                                                </WrapPanel>
+                                                <Button x:Name="TestPhprThrottlePulseButton"
+                                                        Width="190"
+                                                        Margin="0,8,0,0"
+                                                        HorizontalAlignment="Left"
+                                                        Style="{StaticResource PrimaryButtonStyle}"
+                                                        Click="TestPhprThrottlePulseButton_Click"
+                                                        Content="Test Throttle Pulse" />
+                                            </StackPanel>
+                                        </Border>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardBorderStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                                   Text="Simagic Wheel / Shift Paddles" />
+                                        <TextBlock x:Name="PaddleInputBadgeText"
+                                                   Grid.Column="1"
+                                                   Style="{StaticResource StatusBadgeTextBlockStyle}"
+                                                   Text="Listener stopped" />
+                                    </Grid>
+                                    <WrapPanel Margin="0,16,0,0">
+                                        <Button Width="170"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="RefreshInputDevicesButton_Click"
+                                                Content="Refresh Input Devices" />
+                                        <ComboBox x:Name="PaddleInputDeviceComboBox"
+                                                  Width="360"
+                                                  Margin="0,0,8,8"
+                                                  SelectionChanged="PaddleInputDeviceComboBox_SelectionChanged" />
+                                        <Button x:Name="StartPaddleInputListenerButton"
+                                                Width="145"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Click="StartPaddleInputListenerButton_Click"
+                                                Content="Start Listener" />
+                                        <Button x:Name="StopPaddleInputListenerButton"
+                                                Width="135"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="StopPaddleInputListenerButton_Click"
+                                                Content="Stop Listener" />
+                                    </WrapPanel>
+                                    <WrapPanel Margin="0,2,0,0">
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Left" />
+                                        <TextBox x:Name="LeftPaddleButtonTextBox"
+                                                 Width="72"
+                                                 Margin="0,0,8,8"
+                                                 Style="{StaticResource FieldTextBoxStyle}" />
+                                        <Button Width="210"
+                                                Margin="0,0,14,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="SetLeftPaddleFromLastChangedButton_Click"
+                                                Content="Set Left From Last Button" />
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Right" />
+                                        <TextBox x:Name="RightPaddleButtonTextBox"
+                                                 Width="72"
+                                                 Margin="0,0,8,8"
+                                                 Style="{StaticResource FieldTextBoxStyle}" />
+                                        <Button Width="220"
+                                                Margin="0,0,14,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="SetRightPaddleFromLastChangedButton_Click"
+                                                Content="Set Right From Last Button" />
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Debounce ms" />
+                                        <TextBox x:Name="PaddleDebounceTextBox"
+                                                 Width="72"
+                                                 Margin="0,0,8,8"
+                                                 Style="{StaticResource FieldTextBoxStyle}" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="InputDiscoveryStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <ItemsControl x:Name="InputDiscoveryItemsControl"
+                                                  Margin="0,10,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,0,0,8"
+                                                           Style="{StaticResource MutedTextBlockStyle}"
+                                                           Text="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock x:Name="PaddleInputStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <ItemsControl x:Name="PaddleInputItemsControl"
+                                                  Margin="0,10,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,0,0,8"
+                                                           Style="{StaticResource MutedTextBlockStyle}"
+                                                           Text="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <CheckBox x:Name="ShiftIntentEnabledCheckBox"
+                                                  Margin="0,4,12,8"
+                                                  Checked="ShiftIntentEnabledCheckBox_Changed"
+                                                  Unchecked="ShiftIntentEnabledCheckBox_Changed"
+                                                  Content="Enable Shift Intent" />
+                                        <ComboBox x:Name="ShiftIntentModeComboBox"
+                                                  Width="260"
+                                                  Margin="0,0,8,8"
+                                                  SelectionChanged="ShiftIntentModeComboBox_SelectionChanged" />
+                                        <Button Width="190"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="ClearShiftIntentDiagnosticsButton_Click"
+                                                Content="Clear Intent Counters" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="ShiftIntentStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <ItemsControl x:Name="ShiftIntentItemsControl"
+                                                  Margin="0,10,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,0,0,8"
+                                                           Style="{StaticResource MutedTextBlockStyle}"
+                                                           Text="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="AdvancedPhprDiagnosticsPanel"
                             Margin="0,0,0,24"
                             Padding="22"
                             Background="{DynamicResource AppSurfaceBrush}"
@@ -720,59 +1062,19 @@
                             CornerRadius="8"
                             Visibility="Collapsed">
                         <StackPanel>
-                            <TextBlock FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Text="Safe Output Status" />
-                            <TextBlock x:Name="CurrentOutputStatusText"
-                                       Margin="0,12,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
-                            <TextBlock x:Name="NullOutputStatusText"
+                            <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                       Text="Advanced Diagnostics" />
+                            <CheckBox x:Name="AdvancedDiagnosticsEnabledCheckBox"
+                                      Margin="0,14,0,0"
+                                      Checked="AdvancedDiagnosticsEnabledCheckBox_Changed"
+                                      Unchecked="AdvancedDiagnosticsEnabledCheckBox_Changed"
+                                      Content="Show advanced diagnostics and research controls" />
+                            <TextBlock x:Name="AdvancedDiagnosticsGateText"
                                        Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
-                            <TextBlock x:Name="WasapiDebugStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
-                            <TextBlock x:Name="AsioStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
-                            <TextBlock Margin="0,18,0,0"
-                                       FontWeight="SemiBold"
-                                       Text="Output Selection" />
-                            <WrapPanel Margin="0,10,0,0">
-                                <ComboBox x:Name="OutputModeComboBox"
-                                          Width="150"
-                                          Margin="0,0,8,8"
-                                          DisplayMemberPath="Label"
-                                          SelectionChanged="OutputModeComboBox_SelectionChanged" />
-                                <Button Width="130"
-                                        Margin="0,0,8,8"
-                                        Click="RefreshAsioButton_Click"
-                                        Content="Refresh ASIO" />
-                            </WrapPanel>
-                            <TextBlock Margin="0,10,0,0"
-                                       FontWeight="SemiBold"
-                                       Text="ASIO Readiness" />
-                            <WrapPanel Margin="0,10,0,0">
-                                <ComboBox x:Name="AsioDriverComboBox"
-                                          Width="260"
-                                          Margin="0,0,8,8"
-                                          SelectionChanged="AsioDriverComboBox_SelectionChanged" />
-                                <ComboBox x:Name="AsioOutputChannelComboBox"
-                                          Width="120"
-                                          Margin="0,0,8,8"
-                                          SelectionChanged="AsioOutputChannelComboBox_SelectionChanged" />
-                                <CheckBox x:Name="AsioArmCheckBox"
-                                          Margin="0,4,8,8"
-                                          Checked="AsioArmCheckBox_Changed"
-                                          Unchecked="AsioArmCheckBox_Changed"
-                                          Content="Arm ASIO" />
-                            </WrapPanel>
-                            <TextBlock x:Name="AsioReadinessStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
-                            <TextBlock x:Name="HardwareChainStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="Advanced diagnostics are hidden by default. Normal P-HPR mock controls, paddle mapping, and emergency stop are available on Devices without enabling this." />
+                            <StackPanel x:Name="AdvancedDiagnosticsContentPanel"
+                                        Visibility="Collapsed">
                             <TextBlock Margin="0,18,0,0"
                                        FontWeight="SemiBold"
                                        Text="P-HPR Workflow Summary" />
@@ -916,7 +1218,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Strength" />
+                                           Text="Strength %" />
                                 <TextBox x:Name="RealPhprBrakeStrengthTextBox"
                                          Width="72"
                                          Margin="0,0,8,8"
@@ -952,7 +1254,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Strength" />
+                                           Text="Strength %" />
                                 <TextBox x:Name="RealPhprThrottleStrengthTextBox"
                                          Width="72"
                                          Margin="0,0,8,8"
@@ -1002,7 +1304,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Min/Max Strength" />
+                                           Text="Min/Max Strength %" />
                                 <TextBox x:Name="RealRoadBrakeMinStrengthTextBox"
                                          Width="60"
                                          Margin="0,0,4,8"
@@ -1046,7 +1348,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Min/Max Strength" />
+                                           Text="Min/Max Strength %" />
                                 <TextBox x:Name="RealRoadThrottleMinStrengthTextBox"
                                          Width="60"
                                          Margin="0,0,4,8"
@@ -1108,7 +1410,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Min/Max Strength" />
+                                           Text="Min/Max Strength %" />
                                 <TextBox x:Name="RealSlipMinStrengthTextBox"
                                          Width="60"
                                          Margin="0,0,4,8"
@@ -1156,7 +1458,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Min/Max Strength" />
+                                           Text="Min/Max Strength %" />
                                 <TextBox x:Name="RealLockMinStrengthTextBox"
                                          Width="60"
                                          Margin="0,0,4,8"
@@ -1368,128 +1670,6 @@
                             </ItemsControl>
                             <TextBlock Margin="0,18,0,0"
                                        FontWeight="SemiBold"
-                                       Text="Input Discovery" />
-                            <WrapPanel Margin="0,10,0,0">
-                                <Button Width="170"
-                                        Margin="0,0,8,8"
-                                        Click="RefreshInputDevicesButton_Click"
-                                        Content="Refresh Input Devices" />
-                            </WrapPanel>
-                            <TextBlock x:Name="InputDiscoveryStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       TextWrapping="Wrap" />
-                            <ItemsControl x:Name="InputDiscoveryItemsControl"
-                                          Margin="0,10,0,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Margin="0,0,0,8"
-                                                   Foreground="{DynamicResource AppMutedTextBrush}"
-                                                   Text="{Binding}"
-                                                   TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Margin="0,18,0,0"
-                                       FontWeight="SemiBold"
-                                       Text="Live Paddle Input Diagnostics" />
-                            <WrapPanel Margin="0,10,0,0">
-                                <ComboBox x:Name="PaddleInputDeviceComboBox"
-                                          Width="360"
-                                          Margin="0,0,8,8"
-                                          SelectionChanged="PaddleInputDeviceComboBox_SelectionChanged" />
-                                <Button x:Name="StartPaddleInputListenerButton"
-                                        Width="150"
-                                        Margin="0,0,8,8"
-                                        Click="StartPaddleInputListenerButton_Click"
-                                        Content="Start Listener" />
-                                <Button x:Name="StopPaddleInputListenerButton"
-                                        Width="140"
-                                        Margin="0,0,8,8"
-                                        Click="StopPaddleInputListenerButton_Click"
-                                        Content="Stop Listener" />
-                            </WrapPanel>
-                            <WrapPanel Margin="0,2,0,0">
-                                <TextBlock Margin="0,4,6,8"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Left" />
-                                <TextBox x:Name="LeftPaddleButtonTextBox"
-                                         Width="72"
-                                         Margin="0,0,8,8" />
-                                <Button Width="210"
-                                        Margin="0,0,14,8"
-                                        Click="SetLeftPaddleFromLastChangedButton_Click"
-                                        Content="Set Left From Last Button" />
-                                <TextBlock Margin="0,4,6,8"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Right" />
-                                <TextBox x:Name="RightPaddleButtonTextBox"
-                                         Width="72"
-                                         Margin="0,0,8,8" />
-                                <Button Width="220"
-                                        Margin="0,0,14,8"
-                                        Click="SetRightPaddleFromLastChangedButton_Click"
-                                        Content="Set Right From Last Button" />
-                                <TextBlock Margin="0,4,6,8"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Debounce ms" />
-                                <TextBox x:Name="PaddleDebounceTextBox"
-                                         Width="72"
-                                         Margin="0,0,8,8" />
-                            </WrapPanel>
-                            <TextBlock x:Name="PaddleInputStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       TextWrapping="Wrap" />
-                            <ItemsControl x:Name="PaddleInputItemsControl"
-                                          Margin="0,10,0,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Margin="0,0,0,8"
-                                                   Foreground="{DynamicResource AppMutedTextBrush}"
-                                                   Text="{Binding}"
-                                                   TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Margin="0,18,0,0"
-                                       FontWeight="SemiBold"
-                                       Text="Shift Intent Diagnostics" />
-                            <WrapPanel Margin="0,10,0,0">
-                                <CheckBox x:Name="ShiftIntentEnabledCheckBox"
-                                          Margin="0,4,12,8"
-                                          Checked="ShiftIntentEnabledCheckBox_Changed"
-                                          Unchecked="ShiftIntentEnabledCheckBox_Changed"
-                                          Content="Enable Shift Intent" />
-                                <ComboBox x:Name="ShiftIntentModeComboBox"
-                                          Width="260"
-                                          Margin="0,0,8,8"
-                                          SelectionChanged="ShiftIntentModeComboBox_SelectionChanged" />
-                                <Button Width="190"
-                                        Margin="0,0,8,8"
-                                        Click="ClearShiftIntentDiagnosticsButton_Click"
-                                        Content="Clear Intent Counters" />
-                            </WrapPanel>
-                            <TextBlock x:Name="ShiftIntentStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       TextWrapping="Wrap" />
-                            <ItemsControl x:Name="ShiftIntentItemsControl"
-                                          Margin="0,10,0,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Margin="0,0,0,8"
-                                                   Foreground="{DynamicResource AppMutedTextBrush}"
-                                                   Text="{Binding}"
-                                                   TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Margin="0,18,0,0"
-                                       FontWeight="SemiBold"
                                        Text="Mock P-HPR Gear Routing" />
                             <WrapPanel Margin="0,10,0,0">
                                 <CheckBox x:Name="MockGearPulseEnabledCheckBox"
@@ -1504,7 +1684,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Strength" />
+                                           Text="Strength %" />
                                 <TextBox x:Name="MockGearPulseStrengthTextBox"
                                          Width="72"
                                          Margin="0,0,8,8"
@@ -1598,7 +1778,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Strength" />
+                                           Text="Strength %" />
                                 <TextBox x:Name="RoadPedalEffectStrengthTextBox"
                                          Width="72"
                                          Margin="0,0,8,8"
@@ -1638,7 +1818,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Strength" />
+                                           Text="Strength %" />
                                 <TextBox x:Name="SlipPedalEffectStrengthTextBox"
                                          Width="72"
                                          Margin="0,0,8,8"
@@ -1678,7 +1858,7 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Strength" />
+                                           Text="Strength %" />
                                 <TextBox x:Name="LockPedalEffectStrengthTextBox"
                                          Width="72"
                                          Margin="0,0,8,8"
@@ -1715,6 +1895,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

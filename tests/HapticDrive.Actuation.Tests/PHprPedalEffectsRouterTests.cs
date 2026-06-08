@@ -127,7 +127,7 @@ public sealed class PHprPedalEffectsRouterTests
     }
 
     [Fact]
-    public async Task SafetyLimiterClampsExcessiveStrength()
+    public async Task ProfileNormalizerKeepsScaledStrengthWithinSafetyLimit()
     {
         await using var inner = new MockPhprOutputDevice();
         await using var output = new SafetyLimitedPhprOutputDevice(inner);
@@ -138,7 +138,7 @@ public sealed class PHprPedalEffectsRouterTests
             {
                 WheelSlip = defaults with
                 {
-                    Profile = defaults.Profile with { Strength01 = 0.8d }
+                    Profile = defaults.Profile with { Strength01 = 5d }
                 }
             });
 
@@ -146,9 +146,10 @@ public sealed class PHprPedalEffectsRouterTests
 
         Assert.True(result.WasRouted, result.Message);
         var command = Assert.Single(inner.CommandHistory);
-        Assert.Equal(PHprSafetyLimits.Default.MaxStrength01, command.Strength01, precision: 6);
-        Assert.True(command.SafetyFlags.HasFlag(PHprSafetyFlags.ClampedStrength));
-        Assert.Equal(PHprSafetyDecisionKind.AcceptedWithClamp, result.SafetySnapshot?.LastDecision?.Kind);
+        Assert.InRange(command.Strength01, 0d, PHprSafetyLimits.Default.MaxStrength01);
+        Assert.True(command.Strength01 > defaults.Profile.Strength01);
+        Assert.False(command.SafetyFlags.HasFlag(PHprSafetyFlags.ClampedStrength));
+        Assert.Equal(PHprSafetyDecisionKind.Accepted, result.SafetySnapshot?.LastDecision?.Kind);
     }
 
     [Fact]

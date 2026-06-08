@@ -10,11 +10,11 @@ public sealed record PHprSafetyLimits(
     bool AllowRealDeviceWrites)
 {
     public static PHprSafetyLimits Default { get; } = new(
-        MaxStrength01: 0.10d,
-        MaxDurationMs: 100,
-        MinFrequencyHz: 5d,
-        MaxFrequencyHz: 250d,
+        MaxStrength01: 1.0d,
+        MaxDurationMs: 1_000,
+        MinFrequencyHz: 1d,
+        MaxFrequencyHz: 50d,
         MaxCommandsPerSecond: 10,
-        MaxContinuousDurationMs: 500,
+        MaxContinuousDurationMs: 1_000,
         AllowRealDeviceWrites: false);
 }

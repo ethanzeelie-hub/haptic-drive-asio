@@ -12,8 +12,8 @@ public sealed class PHprAbstractionTests
         var limits = PHprSafetyLimits.Default;
 
         Assert.False(limits.AllowRealDeviceWrites);
-        Assert.Equal(0.10d, limits.MaxStrength01, precision: 6);
-        Assert.Equal(100, limits.MaxDurationMs);
+        Assert.Equal(1.0d, limits.MaxStrength01, precision: 6);
+        Assert.Equal(1_000, limits.MaxDurationMs);
         Assert.InRange(limits.MaxCommandsPerSecond, 1, 20);
         Assert.True(limits.MaxContinuousDurationMs >= limits.MaxDurationMs);
     }
@@ -23,7 +23,7 @@ public sealed class PHprAbstractionTests
     {
         var command = PHprCommand.Create(
             PHprModuleId.Both,
-            strength01: 0.8d,
+            strength01: 1.5d,
             frequencyHz: 999d,
             durationMs: 2_000,
             PHprCommandSource.PaddleShiftIntent);

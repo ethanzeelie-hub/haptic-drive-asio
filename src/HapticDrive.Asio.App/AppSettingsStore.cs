@@ -160,9 +160,9 @@ internal sealed class AppSettingsStore
                 ? Math.Clamp(setting.Strength01, 0d, 1d)
                 : 0.05d,
             FrequencyHz = double.IsFinite(setting.FrequencyHz)
-                ? Math.Clamp(setting.FrequencyHz, 1d, 1_000d)
+                ? PhprUiValueConverter.ClampFrequencyHz(setting.FrequencyHz)
                 : 50d,
-            DurationMs = Math.Clamp(setting.DurationMs, 0, 1_000)
+            DurationMs = PhprUiValueConverter.ClampDurationMs(setting.DurationMs)
         };
     }
 
@@ -330,9 +330,9 @@ internal sealed class AppSettingsStore
                 ? Math.Clamp(setting.Strength01, 0d, 1d)
                 : defaultProfile.Strength01,
             FrequencyHz = double.IsFinite(setting.FrequencyHz)
-                ? Math.Clamp(setting.FrequencyHz, 1d, 1_000d)
+                ? PhprUiValueConverter.ClampFrequencyHz(setting.FrequencyHz)
                 : defaultProfile.FrequencyHz,
-            DurationMs = Math.Clamp(setting.DurationMs, 0, 1_000)
+            DurationMs = PhprUiValueConverter.ClampDurationMs(setting.DurationMs)
         };
     }
 
@@ -345,6 +345,8 @@ internal sealed class AppSettingsStore
 internal sealed record AppSettings
 {
     public bool UseLightTheme { get; init; }
+
+    public bool AdvancedDiagnosticsEnabled { get; init; }
 
     public string? LastAsioDriverName { get; init; }
 
@@ -431,7 +433,7 @@ internal sealed record RealPhprGearPulseSetting
 
     public bool IsEnabled { get; init; } = true;
 
-    public double Strength01 { get; init; } = 0.05d;
+    public double Strength01 { get; init; } = 0.10d;
 
     public double FrequencyHz { get; init; } = 50d;
 

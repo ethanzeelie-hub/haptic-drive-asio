@@ -1899,3 +1899,39 @@ Self-review:
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - The ASIO/BST-1 audio path was not changed.
 - Phase 3H completes the final stage in the pasted master prompt.
+
+## Phase 3I - P-HPR UI Simplification And Routing Cleanup
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Simplify P-HPR from a research/debug harness into normal app controls while preserving advanced diagnostics, mock safety coverage, direct-control gates, and hardware-absent development.
+
+Notes:
+
+- Reworked the Devices page around normal user-facing cards for Bass Shaker / ASIO, Simagic P-HPR Pedals, and Simagic Wheel / Shift Paddles.
+- Moved raw P-HPR real direct control internals, controlled validation harness details, input-discovery internals, shift-intent diagnostics, and mock routing internals behind a persisted Advanced / Diagnostics gate that defaults off.
+- Added normal P-HPR pedal controls using user-facing percentages, a 1-50 Hz frequency range, and safe 10%, 50 Hz, 50 ms default test pulses.
+- Kept mock brake/throttle test pulses available in Mock mode, blocked pulses in Disabled mode, and left Direct mode behind the existing manual enablement, arming, device/interface/report, coexistence, emergency-stop, and module-ready gates.
+- Preserved emergency-stop behavior across mock gear routing, mock pedal effects routing, and real direct output.
+- Added `PhprUiValueConverter` and persistence coverage so P-HPR settings remain separate from the ASIO/BST-1 audio output settings.
+- Updated safety/default normalization and documentation for the new 0-100%, 1-50 Hz, and 10-1000 ms user-facing model.
+- Added and updated tests for percent conversion, frequency/duration caps, default real gear pulses, advanced diagnostics persistence, P-HPR settings persistence, mock/direct safety normalization, and hardware-absent behavior.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 449 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+
+Self-review:
+
+- Phase 3I changes UI, settings, safe mock/direct routing gates, tests, and docs only; it does not add a new real hardware write approval path or bypass any existing manual direct-control gate.
+- Direct P-HPR writes remain unavailable unless the existing runtime readiness checks pass, and no controlled real P-HPR write testing is claimed.
+- Automated tests do not require ASIO hardware, shaker hardware, F1 25, Simagic P-HPR modules, or wheel hardware.
+- No physical shaker feel, physical P-HPR feel, safe gain, latency, sustained-vibration behavior, slip feel, lock feel, live F1 behavior, or real SimPro/SimHub coexistence claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- The F1 25 telemetry parser and ASIO/BST-1 audio path were not changed.
+- Phase 3I completes the pasted P-HPR UI simplification prompt.
