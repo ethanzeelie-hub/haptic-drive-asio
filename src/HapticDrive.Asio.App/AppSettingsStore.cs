@@ -94,7 +94,8 @@ internal sealed class AppSettingsStore
             ForwardingDestinations = destinations,
             PaddleInputMapping = SanitizePaddleInputMapping(settings.PaddleInputMapping),
             ShiftIntent = SanitizeShiftIntent(settings.ShiftIntent),
-            MockGearPulseRouting = SanitizeMockGearPulseRouting(settings.MockGearPulseRouting)
+            MockGearPulseRouting = SanitizeMockGearPulseRouting(settings.MockGearPulseRouting),
+            MockPedalEffectsRouting = SanitizeMockPedalEffectsRouting(settings.MockPedalEffectsRouting)
         };
     }
 
@@ -161,6 +162,49 @@ internal sealed class AppSettingsStore
         };
     }
 
+    private static MockPedalEffectsRoutingSetting SanitizeMockPedalEffectsRouting(MockPedalEffectsRoutingSetting? setting)
+    {
+        if (setting is null)
+        {
+            return new MockPedalEffectsRoutingSetting();
+        }
+
+        return setting with
+        {
+            RoadVibration = SanitizeMockPedalEffect(setting.RoadVibration, PHprPedalEffectKind.RoadVibration),
+            WheelSlip = SanitizeMockPedalEffect(setting.WheelSlip, PHprPedalEffectKind.WheelSlip),
+            WheelLock = SanitizeMockPedalEffect(setting.WheelLock, PHprPedalEffectKind.WheelLock)
+        };
+    }
+
+    private static MockPedalEffectSetting SanitizeMockPedalEffect(
+        MockPedalEffectSetting? setting,
+        PHprPedalEffectKind kind)
+    {
+        var defaults = MockPedalEffectSetting.DefaultFor(kind);
+        if (setting is null)
+        {
+            return defaults;
+        }
+
+        var target = Enum.IsDefined(setting.TargetModule)
+            ? setting.TargetModule
+            : defaults.TargetModule;
+        var defaultProfile = PHprPedalEffectProfile.DefaultFor(kind);
+
+        return setting with
+        {
+            TargetModule = target,
+            Strength01 = double.IsFinite(setting.Strength01)
+                ? Math.Clamp(setting.Strength01, 0d, 1d)
+                : defaultProfile.Strength01,
+            FrequencyHz = double.IsFinite(setting.FrequencyHz)
+                ? Math.Clamp(setting.FrequencyHz, 1d, 1_000d)
+                : defaultProfile.FrequencyHz,
+            DurationMs = Math.Clamp(setting.DurationMs, 0, 1_000)
+        };
+    }
+
     private static int? NormalizeButtonId(int? buttonId)
     {
         return buttonId is > 0 and <= 128 ? buttonId : null;
@@ -182,6 +226,8 @@ internal sealed record AppSettings
     public ShiftIntentSetting ShiftIntent { get; init; } = new();
 
     public MockGearPulseRoutingSetting MockGearPulseRouting { get; init; } = new();
+
+    public MockPedalEffectsRoutingSetting MockPedalEffectsRouting { get; init; } = new();
 
     public string? LastStatusMessage { get; init; }
 
@@ -219,6 +265,45 @@ internal sealed record MockGearPulseRoutingSetting
     public double FrequencyHz { get; init; } = 50d;
 
     public int DurationMs { get; init; } = 50;
+}
+
+internal sealed record MockPedalEffectsRoutingSetting
+{
+    public bool IsEnabled { get; init; } = true;
+
+    public MockPedalEffectSetting RoadVibration { get; init; } =
+        MockPedalEffectSetting.DefaultFor(PHprPedalEffectKind.RoadVibration);
+
+    public MockPedalEffectSetting WheelSlip { get; init; } =
+        MockPedalEffectSetting.DefaultFor(PHprPedalEffectKind.WheelSlip);
+
+    public MockPedalEffectSetting WheelLock { get; init; } =
+        MockPedalEffectSetting.DefaultFor(PHprPedalEffectKind.WheelLock);
+}
+
+internal sealed record MockPedalEffectSetting
+{
+    public bool IsEnabled { get; init; } = true;
+
+    public PHprGearPulseTarget TargetModule { get; init; } = PHprGearPulseTarget.Both;
+
+    public double Strength01 { get; init; } = 0.04d;
+
+    public double FrequencyHz { get; init; } = 45d;
+
+    public int DurationMs { get; init; } = 50;
+
+    public static MockPedalEffectSetting DefaultFor(PHprPedalEffectKind kind)
+    {
+        var state = PHprPedalEffectState.DefaultFor(kind);
+        return new MockPedalEffectSetting
+        {
+            TargetModule = state.TargetModule,
+            Strength01 = state.Profile.Strength01,
+            FrequencyHz = state.Profile.FrequencyHz,
+            DurationMs = state.Profile.DurationMs
+        };
+    }
 }
 
 internal sealed record ForwardingDestinationSetting

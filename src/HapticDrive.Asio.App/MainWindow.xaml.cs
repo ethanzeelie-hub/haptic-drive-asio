@@ -44,9 +44,10 @@ public partial class MainWindow : Window
         new WindowsGameControllerButtonStateReader());
     private readonly DrivingArmedStateService _drivingArmedStateService = new();
     private readonly ShiftIntentProcessor _shiftIntentProcessor;
-    private readonly MockPhprOutputDevice _mockGearPulseOutput = new();
-    private readonly SafetyLimitedPhprOutputDevice _mockGearPulseSafetyOutput;
+    private readonly MockPhprOutputDevice _mockPhprOutput = new();
+    private readonly SafetyLimitedPhprOutputDevice _mockPhprSafetyOutput;
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
+    private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
     private readonly IReadOnlyList<int> _asioOutputChannelChoices = Enumerable.Range(0, 8).ToArray();
     private readonly IReadOnlyList<ShiftIntentMode> _shiftIntentModeOptions = Enum.GetValues<ShiftIntentMode>();
     private readonly IReadOnlyList<PHprGearPulseTarget> _mockGearPulseTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
+    private readonly IReadOnlyList<PHprGearPulseTarget> _mockPedalEffectTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
 
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
@@ -247,6 +249,8 @@ public partial class MainWindow : Window
     private bool _updatingPaddleInputUi;
     private bool _updatingShiftIntentUi;
     private bool _updatingMockGearPulseUi;
+    private bool _updatingMockPedalEffectsUi;
+    private bool _routingMockPedalEffects;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -267,10 +271,13 @@ public partial class MainWindow : Window
         _shiftIntentProcessor = new ShiftIntentProcessor(
             _drivingArmedStateService,
             CreateShiftIntentOptions(appSettings.ShiftIntent));
-        _mockGearPulseSafetyOutput = new SafetyLimitedPhprOutputDevice(_mockGearPulseOutput);
+        _mockPhprSafetyOutput = new SafetyLimitedPhprOutputDevice(_mockPhprOutput);
         _mockGearPulseRouter = new PHprGearPulseRouter(
-            _mockGearPulseSafetyOutput,
+            _mockPhprSafetyOutput,
             CreateMockGearPulseRouterOptions(appSettings.MockGearPulseRouting));
+        _mockPedalEffectsRouter = new PHprPedalEffectsRouter(
+            _mockPhprSafetyOutput,
+            CreateMockPedalEffectsRouterOptions(appSettings.MockPedalEffectsRouting));
         _hapticPipeline = CreatePipelineForSelectedOutput();
 
         _updatingOutputUi = true;
@@ -290,6 +297,9 @@ public partial class MainWindow : Window
         TestBenchSignalComboBox.SelectedIndex = 1;
         ShiftIntentModeComboBox.ItemsSource = _shiftIntentModeOptions;
         MockGearPulseTargetComboBox.ItemsSource = _mockGearPulseTargetOptions;
+        RoadPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
+        SlipPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
+        LockPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
@@ -298,6 +308,7 @@ public partial class MainWindow : Window
         ApplyPaddleMappingToControls();
         ApplyShiftIntentSettingsToControls();
         ApplyMockGearPulseSettingsToControls();
+        ApplyMockPedalEffectsSettingsToControls();
         _paddleInputSource.RawButtonChanged += PaddleInputSource_InputChanged;
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_InputChanged;
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_PaddleInputReceived;
@@ -588,10 +599,41 @@ public partial class MainWindow : Window
         ApplyMockGearPulseOptionsFromControls("Mock P-HPR gear pulse profile updated.");
     }
 
+    private void MockPedalEffectsControl_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingMockPedalEffectsUi)
+        {
+            return;
+        }
+
+        ApplyMockPedalEffectsOptionsFromControls("Mock P-HPR pedal effects preferences updated.");
+    }
+
+    private void MockPedalEffectsControl_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingMockPedalEffectsUi)
+        {
+            return;
+        }
+
+        ApplyMockPedalEffectsOptionsFromControls("Mock P-HPR pedal effects target updated.");
+    }
+
+    private void MockPedalEffectsControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_updatingMockPedalEffectsUi)
+        {
+            return;
+        }
+
+        ApplyMockPedalEffectsOptionsFromControls("Mock P-HPR pedal effect profile updated.");
+    }
+
     private void ClearMockGearPulseDiagnosticsButton_Click(object sender, RoutedEventArgs e)
     {
         _mockGearPulseRouter.ClearDiagnostics();
         UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = "Mock P-HPR gear routing diagnostics cleared.";
     }
@@ -600,6 +642,7 @@ public partial class MainWindow : Window
     {
         var result = await _mockGearPulseRouter.EmergencyStopAsync();
         UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = result.Message;
     }
@@ -608,6 +651,34 @@ public partial class MainWindow : Window
     {
         _mockGearPulseRouter.ClearEmergencyStop();
         UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Mock P-HPR emergency stop cleared; no hardware write was performed.";
+    }
+
+    private void ClearMockPedalEffectsDiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _mockPedalEffectsRouter.ClearDiagnostics();
+        UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Mock P-HPR pedal effects diagnostics cleared.";
+    }
+
+    private async void MockPedalEffectsEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = await _mockPedalEffectsRouter.EmergencyStopAsync();
+        UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = result.Message;
+    }
+
+    private void ClearMockPedalEffectsEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        _mockPedalEffectsRouter.ClearEmergencyStop();
+        UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = "Mock P-HPR emergency stop cleared; no hardware write was performed.";
     }
@@ -640,6 +711,22 @@ public partial class MainWindow : Window
         _mockGearPulseRouter.Configure(options);
         SaveAppSettings();
         UpdateMockGearPulseStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = footerMessage;
+    }
+
+    private void ApplyMockPedalEffectsOptionsFromControls(string footerMessage)
+    {
+        if (!TryBuildMockPedalEffectsOptionsFromControls(out var options, out var message))
+        {
+            MockPedalEffectsStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return;
+        }
+
+        _mockPedalEffectsRouter.Configure(options);
+        SaveAppSettings();
+        UpdateMockPedalEffectsStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = footerMessage;
     }
@@ -1018,6 +1105,112 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private bool TryBuildMockPedalEffectsOptionsFromControls(
+        out PHprPedalEffectsRouterOptions options,
+        out string message)
+    {
+        var current = _mockPedalEffectsRouter.GetSnapshot().Options;
+        options = current;
+
+        if (!TryBuildPedalEffectState(
+                PHprPedalEffectKind.RoadVibration,
+                RoadPedalEffectEnabledCheckBox,
+                RoadPedalEffectTargetComboBox,
+                RoadPedalEffectStrengthTextBox,
+                RoadPedalEffectFrequencyTextBox,
+                RoadPedalEffectDurationTextBox,
+                out var road,
+                out message)
+            || !TryBuildPedalEffectState(
+                PHprPedalEffectKind.WheelSlip,
+                SlipPedalEffectEnabledCheckBox,
+                SlipPedalEffectTargetComboBox,
+                SlipPedalEffectStrengthTextBox,
+                SlipPedalEffectFrequencyTextBox,
+                SlipPedalEffectDurationTextBox,
+                out var slip,
+                out message)
+            || !TryBuildPedalEffectState(
+                PHprPedalEffectKind.WheelLock,
+                LockPedalEffectEnabledCheckBox,
+                LockPedalEffectTargetComboBox,
+                LockPedalEffectStrengthTextBox,
+                LockPedalEffectFrequencyTextBox,
+                LockPedalEffectDurationTextBox,
+                out var wheelLock,
+                out message))
+        {
+            return false;
+        }
+
+        options = current with
+        {
+            IsEnabled = MockPedalEffectsEnabledCheckBox.IsChecked == true,
+            RoadVibration = road,
+            WheelSlip = slip,
+            WheelLock = wheelLock
+        };
+        options = options.Normalize();
+        message = "Mock P-HPR pedal effects routing ready.";
+        return true;
+    }
+
+    private static bool TryBuildPedalEffectState(
+        PHprPedalEffectKind kind,
+        CheckBox enabledCheckBox,
+        ComboBox targetComboBox,
+        TextBox strengthTextBox,
+        TextBox frequencyTextBox,
+        TextBox durationTextBox,
+        out PHprPedalEffectState state,
+        out string message)
+    {
+        var defaults = PHprPedalEffectState.DefaultFor(kind);
+        state = defaults;
+        var label = FormatPedalEffectKind(kind);
+
+        if (!double.TryParse(strengthTextBox.Text.Trim(), out var strength)
+            || !double.IsFinite(strength)
+            || strength is < 0d or > 1d)
+        {
+            message = $"{label} strength must be a number from 0.00 to 1.00.";
+            return false;
+        }
+
+        if (!double.TryParse(frequencyTextBox.Text.Trim(), out var frequency)
+            || !double.IsFinite(frequency)
+            || frequency is < 1d or > 1_000d)
+        {
+            message = $"{label} frequency must be a number from 1 to 1000 Hz.";
+            return false;
+        }
+
+        if (!int.TryParse(durationTextBox.Text.Trim(), out var duration)
+            || duration is < 0 or > 1_000)
+        {
+            message = $"{label} duration must be between 0 and 1000 ms.";
+            return false;
+        }
+
+        var target = targetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
+            ? selectedTarget
+            : defaults.TargetModule;
+        state = defaults with
+        {
+            IsEnabled = enabledCheckBox.IsChecked == true,
+            TargetModule = target,
+            Profile = defaults.Profile with
+            {
+                Strength01 = strength,
+                FrequencyHz = frequency,
+                DurationMs = duration
+            }
+        };
+        state = state.Normalize(kind);
+        message = $"{label} pedal effect ready.";
+        return true;
+    }
+
     private static bool TryParseOptionalButtonId(string text, out int? buttonId, out string message)
     {
         buttonId = null;
@@ -1119,6 +1312,35 @@ public partial class MainWindow : Window
         }.Normalize();
     }
 
+    private static PHprPedalEffectsRouterOptions CreateMockPedalEffectsRouterOptions(MockPedalEffectsRoutingSetting setting)
+    {
+        return new PHprPedalEffectsRouterOptions
+        {
+            IsEnabled = setting.IsEnabled,
+            RoadVibration = CreatePedalEffectState(PHprPedalEffectKind.RoadVibration, setting.RoadVibration),
+            WheelSlip = CreatePedalEffectState(PHprPedalEffectKind.WheelSlip, setting.WheelSlip),
+            WheelLock = CreatePedalEffectState(PHprPedalEffectKind.WheelLock, setting.WheelLock)
+        }.Normalize();
+    }
+
+    private static PHprPedalEffectState CreatePedalEffectState(
+        PHprPedalEffectKind kind,
+        MockPedalEffectSetting setting)
+    {
+        var defaults = PHprPedalEffectState.DefaultFor(kind);
+        return defaults with
+        {
+            IsEnabled = setting.IsEnabled,
+            TargetModule = setting.TargetModule,
+            Profile = defaults.Profile with
+            {
+                Strength01 = setting.Strength01,
+                FrequencyHz = setting.FrequencyHz,
+                DurationMs = setting.DurationMs
+            }
+        };
+    }
+
     private ShiftIntentSetting CreateShiftIntentSetting()
     {
         var snapshot = _shiftIntentProcessor.GetDiagnosticsSnapshot();
@@ -1139,6 +1361,30 @@ public partial class MainWindow : Window
             Strength01 = snapshot.Options.Profile.Strength01,
             FrequencyHz = snapshot.Options.Profile.FrequencyHz,
             DurationMs = snapshot.Options.Profile.DurationMs
+        };
+    }
+
+    private MockPedalEffectsRoutingSetting CreateMockPedalEffectsRoutingSetting()
+    {
+        var snapshot = _mockPedalEffectsRouter.GetSnapshot();
+        return new MockPedalEffectsRoutingSetting
+        {
+            IsEnabled = snapshot.Options.IsEnabled,
+            RoadVibration = CreateMockPedalEffectSetting(snapshot.Options.RoadVibration),
+            WheelSlip = CreateMockPedalEffectSetting(snapshot.Options.WheelSlip),
+            WheelLock = CreateMockPedalEffectSetting(snapshot.Options.WheelLock)
+        };
+    }
+
+    private static MockPedalEffectSetting CreateMockPedalEffectSetting(PHprPedalEffectState state)
+    {
+        return new MockPedalEffectSetting
+        {
+            IsEnabled = state.IsEnabled,
+            TargetModule = state.TargetModule,
+            Strength01 = state.Profile.Strength01,
+            FrequencyHz = state.Profile.FrequencyHz,
+            DurationMs = state.Profile.DurationMs
         };
     }
 
@@ -1165,6 +1411,51 @@ public partial class MainWindow : Window
         UpdateMockGearPulseStatus();
     }
 
+    private void ApplyMockPedalEffectsSettingsToControls()
+    {
+        var snapshot = _mockPedalEffectsRouter.GetSnapshot();
+        _updatingMockPedalEffectsUi = true;
+        MockPedalEffectsEnabledCheckBox.IsChecked = snapshot.Options.IsEnabled;
+        ApplyPedalEffectStateToControls(
+            snapshot.Options.RoadVibration,
+            RoadPedalEffectEnabledCheckBox,
+            RoadPedalEffectTargetComboBox,
+            RoadPedalEffectStrengthTextBox,
+            RoadPedalEffectFrequencyTextBox,
+            RoadPedalEffectDurationTextBox);
+        ApplyPedalEffectStateToControls(
+            snapshot.Options.WheelSlip,
+            SlipPedalEffectEnabledCheckBox,
+            SlipPedalEffectTargetComboBox,
+            SlipPedalEffectStrengthTextBox,
+            SlipPedalEffectFrequencyTextBox,
+            SlipPedalEffectDurationTextBox);
+        ApplyPedalEffectStateToControls(
+            snapshot.Options.WheelLock,
+            LockPedalEffectEnabledCheckBox,
+            LockPedalEffectTargetComboBox,
+            LockPedalEffectStrengthTextBox,
+            LockPedalEffectFrequencyTextBox,
+            LockPedalEffectDurationTextBox);
+        _updatingMockPedalEffectsUi = false;
+        UpdateMockPedalEffectsStatus();
+    }
+
+    private static void ApplyPedalEffectStateToControls(
+        PHprPedalEffectState state,
+        CheckBox enabledCheckBox,
+        ComboBox targetComboBox,
+        TextBox strengthTextBox,
+        TextBox frequencyTextBox,
+        TextBox durationTextBox)
+    {
+        enabledCheckBox.IsChecked = state.IsEnabled;
+        targetComboBox.SelectedItem = state.TargetModule;
+        strengthTextBox.Text = state.Profile.Strength01.ToString("0.###");
+        frequencyTextBox.Text = state.Profile.FrequencyHz.ToString("0.###");
+        durationTextBox.Text = state.Profile.DurationMs.ToString();
+    }
+
     private void SaveAppSettings()
     {
         try
@@ -1177,7 +1468,8 @@ public partial class MainWindow : Window
                 ForwardingDestinations = _forwardingDestinations.ToList(),
                 PaddleInputMapping = CreatePaddleMappingSetting(),
                 ShiftIntent = CreateShiftIntentSetting(),
-                MockGearPulseRouting = CreateMockGearPulseRoutingSetting()
+                MockGearPulseRouting = CreateMockGearPulseRoutingSetting(),
+                MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting()
             });
             _settingsError = null;
         }
@@ -1216,6 +1508,7 @@ public partial class MainWindow : Window
         UpdateOutputStatus(result.OutputResult?.Status ?? _hapticPipeline.GetSnapshot().Output);
         UpdateEffectStatus();
         UpdateShiftIntentStatus();
+        UpdateMockPedalEffectsStatus();
         UpdateDiagnosticsStatus();
     }
 
@@ -1853,12 +2146,13 @@ public partial class MainWindow : Window
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
         UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}.";
         }
     }
 
@@ -1872,7 +2166,8 @@ public partial class MainWindow : Window
             : "Profile values are clamped to conservative software ranges on load and save.";
         var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
         var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -2016,6 +2311,36 @@ public partial class MainWindow : Window
         };
     }
 
+    private void UpdateMockPedalEffectsStatus()
+    {
+        var snapshot = _mockPedalEffectsRouter.GetSnapshot();
+        var lastCommand = FormatPhprCommand(snapshot.LastCommand);
+        var lastSafety = snapshot.LastSafetyDecision is null
+            ? "none"
+            : $"{snapshot.LastSafetyDecision.Kind}: {snapshot.LastSafetyDecision.Message}";
+        var lastViolation = snapshot.LastSafetyViolation?.Code.ToString() ?? "none";
+        var lastResult = snapshot.LastResult is null
+            ? "none"
+            : $"{snapshot.LastResult.Status}: {snapshot.LastResult.Message}";
+
+        MockPedalEffectsStatusText.Text =
+            $"Mock pedal effects: {(snapshot.Options.IsEnabled ? "enabled" : "disabled")}; road {FormatPedalEffectState(snapshot.Options.RoadVibration)}; slip {FormatPedalEffectState(snapshot.Options.WheelSlip)}; lock {FormatPedalEffectState(snapshot.Options.WheelLock)}; evaluations {snapshot.EvaluationCount:N0}; ignored {snapshot.IgnoredEvaluationCount:N0}.";
+        MockPedalEffectsItemsControl.ItemsSource = new[]
+        {
+            "Safety: mock only, no hardware output. Stage 2N does not send USB commands, HID output reports, HID feature reports, ASIO/BST-1 output, or real P-HPR vibration.",
+            $"Priority: {PHprPedalEffectKind.WheelLock} > {PHprPedalEffectKind.WheelSlip} > {PHprPedalEffectKind.RoadVibration}; shared mock output with gear routing; emergency stop is global.",
+            FormatPedalEffectDiagnostics(snapshot.RoadVibration),
+            FormatPedalEffectDiagnostics(snapshot.WheelSlip),
+            FormatPedalEffectDiagnostics(snapshot.WheelLock),
+            $"Last active effect: {snapshot.LastActiveEffect?.ToString() ?? "none"}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}",
+            $"Last PHprCommand: {lastCommand}",
+            $"Last routing result: {lastResult}",
+            $"Safety decision: {lastSafety}; violation {lastViolation}",
+            $"Mock output commands: {snapshot.OutputSnapshot.AcceptedCommandCount:N0}; rejected {snapshot.OutputSnapshot.RejectedCommandCount:N0}; frames {snapshot.OutputSnapshot.GeneratedFrameCount:N0}; pending scheduled stops {snapshot.OutputSnapshot.PendingScheduledStopCount:N0}",
+            $"Emergency stop active: {snapshot.EmergencyStopActive}; mock emergency count {snapshot.OutputSnapshot.EmergencyStopCount:N0}; last error {snapshot.LastError ?? "none"}"
+        };
+    }
+
     private void UpdateDiagnosticsStatus()
     {
         if (DiagnosticsPanel.Visibility != Visibility.Visible
@@ -2063,9 +2388,10 @@ public partial class MainWindow : Window
             $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
             $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
             $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
+            $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; ASIO armed state, haptics running state, emergency mute, P-HPR emergency stop state, and mock histories are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR emergency stop state, safety latch state, and mock histories are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
@@ -2136,6 +2462,14 @@ public partial class MainWindow : Window
         return $"{(snapshot.Options.IsEnabled ? "enabled" : "disabled")}; target {snapshot.Options.TargetModule}; strength {snapshot.Options.Profile.Strength01:0.###}; frequency {snapshot.Options.Profile.FrequencyHz:0.###} Hz; duration {snapshot.Options.Profile.DurationMs} ms; routed {snapshot.AcceptedRouteCount:N0}; ignored {snapshot.IgnoredRouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; last result {lastResult}; safety violation {violation}; mock commands {snapshot.OutputSnapshot.AcceptedCommandCount:N0}; mock frames {snapshot.OutputSnapshot.GeneratedFrameCount:N0}; pending stops {snapshot.OutputSnapshot.PendingScheduledStopCount:N0}; emergency stop {snapshot.EmergencyStopActive}; mock only, no hardware output.";
     }
 
+    private string BuildMockPedalEffectsDiagnosticsText()
+    {
+        var snapshot = _mockPedalEffectsRouter.GetSnapshot();
+        var lastResult = snapshot.LastResult is null ? "none" : $"{snapshot.LastResult.Status}";
+        var violation = snapshot.LastSafetyViolation?.Code.ToString() ?? "none";
+        return $"{(snapshot.Options.IsEnabled ? "enabled" : "disabled")}; {FormatPedalEffectDiagnostics(snapshot.RoadVibration)} {FormatPedalEffectDiagnostics(snapshot.WheelSlip)} {FormatPedalEffectDiagnostics(snapshot.WheelLock)} last result {lastResult}; safety violation {violation}; mock commands {snapshot.OutputSnapshot.AcceptedCommandCount:N0}; mock frames {snapshot.OutputSnapshot.GeneratedFrameCount:N0}; pending stops {snapshot.OutputSnapshot.PendingScheduledStopCount:N0}; emergency stop {snapshot.EmergencyStopActive}; mock only, no hardware output.";
+    }
+
     private static string FormatDiscoveryMethods(IReadOnlyList<InputDiscoveryMethod> methods)
     {
         return methods.Count == 0 ? "none" : string.Join(", ", methods);
@@ -2168,6 +2502,27 @@ public partial class MainWindow : Window
         return command is null
             ? "none"
             : $"{command.Source} -> {command.TargetModule}, strength {command.Strength01:0.###}, {command.FrequencyHz:0.###} Hz, {command.DurationMs} ms, priority {command.Priority}, flags {command.SafetyFlags}";
+    }
+
+    private static string FormatPedalEffectKind(PHprPedalEffectKind kind)
+    {
+        return kind switch
+        {
+            PHprPedalEffectKind.RoadVibration => "Road vibration",
+            PHprPedalEffectKind.WheelSlip => "Wheel slip",
+            PHprPedalEffectKind.WheelLock => "Wheel lock",
+            _ => kind.ToString()
+        };
+    }
+
+    private static string FormatPedalEffectState(PHprPedalEffectState state)
+    {
+        return $"{(state.IsEnabled ? "on" : "off")} {state.TargetModule} {state.Profile.Strength01:0.###}/{state.Profile.FrequencyHz:0.###} Hz/{state.Profile.DurationMs} ms";
+    }
+
+    private static string FormatPedalEffectDiagnostics(PHprPedalEffectDiagnostics diagnostics)
+    {
+        return $"{FormatPedalEffectKind(diagnostics.Kind)}: {(diagnostics.State.IsEnabled ? "enabled" : "disabled")}; target {diagnostics.State.TargetModule}; active {diagnostics.IsActive}; intensity {diagnostics.Intensity01:0.###}; routed {diagnostics.RouteCount:N0}; safety rejected {diagnostics.SafetyRejectedCount:N0}; interval suppressed {diagnostics.IntervalSuppressedCount:N0}; last target {diagnostics.LastTargetModule?.ToString() ?? "none"}";
     }
 
     private static string FormatOptionalInt(int? value)
@@ -2225,15 +2580,43 @@ public partial class MainWindow : Window
         _updatingOutputUi = false;
     }
 
-    private void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
+    private async void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
     {
-        RefreshDrivingArmedAndShiftIntentTelemetry();
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+        await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
         UpdateTelemetryStatus();
         UpdateHapticsStateText();
         UpdateMixerStatus();
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
+        UpdateMockPedalEffectsStatus();
+    }
+
+    private async Task RouteMockPedalEffectsFromSnapshotAsync(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        if (_routingMockPedalEffects)
+        {
+            return;
+        }
+
+        if (!_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled
+            || pipelineSnapshot.VehicleStateUpdateCount <= 0)
+        {
+            return;
+        }
+
+        _routingMockPedalEffects = true;
+        try
+        {
+            await _mockPedalEffectsRouter.RouteAsync(
+                pipelineSnapshot,
+                BuildMockPedalEffectsSafetyContext(pipelineSnapshot));
+        }
+        finally
+        {
+            _routingMockPedalEffects = false;
+        }
     }
 
     private void PaddleInputSource_InputChanged(object? sender, object e)
@@ -2260,6 +2643,7 @@ public partial class MainWindow : Window
         {
             UpdateShiftIntentStatus();
             UpdateMockGearPulseStatus();
+            UpdateMockPedalEffectsStatus();
             UpdateDiagnosticsStatus();
             FooterStatusText.Text = routingResult is null
                 ? result.Message
@@ -2301,7 +2685,22 @@ public partial class MainWindow : Window
     private PHprSafetyContext BuildMockGearPulseSafetyContext(ShiftIntentEvent shiftIntentEvent)
     {
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
-        var outputSnapshot = _mockGearPulseSafetyOutput.GetSnapshot();
+        return BuildMockPhprSafetyContext(
+            pipelineSnapshot,
+            shiftIntentEvent.DrivingArmedAtEvent.IsArmed);
+    }
+
+    private PHprSafetyContext BuildMockPedalEffectsSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        var driving = _drivingArmedStateService.GetSnapshot();
+        return BuildMockPhprSafetyContext(pipelineSnapshot, driving.Current.IsArmed);
+    }
+
+    private PHprSafetyContext BuildMockPhprSafetyContext(
+        HapticPipelineSnapshot pipelineSnapshot,
+        bool drivingArmed)
+    {
+        var outputSnapshot = _mockPhprSafetyOutput.GetSnapshot();
         return new PHprSafetyContext(
             IsMockOutput: true,
             IsDeviceConnected: outputSnapshot.IsConnected,
@@ -2310,7 +2709,7 @@ public partial class MainWindow : Window
             TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
             HapticsStopped: !pipelineSnapshot.IsRunning,
             EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: shiftIntentEvent.DrivingArmedAtEvent.IsArmed,
+            DrivingArmed: drivingArmed,
             EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
             SoftwareConflictStatus: PHprSoftwareConflictStatus.Clear,
             RequiresRealDeviceWrites: false);

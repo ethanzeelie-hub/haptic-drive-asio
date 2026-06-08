@@ -278,17 +278,17 @@
 - SimPro `80 1E 89` remains `SimProUnknownMock` / `NeedsMoreCaptures`; detailed SimPro mock encoding is unsupported.
 - `MockPhprOutputDevice` records commands and generated mock frames in memory only.
 - The full P-HPR safety limiter is implemented in Stage 2L, but Stage 2K itself remains mock protocol/output only.
-- No mock gear-pulse routing from `ShiftIntentEvent` exists yet.
-- No mock road vibration, wheel slip, or wheel lock routing exists yet.
+- Mock gear-pulse routing is added later in Stage 2M, not inside Stage 2K.
+- Mock road vibration, wheel slip, and wheel lock routing is added later in Stage 2N, not inside Stage 2K.
 - No production encoder or production decoder exists.
 - No real P-HPR output, USB write, HID output report, HID feature report, vibration command, controlled write testing, SimPro control, or SimHub control is implemented.
 - The ASIO/BST-1 audio path is unchanged by Stage 2K.
 
 ## Stage 2L
 
-- The P-HPR safety layer exists and Stage 2M now connects accepted shift intents to safety-limited mock gear routing only; it is still not connected to `VehicleState`, telemetry-effect, ASIO, audio-effect, mixer, road/slip/lock, or real-output routing.
+- The P-HPR safety layer exists and later stages connect accepted shift intents plus road/slip/lock mock effects to the safety-limited mock output; Stage 2L itself remains safety infrastructure only.
 - `SafetyLimitedPhprOutputDevice` wraps `MockPhprOutputDevice` only; no real output adapter exists.
-- No mock road vibration, wheel slip, or wheel lock routing exists yet.
+- Mock road vibration, wheel slip, and wheel lock routing is added later in Stage 2N, not inside Stage 2L.
 - SimPro / SimHub coexistence detection is not implemented yet; Stage 2L has a synthetic conflict context placeholder only.
 - No controlled write test plan exists yet.
 - No production encoder or production decoder exists.
@@ -302,8 +302,21 @@
 - Mock gear pulse routing exists from accepted `ShiftIntentEvent` values through `PHprGearPulseRouter`, `SafetyLimitedPhprOutputDevice`, and `MockPhprOutputDevice`.
 - The route is mock-only and records in-memory commands/frames; no real P-HPR output exists.
 - No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented.
-- No mock road vibration, wheel slip, or wheel lock routing exists yet; Stage 2N is next.
+- Road vibration, wheel slip, and wheel lock mock routing exists in Stage 2N through a separate `PHprPedalEffectsRouter`, not inside `PHprGearPulseRouter`.
 - SimPro / SimHub coexistence detection is not implemented yet.
 - No controlled write plan exists yet.
 - Emergency-stop state, safety latch state, mock command history, and mock frame history are runtime-only and not persisted.
 - The ASIO/BST-1 audio path is unchanged by Stage 2M.
+
+## Stage 2N
+
+- Mock road vibration, wheel slip, and wheel lock routing exists through `PHprPedalEffectsRouter`, `SafetyLimitedPhprOutputDevice`, and `MockPhprOutputDevice`.
+- The route is mock-only and records in-memory commands/frames; no real P-HPR output exists.
+- Road/slip/lock heuristics use existing `VehicleState` fields and do not add new F1 25 parser fields. Live tuning may need refinement after real telemetry sessions and local hardware validation.
+- Pedal effects are evaluated from the WPF telemetry/status update path, not the audio callback. This is intentional for Stage 2N mock diagnostics and not a final real-output timing claim.
+- Gear routing and pedal effects share one WPF mock output stack, so clearing either mock diagnostics surface clears shared mock output history.
+- No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented.
+- SimPro / SimHub coexistence detection is not implemented yet.
+- No controlled write plan exists yet.
+- Emergency-stop state, safety latch state, mock command history, mock frame history, real-write enabled state, and real-write armed state are runtime-only and not persisted.
+- The ASIO/BST-1 audio path is unchanged by Stage 2N.

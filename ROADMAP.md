@@ -35,6 +35,7 @@
 - Stage 2K: Mock P-HPR protocol and output complete.
 - Stage 2L: P-HPR safety layer complete.
 - Stage 2M: Mock gear pulse routing complete.
+- Stage 2N: Mock road vibration, wheel slip, and wheel lock routing complete.
 
 ## Planned Stages
 
@@ -76,8 +77,8 @@ Phase 2 safe sequence:
 11. Stage 2K: Mock P-HPR protocol and output. Complete.
 12. Stage 2L: P-HPR safety layer. Complete.
 13. Stage 2M: Mock gear pulse routing. Complete.
-14. Stage 2N: Mock road vibration, wheel slip, and wheel lock routing. Next.
-15. Stage 2O: SimPro / SimHub coexistence detection.
+14. Stage 2N: Mock road vibration, wheel slip, and wheel lock routing. Complete.
+15. Stage 2O: SimPro / SimHub coexistence detection. Next.
 16. Stage 2P: Controlled write test plan.
 
 Stage 2Q and later real P-HPR write work is gated and must not start unless the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
@@ -111,3 +112,4 @@ Stage 2Q and later real P-HPR write work is gated and must not start unless the 
 - Stage 2K adds mock-only protocol records, SimHub F1 EC mock encoding/decoding, deterministic duration scheduling, SimProUnknownMock classification, mock output frame diagnostics, safe CLI examples, and tests only; it does not add mock routing, production encoders/decoders, real output, USB writes, or haptic routing.
 - Stage 2L adds reusable P-HPR safety limiter models, context gates, diagnostics, command clamping/rejection, command-rate limiting, continuous-duration limiting, emergency-stop latching/clear behavior, real-write blocking diagnostics, a safety-limited mock output wrapper, safe CLI examples, and tests only; it does not add mock gear-pulse routing, mock road/slip/lock routing, production encoders/decoders, real output, USB writes, or haptic routing.
 - Stage 2M adds mock-only gear pulse routing from accepted `ShiftIntentEvent` values through `PHprGearPulseRouter`, `SafetyLimitedPhprOutputDevice`, and `MockPhprOutputDevice`; it does not add road/slip/lock routing, production encoders/decoders, real output, USB writes, HID reports, SimPro/SimHub detection, or ASIO/BST-1 routing.
+- Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` / `HapticPipelineSnapshot` data through `PHprPedalEffectsRouter`, `SafetyLimitedPhprOutputDevice`, and `MockPhprOutputDevice`; it does not add real output, USB writes, HID reports, SimPro/SimHub detection, controlled write testing, new packet parsing, or ASIO/BST-1 routing.

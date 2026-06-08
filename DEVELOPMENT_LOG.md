@@ -1323,3 +1323,52 @@ Self-review:
 - The ASIO/BST-1 audio path was not changed.
 - Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated local analysis exports were not committed.
 - Stage 2N Mock Road Vibration, Wheel Slip, and Wheel Lock Routing is next; Stage 2M stops here.
+
+## Stage 2N - Mock Road Vibration, Wheel Slip, and Wheel Lock Routing
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Route road vibration, wheel slip, and wheel lock from existing `VehicleState` / `HapticPipelineSnapshot` data to the Stage 2L safety-limited mock P-HPR output path without creating real P-HPR output, USB writes, HID reports, SimPro/SimHub coexistence detection, new F1 25 parser fields, or ASIO/BST-1 audio-path changes.
+
+Notes:
+
+- Added `PHprPedalEffectsRouter`, `PHprPedalEffectsRouterOptions`, `PHprPedalEffectKind`, `PHprPedalEffectState`, `PHprPedalEffectProfile`, route result/status/snapshot models, and per-effect diagnostics under `HapticDrive.Actuation.PHpr`.
+- Implemented mock road vibration routing from existing speed and surface-ID `VehicleState` data. Default target is both brake and throttle, strength range `0.01` to `0.04`, frequency range `25` to `45 Hz`, duration `50 ms`, and source `RoadTexture`.
+- Implemented mock wheel slip routing from existing wheel slip ratio/angle, speed, throttle, brake, and traction-control `VehicleState` data. Default target is throttle, strength range `0.03` to `0.08`, frequency range `45` to `75 Hz`, duration `50 ms`, and source `WheelSlip`.
+- Implemented mock wheel lock routing from existing brake input, wheel slip ratio, wheel speed, speed, and ABS `VehicleState` data. Default target is brake, strength range `0.04` to `0.10`, frequency range `60` to `90 Hz`, duration `50 ms`, and source `WheelLock`.
+- Added per-target-module priority: wheel lock, then wheel slip, then road vibration.
+- Added deterministic minimum interval suppression per effect/module to avoid command storms before commands reach the Stage 2L safety limiter.
+- Routed all commands only through `SafetyLimitedPhprOutputDevice` wrapping `MockPhprOutputDevice`.
+- Updated the WPF app to share one mock P-HPR output stack between Stage 2M gear routing and Stage 2N pedal effects, keeping mock command/frame counts, pending scheduled stops, safety state, and emergency stop global for the mock P-HPR path.
+- Added Devices-page mock pedal-effect controls and diagnostics for global enabled state, road/slip/lock enabled state, target, strength, frequency, duration, route counts, safety rejections, interval suppression, last active effect, last target, command summary, safety decision, mock output counts, pending stops, and emergency stop.
+- Persisted only safe mock pedal-effect preferences. Emergency-stop state, safety latch state, mock histories, real-write approval, real-write enabled state, and real-write armed state are not persisted.
+- Added `docs/SIMAGIC_P_HPR_MOCK_PEDAL_EFFECTS_ROUTING.md` and updated README, architecture, roadmap, known issues, safety layer, safety plan, mock protocol, mock gear routing, and Phase 2 research docs.
+- Added hardware-free router tests for disabled routing, default targets, per-effect enable flags, priority, safety context gates, safety clamping, mock command/frame/pending-stop diagnostics, interval suppression, emergency stop, and no USB/HID/ASIO/write API surface.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj --no-restore` passed with 58 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 362 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Stage 2N stayed within mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` / `HapticPipelineSnapshot` data.
+- No new F1 25 packet layouts, offsets, lengths, enum values, or versions were guessed or parsed.
+- Stage 2M gear pulse routing still works and remains separate from the new pedal-effects router.
+- `DrivingArmed`, telemetry stale, haptics stopped, emergency mute, module availability, disconnected output, emergency stop, command-rate, continuous-duration, and real-write gates remain enforced by the Stage 2L safety layer.
+- No SimPro / SimHub coexistence detection was implemented.
+- No controlled write testing was implemented.
+- No production encoder, production decoder, real output adapter, or real P-HPR control was implemented.
+- No real P-HPR USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, SimPro/SimHub control, driver changes, firmware work, or controlled write testing were implemented or executed.
+- The ASIO/BST-1 audio path was not changed.
+- Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, and generated local analysis exports were not committed.
+- Stage 2O SimPro / SimHub Coexistence Detection is next; Stage 2N stops here.

@@ -192,12 +192,8 @@ public sealed class PHprGearPulseRouterTests
     [Fact]
     public void RouterSurface_DoesNotReferenceRealOutputUsbHidAsioOrVehicleRouting()
     {
-        var assembly = typeof(PHprGearPulseRouter).Assembly;
-        var routedTypes = assembly.GetTypes()
-            .Where(type => type.Namespace == "HapticDrive.Actuation.PHpr")
-            .ToArray();
-        var methodNames = routedTypes
-            .SelectMany(type => type.GetMethods())
+        var methodNames = typeof(PHprGearPulseRouter)
+            .GetMethods()
             .Where(method => method.DeclaringType != typeof(object))
             .Select(method => method.Name)
             .ToArray();

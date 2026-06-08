@@ -962,6 +962,166 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock Margin="0,18,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="Mock P-HPR Pedal Effects Routing" />
+                            <WrapPanel Margin="0,10,0,0">
+                                <CheckBox x:Name="MockPedalEffectsEnabledCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="MockPedalEffectsControl_Changed"
+                                          Unchecked="MockPedalEffectsControl_Changed"
+                                          Content="Enable Pedal Effects" />
+                                <Button Width="220"
+                                        Margin="0,0,8,8"
+                                        Click="ClearMockPedalEffectsDiagnosticsButton_Click"
+                                        Content="Clear Pedal Effects Diagnostics" />
+                                <Button Width="190"
+                                        Margin="0,0,8,8"
+                                        Click="MockPedalEffectsEmergencyStopButton_Click"
+                                        Content="Pedal Effects Emergency Stop" />
+                                <Button Width="230"
+                                        Margin="0,0,8,8"
+                                        Click="ClearMockPedalEffectsEmergencyStopButton_Click"
+                                        Content="Clear Pedal Effects Emergency Stop" />
+                            </WrapPanel>
+                            <TextBlock Margin="0,6,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Mock only, no hardware output." />
+                            <WrapPanel Margin="0,12,0,0">
+                                <TextBlock Width="96"
+                                           Margin="0,4,8,8"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="Road" />
+                                <CheckBox x:Name="RoadPedalEffectEnabledCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="MockPedalEffectsControl_Changed"
+                                          Unchecked="MockPedalEffectsControl_Changed"
+                                          Content="Enabled" />
+                                <ComboBox x:Name="RoadPedalEffectTargetComboBox"
+                                          Width="150"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="MockPedalEffectsControl_Changed" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Strength" />
+                                <TextBox x:Name="RoadPedalEffectStrengthTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Hz" />
+                                <TextBox x:Name="RoadPedalEffectFrequencyTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Duration ms" />
+                                <TextBox x:Name="RoadPedalEffectDurationTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,2,0,0">
+                                <TextBlock Width="96"
+                                           Margin="0,4,8,8"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="Wheel Slip" />
+                                <CheckBox x:Name="SlipPedalEffectEnabledCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="MockPedalEffectsControl_Changed"
+                                          Unchecked="MockPedalEffectsControl_Changed"
+                                          Content="Enabled" />
+                                <ComboBox x:Name="SlipPedalEffectTargetComboBox"
+                                          Width="150"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="MockPedalEffectsControl_Changed" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Strength" />
+                                <TextBox x:Name="SlipPedalEffectStrengthTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Hz" />
+                                <TextBox x:Name="SlipPedalEffectFrequencyTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Duration ms" />
+                                <TextBox x:Name="SlipPedalEffectDurationTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,2,0,0">
+                                <TextBlock Width="96"
+                                           Margin="0,4,8,8"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="Wheel Lock" />
+                                <CheckBox x:Name="LockPedalEffectEnabledCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="MockPedalEffectsControl_Changed"
+                                          Unchecked="MockPedalEffectsControl_Changed"
+                                          Content="Enabled" />
+                                <ComboBox x:Name="LockPedalEffectTargetComboBox"
+                                          Width="150"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="MockPedalEffectsControl_Changed" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Strength" />
+                                <TextBox x:Name="LockPedalEffectStrengthTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Hz" />
+                                <TextBox x:Name="LockPedalEffectFrequencyTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Duration ms" />
+                                <TextBox x:Name="LockPedalEffectDurationTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="MockPedalEffectsControl_LostFocus" />
+                            </WrapPanel>
+                            <TextBlock x:Name="MockPedalEffectsStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                            <ItemsControl x:Name="MockPedalEffectsItemsControl"
+                                          Margin="0,10,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,0,0,8"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   Text="{Binding}"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 

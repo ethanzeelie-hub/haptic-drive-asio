@@ -15,7 +15,7 @@ This stage exists so later routing and safety stages can exercise deterministic 
 - No real P-HPR vibration.
 - No hardware access.
 - No production protocol adapter.
-- Stage 2M live routing is limited to accepted `ShiftIntentEvent` values into safety-limited mock output diagnostics. There is still no `VehicleState` road/slip/lock routing.
+- Stage 2M live routing is limited to accepted `ShiftIntentEvent` values into safety-limited mock output diagnostics. Stage 2N adds `VehicleState` road/slip/lock mock routing through a separate safety-limited router.
 
 Nothing in this mock protocol may be sent to real hardware.
 
@@ -184,13 +184,19 @@ Stage 2L adds the full mock-only P-HPR safety layer documented in `docs/SIMAGIC_
 - safety-limited mock output wrapping,
 - and explicit safety-limiter tests.
 
-Stage 2L still does not route `ShiftIntentEvent` values, `VehicleState`, road/slip/lock effects, ASIO output, audio effects, or mixer output to P-HPR.
+Stage 2L itself does not route `ShiftIntentEvent` values, `VehicleState`, road/slip/lock effects, ASIO output, audio effects, or mixer output to P-HPR. Stage 2M and Stage 2N add separate mock routers on top of the Stage 2L safety wrapper.
 
 ## Stage 2M Follow-Up
 
 Stage 2M adds mock gear-pulse routing from accepted shift intent to mock P-HPR output through the Stage 2L safety layer.
 
 Stage 2K itself does not route `ShiftIntentEvent` values; Stage 2M owns that router.
+
+## Stage 2N Follow-Up
+
+Stage 2N adds mock road vibration, wheel slip, and wheel lock routing from existing `VehicleState` / `HapticPipelineSnapshot` data to mock P-HPR output through the Stage 2L safety layer.
+
+Stage 2K itself does not route `VehicleState` values; Stage 2N owns that router.
 
 ## Final Statement
 

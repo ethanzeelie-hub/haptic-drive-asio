@@ -97,7 +97,7 @@ Emergency stop:
 
 ## Runtime Context Gates
 
-`PHprSafetyContext` includes fields used by Stage 2M gear routing and later Stage 2N road/slip/lock routing:
+`PHprSafetyContext` includes fields used by Stage 2M gear routing and Stage 2N road/slip/lock routing:
 
 - `TelemetryStale`
 - `HapticsStopped`
@@ -155,9 +155,11 @@ The command prints mock safety decisions only. It does not export hardware packe
 
 Stage 2M routes accepted mock gear-pulse commands through this safety layer before they reach `MockPhprOutputDevice`.
 
-## Stage 2N Follow-Up
+## Stage 2N Routing
 
-Stage 2N should route mock road vibration, wheel slip, and wheel lock commands through this safety layer before they reach `MockPhprOutputDevice`.
+Stage 2N routes mock road vibration, wheel slip, and wheel lock commands through this safety layer before they reach `MockPhprOutputDevice`.
+
+The WPF app shares one mock output stack between `PHprGearPulseRouter` and `PHprPedalEffectsRouter`, so safety diagnostics, mock command/frame counts, pending scheduled stops, and emergency-stop state are global for the mock P-HPR path.
 
 ## Final Statement
 

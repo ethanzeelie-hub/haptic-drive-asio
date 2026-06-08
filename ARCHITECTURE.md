@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2M includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, and mock-only gear pulse routing. No real P-HPR output implementation exists.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2N includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, mock-only gear pulse routing, and mock-only road/slip/lock pedal-effect routing. No real P-HPR output implementation exists.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -70,10 +70,41 @@ The WPF app owns a private mock stack for diagnostics:
 - `MockPhprOutputDevice`
 - `SafetyLimitedPhprOutputDevice`
 - `PHprGearPulseRouter`
+- `PHprPedalEffectsRouter`
 
 Devices-page controls expose mock routing enabled/disabled, target, strength, frequency, duration, clear diagnostics, mock emergency stop, and clear mock emergency stop. Persisted settings are limited to mock routing preferences. Emergency-stop state and mock histories are not persisted.
 
-Stage 2M does not route road vibration, wheel slip, wheel lock, `VehicleState`, audio effects, ASIO output, or mixer output to P-HPR. It does not open device handles, send HID output reports, send HID feature reports, write USB data, control SimPro Manager, control SimHub, or create a production protocol adapter.
+Stage 2M does not route road vibration, wheel slip, wheel lock, `VehicleState`, audio effects, ASIO output, or mixer output to P-HPR. Stage 2N adds road/slip/lock mock routing separately. Neither stage opens device handles, sends HID output reports, sends HID feature reports, writes USB data, controls SimPro Manager, controls SimHub, or creates a production protocol adapter.
+
+## Stage 2N Mock Pedal Effects Routing
+
+Stage 2N adds `PHprPedalEffectsRouter` beside the Stage 2M gear router.
+
+The implemented mock pedal-effect path is:
+
+```text
+F1 25 telemetry / latest VehicleState
+-> PHprPedalEffectsRouter
+-> SafetyLimitedPhprOutputDevice
+-> MockPhprOutputDevice
+-> in-memory mock command/frame diagnostics
+```
+
+The router consumes existing `VehicleState` / `HapticPipelineSnapshot` data and does not parse new F1 25 packet fields. It evaluates from the WPF telemetry/status update path rather than the audio render callback.
+
+Default mock effects are:
+
+- road vibration: target both modules, strength `0.01` to `0.04`, frequency `25` to `45 Hz`, duration `50 ms`, source `RoadTexture`;
+- wheel slip: target throttle, strength `0.03` to `0.08`, frequency `45` to `75 Hz`, duration `50 ms`, source `WheelSlip`;
+- wheel lock: target brake, strength `0.04` to `0.10`, frequency `60` to `90 Hz`, duration `50 ms`, source `WheelLock`.
+
+Priority is per target module: wheel lock, then wheel slip, then road vibration. A deterministic minimum interval per effect/module prevents command storms before commands reach the safety limiter.
+
+The WPF app shares one mock `MockPhprOutputDevice` and one `SafetyLimitedPhprOutputDevice` between Stage 2M gear routing and Stage 2N pedal effects. This keeps safety state, emergency stop, mock command/frame counts, and pending scheduled stops global for the mock P-HPR path.
+
+Persisted pedal-effect settings are limited to safe mock preferences: global enabled state plus road/slip/lock enabled state, target, strength, frequency, and duration. Emergency-stop state, safety latch state, mock histories, real-write approval, real-write enabled state, and real-write armed state are not persisted.
+
+Stage 2N does not change the ASIO/BST-1 road/slip/lock audio path.
 
 ## Stage 2B Input and P-HPR Abstractions
 

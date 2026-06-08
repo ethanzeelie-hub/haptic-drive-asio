@@ -27,7 +27,7 @@ Stage 2M does not send real USB commands and does not vibrate real hardware.
 - No Simagic/P700/P-HPR device handle write access.
 - No SimPro Manager or SimHub control.
 - No ASIO/BST-1 audio routing.
-- No road, wheel-slip, or wheel-lock P-HPR routing.
+- No road, wheel-slip, or wheel-lock routing inside the gear router. Stage 2N adds those mock effects through a separate router.
 
 Accepted shift intents route only through `SafetyLimitedPhprOutputDevice` wrapping `MockPhprOutputDevice`.
 
@@ -119,12 +119,12 @@ The WPF Devices page exposes minimal controls for mock routing preferences, clea
 
 Persisted settings are limited to enabled, target module, strength, frequency, and duration. Emergency-stop state, safety latch state, mock command history, and mock frame history are not persisted.
 
-## Stage 2N Follow-Up
+## Stage 2N Update
 
-Stage 2N will add mock routing for:
+Stage 2N adds mock routing for:
 
 - road vibration,
 - wheel slip,
 - wheel lock.
 
-Those effects remain out of Stage 2M.
+Those effects remain separate from `PHprGearPulseRouter` and use `PHprPedalEffectsRouter` through the same safety-limited mock output stack in the WPF app. Stage 2M gear routing is unchanged.
