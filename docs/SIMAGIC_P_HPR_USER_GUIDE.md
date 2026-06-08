@@ -2,7 +2,7 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through the same gated backend.
 
 No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
 
@@ -21,13 +21,14 @@ Controls:
 - `Report ID`: optional report ID if later descriptor evidence requires one.
 - `Report bytes`: expected report length; Stage 2Q encoder emits 64-byte SimHub F1 EC payloads.
 - Brake and throttle pulse settings: enabled, strength, frequency, and duration.
+- Brake and throttle road-vibration settings: enabled, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration.
 - `Test Brake Pulse` and `Test Throttle Pulse`: one manual pulse only, no loop.
 - `Emergency Stop`: attempts brake and throttle stop reports when a device is selected, then latches.
 - `Clear Emergency Stop`: clears the latch, but does not enable or arm direct control.
 
 The pulse buttons remain disabled until direct control is enabled, armed, a device is selected, coexistence status is `Clear`, and emergency stop is clear.
 
-Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. Phase 3B adds last gear-pulse latency diagnostics: paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. These diagnostics do not auto-run output and do not prove physical latency.
+Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. Phase 3B adds last gear-pulse latency diagnostics: paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. Phase 3C adds real road-vibration enabled state, per-pedal road settings, and last road route result diagnostics. These diagnostics do not auto-run output and do not prove physical latency or road feel.
 
 ## First Safe Manual Settings
 
@@ -65,6 +66,16 @@ There is no telemetry gear-confirmation wait and no default second confirmation 
 Brake and throttle gear-pulse settings are independent. Each pedal can be enabled or disabled and can use its own strength, frequency, and duration. Upshift and downshift use the same default pulse; the direction is still visible in diagnostics.
 
 Safe gear-pulse preferences are persisted. Direct-control enablement, arming, selected HID path, emergency-stop latch, command history, write history, and validation result data are not persisted.
+
+## Road Vibration Routing
+
+Real road vibration is disabled by default.
+
+When enabled, the app can route road vibration to brake, throttle, or both pedals. Each pedal has independent minimum/maximum strength, minimum/maximum frequency, and duration settings. The route scales between those values from the current road intensity.
+
+Road vibration requires direct control to be enabled and armed for the current session. It is also blocked by stale telemetry, stopped haptics, emergency mute, cached `DrivingArmed` false, SimPro/SimHub conflict, missing selected output, emergency stop, safety-limiter rejection, and the deterministic route interval.
+
+The ASIO/BST-1 road texture effect remains separate and unchanged.
 
 ## Controlled Validation Harness
 
@@ -108,4 +119,4 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q through Phase 3B do not prove physical pedal mapping, safe output strength, real stop behavior, SimPro/SimHub coexistence on the device, report descriptor details, or latency.
+Stage 2Q through Phase 3C do not prove physical pedal mapping, safe output strength, real stop behavior, sustained-vibration behavior, SimPro/SimHub coexistence on the device, report descriptor details, road feel, or latency.

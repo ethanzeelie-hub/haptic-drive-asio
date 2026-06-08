@@ -39,7 +39,9 @@ The instant route does not wait for F1 25 telemetry gear-change confirmation. Ca
 
 The Devices page reports software latency timestamps for the last real gear-pulse route: paddle event, accepted shift intent, command creation, and write completion. These are diagnostics only, not physical latency measurements.
 
-Stage 2Q through Phase 3B do not prove physical safety, latency, or pedal mapping. Use only supervised local validation.
+Phase 3C adds real road-vibration routing, disabled by default. Real road settings persist safely for brake and throttle independently, with minimum/maximum strength, minimum/maximum frequency, and duration. The route uses the existing telemetry/status path and does not touch the ASIO/BST-1 road texture effect.
+
+Stage 2Q through Phase 3C do not prove physical safety, latency, or pedal mapping. Use only supervised local validation.
 
 ## Controlled Validation Harness
 
@@ -63,5 +65,6 @@ Private results are written under `local-validation-results/` when the repo root
 - Do not run unattended P-HPR output.
 - Do not use high strength for first tests.
 - Do not loop pulses for first tests.
+- Keep real road vibration disabled until manual one-pulse brake/throttle validation has passed.
 - Stop immediately if the wrong pedal vibrates, both pedals vibrate unexpectedly, vibration continues after stop, output feels too strong, or SimPro/SimHub conflict appears.
 - Do not commit raw captures, private device paths, serial numbers, or unsanitized hardware inventories.

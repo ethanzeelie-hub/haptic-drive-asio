@@ -50,6 +50,55 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public void RealPhprRoadVibrationSettingsPersistWithoutUnsafeDirectControlState()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var store = new AppSettingsStore(path);
+
+        store.Save(new AppSettings
+        {
+            RealPhprRoadVibrationRouting = new RealPhprRoadVibrationRoutingSetting
+            {
+                IsEnabled = true,
+                Brake = new RealPhprRoadVibrationPedalSetting
+                {
+                    IsEnabled = true,
+                    MinimumStrength01 = 0.02d,
+                    Strength01 = 0.06d,
+                    MinimumFrequencyHz = 30d,
+                    FrequencyHz = 60d,
+                    DurationMs = 70
+                },
+                Throttle = new RealPhprRoadVibrationPedalSetting
+                {
+                    IsEnabled = false,
+                    MinimumStrength01 = 0.01d,
+                    Strength01 = 0.03d,
+                    MinimumFrequencyHz = 25d,
+                    FrequencyHz = 45d,
+                    DurationMs = 40
+                }
+            }
+        });
+
+        var loaded = store.Load();
+        var json = File.ReadAllText(path);
+
+        Assert.True(loaded.RealPhprRoadVibrationRouting.IsEnabled);
+        Assert.True(loaded.RealPhprRoadVibrationRouting.Brake.IsEnabled);
+        Assert.Equal(0.02d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumStrength01);
+        Assert.Equal(0.06d, loaded.RealPhprRoadVibrationRouting.Brake.Strength01);
+        Assert.Equal(30d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumFrequencyHz);
+        Assert.Equal(60d, loaded.RealPhprRoadVibrationRouting.Brake.FrequencyHz);
+        Assert.Equal(70, loaded.RealPhprRoadVibrationRouting.Brake.DurationMs);
+        Assert.False(loaded.RealPhprRoadVibrationRouting.Throttle.IsEnabled);
+        Assert.DoesNotContain("DirectControlEnabled", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("DirectControlArmed", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("DevicePath", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RealPhprGearPulseSettingsAreClampedToDirectControlSafetyLimits()
     {
         using var directory = new TempDirectory();
@@ -82,6 +131,51 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.05d, loaded.RealPhprGearPulseRouting.Throttle.Strength01);
         Assert.Equal(50d, loaded.RealPhprGearPulseRouting.Throttle.FrequencyHz);
         Assert.Equal(0, loaded.RealPhprGearPulseRouting.Throttle.DurationMs);
+    }
+
+    [Fact]
+    public void RealPhprRoadVibrationSettingsAreClampedToDirectControlSafetyLimits()
+    {
+        using var directory = new TempDirectory();
+        var store = new AppSettingsStore(Path.Combine(directory.Path, "appsettings.json"));
+
+        store.Save(new AppSettings
+        {
+            RealPhprRoadVibrationRouting = new RealPhprRoadVibrationRoutingSetting
+            {
+                IsEnabled = true,
+                Brake = new RealPhprRoadVibrationPedalSetting
+                {
+                    MinimumStrength01 = 5d,
+                    Strength01 = 10d,
+                    MinimumFrequencyHz = 10_000d,
+                    FrequencyHz = 12_000d,
+                    DurationMs = 10_000
+                },
+                Throttle = new RealPhprRoadVibrationPedalSetting
+                {
+                    MinimumStrength01 = double.NaN,
+                    Strength01 = double.NaN,
+                    MinimumFrequencyHz = double.NaN,
+                    FrequencyHz = double.NaN,
+                    DurationMs = -5
+                }
+            }
+        });
+
+        var loaded = store.Load();
+
+        Assert.True(loaded.RealPhprRoadVibrationRouting.IsEnabled);
+        Assert.Equal(0.10d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumStrength01);
+        Assert.Equal(0.10d, loaded.RealPhprRoadVibrationRouting.Brake.Strength01);
+        Assert.Equal(250d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumFrequencyHz);
+        Assert.Equal(250d, loaded.RealPhprRoadVibrationRouting.Brake.FrequencyHz);
+        Assert.Equal(100, loaded.RealPhprRoadVibrationRouting.Brake.DurationMs);
+        Assert.Equal(0.01d, loaded.RealPhprRoadVibrationRouting.Throttle.MinimumStrength01);
+        Assert.Equal(0.04d, loaded.RealPhprRoadVibrationRouting.Throttle.Strength01);
+        Assert.Equal(25d, loaded.RealPhprRoadVibrationRouting.Throttle.MinimumFrequencyHz);
+        Assert.Equal(45d, loaded.RealPhprRoadVibrationRouting.Throttle.FrequencyHz);
+        Assert.Equal(0, loaded.RealPhprRoadVibrationRouting.Throttle.DurationMs);
     }
 
     private sealed class TempDirectory : IDisposable

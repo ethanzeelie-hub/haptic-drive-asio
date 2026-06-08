@@ -21,6 +21,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\HapticDrive.Actuation\HapticDrive.Actuation.csproj" />
+    <ProjectReference Include="..\..\src\HapticDrive.Asio.Core\HapticDrive.Asio.Core.csproj" />
+    <ProjectReference Include="..\..\src\HapticDrive.Asio.Runtime\HapticDrive.Asio.Runtime.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Simagic.PHPR.Abstractions\HapticDrive.Simagic.PHPR.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\HapticDrive.Simagic.PHPR.Output.Windows\HapticDrive.Simagic.PHPR.Output.Windows.csproj" />
   </ItemGroup>

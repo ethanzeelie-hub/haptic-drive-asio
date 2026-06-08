@@ -1,3 +1,5 @@
+using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Input.Abstractions.Driving;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
@@ -458,6 +460,46 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
+    public async Task RoadVibrationRoutesThroughFakeRealWriterWhenEnabledAndArmed()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var roadOptions = PHprRoadVibrationRouterOptions.EnabledDefault with
+        {
+            Brake = PHprRoadVibrationPedalSettings.Default with { DurationMs = 1 },
+            Throttle = PHprRoadVibrationPedalSettings.Default with { DurationMs = 1 }
+        };
+        var router = new PHprRoadVibrationRouter(device, roadOptions, device.SetSafetyContext);
+
+        var result = await router.RouteAsync(CreateRoadVehicleState(), RealSafetyContext());
+        await WaitForReportsAsync(writer, 4);
+
+        Assert.True(result.WasRouted, result.Message);
+        Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.Start));
+        Assert.Contains(writer.Reports, report => report.TargetModule == PHprModuleId.Brake && report.State == PHprHidReportState.Start);
+        Assert.Contains(writer.Reports, report => report.TargetModule == PHprModuleId.Throttle && report.State == PHprHidReportState.Start);
+        Assert.All(result.Commands, command => Assert.Equal(PHprCommandSource.RoadTexture, command.Command.Source));
+    }
+
+    [Fact]
+    public async Task RoadVibrationSimProConflictRejectsWithoutWriting()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var router = new PHprRoadVibrationRouter(
+            device,
+            PHprRoadVibrationRouterOptions.EnabledDefault,
+            device.SetSafetyContext);
+
+        var result = await router.RouteAsync(
+            CreateRoadVehicleState(),
+            RealSafetyContext() with { SoftwareConflictStatus = PHprSoftwareConflictStatus.SimProRunning });
+
+        Assert.Equal(PHprRoadVibrationRoutingStatus.RejectedBySafety, result.Status);
+        Assert.Empty(writer.Reports);
+    }
+
+    [Fact]
     public void RealOutputProjectDoesNotReferenceAsioAudioPath()
     {
         var referenced = typeof(SimagicPhprOutputDevice).Assembly.GetReferencedAssemblies()
@@ -532,6 +574,106 @@ public sealed class PHprRealOutputTests
         return ShiftIntentEvent.CreatePaddlePress(
             PaddleSide.Right,
             DrivingArmedState.NotArmed("test menu suppression"));
+    }
+
+    private static VehicleState CreateRoadVehicleState(uint frame = 1)
+    {
+        var stamp = new VehicleStateStamp(
+            "test",
+            SessionUid: 7,
+            SessionTime: 12.5f,
+            FrameIdentifier: frame,
+            OverallFrameIdentifier: frame,
+            PlayerCarIndex: 0);
+
+        return new VehicleState(
+            new VehicleStateFrame(7, 12.5f, frame, frame, 0, "test"),
+            Motion: null,
+            Session: new VehicleStateSample<VehicleSessionState>(
+                new VehicleSessionState(
+                    Weather: 0,
+                    TrackTemperatureCelsius: 30,
+                    AirTemperatureCelsius: 25,
+                    TotalLaps: 10,
+                    TrackLengthMeters: 5_000,
+                    SessionType: 10,
+                    TrackId: 1,
+                    GamePaused: 0,
+                    SafetyCarStatus: 0,
+                    NetworkGame: 1,
+                    GameMode: 0),
+                stamp),
+            Lap: new VehicleStateSample<VehicleLapState>(
+                new VehicleLapState(
+                    LastLapTimeInMs: 0,
+                    CurrentLapTimeInMs: 0,
+                    LapDistanceMeters: 100f,
+                    TotalDistanceMeters: 100f,
+                    CarPosition: 1,
+                    CurrentLapNumber: 1,
+                    PitStatus: 0,
+                    Sector: 0,
+                    DriverStatus: 1,
+                    ResultStatus: 2,
+                    CurrentLapInvalid: 0),
+                stamp),
+            Participant: null,
+            Telemetry: new VehicleStateSample<VehicleTelemetryState>(
+                new VehicleTelemetryState(
+                    SpeedKph: 120,
+                    Throttle: 0.4f,
+                    Steer: 0f,
+                    Brake: 0f,
+                    Clutch: 0,
+                    Gear: 4,
+                    EngineRpm: 9_500,
+                    Drs: 0,
+                    RevLightsPercent: 0,
+                    RevLightsBitValue: 0,
+                    EngineTemperatureCelsius: 90,
+                    SuggestedGear: 0,
+                    BrakeTemperatureCelsius: Wheels<ushort>(300),
+                    TyreSurfaceTemperatureCelsius: Wheels((byte)80),
+                    TyreInnerTemperatureCelsius: Wheels((byte)80),
+                    TyrePressurePsi: Wheels(22f),
+                    SurfaceTypeIds: Wheels((byte)1)),
+                stamp),
+            CarStatus: new VehicleStateSample<VehicleCarStatusState>(
+                new VehicleCarStatusState(
+                    TractionControl: 0,
+                    AntiLockBrakes: 0,
+                    FuelMix: 0,
+                    FrontBrakeBias: 55,
+                    PitLimiterStatus: 0,
+                    FuelInTank: 20f,
+                    FuelCapacity: 100f,
+                    FuelRemainingLaps: 10f,
+                    MaxRpm: 12_000,
+                    IdleRpm: 4_000,
+                    MaxGears: 8,
+                    DrsAllowed: 0,
+                    DrsActivationDistance: 0,
+                    ActualTyreCompound: 16,
+                    VisualTyreCompound: 16,
+                    TyresAgeLaps: 1,
+                    VehicleFiaFlags: 0,
+                    EnginePowerIceWatts: 500_000f,
+                    EnginePowerMgukWatts: 120_000f,
+                    ErsStoreEnergyJoules: 3_000_000f,
+                    ErsDeployMode: 0,
+                    ErsHarvestedThisLapMgukJoules: 0f,
+                    ErsHarvestedThisLapMguhJoules: 0f,
+                    ErsDeployedThisLapJoules: 0f,
+                    NetworkPaused: 0),
+                stamp),
+            Damage: null,
+            MotionEx: null,
+            LastEvent: null);
+    }
+
+    private static VehicleWheelData<T> Wheels<T>(T value)
+    {
+        return new VehicleWheelData<T>(value, value, value, value);
     }
 
     private static async Task WaitForReportsAsync(FakeHidReportWriter writer, int count)

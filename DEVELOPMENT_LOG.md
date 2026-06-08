@@ -1638,3 +1638,50 @@ Self-review:
 - No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
 - The ASIO/BST-1 audio path was not changed.
 - Phase 3C P-HPR Road Vibration Production Integration is next; Phase 3B stops here.
+
+## Phase 3C - P-HPR Road Vibration Production Integration
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Route road vibration to the P-HPR output path in production mode through the same safe backend, while keeping ASIO/BST-1 road texture independent and keeping real output disabled by default.
+
+Notes:
+
+- Added `PHprRoadVibrationRouter` and related options, settings, result, status, and snapshot models under `HapticDrive.Actuation.PHpr`.
+- Routed production road vibration from existing `VehicleState` / `HapticPipelineSnapshot` data through mock or gated real `IPHprOutputDevice` backends without adding new F1 25 parser fields.
+- Added independent brake/throttle road-vibration settings for enabled state, minimum strength, maximum strength, minimum frequency, maximum frequency, and duration.
+- Kept road-vibration priority below gear pulse, wheel slip, and wheel lock.
+- Added deterministic per-pedal route-interval suppression to avoid command storms before commands reach the safety limiter.
+- Preserved gates for telemetry freshness, haptics running, emergency mute, cached `DrivingArmed`, selected real output readiness, SimPro/SimHub coexistence, emergency stop, and `PHprSafetyLimiter` acceptance.
+- Persisted safe real road-vibration settings while keeping direct-control enablement, arming, private HID device path, emergency-stop latch, command history, and write history runtime-only.
+- Added WPF real direct-control controls and diagnostics for road vibration enabled state, brake/throttle road settings, and last road route result.
+- Added `docs/SIMAGIC_P_HPR_ROAD_VIBRATION_GUIDE.md`.
+- Updated user guides, output adapter notes, safety plan, Phase 2 research notes, README, architecture, roadmap, and known issues.
+- Added mock/fake-real tests for road routing, stale telemetry blocking, `DrivingArmed` blocking, SimPro conflict rejection, command-interval suppression, priority ordering, per-pedal settings persistence, and ASIO independence.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj --no-build` passed with 65 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 99 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 4 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 432 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3C routes real road vibration only through the existing gated real P-HPR backend; no second output path was added.
+- The ASIO/BST-1 road texture effect remains independent and unchanged.
+- Real road vibration is disabled by default and still requires explicit direct-control enablement and arming at runtime.
+- Direct-control enablement, arming, selected device path, emergency-stop latch, command history, and write history are not persisted.
+- Automated tests use mock output and fake HID writers only and do not open real hardware.
+- No physical P-HPR road feel, safety, pedal mapping, stop behavior, safe gain, physical latency, sustained-vibration behavior, or SimPro/SimHub real-device coexistence claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- Phase 3D P-HPR Wheel Slip And Wheel Lock Production Integration is next; Phase 3C stops here.

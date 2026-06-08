@@ -97,7 +97,8 @@ internal sealed class AppSettingsStore
             ShiftIntent = SanitizeShiftIntent(settings.ShiftIntent),
             MockGearPulseRouting = SanitizeMockGearPulseRouting(settings.MockGearPulseRouting),
             MockPedalEffectsRouting = SanitizeMockPedalEffectsRouting(settings.MockPedalEffectsRouting),
-            RealPhprGearPulseRouting = SanitizeRealPhprGearPulseRouting(settings.RealPhprGearPulseRouting)
+            RealPhprGearPulseRouting = SanitizeRealPhprGearPulseRouting(settings.RealPhprGearPulseRouting),
+            RealPhprRoadVibrationRouting = SanitizeRealPhprRoadVibrationRouting(settings.RealPhprRoadVibrationRouting)
         };
     }
 
@@ -218,6 +219,48 @@ internal sealed class AppSettingsStore
         };
     }
 
+    private static RealPhprRoadVibrationRoutingSetting SanitizeRealPhprRoadVibrationRouting(RealPhprRoadVibrationRoutingSetting? setting)
+    {
+        if (setting is null)
+        {
+            return new RealPhprRoadVibrationRoutingSetting();
+        }
+
+        return setting with
+        {
+            Brake = SanitizeRealPhprRoadVibrationPedalSetting(setting.Brake),
+            Throttle = SanitizeRealPhprRoadVibrationPedalSetting(setting.Throttle)
+        };
+    }
+
+    private static RealPhprRoadVibrationPedalSetting SanitizeRealPhprRoadVibrationPedalSetting(RealPhprRoadVibrationPedalSetting? setting)
+    {
+        if (setting is null)
+        {
+            return RealPhprRoadVibrationPedalSetting.Default;
+        }
+
+        var normalized = new PHprRoadVibrationPedalSettings
+        {
+            IsEnabled = setting.IsEnabled,
+            MinimumStrength01 = setting.MinimumStrength01,
+            Strength01 = setting.Strength01,
+            MinimumFrequencyHz = setting.MinimumFrequencyHz,
+            FrequencyHz = setting.FrequencyHz,
+            DurationMs = setting.DurationMs
+        }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+
+        return setting with
+        {
+            IsEnabled = normalized.IsEnabled,
+            MinimumStrength01 = normalized.MinimumStrength01,
+            Strength01 = normalized.Strength01,
+            MinimumFrequencyHz = normalized.MinimumFrequencyHz,
+            FrequencyHz = normalized.FrequencyHz,
+            DurationMs = normalized.DurationMs
+        };
+    }
+
     private static MockPedalEffectSetting SanitizeMockPedalEffect(
         MockPedalEffectSetting? setting,
         PHprPedalEffectKind kind)
@@ -271,6 +314,8 @@ internal sealed record AppSettings
     public MockPedalEffectsRoutingSetting MockPedalEffectsRouting { get; init; } = new();
 
     public RealPhprGearPulseRoutingSetting RealPhprGearPulseRouting { get; init; } = new();
+
+    public RealPhprRoadVibrationRoutingSetting RealPhprRoadVibrationRouting { get; init; } = new();
 
     public string? LastStatusMessage { get; init; }
 
@@ -350,6 +395,46 @@ internal sealed record RealPhprGearPulseSetting
         {
             IsEnabled = normalized.IsEnabled,
             Strength01 = normalized.Strength01,
+            FrequencyHz = normalized.FrequencyHz,
+            DurationMs = normalized.DurationMs
+        };
+    }
+}
+
+internal sealed record RealPhprRoadVibrationRoutingSetting
+{
+    public bool IsEnabled { get; init; }
+
+    public RealPhprRoadVibrationPedalSetting Brake { get; init; } = RealPhprRoadVibrationPedalSetting.Default;
+
+    public RealPhprRoadVibrationPedalSetting Throttle { get; init; } = RealPhprRoadVibrationPedalSetting.Default;
+}
+
+internal sealed record RealPhprRoadVibrationPedalSetting
+{
+    public static RealPhprRoadVibrationPedalSetting Default { get; } = From(PHprRoadVibrationPedalSettings.Default);
+
+    public bool IsEnabled { get; init; } = true;
+
+    public double MinimumStrength01 { get; init; } = 0.01d;
+
+    public double Strength01 { get; init; } = 0.04d;
+
+    public double MinimumFrequencyHz { get; init; } = 25d;
+
+    public double FrequencyHz { get; init; } = 45d;
+
+    public int DurationMs { get; init; } = 50;
+
+    public static RealPhprRoadVibrationPedalSetting From(PHprRoadVibrationPedalSettings settings)
+    {
+        var normalized = settings.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        return new RealPhprRoadVibrationPedalSetting
+        {
+            IsEnabled = normalized.IsEnabled,
+            MinimumStrength01 = normalized.MinimumStrength01,
+            Strength01 = normalized.Strength01,
+            MinimumFrequencyHz = normalized.MinimumFrequencyHz,
             FrequencyHz = normalized.FrequencyHz,
             DurationMs = normalized.DurationMs
         };

@@ -386,3 +386,13 @@
 - Real road vibration, wheel slip, and wheel lock routing are not implemented in Phase 3B; they remain later Phase 3 production-integration stages.
 - Physical pedal mapping, safe strength, stop/off behavior, sustained-vibration behavior, SimPro/SimHub real-device coexistence, and physical latency remain pending supervised local validation.
 - The ASIO/BST-1 audio path is unchanged by Phase 3B.
+
+## Phase 3C
+
+- Real road-vibration production routing is implemented through the same gated P-HPR output backend, but no real P-HPR hardware road vibration has been executed or validated by Codex.
+- Road-vibration settings are persisted safely for brake and throttle, but direct-control enablement, arming, selected private HID path, emergency-stop latch, command history, and write history remain runtime-only.
+- Road intensity is synthesized from existing `VehicleState` / telemetry state and conservative defaults; live surface feel, safe strength, frequency tuning, and physical sustained-vibration behavior remain pending supervised local validation.
+- The route depends on telemetry freshness, cached `DrivingArmed` / Menu Safe state, haptics running state, emergency mute, SimPro/SimHub coexistence status, selected output readiness, and the safety limiter. Live menu, pause, garage, pit-lane, start-line, and stale-telemetry behavior may need local refinement after real F1 25 sessions.
+- Wheel slip and wheel lock production routing are not implemented in Phase 3C; they remain Phase 3D.
+- Real road priority is below gear pulse, wheel slip, and wheel lock, but physical priority feel and interaction with real pedal modules remain unvalidated.
+- The ASIO/BST-1 road texture effect remains separate and unchanged by Phase 3C.
