@@ -1,16 +1,16 @@
 # Simagic P-HPR Safety Plan
 
-This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds mock-only safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. Stage 2M adds mock-only gear pulse routing from accepted shift intents through that safety-limited mock output wrapper. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` data through the same safety-limited mock output wrapper. Stage 2O adds read-only SimPro Manager / SimHub process detection and safety-context conflict warnings. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write readiness diagnostics. None of these stages implements USB writes or real P-HPR output.
+This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. Stage 2M adds mock-only gear pulse routing from accepted shift intents through that safety-limited mock output wrapper. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` data through the same safety-limited mock output wrapper. Stage 2O adds read-only SimPro Manager / SimHub process detection and safety-context conflict warnings. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write readiness diagnostics. Stage 2Q adds a gated write-capable Windows HID adapter for later manual testing, disabled and unarmed by default. No stage through 2Q executes real hardware validation.
 
 ## Required Approval Phrase
 
-No real P-HPR USB writes, output reports, write-capable feature reports, or real vibration commands may be implemented or executed until the user says exactly:
+No unattended real P-HPR USB writes, output reports, write-capable feature reports, or real vibration commands may be executed until the user says exactly:
 
 ```text
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the later gated Stage 2Q real-write code path. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2P, no real-write code path exists.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2Q, the write-capable code exists but is disabled/unarmed by default and was not executed by automated verification.
 
 Stage 2B keeps `PHprSafetyLimits.AllowRealDeviceWrites` false by default, and `MockPhprOutputDevice` only records mock commands in memory.
 
@@ -36,6 +36,8 @@ Stage 2O implements read-only SimPro Manager / SimHub process detection, coexist
 
 Stage 2P implements `PHprControlledWriteChecklist`, `PHprControlledWriteReadiness`, the controlled write test plan, manual validation runbook, manual result template, evidence map, and disabled WPF direct-write readiness diagnostics. It does not create a real adapter, create a HID writer, add pulse buttons, send output reports, send feature reports, send HID writes, open P700/P-HPR device handles for control, execute controlled write testing, persist arming, or touch the ASIO/BST-1 output path.
 
+Stage 2Q implements `SimagicPhprOutputDevice`, `WindowsHidReportWriter`, `SimHubF1EcRealReportEncoder`, runtime-only WPF direct-control controls, fake-writer tests, and direct gear-pulse routing behind enable/arm/device/coexistence/safety gates. It does not auto-run hardware writes, does not run real P-HPR vibration tests unattended, does not add CI hardware pulses, does not persist enable/arm/device selection, does not implement SimPro `80 1E 89` writes, and does not touch the ASIO/BST-1 output path.
+
 ## Allowed Before Approval
 
 - Research.
@@ -56,15 +58,16 @@ Stage 2P implements `PHprControlledWriteChecklist`, `PHprControlledWriteReadines
 - Mock routing.
 - Controlled write test planning.
 - Disabled direct-write readiness diagnostics.
+- Gated Stage 2Q implementation with fake-writer automated tests.
 - UI placeholders.
 - Diagnostics.
 - Tests.
 
-## Forbidden Before Approval
+## Forbidden Before Manual Execution Approval
 
-- Real P-HPR USB writes.
-- Real P-HPR vibration commands.
-- Real Simagic device output reports.
+- Automated or unattended real P-HPR USB writes.
+- Automated or unattended real P-HPR vibration commands.
+- Automated or unattended real Simagic device output reports.
 - Real Simagic device feature reports that write or change state.
 - Taking control from SimPro Manager.
 - Firmware flashing.

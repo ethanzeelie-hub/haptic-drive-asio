@@ -2,9 +2,9 @@
 
 ## Stage 2O Purpose
 
-Stage 2O adds safe, read-only process detection for SimPro Manager and SimHub so Haptic Drive ASIO can warn about coexistence risk before any future direct P-HPR control is enabled.
+Stage 2O adds safe, read-only process detection for SimPro Manager and SimHub so Haptic Drive ASIO can warn about coexistence risk before direct P-HPR control is enabled.
 
-This stage does not send USB writes and does not implement real P-HPR output.
+Stage 2Q consumes this status in the gated real direct-control adapter. The coexistence detector itself does not send USB writes and does not control either application.
 
 ## Safety Boundary
 
@@ -65,11 +65,13 @@ Process access errors are handled safely as `Unknown`.
 
 ## Safety Integration
 
-The WPF app stores the latest coexistence snapshot and passes its `Status` into `PHprSafetyContext.SoftwareConflictStatus` when building mock P-HPR safety contexts.
+The WPF app stores the latest coexistence snapshot and passes its `Status` into `PHprSafetyContext.SoftwareConflictStatus` when building mock and real P-HPR safety contexts.
 
 `PHprSafetyLimiter` already rejects start commands when `SoftwareConflictStatus` is `ActiveConflict`, using violation `SimProConflict`.
 
 Stage 2O remains conservative: an active SimPro+SimHub conflict blocks mock P-HPR starts as well as any future direct-control starts. Single-process observations warn but do not block mock starts.
+
+Stage 2Q is stricter for real direct starts: `Unknown`, `SimProRunning`, `SimHubRunning`, and `ActiveConflict` all block real direct start reports. Stop and emergency-stop reports may still be attempted when a device is selected so the app can try to quiet modules.
 
 ## WPF Diagnostics
 
@@ -92,7 +94,7 @@ Stage 2P uses the latest coexistence status in its no-write direct-control readi
 
 For the first later controlled write test, readiness requires coexistence status `Clear`. `Unknown`, `SimProRunning`, `SimHubRunning`, and `ActiveConflict` are all reported as blockers in the Stage 2P readiness diagnostics.
 
-This remains diagnostic only in Stage 2P. No real output adapter, HID writer, write-capable UI, direct pulse button, or hardware vibration is added.
+This remains diagnostic only in Stage 2P. Stage 2Q adds gated direct-control UI and a write-capable adapter, but the coexistence requirement remains `Clear` before any real start report can pass the gate.
 
 ## Tests
 
@@ -109,4 +111,4 @@ Stage 2O adds hardware-free tests for:
 
 ## Final Statement
 
-Stage 2O detects process presence only. Stage 2P uses that state for the no-write readiness plan. Neither stage validates real coexistence behavior with hardware or executes direct P-HPR writes.
+Stage 2O detects process presence only. Stage 2P uses that state for the no-write readiness plan. Stage 2Q uses that state to block non-clear real direct starts. None of these stages validates real coexistence behavior with hardware or executes unattended direct P-HPR writes.

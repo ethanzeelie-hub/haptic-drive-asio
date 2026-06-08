@@ -23,6 +23,8 @@ using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Readiness;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+using HapticDrive.Simagic.PHPR.Output.Windows;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -48,6 +50,9 @@ public partial class MainWindow : Window
     private readonly ShiftIntentProcessor _shiftIntentProcessor;
     private readonly MockPhprOutputDevice _mockPhprOutput = new();
     private readonly SafetyLimitedPhprOutputDevice _mockPhprSafetyOutput;
+    private readonly WindowsHidReportWriter _realPhprHidWriter = new();
+    private readonly SimagicPhprOutputDevice _realPhprOutput;
+    private readonly PHprDirectGearPulseRouter _realPhprGearPulseRouter;
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
     private readonly IPHprSoftwareCoexistenceDetector _phprSoftwareCoexistenceDetector =
@@ -249,12 +254,14 @@ public partial class MainWindow : Window
     private PHprSoftwareCoexistenceSnapshot _phprSoftwareCoexistenceSnapshot = PHprSoftwareCoexistenceSnapshot.NotScanned;
     private PHprControlledWriteReadiness _phprControlledWriteReadiness =
         PHprControlledWriteReadiness.Evaluate(PHprControlledWriteChecklist.Stage2PNoWriteDefault);
+    private PHprRealOutputOptions _realPhprOptions = PHprRealOutputOptions.Disabled;
     private WheelPaddleMapping _paddleMapping = WheelPaddleMapping.Default;
     private Task? _activeReplayTask;
     private bool _updatingTuningUi;
     private bool _updatingSettingsUi;
     private bool _updatingPaddleInputUi;
     private bool _updatingShiftIntentUi;
+    private bool _updatingRealPhprDirectControlUi;
     private bool _updatingMockGearPulseUi;
     private bool _updatingMockPedalEffectsUi;
     private bool _routingMockPedalEffects;
@@ -280,6 +287,8 @@ public partial class MainWindow : Window
             _drivingArmedStateService,
             CreateShiftIntentOptions(appSettings.ShiftIntent));
         _mockPhprSafetyOutput = new SafetyLimitedPhprOutputDevice(_mockPhprOutput);
+        _realPhprOutput = new SimagicPhprOutputDevice(_realPhprHidWriter, _realPhprOptions);
+        _realPhprGearPulseRouter = new PHprDirectGearPulseRouter(_realPhprOutput, _realPhprOptions);
         _mockGearPulseRouter = new PHprGearPulseRouter(
             _mockPhprSafetyOutput,
             CreateMockGearPulseRouterOptions(appSettings.MockGearPulseRouting));
@@ -317,6 +326,7 @@ public partial class MainWindow : Window
         ApplyShiftIntentSettingsToControls();
         ApplyMockGearPulseSettingsToControls();
         ApplyMockPedalEffectsSettingsToControls();
+        ApplyRealPhprOptionsToControls();
         _paddleInputSource.RawButtonChanged += PaddleInputSource_InputChanged;
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_InputChanged;
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_PaddleInputReceived;
@@ -692,6 +702,65 @@ public partial class MainWindow : Window
         FooterStatusText.Text = "Mock P-HPR emergency stop cleared; no hardware write was performed.";
     }
 
+    private void RealPhprDirectControlCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingRealPhprDirectControlUi)
+        {
+            return;
+        }
+
+        if (RealPhprDirectControlEnabledCheckBox.IsChecked != true
+            && RealPhprDirectControlArmCheckBox.IsChecked == true)
+        {
+            _updatingRealPhprDirectControlUi = true;
+            RealPhprDirectControlArmCheckBox.IsChecked = false;
+            _updatingRealPhprDirectControlUi = false;
+        }
+
+        ConfigureRealPhprOutputFromControls("Real P-HPR direct-control settings updated for this session only.");
+    }
+
+    private void RealPhprDirectControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_updatingRealPhprDirectControlUi)
+        {
+            return;
+        }
+
+        ConfigureRealPhprOutputFromControls("Real P-HPR direct-control selection/profile updated for this session only.");
+    }
+
+    private void ApplyRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        ConfigureRealPhprOutputFromControls("Real P-HPR manual selection applied for this session only.");
+    }
+
+    private async void TestRealPhprBrakePulseButton_Click(object sender, RoutedEventArgs e)
+    {
+        await TriggerRealPhprManualPulseAsync(PHprModuleId.Brake);
+    }
+
+    private async void TestRealPhprThrottlePulseButton_Click(object sender, RoutedEventArgs e)
+    {
+        await TriggerRealPhprManualPulseAsync(PHprModuleId.Throttle);
+    }
+
+    private async void RealPhprEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        await _realPhprOutput.EmergencyStopAsync();
+        UpdateRealPhprDirectControlStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Real P-HPR emergency stop latched; stop reports were attempted only if a device was selected.";
+    }
+
+    private void ClearRealPhprEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        _realPhprOutput.ClearEmergencyStop();
+        UpdateRealPhprDirectControlStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Real P-HPR emergency stop cleared; direct control still requires enable, arm, and selected device.";
+    }
+
     private void ApplyShiftIntentOptionsFromControls(string footerMessage)
     {
         var mode = ShiftIntentModeComboBox.SelectedItem is ShiftIntentMode selectedMode
@@ -738,6 +807,59 @@ public partial class MainWindow : Window
         UpdateMockPedalEffectsStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = footerMessage;
+    }
+
+    private bool ConfigureRealPhprOutputFromControls(string footerMessage)
+    {
+        if (!TryBuildRealPhprOptionsFromControls(out var options, out var message))
+        {
+            TestRealPhprBrakePulseButton.IsEnabled = false;
+            TestRealPhprThrottlePulseButton.IsEnabled = false;
+            RealPhprDirectStatusText.Text = message;
+            FooterStatusText.Text = message;
+            UpdateDiagnosticsStatus();
+            return false;
+        }
+
+        _realPhprOptions = options;
+        _realPhprHidWriter.Configure(options.Selector);
+        _realPhprOutput.Configure(options);
+        _realPhprGearPulseRouter.Configure(options);
+        UpdateRealPhprDirectControlStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = footerMessage;
+        return true;
+    }
+
+    private async Task TriggerRealPhprManualPulseAsync(PHprModuleId moduleId)
+    {
+        if (!ConfigureRealPhprOutputFromControls($"Real P-HPR {moduleId} pulse settings applied for this session only."))
+        {
+            return;
+        }
+
+        var settings = moduleId == PHprModuleId.Throttle
+            ? _realPhprOptions.ThrottleGearPulse
+            : _realPhprOptions.BrakeGearPulse;
+        if (!settings.IsEnabled)
+        {
+            FooterStatusText.Text = $"Real P-HPR {moduleId} manual pulse ignored because that pedal is disabled.";
+            UpdateRealPhprDirectControlStatus();
+            return;
+        }
+
+        _realPhprOutput.SetSafetyContext(BuildManualRealPhprSafetyContext());
+        var command = PHprCommand.Create(
+            moduleId,
+            settings.Strength01,
+            settings.FrequencyHz,
+            settings.DurationMs,
+            PHprCommandSource.TestBench,
+            priority: 100);
+        var result = await _realPhprOutput.SendAsync(command);
+        UpdateRealPhprDirectControlStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = result.Message;
     }
 
     private void PaddleInputDeviceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1164,6 +1286,145 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private bool TryBuildRealPhprOptionsFromControls(
+        out PHprRealOutputOptions options,
+        out string message)
+    {
+        var current = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        options = current;
+
+        if (!TryParseOptionalReportId(RealPhprReportIdTextBox.Text, out var reportId, out message))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(RealPhprReportLengthTextBox.Text.Trim(), out var reportLength)
+            || reportLength is < 1 or > 1_024)
+        {
+            message = "Real P-HPR report length must be a whole number from 1 to 1024 bytes.";
+            return false;
+        }
+
+        if (!TryBuildRealGearPulseSettings(
+                "Brake",
+                RealPhprBrakeEnabledCheckBox,
+                RealPhprBrakeStrengthTextBox,
+                RealPhprBrakeFrequencyTextBox,
+                RealPhprBrakeDurationTextBox,
+                out var brake,
+                out message)
+            || !TryBuildRealGearPulseSettings(
+                "Throttle",
+                RealPhprThrottleEnabledCheckBox,
+                RealPhprThrottleStrengthTextBox,
+                RealPhprThrottleFrequencyTextBox,
+                RealPhprThrottleDurationTextBox,
+                out var throttle,
+                out message))
+        {
+            return false;
+        }
+
+        var directEnabled = RealPhprDirectControlEnabledCheckBox.IsChecked == true;
+        var directArmed = directEnabled && RealPhprDirectControlArmCheckBox.IsChecked == true;
+        options = current with
+        {
+            DirectControlEnabled = directEnabled,
+            DirectControlArmed = directArmed,
+            Selector = new PHprHidDeviceSelector(
+                RealPhprDevicePathTextBox.Text,
+                string.IsNullOrWhiteSpace(RealPhprDevicePathTextBox.Text)
+                    ? "No P-HPR HID device selected"
+                    : "Manual P-HPR HID device",
+                RealPhprInterfaceTextBox.Text,
+                reportId,
+                reportLength),
+            BrakeGearPulse = brake,
+            ThrottleGearPulse = throttle
+        };
+        options = options.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        message = "Real P-HPR direct-control options ready for this session only.";
+        return true;
+    }
+
+    private static bool TryBuildRealGearPulseSettings(
+        string label,
+        CheckBox enabledCheckBox,
+        TextBox strengthTextBox,
+        TextBox frequencyTextBox,
+        TextBox durationTextBox,
+        out PHprRealGearPulseSettings settings,
+        out string message)
+    {
+        var limits = SimagicPhprOutputDevice.DirectControlSafetyLimits;
+        settings = PHprRealGearPulseSettings.Default;
+
+        if (!double.TryParse(strengthTextBox.Text.Trim(), out var strength)
+            || !double.IsFinite(strength)
+            || strength < 0d
+            || strength > limits.MaxStrength01)
+        {
+            message = $"{label} real P-HPR strength must be a number from 0.00 to {limits.MaxStrength01:0.00}.";
+            return false;
+        }
+
+        if (!double.TryParse(frequencyTextBox.Text.Trim(), out var frequency)
+            || !double.IsFinite(frequency)
+            || frequency < limits.MinFrequencyHz
+            || frequency > limits.MaxFrequencyHz)
+        {
+            message = $"{label} real P-HPR frequency must be a number from {limits.MinFrequencyHz:0} to {limits.MaxFrequencyHz:0} Hz.";
+            return false;
+        }
+
+        if (!int.TryParse(durationTextBox.Text.Trim(), out var duration)
+            || duration < 0
+            || duration > limits.MaxDurationMs)
+        {
+            message = $"{label} real P-HPR duration must be between 0 and {limits.MaxDurationMs} ms.";
+            return false;
+        }
+
+        settings = new PHprRealGearPulseSettings
+        {
+            IsEnabled = enabledCheckBox.IsChecked == true,
+            Strength01 = strength,
+            FrequencyHz = frequency,
+            DurationMs = duration
+        }.Normalize(limits);
+        message = $"{label} real P-HPR pulse settings ready.";
+        return true;
+    }
+
+    private static bool TryParseOptionalReportId(string text, out byte? reportId, out string message)
+    {
+        reportId = null;
+        var trimmed = text.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            message = "No report ID selected.";
+            return true;
+        }
+
+        var style = NumberStyles.Integer;
+        var valueText = trimmed;
+        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            style = NumberStyles.HexNumber;
+            valueText = trimmed[2..];
+        }
+
+        if (!byte.TryParse(valueText, style, CultureInfo.InvariantCulture, out var parsed))
+        {
+            message = "Real P-HPR report ID must be blank, 0-255, or hex like 0x00.";
+            return false;
+        }
+
+        reportId = parsed;
+        message = "Report ID ready.";
+        return true;
+    }
+
     private static bool TryBuildPedalEffectState(
         PHprPedalEffectKind kind,
         CheckBox enabledCheckBox,
@@ -1448,6 +1709,46 @@ public partial class MainWindow : Window
             LockPedalEffectDurationTextBox);
         _updatingMockPedalEffectsUi = false;
         UpdateMockPedalEffectsStatus();
+    }
+
+    private void ApplyRealPhprOptionsToControls()
+    {
+        var options = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        _updatingRealPhprDirectControlUi = true;
+        RealPhprDirectControlEnabledCheckBox.IsChecked = options.DirectControlEnabled;
+        RealPhprDirectControlArmCheckBox.IsChecked = options.DirectControlArmed;
+        RealPhprDevicePathTextBox.Text = options.Selector.DevicePath ?? string.Empty;
+        RealPhprInterfaceTextBox.Text = options.Selector.InterfaceName;
+        RealPhprReportIdTextBox.Text = options.Selector.ReportId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        RealPhprReportLengthTextBox.Text = options.Selector.ReportLength.ToString(CultureInfo.InvariantCulture);
+        ApplyRealGearPulseSettingsToControls(
+            options.BrakeGearPulse,
+            RealPhprBrakeEnabledCheckBox,
+            RealPhprBrakeStrengthTextBox,
+            RealPhprBrakeFrequencyTextBox,
+            RealPhprBrakeDurationTextBox);
+        ApplyRealGearPulseSettingsToControls(
+            options.ThrottleGearPulse,
+            RealPhprThrottleEnabledCheckBox,
+            RealPhprThrottleStrengthTextBox,
+            RealPhprThrottleFrequencyTextBox,
+            RealPhprThrottleDurationTextBox);
+        _updatingRealPhprDirectControlUi = false;
+        ConfigureRealPhprOutputFromControls("Real P-HPR direct control initialized disabled and unarmed.");
+    }
+
+    private static void ApplyRealGearPulseSettingsToControls(
+        PHprRealGearPulseSettings settings,
+        CheckBox enabledCheckBox,
+        TextBox strengthTextBox,
+        TextBox frequencyTextBox,
+        TextBox durationTextBox)
+    {
+        var normalized = settings.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        enabledCheckBox.IsChecked = normalized.IsEnabled;
+        strengthTextBox.Text = normalized.Strength01.ToString("0.###", CultureInfo.InvariantCulture);
+        frequencyTextBox.Text = normalized.FrequencyHz.ToString("0.###", CultureInfo.InvariantCulture);
+        durationTextBox.Text = normalized.DurationMs.ToString(CultureInfo.InvariantCulture);
     }
 
     private static void ApplyPedalEffectStateToControls(
@@ -2153,6 +2454,7 @@ public partial class MainWindow : Window
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
         UpdatePhprSoftwareCoexistenceStatus();
         UpdatePhprControlledWriteReadinessStatus();
+        UpdateRealPhprDirectControlStatus();
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
@@ -2163,7 +2465,7 @@ public partial class MainWindow : Window
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}.";
         }
     }
 
@@ -2178,7 +2480,7 @@ public partial class MainWindow : Window
         var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
         var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")} runtime-only. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -2361,7 +2663,7 @@ public partial class MainWindow : Window
         {
             "Safety: read-only process detection only. Haptic Drive ASIO does not kill, hook, inject into, patch, control, or modify SimPro Manager or SimHub.",
             snapshot.Message,
-            $"Direct-control safety status: {(snapshot.Status == PHprSoftwareConflictStatus.ActiveConflict || snapshot.Status == PHprSoftwareConflictStatus.Unknown ? "blocked until clear" : "no active coexistence block")}. Stage 2O still does not implement real direct P-HPR output.",
+            $"Direct-control safety status: {(snapshot.Status == PHprSoftwareConflictStatus.Clear ? "clear" : "blocked until clear")}. Stage 2Q direct control stays disabled/unarmed by default and blocks non-clear coexistence.",
             $"Detected SimPro processes: {FormatDetectedSoftwareProcesses(snapshot.SimProProcesses)}",
             $"Detected SimHub processes: {FormatDetectedSoftwareProcesses(snapshot.SimHubProcesses)}",
             $"Detection supported: {snapshot.IsSupported}; error {snapshot.ErrorMessage ?? "none"}"
@@ -2376,9 +2678,36 @@ public partial class MainWindow : Window
         PhprControlledWriteReadinessItemsControl.ItemsSource = new[]
         {
             _phprControlledWriteReadiness.Status,
-            "Safety: Stage 2P is no-write planning only. No real adapter, no HID writer, no write-capable UI, no direct pulse button, and no hardware vibration are implemented.",
-            "Next manual gate: device/interface/report selection, explicit direct-control enable, explicit arming, visible emergency stop, clear SimPro/SimHub status, and user-supervised low-strength one-pulse test.",
+            "Safety: this Stage 2P readiness model remains no-write evidence. Stage 2Q direct controls are shown separately below and stay disabled/unarmed unless explicitly set for the current session.",
+            "Manual gate: device/interface/report selection, explicit direct-control enable, explicit arming, visible emergency stop, clear SimPro/SimHub status, and user-supervised low-strength one-pulse test.",
             $"Blocking issues: {FormatReadinessIssues(_phprControlledWriteReadiness.Issues)}"
+        };
+    }
+
+    private void UpdateRealPhprDirectControlStatus()
+    {
+        var diagnostics = _realPhprOutput.GetDiagnostics();
+        var options = diagnostics.Options;
+        var selector = options.Selector;
+        var coexistenceClear = _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear;
+        var canPulse = options.DirectControlEnabled
+            && options.DirectControlArmed
+            && selector.IsSelected
+            && coexistenceClear
+            && !diagnostics.Output.IsEmergencyStopActive;
+        TestRealPhprBrakePulseButton.IsEnabled = canPulse && options.BrakeGearPulse.IsEnabled;
+        TestRealPhprThrottlePulseButton.IsEnabled = canPulse && options.ThrottleGearPulse.IsEnabled;
+        RealPhprDirectStatusText.Text =
+            $"Real direct control: {(options.DirectControlEnabled ? "enabled" : "disabled")}; {(options.DirectControlArmed ? "armed" : "unarmed")}; device {(selector.IsSelected ? "selected" : "not selected")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {diagnostics.Output.IsEmergencyStopActive}; report writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}.";
+        RealPhprDirectItemsControl.ItemsSource = new[]
+        {
+            "Safety: write-capable Stage 2Q path, disabled and unarmed by default. Enable/arm/device selection are runtime-only and are not persisted.",
+            $"Selected interface: {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0} byte(s); device path {(selector.IsSelected ? "configured for this session" : "none")}.",
+            $"Brake pulse: {(options.BrakeGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {options.BrakeGearPulse.Strength01:0.###}; frequency {options.BrakeGearPulse.FrequencyHz:0.###} Hz; duration {options.BrakeGearPulse.DurationMs} ms.",
+            $"Throttle pulse: {(options.ThrottleGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {options.ThrottleGearPulse.Strength01:0.###}; frequency {options.ThrottleGearPulse.FrequencyHz:0.###} Hz; duration {options.ThrottleGearPulse.DurationMs} ms.",
+            $"Manual pulse buttons: {(canPulse ? "available" : "blocked")}; requires enabled, armed, selected device, clear coexistence, and no emergency stop latch.",
+            $"Last command: {FormatPhprCommand(diagnostics.Output.LastCommand)}; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; message {diagnostics.Output.LastMessage ?? "none"}.",
+            $"Last HID report: {diagnostics.LastReportState?.ToString() ?? "none"}; target {diagnostics.LastTarget?.ToString() ?? "none"}; length {diagnostics.LastReportLength:N0}; summary {diagnostics.LastReportSummary ?? "none"}; error {diagnostics.LastError ?? "none"}."
         };
     }
 
@@ -2430,11 +2759,12 @@ public partial class MainWindow : Window
             $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
             $"P-HPR software coexistence: {BuildPhprCoexistenceDiagnosticsText()}",
             $"P-HPR direct write readiness: {BuildPhprControlledWriteReadinessDiagnosticsText()}",
+            $"P-HPR real direct control: {BuildRealPhprDirectDiagnosticsText()}",
             $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
             $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR emergency stop state, safety latch state, and mock histories are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR real direct-control enabled/armed/selected device, P-HPR emergency stop state, safety latch state, and mock histories are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Diagnostics" })
@@ -2500,13 +2830,26 @@ public partial class MainWindow : Window
     private string BuildPhprCoexistenceDiagnosticsText()
     {
         var snapshot = _phprSoftwareCoexistenceSnapshot;
-        return $"status {snapshot.Status}; SimPro {FormatBoolUnknown(snapshot.SimProRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; SimHub {FormatBoolUnknown(snapshot.SimHubRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; last scan {FormatScanTime(snapshot.LastScanAtUtc)}; supported {snapshot.IsSupported}; direct control blocked {(snapshot.Status == PHprSoftwareConflictStatus.ActiveConflict || snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; read-only process detection only; error {snapshot.ErrorMessage ?? "none"}.";
+        return $"status {snapshot.Status}; SimPro {FormatBoolUnknown(snapshot.SimProRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; SimHub {FormatBoolUnknown(snapshot.SimHubRunning, snapshot.Status == PHprSoftwareConflictStatus.Unknown)}; last scan {FormatScanTime(snapshot.LastScanAtUtc)}; supported {snapshot.IsSupported}; direct control blocked {snapshot.Status != PHprSoftwareConflictStatus.Clear}; read-only process detection only; error {snapshot.ErrorMessage ?? "none"}.";
     }
 
     private string BuildPhprControlledWriteReadinessDiagnosticsText()
     {
         var readiness = _phprControlledWriteReadiness;
         return $"{readiness.Status}; no-write stage {readiness.IsNoWriteStage}; enable {readiness.CanEnableDirectControl}; arm {readiness.CanArmDirectControl}; manual pulse {readiness.CanSendManualPulse}; issues {FormatReadinessIssues(readiness.Issues)}";
+    }
+
+    private string BuildRealPhprDirectDiagnosticsText()
+    {
+        var diagnostics = _realPhprOutput.GetDiagnostics();
+        var options = diagnostics.Options;
+        var selector = options.Selector;
+        var canPulse = options.DirectControlEnabled
+            && options.DirectControlArmed
+            && selector.IsSelected
+            && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
+            && !diagnostics.Output.IsEmergencyStopActive;
+        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; selected {selector.IsSelected}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only, not persisted.";
     }
 
     private string BuildMockGearPulseDiagnosticsText()
@@ -2573,6 +2916,11 @@ public partial class MainWindow : Window
     private static string FormatPedalEffectState(PHprPedalEffectState state)
     {
         return $"{(state.IsEnabled ? "on" : "off")} {state.TargetModule} {state.Profile.Strength01:0.###}/{state.Profile.FrequencyHz:0.###} Hz/{state.Profile.DurationMs} ms";
+    }
+
+    private static string FormatRealPhprPulse(PHprRealGearPulseSettings settings)
+    {
+        return $"{(settings.IsEnabled ? "on" : "off")} {settings.Strength01:0.###}/{settings.FrequencyHz:0.###} Hz/{settings.DurationMs} ms";
     }
 
     private static string FormatPedalEffectDiagnostics(PHprPedalEffectDiagnostics diagnostics)
@@ -2680,6 +3028,7 @@ public partial class MainWindow : Window
         UpdateMockPedalEffectsStatus();
         UpdatePhprSoftwareCoexistenceStatus();
         UpdatePhprControlledWriteReadinessStatus();
+        UpdateRealPhprDirectControlStatus();
     }
 
     private void RefreshPhprSoftwareCoexistenceStatus(bool force = false)
@@ -2748,22 +3097,31 @@ public partial class MainWindow : Window
     {
         var result = _shiftIntentProcessor.HandlePaddleInput(e);
         PHprGearPulseRoutingResult? routingResult = null;
+        PHprDirectGearPulseRoutingResult? realRoutingResult = null;
         if (result.WasAccepted && result.ShiftIntentEvent is not null)
         {
             routingResult = await _mockGearPulseRouter.RouteAsync(
                 result.ShiftIntentEvent,
                 BuildMockGearPulseSafetyContext(result.ShiftIntentEvent));
+            realRoutingResult = await _realPhprGearPulseRouter.RouteAsync(
+                result.ShiftIntentEvent,
+                BuildRealGearPulseSafetyContext(result.ShiftIntentEvent));
         }
 
         _ = Dispatcher.InvokeAsync(() =>
         {
             UpdateShiftIntentStatus();
+            UpdateRealPhprDirectControlStatus();
             UpdateMockGearPulseStatus();
             UpdateMockPedalEffectsStatus();
             UpdateDiagnosticsStatus();
+            var realMessage = realRoutingResult is not null
+                && (_realPhprOptions.DirectControlEnabled || realRoutingResult.Routed)
+                    ? $" {realRoutingResult.Message}"
+                    : string.Empty;
             FooterStatusText.Text = routingResult is null
-                ? result.Message
-                : $"{result.Message} {routingResult.Message}";
+                ? $"{result.Message}{realMessage}"
+                : $"{result.Message} {routingResult.Message}{realMessage}";
         });
     }
 
@@ -2810,6 +3168,41 @@ public partial class MainWindow : Window
     {
         var driving = _drivingArmedStateService.GetSnapshot();
         return BuildMockPhprSafetyContext(pipelineSnapshot, driving.Current.IsArmed);
+    }
+
+    private PHprSafetyContext BuildRealGearPulseSafetyContext(ShiftIntentEvent shiftIntentEvent)
+    {
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+        var outputSnapshot = _realPhprOutput.GetSnapshot();
+        return new PHprSafetyContext(
+            IsMockOutput: false,
+            IsDeviceConnected: outputSnapshot.IsConnected,
+            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
+            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
+            TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
+            HapticsStopped: !pipelineSnapshot.IsRunning,
+            EmergencyMuteActive: _emergencyMuted,
+            DrivingArmed: shiftIntentEvent.DrivingArmedAtEvent.IsArmed,
+            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
+            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
+            RequiresRealDeviceWrites: true);
+    }
+
+    private PHprSafetyContext BuildManualRealPhprSafetyContext()
+    {
+        var outputSnapshot = _realPhprOutput.GetSnapshot();
+        return new PHprSafetyContext(
+            IsMockOutput: false,
+            IsDeviceConnected: _realPhprOptions.Selector.IsSelected,
+            BrakeModuleAvailable: _realPhprOptions.Selector.IsSelected,
+            ThrottleModuleAvailable: _realPhprOptions.Selector.IsSelected,
+            TelemetryStale: false,
+            HapticsStopped: false,
+            EmergencyMuteActive: _emergencyMuted,
+            DrivingArmed: true,
+            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
+            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
+            RequiresRealDeviceWrites: true);
     }
 
     private PHprSafetyContext BuildMockPhprSafetyContext(
@@ -3076,6 +3469,7 @@ public partial class MainWindow : Window
         _testBench.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _paddleInputSource.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _realPhprOutput.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _hapticPipeline.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.OnClosed(e);
     }

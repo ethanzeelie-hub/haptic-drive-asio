@@ -540,6 +540,27 @@ Not implemented in Stage 2P:
 - No real P-HPR hardware validation.
 - No ASIO/BST-1 audio path change.
 
+## Stage 2Q Scope
+
+Implemented in Stage 2Q:
+
+- `HapticDrive.Simagic.PHPR.Output.Windows` with a gated real direct-output adapter.
+- SimHub F1 EC 64-byte start/stop encoding for brake and throttle modules.
+- Fakeable HID report writer boundary and Windows HID report writer.
+- Runtime-only WPF direct-control enable, arm, device/interface/report selection, per-pedal brake/throttle settings, one-pulse buttons, emergency stop, and write diagnostics.
+- Accepted-paddle direct gear-pulse routing behind enable, arm, selected device, coexistence, emergency-stop, and safety gates.
+- Fake-writer tests covering startup, gating, coexistence blocks, safety rejection, report bytes, duration stop scheduling, emergency stop, dispose stop behavior, per-pedal settings, suppressed shift intent, ASIO isolation, and mock-path preservation.
+
+Not implemented or not claimed in Stage 2Q:
+
+- No unattended hardware writes.
+- No automated/CI hardware writes.
+- No physical P-HPR validation.
+- No safe-gain, physical latency, stop behavior, or pedal mapping claim.
+- No SimPro `80 1E 89` write support.
+- No persisted real direct-control enable/arm/device selection.
+- No ASIO/BST-1 audio path change.
+
 ## Required Follow-Up Data
 
 Stage 2A requests the hardware/software data listed in `docs/SIMAGIC_USER_DATA_REQUEST.md`.
@@ -555,19 +576,19 @@ The highest-value first items after Stage 2I are:
 7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
-USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is next.
+USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is complete. Stage 2R controlled real P-HPR validation harness is next.
 
 ## Write Safety Gate
 
-No real P-HPR USB writes may be implemented or executed until the user says exactly:
+No unattended real P-HPR USB writes may be executed until the user says exactly:
 
 ```text
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the later gated Stage 2Q real-write code path. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2P, no real-write code path exists.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2Q, the real-write code path is implemented but remains default-off, manually armed, fake-writer tested, and not physically validated.
 
-Before that phrase, work is limited to read-only discovery, input observation, documentation, mock output, mock safety limiting, protocol hypotheses, tests, and diagnostics.
+Before an explicit manual validation run, work is limited to read-only discovery, input observation, documentation, mock output, mock safety limiting, protocol hypotheses, gated implementation, fake-writer tests, and diagnostics.
 
 ## Legal and Coexistence Notes
 

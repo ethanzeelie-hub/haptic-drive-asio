@@ -346,3 +346,14 @@
 - No USB writes, HID output reports, HID feature reports, vibration commands, device-handle writes, controlled write testing, SimPro control, or SimHub control are implemented or executed.
 - Physical P-HPR validation is pending a local user-run procedure after gated implementation exists.
 - The ASIO/BST-1 audio path is unchanged by Stage 2P.
+
+## Stage 2Q
+
+- A gated write-capable Windows HID P-HPR adapter now exists, but no real P-HPR hardware pulse has been executed or validated by Codex.
+- Direct control remains disabled and unarmed by default. Enable state, armed state, selected device path, emergency-stop latch, command history, and write history are runtime-only and not persisted.
+- Device path, interface, report ID, report length, report descriptor, endpoint, exclusive-open behavior, and brake/throttle module mapping still require local manual confirmation.
+- The Stage 2Q encoder implements only the SimHub `F1 EC` hypothesis. SimPro Manager `80 1E 89` detailed writes remain unsupported.
+- Real direct starts are blocked unless coexistence status is `Clear`; `Unknown`, `SimProRunning`, `SimHubRunning`, and `ActiveConflict` all block real starts.
+- Stop and emergency-stop behavior is implemented in code with fake-writer tests, but real stop/off behavior on hardware remains unvalidated.
+- Automated tests use fake HID writers only; no CI or automated verification writes to hardware.
+- The ASIO/BST-1 audio path is unchanged by Stage 2Q.

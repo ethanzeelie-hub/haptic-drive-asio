@@ -38,6 +38,7 @@
 - Stage 2N: Mock road vibration, wheel slip, and wheel lock routing complete.
 - Stage 2O: SimPro / SimHub coexistence detection complete.
 - Stage 2P: Controlled write test plan complete.
+- Stage 2Q: Gated minimal real P-HPR write implementation complete.
 
 ## Planned Stages
 
@@ -82,7 +83,8 @@ Phase 2 safe sequence:
 14. Stage 2N: Mock road vibration, wheel slip, and wheel lock routing. Complete.
 15. Stage 2O: SimPro / SimHub coexistence detection. Complete.
 16. Stage 2P: Controlled write test plan. Complete.
-17. Stage 2Q: Gated minimal real P-HPR write implementation. Next.
+17. Stage 2Q: Gated minimal real P-HPR write implementation. Complete.
+18. Stage 2R: Controlled real P-HPR validation harness. Next.
 
 The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
 
@@ -118,3 +120,4 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` / `HapticPipelineSnapshot` data through `PHprPedalEffectsRouter`, `SafetyLimitedPhprOutputDevice`, and `MockPhprOutputDevice`; it does not add real output, USB writes, HID reports, SimPro/SimHub detection, controlled write testing, new packet parsing, or ASIO/BST-1 routing.
 - Stage 2O adds read-only SimPro Manager / SimHub process detection, coexistence diagnostics, and `PHprSafetyContext.SoftwareConflictStatus` wiring; it does not kill, hook, inject into, patch, control, or modify either process, and it does not add real output, USB writes, HID reports, controlled write testing, or ASIO/BST-1 routing.
 - Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, WPF disabled direct-write readiness diagnostics, evidence mapping, and tests; it does not add a real adapter, HID writer, write-capable UI, USB writes, real vibration, or ASIO/BST-1 routing.
+- Stage 2Q adds a gated write-capable Windows HID P-HPR adapter, SimHub F1 EC encoder, runtime-only direct-control UI, fake-writer tests, and accepted-paddle direct gear-pulse routing; it does not execute hardware writes automatically, persist enable/arm/device selection, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.

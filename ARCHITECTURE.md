@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2P includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable mock-only P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, and a no-write controlled-write readiness model/runbook. No real P-HPR output implementation exists.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. The real adapter is disabled/unarmed by default and is not physically validated.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -142,6 +142,42 @@ PHprControlledWriteChecklist
 `PHprControlledWriteReadiness` always reports Stage 2P as blocked for real output. This remains true even if every future manual checklist item is marked true. The model exists to make blockers explicit before Stage 2Q, not to enable output.
 
 The WPF Devices and Diagnostics pages show disabled direct-write readiness, checklist blockers, and the no-write statement. Stage 2P does not add a real adapter, HID writer, write-capable button, automatic pulse, persisted armed state, or hardware output.
+
+## Stage 2Q Gated Real Direct Output
+
+Stage 2Q adds `HapticDrive.Simagic.PHPR.Output.Windows` as the minimal write-capable direct-control backend for later manual validation.
+
+The real direct-control stack is:
+
+```text
+manual test pulse or accepted ShiftIntentEvent
+-> PHprCommand
+-> SimagicPhprOutputDevice
+-> PHprSafetyLimiter
+-> SimHubF1EcRealReportEncoder
+-> IPhprHidReportWriter
+-> selected Windows HID device path
+```
+
+`WindowsHidReportWriter` is configured only from runtime UI/manual selection. Device path, enabled state, armed state, emergency-stop latch, and histories are not persisted.
+
+`SimHubF1EcRealReportEncoder` emits the Stage 2J/2P preferred SimHub `F1 EC` start/stop family:
+
+- brake module `01`,
+- throttle module `02`,
+- start state `01`,
+- stop state `00`,
+- frequency byte as direct Hz,
+- strength byte as direct percent,
+- software-timed duration through delayed stop reports.
+
+SimPro Manager `80 1E 89` detailed writes remain unsupported.
+
+The WPF Devices page exposes real direct-control enable, arm, manual device/interface/report selection, per-pedal brake/throttle settings, one-pulse brake/throttle test buttons, emergency stop, clear emergency stop, and last write diagnostics. Pulse buttons are disabled unless direct control is enabled, armed, a device is selected, coexistence is `Clear`, and emergency stop is not latched.
+
+Accepted `ShiftIntentEvent` values are offered to `PHprDirectGearPulseRouter`, but real direct gear routing stays inert unless enabled and armed for the current session. The route does not wait for telemetry gear confirmation.
+
+Stage 2Q does not validate physical P-HPR behavior, safe gain, stop behavior, pedal mapping, or latency. Automated verification uses fake HID writers only.
 
 ## Stage 2B Input and P-HPR Abstractions
 

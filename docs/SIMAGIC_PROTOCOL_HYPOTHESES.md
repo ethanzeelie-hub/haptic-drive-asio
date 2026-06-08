@@ -4,7 +4,7 @@
 
 Stage 2J converts the Stage 2I capture-analysis results and related sanitized input evidence into formal P-HPR protocol hypotheses.
 
-This document prepared Stage 2K mock protocol/output work, feeds the Stage 2L safety layer, remains the evidence background for Stage 2M/2N mock routing, and feeds the Stage 2P controlled write test plan. It does not execute direct P-HPR control.
+This document prepared Stage 2K mock protocol/output work, feeds the Stage 2L safety layer, remains the evidence background for Stage 2M/2N mock routing, feeds the Stage 2P controlled write test plan, and defines the Stage 2Q minimal SimHub F1 EC encoder boundary. It does not prove physical P-HPR behavior.
 
 ## Safety Boundary
 
@@ -12,7 +12,7 @@ This document prepared Stage 2K mock protocol/output work, feeds the Stage 2L sa
 - No USB writes.
 - No HID output reports.
 - No HID feature reports.
-- No production protocol adapter.
+- No physically validated production protocol adapter.
 - No live hardware protocol encoder.
 - No live hardware protocol decoder that creates `PHprCommand` values.
 - No `IPHprOutputDevice` calls.
@@ -109,7 +109,7 @@ F1 EC [module] 01 [frequency_hz] [strength_percent] 00 ...
 
 One SimHub throttle 10% observation used `09` instead of `0A`; treat that as a documented anomaly, not a different encoding.
 
-Stage 2K may model this as a mock-only SimHub F1 EC start packet. No Stage 2J code sends or prepares it for hardware.
+Stage 2K models this as mock-only data. Stage 2Q encodes this family only behind explicit direct-control enable, arm, selected device, coexistence, emergency-stop, and safety gates. Stage 2Q does not execute or validate the report against hardware.
 
 ## SimHub Stop Packet Hypothesis
 
@@ -128,7 +128,7 @@ F1 EC [module] 00 0A 00 00 00 ...
 | byte 5 | 5 | `00` | observed zero | Medium |
 | remaining bytes | 6+ | zero in tested cases | unknown/padding | Low |
 
-Stop/idle payload is an observation. Real stop command behavior must not be trusted until controlled write validation after explicit approval.
+Stop/idle payload is an observation. Stage 2Q can encode stop reports and emergency-stop stop reports, but real stop command behavior must not be trusted until controlled local validation.
 
 ## SimHub Duration Timing Hypothesis
 
@@ -147,7 +147,7 @@ Confidence:
 - High for tested SimHub scenarios.
 - Unknown for all possible SimHub effects not captured.
 
-Stage 2K may model duration as mock start plus scheduled mock stop. Real hardware write implementation remains blocked.
+Stage 2K may model duration as mock start plus scheduled mock stop. Stage 2Q implements software-timed start plus delayed stop for the gated real adapter, using fake-writer automated tests only.
 
 ## SimPro 80 1E 89 Protocol Family Hypothesis
 
@@ -186,7 +186,8 @@ Stage 2K may represent this only as `SimProUnknownMock` unless a later stage del
 | Strength | direct percent, high confidence | candidate evidence exists, still conservative |
 | Duration | software-timed start/stop in tested cases | unresolved |
 | Stage 2K readiness | mock-ready | unknown/mock placeholder only |
-| Real-write status | blocked | blocked |
+| Stage 2Q code status | gated encoder implemented | unsupported |
+| Real hardware validation | pending | blocked |
 
 Do not assume these payload families are interchangeable.
 
@@ -247,7 +248,7 @@ Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 ## Real Write Blockers
 
-- The Stage 2P controlled write test plan exists, but it has not been executed.
+- The Stage 2Q gated adapter exists, but the Stage 2P/2R controlled manual validation has not been executed.
 - No real hardware write safety validation exists.
 - Stop command behavior has not been validated on real hardware.
 - SimPro/SimHub coexistence has not been validated for direct control.
@@ -255,8 +256,8 @@ Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 - Report ID, endpoint, and interface selection must be confirmed.
 - Any checksum, sequence, or keepalive behavior must be confirmed if present.
 - Behavior when SimPro Manager is running must be understood.
-- Emergency stop path must exist before real writes.
-- `PHprSafetyLimiter` exists for mock/safety evaluation, but it has not been validated against real hardware.
+- Emergency stop path exists in code and fake-writer tests, but real emergency-stop behavior has not been validated.
+- `PHprSafetyLimiter` gates the Stage 2Q adapter, but it has not been validated against real hardware.
 - First real test must be manual, low strength, short duration, one pedal, and no loop.
 
 ## Optional User Data That Would Improve Confidence
@@ -272,4 +273,4 @@ Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 ## Final Safety Statement
 
-Nothing in this document authorises executing real USB writes.
+This document supports gated Stage 2Q implementation. It does not authorise unattended execution of real USB writes or any claim of physical P-HPR validation.

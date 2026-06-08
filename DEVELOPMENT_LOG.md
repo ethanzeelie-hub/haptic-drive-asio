@@ -1459,3 +1459,48 @@ Self-review:
 - The ASIO/BST-1 audio path was not changed.
 - Raw/private captures, USB captures, screenshots, serial numbers, unsanitized hardware data, external evidence bundles, generated local analysis exports, and private manual validation results were not committed.
 - Stage 2Q Gated Minimal Real P-HPR Write Implementation is next; Stage 2P stops here.
+
+## Stage 2Q - Gated Minimal Real P-HPR Write Implementation
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Implement the minimal gated real P-HPR direct-output path for later manual local testing while keeping real output default-off, unarmed, non-persisted, fake-writer tested, and physically unvalidated.
+
+Notes:
+
+- Added `HapticDrive.Simagic.PHPR.Output.Windows` with `PHprHidDeviceSelector`, `IPhprHidReportWriter`, `WindowsHidReportWriter`, `SimHubF1EcRealReportEncoder`, `SimagicPhprOutputDevice`, `PHprRealOutputOptions`, direct-output diagnostics, and `PHprDirectGearPulseRouter`.
+- Implemented the SimHub F1 EC start/stop family only: brake module `01`, throttle module `02`, start state `01`, stop state `00`, direct Hz/percent bytes, and software-timed delayed stop.
+- Kept SimPro Manager `80 1E 89` detailed writes unsupported.
+- Gated real start reports behind direct-control enable, direct-control arm, selected device/interface/report, non-latched emergency stop, clear SimPro/SimHub coexistence, and `PHprSafetyLimiter`.
+- Made stop/emergency-stop capable of sending brake/throttle stop reports when a selected device is available; dispose attempts stop only when selected and armed or when a stop is already pending.
+- Added WPF Devices-page real direct-control controls for runtime-only enable/arm, manual device/interface/report selection, per-pedal brake/throttle settings, one-pulse brake/throttle test buttons, emergency stop, clear emergency stop, coexistence/safety status, and last write diagnostics.
+- Wired accepted `ShiftIntentEvent` values to `PHprDirectGearPulseRouter`; the route stays inert unless real direct control is enabled and armed for the current session.
+- Added the real direct-control snapshot to Diagnostics and clarified that real direct-control enable/arm/device selection is not persisted.
+- Added `docs/SIMAGIC_P_HPR_REAL_WRITE_IMPLEMENTATION.md` and `docs/SIMAGIC_P_HPR_USER_GUIDE.md`.
+- Updated README, architecture, roadmap, known issues, safety plan, protocol hypotheses, controlled write plan, manual validation runbook, Phase 2 research notes, and SimPro/SimHub coexistence docs.
+- Added fake-writer tests for default-off startup, no selected device, non-clear coexistence blocking, safety rejection, brake/throttle report bytes, duration stop scheduling, emergency stop, dispose stop behavior, accepted/suppressed paddle routing, per-pedal settings, ASIO isolation, and mock-path preservation.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 77 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 399 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Stage 2Q implemented gated write-capable infrastructure only; no real P-HPR hardware pulse was executed.
+- Real direct control remains disabled and unarmed by default, and enable/arm/device selection are runtime-only.
+- Automated tests use fake HID writers only and do not open real devices.
+- No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, or feel claim is made.
+- No SimPro Manager `80 1E 89` write path was implemented.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- The ASIO/BST-1 audio path was not changed.
+- Stage 2R Controlled Real P-HPR Validation Harness is next; Stage 2Q stops here.

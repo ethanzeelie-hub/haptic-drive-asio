@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This runbook defines how Ethan should manually validate future P-HPR direct control after the gated Stage 2Q implementation exists.
+This runbook defines how Ethan should manually validate P-HPR direct control after the gated Stage 2Q implementation.
 
-Stage 2P does not execute this runbook. No real P-HPR output exists in Stage 2P.
+Stage 2Q does not execute this runbook automatically. A gated real adapter and manual pulse UI exist, but no real P-HPR hardware output has been validated by Codex.
 
 ## Before Starting
 
@@ -28,7 +28,7 @@ Confirm:
 1. Open Haptic Drive ASIO.
 2. Confirm P-HPR direct control is disabled.
 3. Confirm coexistence status is `Clear`.
-4. Select the P700/P-HPR device/interface/report.
+4. Select the P700/P-HPR device path, interface label, optional report ID, and report length.
 5. Enable direct-control mode.
 6. Arm direct control.
 7. Trigger one brake pulse only.
@@ -69,6 +69,7 @@ Run these after one-pulse brake/throttle behavior is correct:
 - `DrivingArmed` false blocks starts,
 - haptics stopped blocks starts,
 - SimPro/SimHub `ActiveConflict` blocks starts,
+- SimPro/SimHub `Unknown`, `SimProRunning`, or `SimHubRunning` also block real starts,
 - no real write occurs when direct control is disabled,
 - no real write occurs when direct control is unarmed,
 - and no real write occurs on app startup.
@@ -123,10 +124,12 @@ Abort immediately if:
 
 ## Validation Status
 
-As of Stage 2P:
+As of Stage 2Q:
 
 - validation runbook implemented,
 - readiness diagnostics implemented,
+- gated real adapter implemented,
+- manual Devices-page direct-control UI implemented,
 - physical validation pending local user run,
-- no real output adapter exists,
+- no real hardware validation has been recorded,
 - no real hardware vibration has been executed by Codex.

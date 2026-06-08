@@ -130,3 +130,16 @@ The WPF Devices page exposes a disabled "P-HPR Direct Write Readiness" diagnosti
 ## Stage 2Q Preparation Boundary
 
 Stage 2Q may implement a minimal gated real-write path, but automated verification must still use fake writers only. Stage 2Q must keep real output default-off, arming runtime-only, emergency stop visible, and physical validation manual.
+
+## Stage 2Q Implementation Status
+
+Stage 2Q implements the minimal gated path described above:
+
+- Windows HID report writer boundary with fake-writer tests,
+- SimHub F1 EC start/stop encoder,
+- runtime-only WPF direct-control enable/arm/device selection,
+- one-pulse brake and throttle buttons guarded by enable, arm, selected device, clear coexistence, and emergency stop state,
+- accepted-paddle direct gear-pulse route that remains disabled/unarmed by default,
+- emergency stop stop-report attempt for brake and throttle when a device is selected.
+
+Stage 2Q does not execute this test plan and does not validate physical P-HPR behavior. Controlled real validation moves to Stage 2R.
