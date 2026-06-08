@@ -2,7 +2,7 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior.
 
 No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
 
@@ -26,6 +26,8 @@ Controls:
 - `Clear Emergency Stop`: clears the latch, but does not enable or arm direct control.
 
 The pulse buttons remain disabled until direct control is enabled, armed, a device is selected, coexistence status is `Clear`, and emergency stop is clear.
+
+Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. These diagnostics do not auto-run output.
 
 ## First Safe Manual Settings
 
@@ -102,4 +104,4 @@ Mock routing preferences and input mapping remain separate from real direct-cont
 
 ## What Stage 2Q Does Not Prove
 
-Stage 2Q does not prove physical pedal mapping, safe output strength, real stop behavior, SimPro/SimHub coexistence on the device, report descriptor details, or latency.
+Stage 2Q/Phase 3A do not prove physical pedal mapping, safe output strength, real stop behavior, SimPro/SimHub coexistence on the device, report descriptor details, or latency.

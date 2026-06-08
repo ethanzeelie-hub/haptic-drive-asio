@@ -1544,4 +1544,49 @@ Self-review:
 - No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, or feel claim is made.
 - Raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, and private manual validation results were not committed.
 - The ASIO/BST-1 audio path was not changed.
-- Phase 3A Direct Paddle-to-P-HPR Gear Pulse Settings is next; Stage 2R stops here.
+- Phase 3A Production P-HPR Output Adapter Hardening is next; Stage 2R stops here.
+
+## Phase 3A - Production P-HPR Output Adapter Hardening
+
+Date: 2026-06-08
+
+Status: Complete.
+
+Goal: Harden the Stage 2Q real direct-output adapter into a production-quality P-HPR backend while preserving all safety gates and avoiding unattended hardware output.
+
+Notes:
+
+- Added explicit HID writer lifecycle to `IPhprHidReportWriter`: `OpenAsync`, `WriteReportAsync`, `CloseAsync`, and `IsOpen`.
+- Hardened `WindowsHidReportWriter` with selected-report validation, persistent open/close ownership, write failure classification, disconnect classification, and close behavior.
+- Added `PHprHidConnectionState`, `PHprHidWriteStatus`, and `PHprRealOutputConnectionDiagnostics`.
+- Added normalized write timeout settings to `PHprRealOutputOptions` with a default of `250 ms`.
+- Reworked `SimagicPhprOutputDevice` to lazily open only on explicit start/stop/emergency-stop operations, validate selected interface/report state, timeout-wrap writer operations, classify timeout/disconnect/invalid-report failures, track lifecycle counters, close on dispose, and preserve stop/emergency-stop behavior where safe.
+- Kept start commands gated behind direct-control enable, direct-control arm, selected interface/report, clear SimPro/SimHub coexistence, clear emergency stop, and `PHprSafetyLimiter` acceptance.
+- Updated WPF real direct-control diagnostics with connection state, writer-open state, open/close counts, timeout, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and stop-report count.
+- Added `docs/SIMAGIC_P_HPR_OUTPUT_ADAPTER.md`.
+- Updated user guide, Simagic P-HPR guide, real-write implementation notes, safety plan, Phase 2 research notes, README, architecture, roadmap, and known issues.
+- Added fake-writer tests for explicit open/close, open gating, write failure, stop failure, disconnect, write timeout, invalid report length, and dispose stop/close behavior.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 91 passing tests.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 413 passing tests and 3 skipped manual hardware tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- mock-protocol-examples` passed and printed 10 mock examples.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj --no-build -- safety-examples` passed and printed 6 safety examples.
+
+Self-review:
+
+- Phase 3A hardens the existing direct-output adapter only; it does not add a second output path.
+- App startup and configuration still do not open the writer, start vibration, or send reports.
+- Direct starts remain default-off, unarmed, runtime-only, coexistence-gated, emergency-stop-gated, and safety-limited.
+- Stop and emergency-stop paths can attempt stop reports only with a selected valid interface; dispose closes the writer where possible.
+- Automated tests use fake HID writers only and do not open real hardware.
+- No physical P-HPR safety, pedal mapping, stop behavior, safe gain, physical latency, or feel claim is made.
+- No raw captures, serial numbers, private device paths, unsanitized inventories, generated local analysis exports, or private manual validation results were committed.
+- The ASIO/BST-1 audio path was not changed.
+- Phase 3B Instant Paddle Gear Pulse Production Integration is next; Phase 3A stops here.

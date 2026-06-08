@@ -366,3 +366,13 @@
 - The harness does not trigger hardware output; brake, throttle, emergency stop, and paddle tests remain manual user actions.
 - Physical P-HPR validation, wrong-pedal checks, sustained-vibration checks, safe-gain confirmation, emergency-stop physical behavior, and direct-pulse latency remain pending Ethan's local supervised run.
 - The ASIO/BST-1 audio path is unchanged by Stage 2R.
+
+## Phase 3A
+
+- The real P-HPR output adapter now has explicit lifecycle, timeout, disconnect, report-validation, and close-on-dispose handling, but no real P-HPR hardware pulse has been executed or validated by Codex.
+- Fake-writer tests cover adapter failure behavior, but they do not prove Windows HID exclusive-open behavior, real report descriptor details, P700/P-HPR endpoint ownership, or physical module response.
+- A disconnected or faulted adapter state blocks later starts through the safety context until the selected output is reconfigured, but the physical reconnect workflow still needs local validation.
+- Write timeout defaults are software safeguards, not physical latency measurements.
+- Stop and emergency-stop report behavior is code-tested with fakes only; real stop/off behavior remains pending supervised local validation.
+- Direct control remains disabled and unarmed by default, and enable/arm/device selection remain runtime-only and not persisted.
+- The ASIO/BST-1 audio path is unchanged by Phase 3A.

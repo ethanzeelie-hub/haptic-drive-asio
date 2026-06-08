@@ -24,7 +24,7 @@ F1 25 UDP packets
 
 ## Phase 2 Planned Actuator Boundary
 
-Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. The real adapter is disabled/unarmed by default and is not physically validated.
+Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. The real adapter is disabled/unarmed by default and is not physically validated.
 
 P-HPR modules must not be routed through ASIO and must not implement `IAudioOutputDevice`.
 
@@ -196,6 +196,28 @@ The harness does not send P-HPR commands, does not call the HID writer, and does
 Exports go to `local-validation-results/` when the repo root is available, otherwise LocalAppData. That folder is ignored and should not be committed when it contains private hardware data.
 
 `pass` decisions are blocked unless required manual result fields and hardware confirmations are present. The app still cannot independently verify physical truth; Stage 2R does not mark real P-HPR validation complete without user-supplied results.
+
+## Phase 3A Production P-HPR Output Adapter Hardening
+
+Phase 3A hardens the existing `HapticDrive.Simagic.PHPR.Output.Windows` backend instead of adding another output path.
+
+The hardened direct-control stack is:
+
+```text
+manual test pulse or accepted ShiftIntentEvent
+-> PHprCommand
+-> SimagicPhprOutputDevice gates
+-> PHprSafetyLimiter
+-> SimHubF1EcRealReportEncoder
+-> IPhprHidReportWriter.OpenAsync / WriteReportAsync / CloseAsync
+-> selected Windows HID device path
+```
+
+The writer boundary now separates lifecycle from command routing. `SimagicPhprOutputDevice` lazily opens the writer only for explicit start, stop, or emergency-stop operations; configuration and app startup remain inert. `WindowsHidReportWriter` owns the selected file handle and validates the selected 64-byte SimHub F1 EC report length before writing.
+
+Adapter diagnostics include connection state, writer-open state, open/close attempts and successes, write/stop status, report counters, stop-report counters, timeout counters, disconnect counters, invalid-report counters, and last error. Dispose attempts emergency-stop-style brake/throttle stop reports only when a selected device is armed or a stop is pending, then closes the writer where possible.
+
+Start commands still require explicit enable, explicit arm, selected device/interface/report, clear SimPro/SimHub coexistence, clear emergency stop, and `PHprSafetyLimiter` acceptance. Stop and emergency-stop paths can attempt safe stop reports with a selected valid interface. Phase 3A does not add startup output, persisted arming, automated hardware writes, or ASIO/BST-1 routing.
 
 ## Stage 2B Input and P-HPR Abstractions
 

@@ -7,6 +7,7 @@ public sealed record PHprRealOutputDiagnostics(
     PHprRealOutputOptions Options,
     PHprDirectControlArmingState Arming,
     PHprOutputSnapshot Output,
+    PHprRealOutputConnectionDiagnostics Connection,
     long ReportWriteCount,
     long FailedReportWriteCount,
     int LastReportLength,

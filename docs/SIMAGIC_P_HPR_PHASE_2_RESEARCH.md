@@ -596,7 +596,7 @@ The highest-value first items after Stage 2I are:
 7. Haptic Drive ASIO Refresh Input Devices candidate output, especially device display names and discovery errors.
 8. Haptic Drive ASIO Stage 2E last-changed button, mapped left/right paddle diagnostics, and Stage 2F accepted/suppressed shift-intent diagnostics.
 
-USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is complete. Stage 2R controlled real P-HPR validation harness is complete. Phase 3A production P-HPR output adapter hardening is next.
+USBPcap/Wireshark capture summaries can now be inspected with Stage 2I tooling. Stage 2J protocol hypotheses are complete and remain grounded in sanitized Stage 2I analysis outputs or reviewed local evidence. Stage 2K mock protocol/output is complete. Stage 2L P-HPR safety layer is complete. Stage 2M mock gear pulse routing is complete. Stage 2N mock road vibration, wheel slip, and wheel lock routing is complete. Stage 2O SimPro / SimHub coexistence detection is complete. Stage 2P controlled write test planning is complete. Stage 2Q gated minimal real-write implementation is complete. Stage 2R controlled real P-HPR validation harness is complete. Phase 3A production P-HPR output adapter hardening is complete. Phase 3B instant paddle gear pulse production integration is next.
 
 ## Write Safety Gate
 
@@ -606,7 +606,7 @@ No unattended real P-HPR USB writes may be executed until the user says exactly:
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path and Stage 2R validation harness. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2R, the real-write code path and validation harness are implemented but remain default-off, manually armed, fake/model tested, and not physically validated.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path, Stage 2R validation harness, and Phase 3A adapter hardening. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Phase 3A, the real-write code path and validation harness are implemented but remain default-off, manually armed, fake/model tested, and not physically validated.
 
 Before an explicit manual validation run, work is limited to read-only discovery, input observation, documentation, mock output, mock safety limiting, protocol hypotheses, gated implementation, fake-writer tests, and diagnostics.
 

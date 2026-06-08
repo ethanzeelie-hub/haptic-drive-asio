@@ -31,6 +31,8 @@ Manual direct-control pulse buttons require:
 - emergency stop clear,
 - safety limiter acceptance.
 
+Phase 3A adds hardened output-adapter diagnostics. The Devices page shows connection state, writer-open state, open/close counters, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and the active write timeout. These are diagnostics only; they do not auto-open the device or auto-trigger vibration.
+
 Stage 2Q/2R do not prove physical safety or pedal mapping. Use only supervised local validation.
 
 ## Controlled Validation Harness

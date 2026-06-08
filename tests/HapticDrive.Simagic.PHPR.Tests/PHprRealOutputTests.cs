@@ -42,6 +42,7 @@ public sealed class PHprRealOutputTests
         Assert.False(options.DirectControlEnabled);
         Assert.False(options.DirectControlArmed);
         Assert.False(options.Selector.IsSelected);
+        Assert.Equal(PHprRealOutputOptions.DefaultWriteTimeoutMs, options.WriteTimeoutMs);
     }
 
     [Fact]
@@ -109,6 +110,7 @@ public sealed class PHprRealOutputTests
         await WaitForReportsAsync(writer, 2);
 
         Assert.True(result.Succeeded);
+        Assert.Equal(1, writer.OpenCount);
         Assert.Equal(PHprModuleId.Brake, writer.Reports[0].TargetModule);
         Assert.Equal([0xF1, 0xEC, 0x01, 0x01, 0x32, 0x0A], writer.Reports[0].Payload.Take(6).ToArray());
         Assert.Equal([0xF1, 0xEC, 0x01, 0x00, 0x0A, 0x00], writer.Reports[1].Payload.Take(6).ToArray());
@@ -127,6 +129,135 @@ public sealed class PHprRealOutputTests
         Assert.Equal(PHprModuleId.Throttle, writer.Reports[0].TargetModule);
         Assert.Equal([0xF1, 0xEC, 0x02, 0x01, 0x32, 0x0A], writer.Reports[0].Payload.Take(6).ToArray());
         Assert.Equal([0xF1, 0xEC, 0x02, 0x00, 0x0A, 0x00], writer.Reports[1].Payload.Take(6).ToArray());
+    }
+
+    [Fact]
+    public async Task ExplicitOpenAndCloseUpdateConnectionDiagnosticsWithoutReports()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+
+        var open = await device.OpenAsync();
+        var close = await device.CloseAsync();
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.True(open.Succeeded);
+        Assert.True(close.Succeeded);
+        Assert.Equal(1, writer.OpenCount);
+        Assert.Equal(1, writer.CloseCount);
+        Assert.Empty(writer.Reports);
+        Assert.Equal(PHprHidConnectionState.Closed, diagnostics.Connection.State);
+        Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.Connection.LastOpenStatus);
+        Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.Connection.LastCloseStatus);
+    }
+
+    [Fact]
+    public async Task ExplicitOpenRequiresEnabledArmedAndSelectedInterface()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, PHprRealOutputOptions.Disabled with
+        {
+            Selector = SelectedDevice()
+        });
+
+        var open = await device.OpenAsync();
+
+        Assert.False(open.Succeeded);
+        Assert.False(writer.IsOpen);
+        Assert.Equal(0, writer.OpenCount);
+    }
+
+    [Fact]
+    public async Task WriteFailureRecordsDiagnosticsAndRejectsCommand()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("fake write failed", "planned failure"));
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(writer.Reports);
+        Assert.Equal(1, diagnostics.FailedReportWriteCount);
+        Assert.Equal(PHprHidConnectionState.Faulted, diagnostics.Connection.State);
+        Assert.Equal(PHprHidWriteStatus.Failed, diagnostics.Connection.LastWriteStatus);
+        Assert.Contains("fake write failed", diagnostics.Output.LastMessage);
+    }
+
+    [Fact]
+    public async Task StopFailureRecordsLastStopStatusWithoutClearingEmergencyLatch()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("fake stop failed", "planned stop failure"));
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+
+        await device.EmergencyStopAsync();
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.True(diagnostics.Output.IsEmergencyStopActive);
+        Assert.Equal(PHprHidConnectionState.Faulted, diagnostics.Connection.State);
+        Assert.Equal(PHprHidWriteStatus.Failed, diagnostics.Connection.LastStopStatus);
+        Assert.Equal(1, diagnostics.FailedReportWriteCount);
+    }
+
+    [Fact]
+    public async Task DisconnectedWriterMarksOutputDisconnectedAndBlocksNextStartThroughSafety()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("fake disconnected", status: PHprHidWriteStatus.Disconnected));
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+
+        var first = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+        var second = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.False(first.Succeeded);
+        Assert.False(second.Succeeded);
+        Assert.False(diagnostics.Output.IsConnected);
+        Assert.Equal(PHprHidConnectionState.Disconnected, diagnostics.Connection.State);
+        Assert.Equal(1, diagnostics.Connection.DisconnectCount);
+        Assert.Single(writer.WriteAttempts);
+    }
+
+    [Fact]
+    public async Task WriteTimeoutRecordsTimeoutAndDoesNotRecordSuccessfulReport()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice())
+        {
+            WriteDelay = TimeSpan.FromMilliseconds(100)
+        };
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        {
+            WriteTimeoutMs = PHprRealOutputOptions.MinWriteTimeoutMs
+        });
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(writer.Reports);
+        Assert.Equal(PHprHidConnectionState.Faulted, diagnostics.Connection.State);
+        Assert.Equal(PHprHidWriteStatus.TimedOut, diagnostics.Connection.LastWriteStatus);
+        Assert.Equal(1, diagnostics.Connection.TimeoutCount);
+    }
+
+    [Fact]
+    public async Task InvalidReportLengthIsRejectedBeforeOpeningWriter()
+    {
+        var selector = SelectedDevice() with { ReportLength = SimHubF1EcRealReportEncoder.PayloadLengthBytes - 1 };
+        var writer = new FakeHidReportWriter(selector);
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        {
+            Selector = selector
+        });
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, writer.OpenCount);
+        Assert.Empty(writer.Reports);
+        Assert.Contains("report length", result.Message);
     }
 
     [Fact]
@@ -164,9 +295,14 @@ public sealed class PHprRealOutputTests
         var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
 
         await device.DisposeAsync();
+        var diagnostics = device.GetDiagnostics();
 
         Assert.Equal(2, writer.Reports.Count);
+        Assert.Equal(1, writer.OpenCount);
+        Assert.Equal(1, writer.CloseCount);
         Assert.All(writer.Reports, report => Assert.Equal(PHprHidReportState.EmergencyStop, report.State));
+        Assert.Equal(PHprHidConnectionState.Disposed, diagnostics.Connection.State);
+        Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.Connection.LastStopStatus);
     }
 
     [Fact]
@@ -313,18 +449,92 @@ public sealed class PHprRealOutputTests
     private sealed class FakeHidReportWriter(PHprHidDeviceSelector selector) : IPhprHidReportWriter
     {
         private readonly List<PHprHidReport> _reports = [];
+        private readonly List<PHprHidReport> _writeAttempts = [];
 
         public PHprHidDeviceSelector Selector { get; } = selector;
 
+        public bool IsOpen { get; private set; }
+
+        public int OpenCount { get; private set; }
+
+        public int CloseCount { get; private set; }
+
+        public TimeSpan OpenDelay { get; init; }
+
+        public TimeSpan WriteDelay { get; init; }
+
+        public TimeSpan CloseDelay { get; init; }
+
+        public Queue<PHprHidWriteResult> NextOpenResults { get; } = new();
+
+        public Queue<PHprHidWriteResult> NextWriteResults { get; } = new();
+
+        public Queue<PHprHidWriteResult> NextCloseResults { get; } = new();
+
         public IReadOnlyList<PHprHidReport> Reports => _reports;
 
-        public ValueTask<PHprHidWriteResult> WriteReportAsync(
+        public IReadOnlyList<PHprHidReport> WriteAttempts => _writeAttempts;
+
+        public async ValueTask<PHprHidWriteResult> OpenAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (OpenDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(OpenDelay, cancellationToken);
+            }
+
+            OpenCount++;
+            var result = NextOpenResults.Count > 0
+                ? NextOpenResults.Dequeue()
+                : PHprHidWriteResult.Success(Selector.ReportLength, "fake open");
+            if (result.Succeeded)
+            {
+                IsOpen = true;
+            }
+
+            return result;
+        }
+
+        public async ValueTask<PHprHidWriteResult> WriteReportAsync(
             PHprHidReport report,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _reports.Add(report);
-            return ValueTask.FromResult(PHprHidWriteResult.Success(report.Length, "fake write"));
+            if (WriteDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(WriteDelay, cancellationToken);
+            }
+
+            _writeAttempts.Add(report);
+            var result = NextWriteResults.Count > 0
+                ? NextWriteResults.Dequeue()
+                : PHprHidWriteResult.Success(report.Length, "fake write");
+            if (result.Succeeded)
+            {
+                _reports.Add(report);
+            }
+
+            return result;
+        }
+
+        public async ValueTask<PHprHidWriteResult> CloseAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (CloseDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(CloseDelay, cancellationToken);
+            }
+
+            CloseCount++;
+            var result = NextCloseResults.Count > 0
+                ? NextCloseResults.Dequeue()
+                : PHprHidWriteResult.Success(0, "fake close");
+            if (result.Succeeded)
+            {
+                IsOpen = false;
+            }
+
+            return result;
         }
     }
 }

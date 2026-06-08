@@ -40,6 +40,7 @@
 - Stage 2P: Controlled write test plan complete.
 - Stage 2Q: Gated minimal real P-HPR write implementation complete.
 - Stage 2R: Controlled real P-HPR validation harness complete.
+- Phase 3A: Production P-HPR output adapter hardening complete.
 
 ## Planned Stages
 
@@ -86,7 +87,8 @@ Phase 2 safe sequence:
 16. Stage 2P: Controlled write test plan. Complete.
 17. Stage 2Q: Gated minimal real P-HPR write implementation. Complete.
 18. Stage 2R: Controlled real P-HPR validation harness. Complete.
-19. Phase 3A: Production P-HPR output adapter hardening. Next.
+19. Phase 3A: Production P-HPR output adapter hardening. Complete.
+20. Phase 3B: Instant paddle gear pulse production integration. Next.
 
 The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
 
@@ -124,3 +126,4 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, WPF disabled direct-write readiness diagnostics, evidence mapping, and tests; it does not add a real adapter, HID writer, write-capable UI, USB writes, real vibration, or ASIO/BST-1 routing.
 - Stage 2Q adds a gated write-capable Windows HID P-HPR adapter, SimHub F1 EC encoder, runtime-only direct-control UI, fake-writer tests, and accepted-paddle direct gear-pulse routing; it does not execute hardware writes automatically, persist enable/arm/device selection, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
 - Stage 2R adds a controlled validation harness, checklist/readiness model, WPF manual result-entry/export surface, private local Markdown export, and fake-only tests; it does not run hardware validation, mark physical validation passed, or add automated hardware writes.
+- Phase 3A hardens the real direct-output adapter with explicit writer open/write/close lifecycle, timeout handling, selected-interface/report validation, disconnect classification, close-on-dispose behavior, WPF diagnostics, and fake-writer tests; it does not auto-run hardware writes, persist arming, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.

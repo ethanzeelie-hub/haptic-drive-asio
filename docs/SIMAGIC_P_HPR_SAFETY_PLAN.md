@@ -1,6 +1,6 @@
 # Simagic P-HPR Safety Plan
 
-This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. Stage 2M adds mock-only gear pulse routing from accepted shift intents through that safety-limited mock output wrapper. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` data through the same safety-limited mock output wrapper. Stage 2O adds read-only SimPro Manager / SimHub process detection and safety-context conflict warnings. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write readiness diagnostics. Stage 2Q adds a gated write-capable Windows HID adapter for later manual testing, disabled and unarmed by default. Stage 2R adds a controlled validation harness and private local result export. No stage through 2R executes real hardware validation.
+This plan governs all Simagic P-HPR work. Stage 2A is documentation and readiness only. Stage 2B adds P-HPR command/safety/output abstractions and a mock-only output skeleton. Stage 2C adds cached driving-state gating. Stage 2D adds read-only wheel / paddle input discovery. Stage 2E adds read-only Windows game-controller paddle listening and manual mapping diagnostics. Stage 2F adds shift-intent accepted/suppressed diagnostics from mapped paddle input and cached `DrivingArmed` state. Stage 2G adds read-only P700 / P-HPR inventory tooling and sanitized exports. Stage 2H adds capture workflow and metadata tooling only. Stage 2I adds read-only capture analysis and sanitized summary export only. Stage 2J adds protocol hypotheses and sanitized hypothesis export only. Stage 2K adds mock-only protocol/output modelling and mock diagnostics only. Stage 2L adds safety limiting, diagnostics, emergency-stop latching, context gates, and a safety-limited mock output wrapper. Stage 2M adds mock-only gear pulse routing from accepted shift intents through that safety-limited mock output wrapper. Stage 2N adds mock-only road vibration, wheel slip, and wheel lock routing from existing `VehicleState` data through the same safety-limited mock output wrapper. Stage 2O adds read-only SimPro Manager / SimHub process detection and safety-context conflict warnings. Stage 2P adds the controlled write test plan, manual validation runbook, no-write readiness model, and disabled direct-write readiness diagnostics. Stage 2Q adds a gated write-capable Windows HID adapter for later manual testing, disabled and unarmed by default. Stage 2R adds a controlled validation harness and private local result export. Phase 3A hardens the direct-output adapter lifecycle and diagnostics. No stage through Phase 3A executes real hardware validation.
 
 ## Required Approval Phrase
 
@@ -10,7 +10,7 @@ No unattended real P-HPR USB writes, output reports, write-capable feature repor
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path and Stage 2R validation harness. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Stage 2R, the write-capable code and validation harness exist but are disabled/unarmed/manual-only and were not used for physical validation by automated verification.
+The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q real-write code path, Stage 2R validation harness, and Phase 3A adapter hardening. It does not authorize unattended hardware vibration, automated real writes, automatic startup pulses, persisted arming, or claims of physical validation. Through Phase 3A, the write-capable code and validation harness exist but are disabled/unarmed/manual-only and were not used for physical validation by automated verification.
 
 Stage 2B keeps `PHprSafetyLimits.AllowRealDeviceWrites` false by default, and `MockPhprOutputDevice` only records mock commands in memory.
 
@@ -40,6 +40,8 @@ Stage 2Q implements `SimagicPhprOutputDevice`, `WindowsHidReportWriter`, `SimHub
 
 Stage 2R implements checklist/readiness models, manual validation result models, private local Markdown export, and WPF validation-harness diagnostics. It does not send P-HPR commands, does not call the HID writer, does not trigger brake/throttle/paddle pulses, does not mark validation passed without required fields, and does not touch the ASIO/BST-1 output path.
 
+Phase 3A implements explicit P-HPR HID writer open/close lifecycle, timeout-wrapped writes, selected-interface/report validation, disconnect classification, dispose close behavior, and richer diagnostics. It does not auto-open devices at startup, does not auto-trigger pulses, does not persist enable/arm/device selection, does not add automated hardware writes, and does not touch the ASIO/BST-1 output path.
+
 ## Allowed Before Approval
 
 - Research.
@@ -62,6 +64,7 @@ Stage 2R implements checklist/readiness models, manual validation result models,
 - Disabled direct-write readiness diagnostics.
 - Gated Stage 2Q implementation with fake-writer automated tests.
 - Controlled validation harness and private local result templates.
+- Phase 3A output-adapter hardening with fake-writer automated tests.
 - UI placeholders.
 - Diagnostics.
 - Tests.

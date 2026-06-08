@@ -31,6 +31,8 @@ manual test pulse or accepted ShiftIntentEvent
 
 The direct path does not use ASIO, `IAudioOutputDevice`, the BST-1 mixer, or the audio render callback.
 
+Phase 3A hardens this same adapter boundary with explicit writer `OpenAsync` / `CloseAsync` lifecycle, write timeout handling, connection-state diagnostics, selected-interface/report validation, disconnect classification, and close-on-dispose behavior. See `docs/SIMAGIC_P_HPR_OUTPUT_ADAPTER.md`.
+
 ## Protocol Surface
 
 Stage 2Q implements only the preferred SimHub F1 EC hypothesis:
