@@ -71,6 +71,48 @@ public sealed class SimagicControlledWriteCliTests
     }
 
     [Fact]
+    public async Task Runner_DryRunDoesNotCreateOrOpenWriter()
+    {
+        var writerFactoryCalled = false;
+        var runner = new ControlledPhprWriteTestRunner(
+            _ =>
+            {
+                writerFactoryCalled = true;
+                return new FakeHidReportWriter();
+            },
+            CreateClearCoexistenceSnapshot,
+            (_, _) => Task.CompletedTask);
+
+        var result = await runner.RunAsync(new ControlledPhprWriteTestOptions
+        {
+            Execute = false,
+            ApprovalPhraseText = ControlledPhprWriteTestOptions.ApprovalPhrase,
+            DevicePath = @"\\?\hid#vid_3670&pid_0905#private"
+        });
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Executed);
+        Assert.False(writerFactoryCalled);
+        Assert.Null(result.Diagnostics);
+    }
+
+    [Fact]
+    public async Task Cli_DirectOutputDryRunDoesNotPrintPrivatePaths()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await SimagicResearchCli.RunAsync(["direct-output-dry-run"], output, error);
+
+        var text = output.ToString();
+        Assert.Equal(0, exitCode);
+        Assert.Contains("no HID writer is opened", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(@"\\?\", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("#private", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("", error.ToString());
+    }
+
+    [Fact]
     public async Task Runner_ExecutesFakeBrakeThrottleSequenceAndEmergencyStop()
     {
         var writer = new FakeHidReportWriter();

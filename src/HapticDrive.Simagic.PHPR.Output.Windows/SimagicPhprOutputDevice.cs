@@ -447,6 +447,11 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             return (PHprCommandStatus.RejectedInvalidCommand, "Real P-HPR direct control is not armed.");
         }
 
+        if (!options.DirectControlApprovalConfirmed)
+        {
+            return (PHprCommandStatus.RejectedInvalidCommand, $"Real P-HPR direct control requires the exact approval phrase for this session: {PHprControlledWriteApproval.Phrase}");
+        }
+
         var selectorValidation = ValidateSelector(options, requireWriterSelectorMatch: false, writerSelector: null);
         if (selectorValidation is not null)
         {
@@ -472,10 +477,11 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             return selectorValidation;
         }
 
-        if (requireDirectArm && (!options.DirectControlEnabled || !options.DirectControlArmed))
+        if (requireDirectArm
+            && (!options.DirectControlEnabled || !options.DirectControlArmed || !options.DirectControlApprovalConfirmed))
         {
             var gateFailure = PHprHidWriteResult.Failure(
-                "Real P-HPR HID writer open requires direct control enabled and armed for this session.",
+                "Real P-HPR HID writer open requires direct control enabled, armed, and approval-confirmed for this session.",
                 status: PHprHidWriteStatus.Failed);
             lock (_gate)
             {

@@ -17,7 +17,7 @@ public enum ControlledPhprWriteTarget
 
 public sealed record ControlledPhprWriteTestOptions
 {
-    public const string ApprovalPhrase = "I approve Phase 2 controlled P-HPR write testing";
+    public const string ApprovalPhrase = PHprControlledWriteApproval.Phrase;
 
     public bool Execute { get; init; }
 
@@ -40,7 +40,7 @@ public sealed record ControlledPhprWriteTestOptions
     public int WriteTimeoutMs { get; init; } = PHprRealOutputOptions.DefaultWriteTimeoutMs;
 
     public bool HasApprovalPhrase =>
-        string.Equals(ApprovalPhraseText?.Trim(), ApprovalPhrase, StringComparison.Ordinal);
+        PHprControlledWriteApproval.IsApproved(ApprovalPhraseText);
 
     public PHprHidDeviceSelector ToSelector()
     {
@@ -239,6 +239,7 @@ public sealed class ControlledPhprWriteTestRunner
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
+            DirectControlApprovalConfirmed = options.HasApprovalPhrase,
             Selector = selector,
             WriteTimeoutMs = options.WriteTimeoutMs,
             BrakeGearPulse = settings,

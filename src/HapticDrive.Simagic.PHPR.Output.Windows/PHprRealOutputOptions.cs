@@ -16,6 +16,8 @@ public sealed record PHprRealOutputOptions
 
     public bool DirectControlArmed { get; init; }
 
+    public bool DirectControlApprovalConfirmed { get; init; }
+
     public int WriteTimeoutMs { get; init; } = DefaultWriteTimeoutMs;
 
     public PHprHidDeviceSelector Selector { get; init; } = PHprHidDeviceSelector.None;

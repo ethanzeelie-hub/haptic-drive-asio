@@ -61,6 +61,8 @@ public partial class MainWindow : Window
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
     private readonly IPHprSoftwareCoexistenceDetector _phprSoftwareCoexistenceDetector =
         new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider());
+    private readonly IPHprDirectOutputCandidateProvider _phprDirectOutputCandidateProvider =
+        new WindowsRawInputPhprDirectOutputCandidateProvider();
     private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly PhprEffectProfileStore _phprProfileStore = new();
@@ -219,6 +221,7 @@ public partial class MainWindow : Window
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
+    private List<PhprDirectOutputCandidateListItem> _realPhprCandidateItems = [];
     private List<RecordingLibraryItem> _recordingLibraryItems = [];
 
     public MainWindow()
@@ -708,6 +711,17 @@ public partial class MainWindow : Window
         ConfigureRealPhprOutputFromControls("Real P-HPR direct-control settings updated for this session only.");
     }
 
+    private void RealPhprCandidateComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingRealPhprDirectControlUi)
+        {
+            return;
+        }
+
+        ApplySelectedRealPhprCandidateToControls();
+        ConfigureRealPhprOutputFromControls("Real P-HPR direct-output candidate selected for this session only.");
+    }
+
     private void RealPhprDirectControl_LostFocus(object sender, RoutedEventArgs e)
     {
         if (_updatingRealPhprDirectControlUi)
@@ -718,9 +732,37 @@ public partial class MainWindow : Window
         ConfigureRealPhprOutputFromControls("Real P-HPR direct-control selection/profile updated for this session only.");
     }
 
+    private void RefreshRealPhprCandidatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshRealPhprCandidateItems();
+    }
+
     private void ApplyRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
     {
         ConfigureRealPhprOutputFromControls("Real P-HPR manual selection applied for this session only.");
+    }
+
+    private void DryRunRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConfigureRealPhprOutputFromControls("Real P-HPR direct-output dry run prepared; no HID writer was opened."))
+        {
+            return;
+        }
+
+        var diagnostics = _realPhprOutput.GetDiagnostics();
+        var dryRun = PHprDirectOutputDryRunValidator.Validate(
+            _realPhprOptions,
+            _phprSoftwareCoexistenceSnapshot.Status,
+            diagnostics.Output.IsEmergencyStopActive);
+        RealPhprCandidatePickerStatusText.Text = dryRun.Issues.Count == 0
+            ? $"{dryRun.Summary} Dry-run blockers: none. No HID writer was opened."
+            : $"{dryRun.Summary} Dry-run blockers: {string.Join("; ", dryRun.Issues)} No HID writer was opened.";
+        UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = dryRun.CanPulse
+            ? "Real P-HPR dry run passed all gates. No HID writer was opened."
+            : "Real P-HPR dry run is blocked. No HID writer was opened.";
     }
 
     private async void TestRealPhprBrakePulseButton_Click(object sender, RoutedEventArgs e)
@@ -1285,6 +1327,59 @@ public partial class MainWindow : Window
         _updatingPaddleInputUi = false;
     }
 
+    private void RefreshRealPhprCandidateItems()
+    {
+        try
+        {
+            var previousSelector = _realPhprOptions.Selector.Normalize();
+            var candidates = _phprDirectOutputCandidateProvider.DiscoverCandidates();
+            _realPhprCandidateItems = candidates
+                .Select((candidate, index) => new PhprDirectOutputCandidateListItem(index, candidate, $"[{index}] {candidate.SafeLabel}"))
+                .ToList();
+
+            _updatingRealPhprDirectControlUi = true;
+            RealPhprCandidateComboBox.ItemsSource = _realPhprCandidateItems;
+            RealPhprCandidateComboBox.DisplayMemberPath = nameof(PhprDirectOutputCandidateListItem.DisplayText);
+            RealPhprCandidateComboBox.SelectedItem = _realPhprCandidateItems.FirstOrDefault(item =>
+                previousSelector.IsSelected
+                && string.Equals(item.Candidate.DevicePath, previousSelector.DevicePath, StringComparison.Ordinal));
+            _updatingRealPhprDirectControlUi = false;
+
+            ApplySelectedRealPhprCandidateToControls();
+            UpdateRealPhprDirectControlStatus();
+            UpdateDiagnosticsStatus();
+            FooterStatusText.Text = $"Real P-HPR direct-output candidates refreshed; {_realPhprCandidateItems.Count:N0} HID candidate(s) found. No HID writer was opened.";
+        }
+        catch (Exception ex)
+        {
+            _realPhprCandidateItems = [];
+            _updatingRealPhprDirectControlUi = true;
+            RealPhprCandidateComboBox.ItemsSource = _realPhprCandidateItems;
+            _updatingRealPhprDirectControlUi = false;
+            RealPhprCandidatePickerStatusText.Text = $"Candidate refresh failed safely before any write path was opened: {ex.Message}";
+            FooterStatusText.Text = "Real P-HPR candidate refresh failed safely.";
+        }
+    }
+
+    private void ApplySelectedRealPhprCandidateToControls()
+    {
+        if (RealPhprCandidateComboBox.SelectedItem is not PhprDirectOutputCandidateListItem item)
+        {
+            RealPhprCandidatePickerStatusText.Text = _realPhprCandidateItems.Count == 0
+                ? "No direct-output candidates have been refreshed. Use Refresh Candidates; private HID paths remain in memory only."
+                : "No direct-output candidate selected. Private HID paths remain in memory only.";
+            RealPhprInterfaceTextBox.Text = "none";
+            RealPhprReportLengthTextBox.Text = SimHubF1EcRealReportEncoder.PayloadLengthBytes.ToString(CultureInfo.InvariantCulture);
+            return;
+        }
+
+        var selector = item.Candidate.ToSelector(ParseOptionalReportIdOrNull(RealPhprReportIdTextBox.Text));
+        RealPhprInterfaceTextBox.Text = selector.InterfaceName;
+        RealPhprReportLengthTextBox.Text = selector.ReportLength.ToString(CultureInfo.InvariantCulture);
+        RealPhprCandidatePickerStatusText.Text =
+            $"Selected [{item.Index}] {item.Candidate.SafeLabel}. Report length source: {item.Candidate.SelectedReportLengthSource}. Private HID path is held in memory only.";
+    }
+
     private void ApplyPaddleMappingToControls()
     {
         _updatingPaddleInputUi = true;
@@ -1472,18 +1567,22 @@ public partial class MainWindow : Window
 
         var directEnabled = RealPhprDirectControlEnabledCheckBox.IsChecked == true;
         var directArmed = directEnabled && RealPhprDirectControlArmCheckBox.IsChecked == true;
+        var selectedCandidate = RealPhprCandidateComboBox.SelectedItem as PhprDirectOutputCandidateListItem;
+        var selector = selectedCandidate?.Candidate.ToSelector(reportId) ?? PHprHidDeviceSelector.None;
+        selector = selector with
+        {
+            ReportId = reportId,
+            ReportLength = reportLength,
+            InterfaceName = string.IsNullOrWhiteSpace(RealPhprInterfaceTextBox.Text)
+                ? selector.InterfaceName
+                : RealPhprInterfaceTextBox.Text.Trim()
+        };
         options = current with
         {
             DirectControlEnabled = directEnabled,
             DirectControlArmed = directArmed,
-            Selector = new PHprHidDeviceSelector(
-                RealPhprDevicePathTextBox.Text,
-                string.IsNullOrWhiteSpace(RealPhprDevicePathTextBox.Text)
-                    ? "No P-HPR HID device selected"
-                    : "Manual P-HPR HID device",
-                RealPhprInterfaceTextBox.Text,
-                reportId,
-                reportLength),
+            DirectControlApprovalConfirmed = PHprControlledWriteApproval.IsApproved(RealPhprApprovalPhraseTextBox.Text),
+            Selector = selector,
             BrakeGearPulse = brake,
             ThrottleGearPulse = throttle
         };
@@ -1789,6 +1888,13 @@ public partial class MainWindow : Window
         reportId = parsed;
         message = "Report ID ready.";
         return true;
+    }
+
+    private static byte? ParseOptionalReportIdOrNull(string text)
+    {
+        return TryParseOptionalReportId(text, out var reportId, out _)
+            ? reportId
+            : null;
     }
 
     private static bool TryBuildPedalEffectState(
@@ -2188,10 +2294,16 @@ public partial class MainWindow : Window
         _updatingRealPhprDirectControlUi = true;
         RealPhprDirectControlEnabledCheckBox.IsChecked = options.DirectControlEnabled;
         RealPhprDirectControlArmCheckBox.IsChecked = options.DirectControlArmed;
-        RealPhprDevicePathTextBox.Text = options.Selector.DevicePath ?? string.Empty;
+        RealPhprCandidateComboBox.ItemsSource = _realPhprCandidateItems;
+        RealPhprCandidateComboBox.DisplayMemberPath = nameof(PhprDirectOutputCandidateListItem.DisplayText);
+        RealPhprCandidateComboBox.SelectedItem = _realPhprCandidateItems.FirstOrDefault(item =>
+            options.Selector.IsSelected
+            && string.Equals(item.Candidate.DevicePath, options.Selector.DevicePath, StringComparison.Ordinal));
         RealPhprInterfaceTextBox.Text = options.Selector.InterfaceName;
         RealPhprReportIdTextBox.Text = options.Selector.ReportId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         RealPhprReportLengthTextBox.Text = options.Selector.ReportLength.ToString(CultureInfo.InvariantCulture);
+        RealPhprApprovalPhraseTextBox.Text = string.Empty;
+        RealPhprCandidatePickerStatusText.Text = "Direct-output candidates have not been refreshed. Private HID paths are kept in memory only after refresh.";
         ApplyRealGearPulseSettingsToControls(
             options.BrakeGearPulse,
             RealPhprBrakeEnabledCheckBox,
@@ -2533,6 +2645,12 @@ public partial class MainWindow : Window
             return false;
         }
 
+        if (!_realPhprOptions.DirectControlApprovalConfirmed)
+        {
+            message = "exact controlled-write approval phrase is missing";
+            return false;
+        }
+
         if (_phprSoftwareCoexistenceSnapshot.Status != PHprSoftwareConflictStatus.Clear)
         {
             message = $"software coexistence is {_phprSoftwareCoexistenceSnapshot.Status}";
@@ -2596,7 +2714,7 @@ public partial class MainWindow : Window
             _ => "P-HPR pedal mode unavailable."
         };
         PhprPedalsDeviceStatusText.Text =
-            $"Mock output: {(mockSnapshot.IsEmergencyStopActive ? "emergency stop active" : "ready")}; accepted {mockSnapshot.AcceptedCommandCount:N0}, rejected {mockSnapshot.RejectedCommandCount:N0}. Direct output: {realDiagnostics.Connection.State}; selected {(realDiagnostics.Options.Selector.IsSelected ? "yes" : "no")}; enabled {realDiagnostics.Options.DirectControlEnabled}; armed {realDiagnostics.Options.DirectControlArmed}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.";
+            $"Mock output: {(mockSnapshot.IsEmergencyStopActive ? "emergency stop active" : "ready")}; accepted {mockSnapshot.AcceptedCommandCount:N0}, rejected {mockSnapshot.RejectedCommandCount:N0}. Direct output: {realDiagnostics.Connection.State}; selected {(realDiagnostics.Options.Selector.IsSelected ? "yes" : "no")}; enabled {realDiagnostics.Options.DirectControlEnabled}; armed {realDiagnostics.Options.DirectControlArmed}; approval {(realDiagnostics.Options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.";
         PhprPedalsLastResultText.Text = _lastPhprPedalsPulseMessage;
     }
 
@@ -3784,23 +3902,25 @@ public partial class MainWindow : Window
         var coexistenceClear = _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear;
         var canPulse = options.DirectControlEnabled
             && options.DirectControlArmed
+            && options.DirectControlApprovalConfirmed
             && selector.IsSelected
             && coexistenceClear
             && !diagnostics.Output.IsEmergencyStopActive;
         TestRealPhprBrakePulseButton.IsEnabled = canPulse && options.BrakeGearPulse.IsEnabled;
         TestRealPhprThrottlePulseButton.IsEnabled = canPulse && options.ThrottleGearPulse.IsEnabled;
         RealPhprDirectStatusText.Text =
-            $"Real direct control: {(options.DirectControlEnabled ? "enabled" : "disabled")}; {(options.DirectControlArmed ? "armed" : "unarmed")}; device {(selector.IsSelected ? "selected" : "not selected")}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; connection {diagnostics.Connection.State}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {diagnostics.Output.IsEmergencyStopActive}; report writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}.";
+            $"Real direct control: {(options.DirectControlEnabled ? "enabled" : "disabled")}; {(options.DirectControlArmed ? "armed" : "unarmed")}; approval {(options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; device {(selector.IsSelected ? "selected" : "not selected")}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; connection {diagnostics.Connection.State}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {diagnostics.Output.IsEmergencyStopActive}; report writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}.";
         RealPhprDirectItemsControl.ItemsSource = new[]
         {
             "Safety: write-capable Stage 2Q path, disabled and unarmed by default. Enable/arm/device selection are runtime-only and are not persisted.",
-            $"Selected interface: {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0} byte(s); device path {(selector.IsSelected ? "configured for this session" : "none")}.",
+            $"Selected interface: {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0} byte(s); private path {(selector.IsSelected ? "held in memory only" : "none")}.",
+            $"Direct-output candidate picker: {_realPhprCandidateItems.Count:N0} refreshed candidate(s); approval {(options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}.",
             $"Lifecycle: connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; timeout {options.WriteTimeoutMs:N0} ms.",
             $"Brake pulse: {(options.BrakeGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {PhprUiValueConverter.FormatPercent(options.BrakeGearPulse.Strength01)}%; frequency {PhprUiValueConverter.FormatFrequency(options.BrakeGearPulse.FrequencyHz)} Hz; duration {options.BrakeGearPulse.DurationMs} ms.",
             $"Throttle pulse: {(options.ThrottleGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {PhprUiValueConverter.FormatPercent(options.ThrottleGearPulse.Strength01)}%; frequency {PhprUiValueConverter.FormatFrequency(options.ThrottleGearPulse.FrequencyHz)} Hz; duration {options.ThrottleGearPulse.DurationMs} ms.",
             $"Road vibration: {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)}; throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)}; last {BuildRealRoadVibrationRoutingText()}.",
             $"Slip/lock: {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)}; lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)}; last {BuildRealSlipLockRoutingText()}.",
-            $"Manual pulse buttons: {(canPulse ? "available" : "blocked")}; requires enabled, armed, selected device, clear coexistence, and no emergency stop latch.",
+            $"Manual pulse buttons: {(canPulse ? "available" : "blocked")}; requires enabled, armed, approval phrase, selected device, clear coexistence, and no emergency stop latch.",
             $"Last command: {FormatPhprCommand(diagnostics.Output.LastCommand)}; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; message {diagnostics.Output.LastMessage ?? "none"}.",
             $"Last gear-pulse latency: {BuildRealPhprGearPulseLatencyText()}.",
             $"Last HID report: {diagnostics.LastReportState?.ToString() ?? "none"}; target {diagnostics.LastTarget?.ToString() ?? "none"}; length {diagnostics.LastReportLength:N0}; summary {diagnostics.LastReportSummary ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; error {diagnostics.LastError ?? "none"}.",
@@ -3822,7 +3942,7 @@ public partial class MainWindow : Window
             _phprManualValidationReadiness.Status,
             $"Checklist issues: {FormatPhprValidationIssues(_phprManualValidationReadiness.Issues)}",
             $"Result issues: {FormatPhprValidationIssues(evaluation.Issues)}",
-            $"Selected real output: {(_realPhprOptions.Selector.IsSelected ? "configured for this session" : "not selected")}; direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.",
+            $"Selected real output: {(_realPhprOptions.Selector.IsSelected ? "configured for this session" : "not selected")}; direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")}; approval {(_realPhprOptions.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.",
             $"Manual confirmations: user {checklist.UserPhysicallyPresent}; P700 {checklist.P700Connected}; brake module {checklist.BrakeModuleInstalled}; throttle module {checklist.ThrottleModuleInstalled}; gear paddle planned {checklist.GearPaddleTestPlanned}.",
             $"Last export: {_lastPhprValidationExportPath ?? "none"}; default export folder {GetLocalValidationResultsDirectory()}."
         };
@@ -3996,10 +4116,11 @@ public partial class MainWindow : Window
         var selector = options.Selector;
         var canPulse = options.DirectControlEnabled
             && options.DirectControlArmed
+            && options.DirectControlApprovalConfirmed
             && selector.IsSelected
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
             && !diagnostics.Output.IsEmergencyStopActive;
-        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; selected {selector.IsSelected}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")} brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)} throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)} last road {BuildRealRoadVibrationRoutingText()}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")} slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)} lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)} last slip/lock {BuildRealSlipLockRoutingText()}; gear latency {BuildRealPhprGearPulseLatencyText()}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only enable/arm/device not persisted; safe gear-pulse, road, and slip/lock settings persisted.";
+        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; approval {(options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; selected {selector.IsSelected}; candidates {_realPhprCandidateItems.Count:N0}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; private path {(selector.IsSelected ? "held in memory only" : "none")}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")} brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)} throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)} last road {BuildRealRoadVibrationRoutingText()}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")} slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)} lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)} last slip/lock {BuildRealSlipLockRoutingText()}; gear latency {BuildRealPhprGearPulseLatencyText()}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only enable/arm/approval/device not persisted; safe gear-pulse, road, and slip/lock settings persisted.";
     }
 
     private string BuildRealRoadVibrationRoutingText()
@@ -4296,6 +4417,7 @@ public partial class MainWindow : Window
         var options = diagnostics.Options;
         var canPulse = options.DirectControlEnabled
             && options.DirectControlArmed
+            && options.DirectControlApprovalConfirmed
             && options.Selector.IsSelected
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
             && !diagnostics.Output.IsEmergencyStopActive;
@@ -4377,6 +4499,7 @@ public partial class MainWindow : Window
         if (!_realSlipLockRouter.GetSnapshot().Options.IsEnabled
             || !_realPhprOptions.DirectControlEnabled
             || !_realPhprOptions.DirectControlArmed
+            || !_realPhprOptions.DirectControlApprovalConfirmed
             || !_realPhprOptions.Selector.IsSelected
             || pipelineSnapshot.VehicleStateUpdateCount <= 0)
         {
@@ -4411,6 +4534,7 @@ public partial class MainWindow : Window
             || !_realRoadVibrationRouter.GetSnapshot().Options.IsEnabled
             || !_realPhprOptions.DirectControlEnabled
             || !_realPhprOptions.DirectControlArmed
+            || !_realPhprOptions.DirectControlApprovalConfirmed
             || !_realPhprOptions.Selector.IsSelected
             || pipelineSnapshot.VehicleStateUpdateCount <= 0)
         {
@@ -4952,6 +5076,11 @@ public partial class MainWindow : Window
 
     private sealed record PaddleDeviceListItem(
         InputDeviceSelection Selection,
+        string DisplayText);
+
+    private sealed record PhprDirectOutputCandidateListItem(
+        int Index,
+        PHprDirectOutputCandidate Candidate,
         string DisplayText);
 
     private sealed record RecordingLibraryItem(

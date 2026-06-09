@@ -1,3 +1,5 @@
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+
 namespace HapticDrive.Simagic.PHPR.Research.Inventory;
 
 public sealed class SimagicDeviceCandidateClassifier
@@ -7,6 +9,8 @@ public sealed class SimagicDeviceCandidateClassifier
         ArgumentNullException.ThrowIfNull(item);
 
         var haystack = BuildSearchText(item);
+        var hasSimagicFamilyVendor = SimagicPhprDeviceIdentity.IsSimagicFamilyVendor(item.VendorId);
+        var hasObservedSimagicFamilyProduct = SimagicPhprDeviceIdentity.IsObservedSimagicFamilyProduct(item.ProductId);
         var looksLikeSimagic = ContainsAny(haystack, "simagic", "p700", "p 700", "p-hpr", "phpr", "gt neo", "gtneo", "alpha evo");
         var looksLikeP700 = ContainsAny(haystack, "p700", "p 700")
             || (looksLikeSimagic && ContainsAny(haystack, "pedal", "pedals", "brake", "throttle"));
@@ -29,6 +33,18 @@ public sealed class SimagicDeviceCandidateClassifier
         {
             score += 60;
             reasons.Add("Simagic-like name or metadata");
+        }
+
+        if (hasSimagicFamilyVendor)
+        {
+            score += 65;
+            reasons.Add("VID_3670 Simagic-family vendor ID");
+        }
+
+        if (hasObservedSimagicFamilyProduct)
+        {
+            score += 15;
+            reasons.Add($"Observed Simagic-family PID_{item.ProductId:X4}");
         }
 
         if (looksLikeP700)
@@ -90,6 +106,10 @@ public sealed class SimagicDeviceCandidateClassifier
             candidateKind = SimagicDeviceCandidateKind.GtNeoWheelInput;
         }
         else if (looksLikeSimagic)
+        {
+            candidateKind = SimagicDeviceCandidateKind.SimagicUnknown;
+        }
+        else if (hasSimagicFamilyVendor)
         {
             candidateKind = SimagicDeviceCandidateKind.SimagicUnknown;
         }

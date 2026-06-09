@@ -6,6 +6,8 @@ Stage 2R adds the validation harness for later supervised real P-HPR testing.
 
 Phase 3J adds a final controlled CLI smoke-test command after Ethan provided the exact controlled-write approval phrase. It still does not run hardware vibration automatically and does not mark physical validation as passed.
 
+The Phase 3J direct-output picker follow-up fixes the validation blocker where sanitized inventory exports could not provide a pasteable private HID path. The app now refreshes local HID candidates, shows safe labels only, keeps the private path in memory, and applies it internally when selected.
+
 ## Implemented Harness
 
 The harness includes:
@@ -25,6 +27,7 @@ The app checklist combines user confirmations with current runtime state:
 - throttle module installed,
 - direct control enabled,
 - direct control armed,
+- exact approval phrase confirmed for the current session,
 - selected device/interface/report,
 - visible safety limits,
 - visible emergency stop,
@@ -35,9 +38,26 @@ The app checklist combines user confirmations with current runtime state:
 
 The harness never triggers a pulse. Brake, throttle, and paddle tests remain manual actions through the Stage 2Q direct-control controls.
 
+## Local Direct-Output Candidate Picker
+
+The Advanced / Diagnostics direct-control section includes a local-only candidate picker:
+
+- Refresh Candidates enumerates local HID candidates without opening the HID writer.
+- Candidate labels show VID/PID, display name, class, interface, collection, report lengths when available, and confidence.
+- `VID_3670` candidates are classified as Simagic-family candidates, including observed `PID_0500`, `PID_0905`, `PID_B500`, and `PID_B905`.
+- The private HID path stays in memory only and is applied internally when a candidate is selected.
+- Copied diagnostics, docs, tests, and sanitized exports must not contain private HID paths.
+- Dry Run Gates validates selected candidate, report length, direct-control enable/arm, approval phrase, coexistence, and emergency-stop gates without opening the HID writer.
+
 ## Controlled CLI Smoke Test
 
 `controlled-write-test` is the explicit command-line route for a final local P-HPR smoke test. It defaults to dry-run and does not open the HID writer unless `--execute` is supplied with the exact approval phrase.
+
+`direct-output-dry-run` is the local discovery-only companion command. It lists safe candidate labels and validates gates without opening the HID writer:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-dry-run --candidate-index 0 --enable --arm --approval "I approve Phase 2 controlled P-HPR write testing"
+```
 
 Dry run:
 
@@ -54,6 +74,7 @@ Execute, only when physically ready:
 The command:
 
 - requires selected private HID path, clear SimPro/SimHub coexistence, and exact approval phrase for real writes,
+- requires direct control enabled and armed for real writes,
 - uses normalized 0-100% strength, 1-50 Hz frequency, and 10-1000 ms duration,
 - defaults to a 10%, 50 Hz, 50 ms brake-then-throttle sequence,
 - requests emergency stop at the end,
@@ -109,6 +130,10 @@ Stage 2R / Phase 3J tests are fake/model-only. They cover:
 - controlled CLI dry-run output without private path leakage.
 - controlled CLI execution blocking without the exact approval phrase.
 - fake-writer brake/throttle sequence and emergency-stop reports.
+- `VID_3670` classification as Simagic-family.
+- direct-output candidate safe-label redaction while the selector retains the private path in memory.
+- direct-output dry-run gate validation without a writer.
+- dry-run runner behavior that does not create or open a writer.
 
 No automated test opens a real HID device or sends a real P-HPR report.
 

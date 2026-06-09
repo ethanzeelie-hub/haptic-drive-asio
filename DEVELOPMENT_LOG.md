@@ -1979,3 +1979,43 @@ Self-review:
 - Physical P-HPR pedal mapping, stop behavior, emergency-stop effectiveness, safe gain, sustained vibration, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.
 - The F1 25 telemetry parser and ASIO/BST-1 audio path were not changed.
 - Phase 3J is the final readiness stage before Ethan's local physical validation attempt.
+
+## Phase 3J Follow-up - Direct Output Candidate Picker And Dry Run Gates
+
+Date: 2026-06-09
+
+Status: Complete.
+
+Goal: Unblock real P-HPR validation selection by treating observed `VID_3670` HID devices as Simagic-family candidates, adding a local-only direct-output picker, and keeping real writes blocked unless every explicit gate is satisfied.
+
+Missing Items Addressed:
+
+- Updated inventory classification so `VID_3670` candidates, including observed `PID_0500`, `PID_0905`, `PID_B500`, and `PID_B905`, are specific Simagic-family candidates instead of generic-only HID/USB entries.
+- Added a local direct-output candidate model and Raw Input candidate provider that keeps private HID paths in memory while exposing only safe labels: VID/PID, display name, class, interface, collection, report lengths when available, and confidence.
+- Replaced the Advanced / Diagnostics raw path textbox with a refreshable direct-output candidate picker, safe candidate status, and a dry-run gate button.
+- Added a `direct-output-dry-run` CLI command that enumerates safe local labels and validates selected candidate/report/gates without opening the HID writer.
+- Added session-only approval confirmation to `PHprRealOutputOptions` and blocked real starts/opens unless direct control is enabled, armed, approval-confirmed, selected, coexistence-clear, and emergency-stop-clear.
+- Kept direct output enable, arm, approval, and selected private path runtime-only and unpersisted.
+
+Notes:
+
+- The picker does not print or export the private HID path. Selection applies the private path internally to the runtime `PHprHidDeviceSelector`.
+- Candidate confidence prefers Simagic-family VID/PID candidates and known report-length matches, but it does not claim a P-HPR role from VID/PID alone.
+- `controlled-write-test` remains the only CLI route that can execute real writes, and still requires `--execute` plus the exact approval phrase.
+- No real P-HPR hardware write, output report, feature report, vibration command, or physical validation was executed by Codex in this follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal` passed with 490 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- Dry-run `controlled-write-test` with the approval phrase passed without opening the HID writer or sending a report; it correctly reported the selected-path blocker because no private path was supplied.
+- Dry-run `direct-output-dry-run --enable --arm --approval ...` found 11 safe-labeled HID candidates, including `VID_3670/PID_0500` and `VID_3670/PID_0905`, without printing private HID paths.
+- Dry-run `direct-output-dry-run --candidate-index 0 --enable --arm --approval ...` validated selected candidate `[0]`, report length 64 bytes, coexistence `Clear`, emergency stop clear, and `can pulse True` without opening the HID writer.
+
+Self-review:
+
+- The private HID path remains absent from copied diagnostics, docs, tests, sanitized exports, and console output.
+- Dry-run validation reports selected candidate, report length, coexistence, emergency-stop, approval, enable, arm, and can-pulse status without constructing or opening a writer.
+- The F1 25 telemetry parser and ASIO/BST-1 audio path were not changed.

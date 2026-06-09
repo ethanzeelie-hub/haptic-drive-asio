@@ -1165,20 +1165,34 @@
                                           Checked="RealPhprDirectControlCheckBox_Changed"
                                           Unchecked="RealPhprDirectControlCheckBox_Changed"
                                           Content="Arm direct control" />
+                                <Button Width="190"
+                                        Margin="0,0,8,8"
+                                        Click="RefreshRealPhprCandidatesButton_Click"
+                                        Content="Refresh Candidates" />
                                 <Button Width="170"
                                         Margin="0,0,8,8"
-                                        Click="ApplyRealPhprSelectionButton_Click"
-                                        Content="Apply Selection" />
+                                        Click="DryRunRealPhprSelectionButton_Click"
+                                        Content="Dry Run Gates" />
                             </WrapPanel>
                             <WrapPanel Margin="0,2,0,0">
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Device path" />
-                                <TextBox x:Name="RealPhprDevicePathTextBox"
-                                         Width="420"
-                                         Margin="0,0,8,8"
-                                         LostFocus="RealPhprDirectControl_LostFocus" />
+                                           Text="Candidate" />
+                                <ComboBox x:Name="RealPhprCandidateComboBox"
+                                          Width="620"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="RealPhprCandidateComboBox_SelectionChanged" />
+                                <Button Width="170"
+                                        Margin="0,0,8,8"
+                                        Click="ApplyRealPhprSelectionButton_Click"
+                                        Content="Apply Selection" />
+                            </WrapPanel>
+                            <TextBlock x:Name="RealPhprCandidatePickerStatusText"
+                                       Margin="0,2,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                            <WrapPanel Margin="0,8,0,0">
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
@@ -1201,6 +1215,14 @@
                                            Text="Report bytes" />
                                 <TextBox x:Name="RealPhprReportLengthTextBox"
                                          Width="72"
+                                         Margin="0,0,8,8"
+                                         LostFocus="RealPhprDirectControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Approval phrase" />
+                                <TextBox x:Name="RealPhprApprovalPhraseTextBox"
+                                         Width="360"
                                          Margin="0,0,8,8"
                                          LostFocus="RealPhprDirectControl_LostFocus" />
                             </WrapPanel>

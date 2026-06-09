@@ -62,6 +62,23 @@ public sealed class PHprRealOutputTests
         Assert.Empty(writer.Reports);
     }
 
+    [Fact]
+    public async Task NoWriteWhenApprovalPhraseIsNotConfirmed()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        {
+            DirectControlApprovalConfirmed = false
+        });
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(writer.Reports);
+        Assert.Equal(0, writer.OpenCount);
+        Assert.Contains("approval phrase", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData(PHprSoftwareConflictStatus.Unknown)]
     [InlineData(PHprSoftwareConflictStatus.SimProRunning)]
@@ -385,6 +402,24 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
+    public async Task DirectGearPulseWithoutApprovalDoesNotWrite()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var options = ArmedOptions() with
+        {
+            DirectControlApprovalConfirmed = false
+        };
+        var device = new SimagicPhprOutputDevice(writer, options);
+        var router = new PHprDirectGearPulseRouter(device, options);
+
+        var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
+
+        Assert.False(result.Routed);
+        Assert.Empty(writer.Reports);
+        Assert.Contains("approval", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task DirectGearPulseSimProConflictRejectsWithoutWriting()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
@@ -552,6 +587,46 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
+    public void DirectOutputCandidateSafeLabelDoesNotExposePrivatePath()
+    {
+        const string privatePath = @"\\?\hid#vid_3670&pid_0905&mi_00#8&private-serial&0&0000#{745A17A0-74D3-11D0-B6FE-00A0C90F57DA}";
+        var candidate = new PHprDirectOutputCandidate
+        {
+            CandidateId = "local-hid:test",
+            DevicePath = privatePath,
+            DisplayName = privatePath,
+            DeviceClass = "HIDClass",
+            VendorId = 0x3670,
+            ProductId = 0x0905,
+            InterfaceNumber = "00",
+            CollectionNumber = "01"
+        }.Score();
+
+        var selector = candidate.ToSelector();
+
+        Assert.Equal(PHprDirectOutputCandidateConfidence.SimagicFamily, candidate.Confidence);
+        Assert.Equal(privatePath, selector.DevicePath);
+        Assert.DoesNotContain(privatePath, candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-serial", candidate.SafeLabel, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("VID_3670/PID_0905", candidate.SafeLabel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DirectOutputDryRunValidatesGatesWithoutWriter()
+    {
+        var options = ArmedOptions();
+
+        var result = PHprDirectOutputDryRunValidator.Validate(
+            options,
+            PHprSoftwareConflictStatus.Clear,
+            emergencyStopActive: false);
+
+        Assert.True(result.CanPulse);
+        Assert.Empty(result.Issues);
+        Assert.Contains("can pulse True", result.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task MockPathStillRecordsMockOnlyCommand()
     {
         var mock = new MockPhprOutputDevice();
@@ -573,6 +648,7 @@ public sealed class PHprRealOutputTests
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
+            DirectControlApprovalConfirmed = true,
             Selector = SelectedDevice(),
             BrakeGearPulse = PHprRealGearPulseSettings.Default with { DurationMs = 1 },
             ThrottleGearPulse = PHprRealGearPulseSettings.Default with { DurationMs = 1 }

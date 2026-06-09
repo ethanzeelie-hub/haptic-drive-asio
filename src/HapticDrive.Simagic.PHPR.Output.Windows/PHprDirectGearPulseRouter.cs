@@ -67,6 +67,11 @@ public sealed class PHprDirectGearPulseRouter
             return Ignored("Real direct gear pulse routing is disabled or unarmed.", shiftIntentEvent);
         }
 
+        if (!_options.DirectControlApprovalConfirmed)
+        {
+            return Ignored("Real direct gear pulse routing is missing the exact controlled-write approval phrase.", shiftIntentEvent);
+        }
+
         _output.SetSafetyContext(safetyContext);
         var commands = BuildCommands(shiftIntentEvent).ToArray();
         if (commands.Length == 0)

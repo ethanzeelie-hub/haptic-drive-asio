@@ -1,3 +1,6 @@
+using HapticDrive.Simagic.PHPR.Abstractions.Coexistence;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+using HapticDrive.Simagic.PHPR.Output.Windows;
 using System.Text.Json;
 using HapticDrive.Simagic.PHPR.Research.ControlledWrite;
 using HapticDrive.Simagic.PHPR.Research.Capture;
@@ -37,6 +40,7 @@ public static class SimagicResearchCli
             "mock-protocol-examples" => RunMockProtocolExamples(output),
             "mock-protocol-export" => await RunMockProtocolExportAsync(args[1..], output, error),
             "safety-examples" => RunSafetyExamples(output),
+            "direct-output-dry-run" => await RunDirectOutputDryRunAsync(args[1..], output, error),
             "controlled-write-test" => await RunControlledWriteTestAsync(args[1..], output, error),
             _ => UnknownCommand(args[0], output, error)
         };
@@ -416,6 +420,84 @@ public static class SimagicResearchCli
         return 0;
     }
 
+    private static async Task<int> RunDirectOutputDryRunAsync(string[] args, TextWriter output, TextWriter error)
+    {
+        var parseResult = TryParseDirectOutputDryRunOptions(args, out var options, out var parseError);
+        if (!parseResult)
+        {
+            await error.WriteLineAsync(parseError);
+            await output.WriteLineAsync();
+            PrintHelp(output);
+            return 2;
+        }
+
+        var candidates = new WindowsRawInputPhprDirectOutputCandidateProvider().DiscoverCandidates();
+        PHprDirectOutputCandidate? selectedCandidate = null;
+        if (options.CandidateIndex is not null)
+        {
+            if (options.CandidateIndex.Value < 0 || options.CandidateIndex.Value >= candidates.Count)
+            {
+                await error.WriteLineAsync($"Candidate index {options.CandidateIndex.Value} is not available; {candidates.Count:N0} candidate(s) were discovered.");
+                return 2;
+            }
+
+            selectedCandidate = candidates[options.CandidateIndex.Value];
+        }
+
+        var selector = selectedCandidate?.ToSelector(options.ReportId) ?? PHprHidDeviceSelector.None;
+        if (options.ReportLength is not null)
+        {
+            selector = selector with { ReportLength = options.ReportLength.Value };
+        }
+
+        var realOptions = (PHprRealOutputOptions.Disabled with
+        {
+            DirectControlEnabled = options.DirectControlEnabled,
+            DirectControlArmed = options.DirectControlEnabled && options.DirectControlArmed,
+            DirectControlApprovalConfirmed = PHprControlledWriteApproval.IsApproved(options.ApprovalPhrase),
+            Selector = selector
+        }).Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        var coexistence = new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider()).Scan();
+        var dryRun = PHprDirectOutputDryRunValidator.Validate(
+            realOptions,
+            coexistence.Status,
+            emergencyStopActive: false);
+
+        await output.WriteLineAsync("P-HPR direct-output dry run");
+        await output.WriteLineAsync("Safety: no HID writer is opened, no output report is sent, no feature report is sent, and private HID paths are not printed.");
+        await output.WriteLineAsync($"Candidates discovered: {candidates.Count:N0}");
+        foreach (var item in candidates.Take(24).Select((candidate, index) => (candidate, index)))
+        {
+            await output.WriteLineAsync($"[{item.index}] {item.candidate.SafeLabel}");
+        }
+
+        if (candidates.Count > 24)
+        {
+            await output.WriteLineAsync($"... {candidates.Count - 24:N0} additional candidate(s) hidden from console output.");
+        }
+
+        await output.WriteLineAsync($"Selected candidate: {(selectedCandidate is null ? "none" : $"index {options.CandidateIndex}; {selectedCandidate.SafeLabel}")}");
+        await output.WriteLineAsync($"Selected report length source: {selectedCandidate?.SelectedReportLengthSource ?? "none"}");
+        await output.WriteLineAsync(dryRun.Summary);
+        await output.WriteLineAsync($"Approval phrase: {(realOptions.DirectControlApprovalConfirmed ? "present" : "missing")}");
+        await output.WriteLineAsync($"Direct gates: enabled {realOptions.DirectControlEnabled}; armed {realOptions.DirectControlArmed}; selected {realOptions.Selector.IsSelected}; coexistence {dryRun.CoexistenceStatus}; emergency stop {dryRun.EmergencyStopActive}.");
+        if (dryRun.Issues.Count == 0)
+        {
+            await output.WriteLineAsync("Dry-run blockers: none.");
+        }
+        else
+        {
+            await output.WriteLineAsync("Dry-run blockers:");
+            foreach (var issue in dryRun.Issues)
+            {
+                await output.WriteLineAsync($"- {issue}");
+            }
+        }
+
+        await output.WriteLineAsync("Use the app picker for local path selection; do not commit private HID paths, serials, raw captures, or local inventories.");
+        return 0;
+    }
+
     private static async Task<int> RunControlledWriteTestAsync(string[] args, TextWriter output, TextWriter error)
     {
         var parseResult = TryParseControlledWriteOptions(args, out var options, out var parseError);
@@ -489,6 +571,10 @@ public static class SimagicResearchCli
         output.WriteLine();
         output.WriteLine("P-HPR safety command:");
         output.WriteLine("  safety-examples      Print Stage 2L mock safety decisions only.");
+        output.WriteLine();
+        output.WriteLine("Direct-output local dry run:");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-dry-run [--candidate-index 0] [--enable] [--arm] [--approval \"I approve Phase 2 controlled P-HPR write testing\"]");
+        output.WriteLine("  Options: --report-id <0-255|none>, --report-length 64. This command enumerates local safe labels only and never opens the HID writer.");
         output.WriteLine();
         output.WriteLine("Controlled P-HPR write command:");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval \"I approve Phase 2 controlled P-HPR write testing\" --device-path <private-hid-path> [--execute]");
@@ -608,6 +694,76 @@ public static class SimagicResearchCli
         return true;
     }
 
+    private static bool TryParseDirectOutputDryRunOptions(
+        string[] args,
+        out DirectOutputDryRunCliOptions options,
+        out string error)
+    {
+        options = new DirectOutputDryRunCliOptions();
+        error = string.Empty;
+
+        for (var index = 0; index < args.Length; index++)
+        {
+            var arg = args[index];
+            if (string.Equals(arg, "--candidate-index", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!int.TryParse(args[++index], out var candidateIndex))
+                {
+                    error = $"Invalid candidate index '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { CandidateIndex = candidateIndex };
+            }
+            else if (string.Equals(arg, "--enable", StringComparison.OrdinalIgnoreCase))
+            {
+                options = options with { DirectControlEnabled = true };
+            }
+            else if (string.Equals(arg, "--arm", StringComparison.OrdinalIgnoreCase))
+            {
+                options = options with { DirectControlArmed = true };
+            }
+            else if (string.Equals(arg, "--approval", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                options = options with { ApprovalPhrase = args[++index] };
+            }
+            else if (string.Equals(arg, "--report-id", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                var value = args[++index];
+                if (string.Equals(value, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    options = options with { ReportId = null };
+                }
+                else if (byte.TryParse(value, out var reportId))
+                {
+                    options = options with { ReportId = reportId };
+                }
+                else
+                {
+                    error = $"Invalid report ID '{value}'. Use 0-255 or none.";
+                    return false;
+                }
+            }
+            else if (string.Equals(arg, "--report-length", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                if (!int.TryParse(args[++index], out var reportLength) || reportLength is < 1 or > 1_024)
+                {
+                    error = $"Invalid report length '{args[index]}'.";
+                    return false;
+                }
+
+                options = options with { ReportLength = reportLength };
+            }
+            else
+            {
+                error = $"Unknown direct-output-dry-run option '{arg}'.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool TryParseControlledWriteTarget(string value, out ControlledPhprWriteTarget target)
     {
         if (Enum.TryParse(value, ignoreCase: true, out target))
@@ -617,5 +773,20 @@ public static class SimagicResearchCli
 
         target = ControlledPhprWriteTarget.Sequence;
         return false;
+    }
+
+    private sealed record DirectOutputDryRunCliOptions
+    {
+        public int? CandidateIndex { get; init; }
+
+        public bool DirectControlEnabled { get; init; }
+
+        public bool DirectControlArmed { get; init; }
+
+        public string? ApprovalPhrase { get; init; }
+
+        public byte? ReportId { get; init; }
+
+        public int? ReportLength { get; init; }
     }
 }

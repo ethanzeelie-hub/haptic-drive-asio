@@ -92,6 +92,32 @@ public sealed class SimagicDeviceInventoryTests
         Assert.True(scored.CandidateScore > 0);
     }
 
+    [Theory]
+    [InlineData(0x0500)]
+    [InlineData(0x0905)]
+    [InlineData(0xB500)]
+    [InlineData(0xB905)]
+    public void Classifier_TreatsVid3670AsSimagicFamilyCandidate(int productId)
+    {
+        var classifier = new SimagicDeviceCandidateClassifier();
+        var item = CreateSyntheticItem("HID-compliant vendor-defined device", SimagicDeviceInventoryMethod.WindowsRegistryHid) with
+        {
+            Manufacturer = null,
+            ProductName = "HID-compliant vendor-defined device",
+            VendorId = 0x3670,
+            ProductId = (ushort)productId,
+            SafeInstanceId = $@"HID\VID_3670&PID_{productId:X4}\<redacted>",
+            SafeDevicePath = $@"HID#VID_3670&PID_{productId:X4}#<redacted>"
+        };
+
+        var scored = classifier.ScoreItem(item);
+
+        Assert.Equal(SimagicDeviceCandidateKind.SimagicUnknown, scored.CandidateKind);
+        Assert.True(scored.CandidateScore > 0);
+        Assert.Contains("VID_3670", scored.CandidateReason, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEqual(SimagicDeviceCandidateKind.GenericHid, scored.CandidateKind);
+    }
+
     [Fact]
     public void Sanitizer_RedactsSerialLikePathSegmentsAndPreservesVidPid()
     {
