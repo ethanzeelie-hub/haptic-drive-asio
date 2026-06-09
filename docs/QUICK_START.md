@@ -41,23 +41,34 @@ Mock mode records commands and frames in memory only. It does not open hardware 
 Use real direct mode only under local supervision.
 
 1. Confirm SimPro Manager and SimHub coexistence status is `Clear`.
-2. Select the P-HPR device/interface/report for this session.
-3. Enable real direct control.
-4. Arm real direct control.
-5. Start with one low-strength brake pulse, then one low-strength throttle pulse.
-6. Keep emergency stop visible.
+2. Refresh direct-output candidates and select a HID device-interface candidate, not a Raw Input metadata-only candidate.
+3. Run Open Check so the HID writer opens and closes without sending an output report.
+4. Enable real direct control.
+5. Arm real direct control.
+6. Start with one low-strength brake pulse, then one low-strength throttle pulse.
+7. Keep emergency stop visible.
 
 Direct-control enablement, arming, selected private device path, emergency-stop latch, command history, and write history are not persisted.
 
 ## Controlled P-HPR Smoke Test
 
-Before using real direct mode in a full session, run the CLI dry-run with the selected private HID path:
+Before using real direct mode in a full session, run direct-output dry-run and open-check:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-dry-run --candidate-index 0 --enable --arm --approval "I approve Phase 2 controlled P-HPR write testing"
+```
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-open-check --candidate-index 0 --enable --arm --approval "I approve Phase 2 controlled P-HPR write testing"
+```
+
+The controlled-write CLI remains dry-run by default:
 
 ```powershell
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
 ```
 
-Add `--execute` only when physically present, SimPro/SimHub coexistence is clear, and emergency stop is visible.
+Add `--execute` only when physically present, SimPro/SimHub coexistence is clear, emergency stop is visible, and the selected HID path has already passed no-report open-check.
 
 ## Configure P-HPR Effects
 

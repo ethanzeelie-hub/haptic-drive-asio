@@ -233,7 +233,7 @@ public sealed class HapticPipelineCoordinatorTests
     {
         var options = HapticPipelineOptions.Default with
         {
-            TelemetryMuteTimeout = TimeSpan.FromMilliseconds(30)
+            TelemetryMuteTimeout = TimeSpan.FromMilliseconds(150)
         };
         await using var coordinator = new HapticPipelineCoordinator(options: options);
         var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));

@@ -449,8 +449,9 @@
 ## Phase 3J
 
 - Controlled P-HPR write testing is approved and the `controlled-write-test` CLI exists, but this commit did not execute a real hardware pulse.
-- The direct-output picker now treats `VID_3670` HID entries as Simagic-family candidates and can apply the private path internally, but physical validation still requires Ethan's local supervised run.
-- The CLI/app write paths require selected output, enabled direct control, armed direct control, exact approval phrase, clear SimPro/SimHub coexistence, clear emergency stop, and local physical presence before real writes.
+- The direct-output picker now treats `VID_3670` HID entries as Simagic-family candidates and can apply an openable HID device-interface private path internally, but physical validation still requires Ethan's local supervised run.
+- Raw Input metadata-only candidates can help identify Simagic-family hardware, but they are not openable HID output targets and cannot pass real direct-output gates.
+- The CLI/app write paths require selected output, an openable HID device-interface candidate, successful no-report open-check, enabled direct control, armed direct control, exact approval phrase, clear SimPro/SimHub coexistence, clear emergency stop, and local physical presence before real writes.
 - Console output, copied diagnostics, docs, and sanitized exports intentionally hide private HID paths; command history or local validation notes may still contain private local data if Ethan types a path manually; do not commit those artifacts.
 - The full automated suite now reports zero skipped tests, but zero skipped tests are readiness coverage, not physical validation.
 - Physical P-HPR brake/throttle mapping, emergency-stop behavior, wrong-pedal checks, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.

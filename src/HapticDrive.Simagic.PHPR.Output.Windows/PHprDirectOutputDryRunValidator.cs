@@ -29,6 +29,21 @@ public static class PHprDirectOutputDryRunValidator
             issues.Add("No direct-output HID candidate is selected.");
         }
 
+        if (normalized.CandidateIsRawInputOnly)
+        {
+            issues.Add("Selected direct-output candidate is Raw Input metadata only; choose a HID device-interface candidate.");
+        }
+
+        if (!normalized.CandidateHasOpenableHidPath)
+        {
+            issues.Add("Selected direct-output candidate does not have an openable HID device-interface path.");
+        }
+
+        if (!normalized.OpenCheckSucceeded)
+        {
+            issues.Add("Selected direct-output candidate has not passed HID open-check.");
+        }
+
         if (selector.ReportLength != SimHubF1EcRealReportEncoder.PayloadLengthBytes)
         {
             issues.Add($"Selected report length {selector.ReportLength:N0} bytes does not match the current {SimHubF1EcRealReportEncoder.PayloadLengthBytes:N0}-byte P-HPR hypothesis.");

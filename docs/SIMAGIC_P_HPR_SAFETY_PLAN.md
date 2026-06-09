@@ -56,7 +56,7 @@ Phase 3G implements a passive live F1 25 validation checklist and diagnostics li
 
 Phase 3H implements final quick-start, troubleshooting, final acceptance, and final user-guide documentation. It does not change runtime behavior, trigger output, open HID devices, run real writes, validate physical P-HPR behavior, or touch the ASIO/BST-1 path.
 
-Phase 3J implements the `controlled-write-test` CLI. It defaults to dry-run and only sends real P-HPR HID reports when `--execute`, exact approval phrase, selected private HID path, clear SimPro/SimHub coexistence, and local supervision are present. It also converts prior skipped ASIO hardware tests into readiness/pending checks. It does not add unattended output loops, startup writes, persisted arming, physical validation claims, or ASIO/BST-1 changes.
+Phase 3J implements the `controlled-write-test` CLI and the local direct-output candidate picker/open-check workflow. It defaults to dry-run and only sends real P-HPR HID reports when `--execute`, exact approval phrase, selected private HID path, successful no-report open-check, clear SimPro/SimHub coexistence, and local supervision are present. Raw Input metadata-only candidates cannot pass real direct-output gates. It also converts prior skipped ASIO hardware tests into readiness/pending checks. It does not add unattended output loops, startup writes, persisted arming, physical validation claims, or ASIO/BST-1 changes.
 
 ## Allowed Before Approval
 

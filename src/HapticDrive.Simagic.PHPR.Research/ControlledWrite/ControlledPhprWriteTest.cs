@@ -140,7 +140,28 @@ public sealed class ControlledPhprWriteTestRunner
                 null);
         }
 
-        var realOptions = BuildRealOutputOptions(normalized, selector);
+        var openCheck = await new PHprHidOpenCheckRunner(_writerFactory).RunAsync(
+            selector,
+            PHprHidPathSafety.IsAbsoluteWindowsDevicePath(selector.DevicePath),
+            candidateIsRawInputOnly: false,
+            cancellationToken);
+        if (!openCheck.Succeeded)
+        {
+            return new ControlledPhprWriteTestResult(
+                Executed: false,
+                Succeeded: false,
+                "Controlled real P-HPR write test was blocked because HID open-check failed before any report was sent.",
+                normalized,
+                coexistence.Status,
+                issues
+                    .Concat([$"Open-check failed: {openCheck.SanitizedErrorCategory ?? openCheck.OpenStatus?.ToString() ?? "unknown"}"])
+                    .ToArray(),
+                plannedCommands,
+                [],
+                null);
+        }
+
+        var realOptions = BuildRealOutputOptions(normalized, selector, openCheck);
         await using var output = new SimagicPhprOutputDevice(_writerFactory(selector), realOptions);
         output.SetSafetyContext(PHprSafetyContext.DefaultMock with
         {
@@ -207,6 +228,11 @@ public sealed class ControlledPhprWriteTestRunner
             yield return "No P-HPR HID device path is selected for this run.";
         }
 
+        if (selector.IsSelected && !PHprHidPathSafety.IsAbsoluteWindowsDevicePath(selector.DevicePath))
+        {
+            yield return "Selected P-HPR HID device path is not an absolute Windows device-interface path.";
+        }
+
         if (selector.ReportLength != SimHubF1EcRealReportEncoder.PayloadLengthBytes)
         {
             yield return $"Report length must be {SimHubF1EcRealReportEncoder.PayloadLengthBytes} bytes for the current SimHub F1 EC hypothesis.";
@@ -225,7 +251,8 @@ public sealed class ControlledPhprWriteTestRunner
 
     private static PHprRealOutputOptions BuildRealOutputOptions(
         ControlledPhprWriteTestOptions options,
-        PHprHidDeviceSelector selector)
+        PHprHidDeviceSelector selector,
+        PHprHidOpenCheckResult openCheck)
     {
         var settings = PHprRealGearPulseSettings.Default with
         {
@@ -240,6 +267,13 @@ public sealed class ControlledPhprWriteTestRunner
             DirectControlEnabled = true,
             DirectControlArmed = true,
             DirectControlApprovalConfirmed = options.HasApprovalPhrase,
+            CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
+            CandidateIsRawInputOnly = false,
+            CandidateHasOpenableHidPath = PHprHidPathSafety.IsAbsoluteWindowsDevicePath(selector.DevicePath),
+            OpenCheckAttempted = openCheck.Attempted,
+            OpenCheckSucceeded = openCheck.Succeeded,
+            OpenCheckFailed = openCheck.Failed,
+            OpenCheckSanitizedErrorCategory = openCheck.SanitizedErrorCategory,
             Selector = selector,
             WriteTimeoutMs = options.WriteTimeoutMs,
             BrakeGearPulse = settings,

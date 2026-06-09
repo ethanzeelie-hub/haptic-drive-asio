@@ -61,6 +61,14 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
                     status: PHprHidWriteStatus.NotSelected));
             }
 
+            if (!PHprHidPathSafety.IsAbsoluteWindowsDevicePath(_selector.DevicePath))
+            {
+                return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                    "Selected P-HPR HID device path is not an absolute Windows device-interface path.",
+                    PHprHidPathSafety.InvalidDevicePathCategory,
+                    PHprHidWriteStatus.InvalidReport));
+            }
+
             if (_selector.ReportLength != SimHubF1EcRealReportEncoder.PayloadLengthBytes)
             {
                 return ValueTask.FromResult(PHprHidWriteResult.Failure(
@@ -79,10 +87,13 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
                     useAsync: true);
                 return ValueTask.FromResult(PHprHidWriteResult.Success(_selector.ReportLength, "P-HPR HID writer opened the selected device path."));
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
                 var status = ex is IOException ? PHprHidWriteStatus.Disconnected : PHprHidWriteStatus.Failed;
-                return ValueTask.FromResult(PHprHidWriteResult.Failure("P-HPR HID writer failed to open the selected device path.", ex.Message, status));
+                return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                    "P-HPR HID writer failed to open the selected device path.",
+                    PHprHidPathSafety.SanitizeExceptionCategory(ex),
+                    status));
             }
         }
     }
@@ -128,7 +139,10 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
             }
 
             var status = ex is IOException ? PHprHidWriteStatus.Disconnected : PHprHidWriteStatus.Failed;
-            return PHprHidWriteResult.Failure("P-HPR HID report write failed.", ex.Message, status);
+            return PHprHidWriteResult.Failure(
+                "P-HPR HID report write failed.",
+                PHprHidPathSafety.SanitizeExceptionCategory(ex),
+                status);
         }
     }
 
@@ -152,7 +166,9 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
             catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
                 _stream = null;
-                return ValueTask.FromResult(PHprHidWriteResult.Failure("P-HPR HID writer close failed.", ex.Message));
+                return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                    "P-HPR HID writer close failed.",
+                    PHprHidPathSafety.SanitizeExceptionCategory(ex)));
             }
         }
     }

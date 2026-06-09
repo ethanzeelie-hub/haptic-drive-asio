@@ -72,6 +72,16 @@ public sealed class PHprDirectGearPulseRouter
             return Ignored("Real direct gear pulse routing is missing the exact controlled-write approval phrase.", shiftIntentEvent);
         }
 
+        if (_options.CandidateIsRawInputOnly || !_options.CandidateHasOpenableHidPath)
+        {
+            return Ignored("Real direct gear pulse routing requires an openable HID device-interface candidate, not Raw Input metadata.", shiftIntentEvent);
+        }
+
+        if (!_options.OpenCheckSucceeded)
+        {
+            return Ignored("Real direct gear pulse routing requires a successful HID open-check for the selected candidate.", shiftIntentEvent);
+        }
+
         _output.SetSafetyContext(safetyContext);
         var commands = BuildCommands(shiftIntentEvent).ToArray();
         if (commands.Length == 0)

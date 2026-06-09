@@ -18,6 +18,20 @@ public sealed record PHprRealOutputOptions
 
     public bool DirectControlApprovalConfirmed { get; init; }
 
+    public PHprDirectOutputCandidateSourceMethod CandidateSourceMethod { get; init; } = PHprDirectOutputCandidateSourceMethod.Unknown;
+
+    public bool CandidateIsRawInputOnly { get; init; }
+
+    public bool CandidateHasOpenableHidPath { get; init; }
+
+    public bool OpenCheckAttempted { get; init; }
+
+    public bool OpenCheckSucceeded { get; init; }
+
+    public bool OpenCheckFailed { get; init; }
+
+    public string? OpenCheckSanitizedErrorCategory { get; init; }
+
     public int WriteTimeoutMs { get; init; } = DefaultWriteTimeoutMs;
 
     public PHprHidDeviceSelector Selector { get; init; } = PHprHidDeviceSelector.None;

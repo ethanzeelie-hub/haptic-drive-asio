@@ -77,6 +77,7 @@ public sealed partial class WindowsRawInputPhprDirectOutputCandidateProvider : I
             DevicePath = pathResult.Value,
             DisplayName = BuildDisplayName(vendorId, productId, info.Hid.UsagePage, info.Hid.Usage),
             DeviceClass = "Raw Input HID",
+            SourceMethod = PHprDirectOutputCandidateSourceMethod.RawInputMetadata,
             VendorId = vendorId,
             ProductId = productId,
             InterfaceNumber = ParsePathToken(pathResult.Value, InterfaceRegex()),
@@ -177,7 +178,7 @@ public sealed partial class WindowsRawInputPhprDirectOutputCandidateProvider : I
         ref uint deviceCount,
         uint rawInputDeviceListSize);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("user32.dll", EntryPoint = "GetRawInputDeviceInfoW", SetLastError = true)]
     private static extern uint GetRawInputDeviceInfo(
         nint deviceHandle,
         uint command,

@@ -1173,6 +1173,10 @@
                                         Margin="0,0,8,8"
                                         Click="DryRunRealPhprSelectionButton_Click"
                                         Content="Dry Run Gates" />
+                                <Button Width="150"
+                                        Margin="0,0,8,8"
+                                        Click="OpenCheckRealPhprSelectionButton_Click"
+                                        Content="Open Check" />
                             </WrapPanel>
                             <WrapPanel Margin="0,2,0,0">
                                 <TextBlock Margin="0,4,6,8"

@@ -44,13 +44,15 @@ Ethan has approved controlled Phase 2 P-HPR write testing with the exact phrase:
 I approve Phase 2 controlled P-HPR write testing
 ```
 
+Before any real pulse, use the app picker or `direct-output-dry-run` / `direct-output-open-check` to confirm the selected candidate is a HID device-interface path, not Raw Input metadata only, and that open-check succeeds without sending an output report.
+
 The command below is the only CLI path that can send real P-HPR HID reports. It defaults to dry-run unless `--execute` is present, hides the private HID path from console output, blocks non-clear SimPro/SimHub coexistence, sends a low-strength pulse plan, and requests emergency stop at the end.
 
 ```powershell
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
 ```
 
-Add `--execute` only when physically present, the selected private HID path is correct, SimPro/SimHub are closed or clear, and emergency stop is visible:
+Add `--execute` only when physically present, the selected private HID path has passed no-report open-check, SimPro/SimHub are closed or clear, and emergency stop is visible:
 
 ```powershell
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50 --execute

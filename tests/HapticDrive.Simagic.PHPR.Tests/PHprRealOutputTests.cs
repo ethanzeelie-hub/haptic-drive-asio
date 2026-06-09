@@ -596,6 +596,7 @@ public sealed class PHprRealOutputTests
             DevicePath = privatePath,
             DisplayName = privatePath,
             DeviceClass = "HIDClass",
+            SourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
             VendorId = 0x3670,
             ProductId = 0x0905,
             InterfaceNumber = "00",
@@ -605,10 +606,42 @@ public sealed class PHprRealOutputTests
         var selector = candidate.ToSelector();
 
         Assert.Equal(PHprDirectOutputCandidateConfidence.SimagicFamily, candidate.Confidence);
+        Assert.True(candidate.HasOpenableHidPath);
+        Assert.False(candidate.IsRawInputOnly);
         Assert.Equal(privatePath, selector.DevicePath);
         Assert.DoesNotContain(privatePath, candidate.SafeLabel, StringComparison.Ordinal);
         Assert.DoesNotContain("private-serial", candidate.SafeLabel, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("VID_3670/PID_0905", candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.Contains("source HidDeviceInterface", candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.Contains("raw-input-only False", candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.Contains("openable HID path True", candidate.SafeLabel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Vid3670RawInputMetadataIsFamilyButNotOpenable()
+    {
+        var candidate = new PHprDirectOutputCandidate
+        {
+            CandidateId = "raw-input:3670-0500",
+            DevicePath = "raw-input:VID_3670&PID_0500",
+            DisplayName = "Raw Input HID device",
+            DeviceClass = "Raw Input HID",
+            SourceMethod = PHprDirectOutputCandidateSourceMethod.RawInputMetadata,
+            VendorId = 0x3670,
+            ProductId = 0x0500,
+            HidUsagePage = 0x0001,
+            HidUsage = 0x0004
+        }.Score();
+
+        var selector = candidate.ToSelector();
+
+        Assert.Equal(PHprDirectOutputCandidateConfidence.SimagicFamily, candidate.Confidence);
+        Assert.True(candidate.IsRawInputOnly);
+        Assert.False(candidate.HasOpenableHidPath);
+        Assert.False(selector.IsSelected);
+        Assert.Contains("Raw Input metadata only", candidate.ConfidenceReason, StringComparison.Ordinal);
+        Assert.Contains("source RawInputMetadata", candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.Contains("openable HID path False", candidate.SafeLabel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -624,6 +657,123 @@ public sealed class PHprRealOutputTests
         Assert.True(result.CanPulse);
         Assert.Empty(result.Issues);
         Assert.Contains("can pulse True", result.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DirectOutputDryRunRequiresOpenCheckSuccess()
+    {
+        var options = ArmedOptions() with
+        {
+            OpenCheckAttempted = true,
+            OpenCheckSucceeded = false,
+            OpenCheckFailed = true,
+            OpenCheckSanitizedErrorCategory = "UnauthorizedAccessException:0x80070005"
+        };
+
+        var result = PHprDirectOutputDryRunValidator.Validate(
+            options,
+            PHprSoftwareConflictStatus.Clear,
+            emergencyStopActive: false);
+
+        Assert.False(result.CanPulse);
+        Assert.Contains(result.Issues, issue => issue.Contains("open-check", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RawInputOnlyCandidateCannotPassDirectOutputDryRunGates()
+    {
+        var options = ArmedOptions() with
+        {
+            CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.RawInputMetadata,
+            CandidateIsRawInputOnly = true,
+            CandidateHasOpenableHidPath = false
+        };
+
+        var result = PHprDirectOutputDryRunValidator.Validate(
+            options,
+            PHprSoftwareConflictStatus.Clear,
+            emergencyStopActive: false);
+
+        Assert.False(result.CanPulse);
+        Assert.Contains(result.Issues, issue => issue.Contains("Raw Input metadata", StringComparison.Ordinal));
+        Assert.Contains(result.Issues, issue => issue.Contains("openable HID device-interface path", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RawInputOnlyCandidateIsRejectedBeforeOpeningWriter()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        {
+            CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.RawInputMetadata,
+            CandidateIsRawInputOnly = true,
+            CandidateHasOpenableHidPath = false
+        });
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, writer.OpenCount);
+        Assert.Empty(writer.Reports);
+        Assert.Contains("openable", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task OpenCheckRejectsRawInputOnlyWithoutCreatingWriter()
+    {
+        var writerFactoryCalled = false;
+        var runner = new PHprHidOpenCheckRunner(_ =>
+        {
+            writerFactoryCalled = true;
+            return new FakeHidReportWriter(SelectedDevice());
+        });
+
+        var result = await runner.RunAsync(
+            SelectedDevice(),
+            candidateHasOpenableHidPath: false,
+            candidateIsRawInputOnly: true);
+
+        Assert.True(result.Attempted);
+        Assert.True(result.Failed);
+        Assert.False(result.Succeeded);
+        Assert.False(writerFactoryCalled);
+        Assert.Equal("RawInputOnly", result.SanitizedErrorCategory);
+    }
+
+    [Fact]
+    public async Task OpenCheckOpensAndClosesWithoutWritingReports()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var runner = new PHprHidOpenCheckRunner(_ => writer);
+
+        var result = await runner.RunAsync(
+            SelectedDevice(),
+            candidateHasOpenableHidPath: true,
+            candidateIsRawInputOnly: false);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(1, writer.OpenCount);
+        Assert.Equal(1, writer.CloseCount);
+        Assert.Empty(writer.Reports);
+        Assert.Empty(writer.WriteAttempts);
+    }
+
+    [Fact]
+    public async Task WindowsHidWriterRejectsCorruptedRelativePathBeforeOpen()
+    {
+        const string corruptedPath = "\uFFFD\u0001hid#vid_3670&pid_0905#private";
+        var writer = new WindowsHidReportWriter(SelectedDevice() with
+        {
+            DevicePath = corruptedPath
+        });
+
+        var result = await writer.OpenAsync();
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(PHprHidWriteStatus.InvalidReport, result.Status);
+        Assert.Equal(PHprHidPathSafety.InvalidDevicePathCategory, result.ErrorMessage);
+        Assert.DoesNotContain(corruptedPath, result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("#private", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -650,6 +800,12 @@ public sealed class PHprRealOutputTests
             DirectControlArmed = true,
             DirectControlApprovalConfirmed = true,
             Selector = SelectedDevice(),
+            CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
+            CandidateIsRawInputOnly = false,
+            CandidateHasOpenableHidPath = true,
+            OpenCheckAttempted = true,
+            OpenCheckSucceeded = true,
+            OpenCheckFailed = false,
             BrakeGearPulse = PHprRealGearPulseSettings.Default with { DurationMs = 1 },
             ThrottleGearPulse = PHprRealGearPulseSettings.Default with { DurationMs = 1 }
         };

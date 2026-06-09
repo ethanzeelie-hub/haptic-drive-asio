@@ -141,13 +141,23 @@ Private exports go under `local-validation-results/` when the repo root is avail
 
 ## Controlled CLI Smoke Test
 
-Use this dry-run before executing any real CLI pulse:
+Use direct-output dry-run and open-check before executing any real CLI pulse:
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-dry-run --candidate-index 0 --enable --arm --approval "I approve Phase 2 controlled P-HPR write testing"
+```
+
+```powershell
+.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-open-check --candidate-index 0 --enable --arm --approval "I approve Phase 2 controlled P-HPR write testing"
+```
+
+Use this controlled-write dry-run before adding `--execute`:
 
 ```powershell
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
 ```
 
-Add `--execute` only when physically present, the selected private HID path is correct, SimPro/SimHub coexistence is clear, and emergency stop is visible. The command hides the private HID path in console output, requests emergency stop at the end, and does not export local validation evidence.
+Add `--execute` only when physically present, the selected private HID path has passed no-report open-check, SimPro/SimHub coexistence is clear, and emergency stop is visible. The command hides the private HID path in console output, requests emergency stop at the end, and does not export local validation evidence.
 
 ## Live F1 25 Validation Workflow
 

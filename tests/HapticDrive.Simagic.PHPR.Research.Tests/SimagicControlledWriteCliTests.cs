@@ -18,6 +18,7 @@ public sealed class SimagicControlledWriteCliTests
 
         Assert.Equal(0, exitCode);
         Assert.Contains("controlled-write-test", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("direct-output-open-check", output.ToString(), StringComparison.Ordinal);
         Assert.Contains(ControlledPhprWriteTestOptions.ApprovalPhrase, output.ToString(), StringComparison.Ordinal);
         Assert.Equal("", error.ToString());
     }
@@ -150,6 +151,41 @@ public sealed class SimagicControlledWriteCliTests
         Assert.True(writer.CloseCount >= 1);
     }
 
+    [Fact]
+    public async Task Runner_BlocksExecuteWhenOpenCheckFailsBeforeReports()
+    {
+        var writer = new FakeHidReportWriter
+        {
+            NextOpenResult = PHprHidWriteResult.Failure(
+                "fake open-check failed",
+                "UnauthorizedAccessException:0x80070005")
+        };
+        var runner = new ControlledPhprWriteTestRunner(
+            selector =>
+            {
+                writer.Configure(selector);
+                return writer;
+            },
+            CreateClearCoexistenceSnapshot,
+            (_, _) => Task.CompletedTask);
+
+        var result = await runner.RunAsync(new ControlledPhprWriteTestOptions
+        {
+            Execute = true,
+            ApprovalPhraseText = ControlledPhprWriteTestOptions.ApprovalPhrase,
+            DevicePath = @"\\?\hid#vid_3670&pid_0905#private",
+            Target = ControlledPhprWriteTarget.Brake
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.Executed);
+        Assert.Equal(1, writer.OpenCount);
+        Assert.Equal(0, writer.CloseCount);
+        Assert.Empty(writer.Reports);
+        Assert.Contains(result.Issues, issue => issue.Contains("UnauthorizedAccessException:0x80070005", StringComparison.Ordinal));
+        Assert.DoesNotContain("#private", string.Join(Environment.NewLine, result.Issues), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static PHprSoftwareCoexistenceSnapshot CreateClearCoexistenceSnapshot()
     {
         return new PHprSoftwareCoexistenceSnapshot(
@@ -176,6 +212,8 @@ public sealed class SimagicControlledWriteCliTests
 
         public int CloseCount { get; private set; }
 
+        public PHprHidWriteResult? NextOpenResult { get; init; }
+
         public IReadOnlyList<PHprHidReport> Reports => _reports;
 
         public void Configure(PHprHidDeviceSelector selector)
@@ -187,6 +225,11 @@ public sealed class SimagicControlledWriteCliTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             OpenCount++;
+            if (NextOpenResult is not null)
+            {
+                return ValueTask.FromResult(NextOpenResult);
+            }
+
             IsOpen = true;
             return ValueTask.FromResult(PHprHidWriteResult.Success(_selector.ReportLength, "fake open"));
         }

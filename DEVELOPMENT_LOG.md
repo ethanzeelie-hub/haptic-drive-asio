@@ -2019,3 +2019,45 @@ Self-review:
 - The private HID path remains absent from copied diagnostics, docs, tests, sanitized exports, and console output.
 - Dry-run validation reports selected candidate, report length, coexistence, emergency-stop, approval, enable, arm, and can-pulse status without constructing or opening a writer.
 - The F1 25 telemetry parser and ASIO/BST-1 audio path were not changed.
+
+## Phase 3J Follow-up - HID Device Interface Open-Check Gates
+
+Date: 2026-06-09
+
+Status: Complete.
+
+Goal: Fix the remaining direct P-HPR validation blocker by separating Raw Input metadata from openable HID device-interface candidates, preserving private HID paths without corruption, and requiring a successful no-report open-check before any real direct pulse can pass gates.
+
+Missing Items Addressed:
+
+- Added Windows HID device-interface discovery alongside Raw Input metadata discovery, with openable HID-interface candidates preferred ahead of Raw Input-only candidates.
+- Added candidate source method, Raw Input-only status, openable HID path status, open-check attempted/succeeded/failed fields, and sanitized open-error categories to direct-output options, diagnostics, copied diagnostics, and CLI output.
+- Blocked Raw Input metadata-only candidates from selector creation, dry-run `can pulse`, router paths, real output open, and direct pulse readiness.
+- Added a no-report `direct-output-open-check` command and app Open Check button that opens and immediately closes the selected HID writer without sending an output report.
+- Required successful open-check, in addition to selected/enabled/armed/approval/coexistence/emergency-stop gates, before real direct pulses can become eligible.
+- Added path safety checks so corrupted or relative-looking HID paths are rejected before `FileStream` open and reported through sanitized error categories.
+- Added tests for VID_3670 family classification, Raw Input-only gate blocking, private path preservation/redaction, corrupted path rejection, open-check no-write behavior, and controlled-write open-check failure blocking.
+- Hardened the runtime stale-telemetry mute test timeout so full-solution parallel test runs do not race the output-owned render loop before its first callback.
+
+Notes:
+
+- Raw Input metadata can still identify `VID_3670` Simagic-family hardware, but it is not treated as an openable HID output path.
+- The private HID path remains runtime-only in the selected candidate/selector and is not printed in safe labels, copied diagnostics, CLI output, docs, or sanitized exports.
+- Protocol bytes were not changed.
+- No P-HPR output report, feature report, vibration command, sustained write loop, or physical validation was executed by Codex in this follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal` passed with 498 passing tests and 0 skipped tests after the runtime timing test hardening.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- Read-only `inventory --console-only` passed and observed 170 inventory items, 12 specific Simagic-family candidates, 158 generic HID/USB candidates, and 0 P-HPR/module-controller candidates.
+- `direct-output-dry-run --candidate-index 0 --enable --arm --approval ...` selected a `VID_3670/PID_0500` HID device-interface candidate, reported report length 64 bytes, and correctly kept `can pulse False` because open-check had not passed; no HID writer was opened.
+- `direct-output-open-check --candidate-index 0 --enable --arm --approval ...` opened and closed the selected HID writer without sending any output report, then reported open-check succeeded and dry-run `can pulse True` with 0 issues.
+
+Self-review:
+
+- Real direct P-HPR writes remain blocked unless selected output, openable HID device-interface candidate, successful open-check, direct enabled, direct armed, exact approval phrase, coexistence `Clear`, emergency stop clear, and local manual action are all present.
+- Automated tests use fake writers and do not open real hardware or send HID reports.
+- The F1 25 telemetry parser, ASIO/BST-1 audio path, and protocol bytes were not changed.

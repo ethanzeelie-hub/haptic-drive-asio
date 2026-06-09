@@ -41,6 +41,7 @@ public static class SimagicResearchCli
             "mock-protocol-export" => await RunMockProtocolExportAsync(args[1..], output, error),
             "safety-examples" => RunSafetyExamples(output),
             "direct-output-dry-run" => await RunDirectOutputDryRunAsync(args[1..], output, error),
+            "direct-output-open-check" => await RunDirectOutputOpenCheckAsync(args[1..], output, error),
             "controlled-write-test" => await RunControlledWriteTestAsync(args[1..], output, error),
             _ => UnknownCommand(args[0], output, error)
         };
@@ -431,7 +432,7 @@ public static class SimagicResearchCli
             return 2;
         }
 
-        var candidates = new WindowsRawInputPhprDirectOutputCandidateProvider().DiscoverCandidates();
+        var candidates = new WindowsPhprDirectOutputCandidateProvider().DiscoverCandidates();
         PHprDirectOutputCandidate? selectedCandidate = null;
         if (options.CandidateIndex is not null)
         {
@@ -444,19 +445,7 @@ public static class SimagicResearchCli
             selectedCandidate = candidates[options.CandidateIndex.Value];
         }
 
-        var selector = selectedCandidate?.ToSelector(options.ReportId) ?? PHprHidDeviceSelector.None;
-        if (options.ReportLength is not null)
-        {
-            selector = selector with { ReportLength = options.ReportLength.Value };
-        }
-
-        var realOptions = (PHprRealOutputOptions.Disabled with
-        {
-            DirectControlEnabled = options.DirectControlEnabled,
-            DirectControlArmed = options.DirectControlEnabled && options.DirectControlArmed,
-            DirectControlApprovalConfirmed = PHprControlledWriteApproval.IsApproved(options.ApprovalPhrase),
-            Selector = selector
-        }).Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        var realOptions = BuildDirectOutputDryRunOptions(options, selectedCandidate);
         var coexistence = new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider()).Scan();
         var dryRun = PHprDirectOutputDryRunValidator.Validate(
             realOptions,
@@ -478,6 +467,7 @@ public static class SimagicResearchCli
 
         await output.WriteLineAsync($"Selected candidate: {(selectedCandidate is null ? "none" : $"index {options.CandidateIndex}; {selectedCandidate.SafeLabel}")}");
         await output.WriteLineAsync($"Selected report length source: {selectedCandidate?.SelectedReportLengthSource ?? "none"}");
+        await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
         await output.WriteLineAsync(dryRun.Summary);
         await output.WriteLineAsync($"Approval phrase: {(realOptions.DirectControlApprovalConfirmed ? "present" : "missing")}");
         await output.WriteLineAsync($"Direct gates: enabled {realOptions.DirectControlEnabled}; armed {realOptions.DirectControlArmed}; selected {realOptions.Selector.IsSelected}; coexistence {dryRun.CoexistenceStatus}; emergency stop {dryRun.EmergencyStopActive}.");
@@ -495,6 +485,76 @@ public static class SimagicResearchCli
         }
 
         await output.WriteLineAsync("Use the app picker for local path selection; do not commit private HID paths, serials, raw captures, or local inventories.");
+        return 0;
+    }
+
+    private static async Task<int> RunDirectOutputOpenCheckAsync(string[] args, TextWriter output, TextWriter error)
+    {
+        var parseResult = TryParseDirectOutputDryRunOptions(args, out var options, out var parseError);
+        if (!parseResult)
+        {
+            await error.WriteLineAsync(parseError);
+            await output.WriteLineAsync();
+            PrintHelp(output);
+            return 2;
+        }
+
+        if (options.CandidateIndex is null)
+        {
+            await error.WriteLineAsync("direct-output-open-check requires --candidate-index <index>.");
+            return 2;
+        }
+
+        var candidates = new WindowsPhprDirectOutputCandidateProvider().DiscoverCandidates();
+        if (options.CandidateIndex.Value < 0 || options.CandidateIndex.Value >= candidates.Count)
+        {
+            await error.WriteLineAsync($"Candidate index {options.CandidateIndex.Value} is not available; {candidates.Count:N0} candidate(s) were discovered.");
+            return 2;
+        }
+
+        var selectedCandidate = candidates[options.CandidateIndex.Value];
+        var realOptions = BuildDirectOutputDryRunOptions(options, selectedCandidate);
+        var openCheck = await new PHprHidOpenCheckRunner().RunAsync(
+            realOptions.Selector,
+            realOptions.CandidateHasOpenableHidPath,
+            realOptions.CandidateIsRawInputOnly);
+        realOptions = realOptions with
+        {
+            OpenCheckAttempted = openCheck.Attempted,
+            OpenCheckSucceeded = openCheck.Succeeded,
+            OpenCheckFailed = openCheck.Failed,
+            OpenCheckSanitizedErrorCategory = openCheck.SanitizedErrorCategory
+        };
+        var coexistence = new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider()).Scan();
+        var dryRun = PHprDirectOutputDryRunValidator.Validate(
+            realOptions,
+            coexistence.Status,
+            emergencyStopActive: false);
+
+        await output.WriteLineAsync("P-HPR direct-output open-check");
+        await output.WriteLineAsync("Safety: this opens and closes the selected HID writer path but sends no output report and prints no private HID path.");
+        await output.WriteLineAsync($"Candidates discovered: {candidates.Count:N0}");
+        await output.WriteLineAsync($"Selected candidate: index {options.CandidateIndex}; {selectedCandidate.SafeLabel}");
+        await output.WriteLineAsync($"Open-check: attempted {openCheck.Attempted}; succeeded {openCheck.Succeeded}; failed {openCheck.Failed}; open {openCheck.OpenStatus?.ToString() ?? "none"}; close {openCheck.CloseStatus?.ToString() ?? "none"}; sanitized error {openCheck.SanitizedErrorCategory ?? "none"}.");
+        await output.WriteLineAsync($"Selected report length source: {selectedCandidate.SelectedReportLengthSource}");
+        await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
+        await output.WriteLineAsync(dryRun.Summary);
+        await output.WriteLineAsync($"Approval phrase: {(realOptions.DirectControlApprovalConfirmed ? "present" : "missing")}");
+        await output.WriteLineAsync($"Direct gates: enabled {realOptions.DirectControlEnabled}; armed {realOptions.DirectControlArmed}; selected {realOptions.Selector.IsSelected}; coexistence {dryRun.CoexistenceStatus}; emergency stop {dryRun.EmergencyStopActive}.");
+        if (dryRun.Issues.Count == 0)
+        {
+            await output.WriteLineAsync("Dry-run blockers after open-check: none.");
+        }
+        else
+        {
+            await output.WriteLineAsync("Dry-run blockers after open-check:");
+            foreach (var issue in dryRun.Issues)
+            {
+                await output.WriteLineAsync($"- {issue}");
+            }
+        }
+
+        await output.WriteLineAsync("No output report was sent. Do not commit private HID paths, serials, raw captures, or local inventories.");
         return 0;
     }
 
@@ -575,6 +635,8 @@ public static class SimagicResearchCli
         output.WriteLine("Direct-output local dry run:");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-dry-run [--candidate-index 0] [--enable] [--arm] [--approval \"I approve Phase 2 controlled P-HPR write testing\"]");
         output.WriteLine("  Options: --report-id <0-255|none>, --report-length 64. This command enumerates local safe labels only and never opens the HID writer.");
+        output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-open-check --candidate-index 0 --enable --arm --approval \"I approve Phase 2 controlled P-HPR write testing\"");
+        output.WriteLine("  Open-check opens and closes the selected HID writer path without sending an output report.");
         output.WriteLine();
         output.WriteLine("Controlled P-HPR write command:");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval \"I approve Phase 2 controlled P-HPR write testing\" --device-path <private-hid-path> [--execute]");
@@ -762,6 +824,28 @@ public static class SimagicResearchCli
         }
 
         return true;
+    }
+
+    private static PHprRealOutputOptions BuildDirectOutputDryRunOptions(
+        DirectOutputDryRunCliOptions options,
+        PHprDirectOutputCandidate? selectedCandidate)
+    {
+        var selector = selectedCandidate?.ToSelector(options.ReportId) ?? PHprHidDeviceSelector.None;
+        if (options.ReportLength is not null)
+        {
+            selector = selector with { ReportLength = options.ReportLength.Value };
+        }
+
+        return (PHprRealOutputOptions.Disabled with
+        {
+            DirectControlEnabled = options.DirectControlEnabled,
+            DirectControlArmed = options.DirectControlEnabled && options.DirectControlArmed,
+            DirectControlApprovalConfirmed = PHprControlledWriteApproval.IsApproved(options.ApprovalPhrase),
+            CandidateSourceMethod = selectedCandidate?.SourceMethod ?? PHprDirectOutputCandidateSourceMethod.Unknown,
+            CandidateIsRawInputOnly = selectedCandidate?.IsRawInputOnly ?? false,
+            CandidateHasOpenableHidPath = selectedCandidate?.HasOpenableHidPath ?? false,
+            Selector = selector
+        }).Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
     }
 
     private static bool TryParseControlledWriteTarget(string value, out ControlledPhprWriteTarget target)

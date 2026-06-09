@@ -13,6 +13,8 @@ public sealed record PHprDirectOutputCandidate
 
     public string DeviceClass { get; init; } = "HID";
 
+    public PHprDirectOutputCandidateSourceMethod SourceMethod { get; init; } = PHprDirectOutputCandidateSourceMethod.Unknown;
+
     public ushort? VendorId { get; init; }
 
     public ushort? ProductId { get; init; }
@@ -35,7 +37,12 @@ public sealed record PHprDirectOutputCandidate
 
     public string ConfidenceReason { get; init; } = "No output-capable Simagic signal was inferred.";
 
-    public bool IsSelected => !string.IsNullOrWhiteSpace(DevicePath);
+    public bool IsSelected => HasOpenableHidPath && !string.IsNullOrWhiteSpace(DevicePath);
+
+    public bool IsRawInputOnly => SourceMethod == PHprDirectOutputCandidateSourceMethod.RawInputMetadata;
+
+    public bool HasOpenableHidPath => SourceMethod == PHprDirectOutputCandidateSourceMethod.HidDeviceInterface
+        && PHprHidPathSafety.IsAbsoluteWindowsDevicePath(DevicePath);
 
     public string VendorProductText => VendorId is null || ProductId is null
         ? "VID/PID unavailable"
@@ -51,10 +58,15 @@ public sealed record PHprDirectOutputCandidate
         : "SimHub F1 EC hypothesis default; device output-report length was not available";
 
     public string SafeLabel =>
-        $"{VendorProductText}; {SafeDisplayName}; class {FormatValue(DeviceClass)}; interface {FormatValue(InterfaceNumber)}; collection {FormatValue(CollectionNumber)}; reports {ReportLengthText}; confidence {Confidence}; {ConfidenceReason}";
+        $"{VendorProductText}; {SafeDisplayName}; source {SourceMethod}; raw-input-only {IsRawInputOnly}; openable HID path {HasOpenableHidPath}; class {FormatValue(DeviceClass)}; interface {FormatValue(InterfaceNumber)}; collection {FormatValue(CollectionNumber)}; reports {ReportLengthText}; confidence {Confidence}; {ConfidenceReason}";
 
     public PHprHidDeviceSelector ToSelector(byte? reportId = null)
     {
+        if (!HasOpenableHidPath)
+        {
+            return PHprHidDeviceSelector.None;
+        }
+
         var reportLength = OutputReportByteLength is > 0
             ? OutputReportByteLength.Value
             : SimHubF1EcRealReportEncoder.PayloadLengthBytes;
@@ -78,8 +90,20 @@ public sealed record PHprDirectOutputCandidate
         var isObservedFamilyProduct = SimagicPhprDeviceIdentity.IsObservedSimagicFamilyProduct(ProductId);
         var outputLengthMatches = OutputReportByteLength == SimHubF1EcRealReportEncoder.PayloadLengthBytes;
 
-        var confidence = PHprDirectOutputCandidateConfidence.GenericHid;
+        var confidence = HasOpenableHidPath
+            ? PHprDirectOutputCandidateConfidence.GenericHid
+            : PHprDirectOutputCandidateConfidence.Unknown;
         var reasons = new List<string> { "HID candidate" };
+
+        if (IsRawInputOnly)
+        {
+            reasons.Add("Raw Input metadata only; not openable by the HID writer");
+        }
+
+        if (HasOpenableHidPath)
+        {
+            reasons.Add("HID device-interface path");
+        }
 
         if (isSimagicFamily)
         {
@@ -94,9 +118,11 @@ public sealed record PHprDirectOutputCandidate
 
         if (outputLengthMatches)
         {
-            confidence = isSimagicFamily
-                ? PHprDirectOutputCandidateConfidence.Preferred
-                : PHprDirectOutputCandidateConfidence.LikelyOutputCapable;
+            confidence = HasOpenableHidPath
+                ? isSimagicFamily
+                    ? PHprDirectOutputCandidateConfidence.Preferred
+                    : PHprDirectOutputCandidateConfidence.LikelyOutputCapable
+                : confidence;
             reasons.Add($"output report length matches {SimHubF1EcRealReportEncoder.PayloadLengthBytes} bytes");
         }
         else if (OutputReportByteLength is null)
