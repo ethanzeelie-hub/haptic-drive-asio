@@ -80,7 +80,7 @@ Normal full-suite verification should report zero skipped tests. Zero skipped te
 
 ## Physical Validation Status
 
-Controlled P-HPR write testing is approved and the command path exists, but physical P-HPR validation is pending Ethan's local supervised run with a selected private HID path. No physical safety, safe gain, pedal mapping, stop behavior, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, or real SimPro/SimHub coexistence claim is made by automated work.
+Controlled P-HPR write testing is approved and the command path exists. User-run local validation has confirmed brake and throttle direct pulses plus strength/frequency/duration response on the selected FeatureReport path. No physical safety envelope, safe gain, emergency-stop physical behavior, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, or real SimPro/SimHub coexistence claim is made by automated work.
 
 ## Run Command
 

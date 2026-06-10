@@ -161,7 +161,7 @@ No automated test opens a real HID device or sends a real P-HPR report.
 
 ## Physical Validation Status
 
-Controlled P-HPR write testing is approved, but physical validation is pending Ethan's local supervised run with a selected private HID path.
+Controlled P-HPR write testing is approved. User-run local validation has confirmed brake and throttle direct pulses plus parameter response on the selected FeatureReport path. Remaining validation includes safety envelope, emergency-stop physical behavior, sustained-vibration behavior, physical latency, road/slip/lock feel, real coexistence, and live-session behavior.
 
 Until real results are supplied, do not claim:
 

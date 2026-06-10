@@ -771,6 +771,52 @@
                                     <TextBlock x:Name="HardwareChainStatusText"
                                                Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}" />
+
+                                    <TextBlock Margin="0,18,0,0"
+                                               Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                               Text="Manual ASIO Bass Shaker Test" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}"
+                                               Text="Warning: manual hardware output. Use only with ASIO Output selected, M-Audio / M-Track driver selected, ASIO armed, haptics started, mutes clear, and a valid output channel." />
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <Button Width="110"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Click="ManualAsioHardwareTest40HzButton_Click"
+                                                Content="40 Hz" />
+                                        <Button Width="110"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Click="ManualAsioHardwareTest50HzButton_Click"
+                                                Content="50 Hz" />
+                                        <TextBlock Margin="8,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Duration ms" />
+                                        <ComboBox x:Name="ManualAsioHardwareDurationComboBox"
+                                                  Width="96"
+                                                  Margin="0,0,12,8" />
+                                        <Button Width="130"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="ManualAsioHardwareTestChannel0Button_Click"
+                                                Content="Test channel 0" />
+                                        <Button Width="130"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="ManualAsioHardwareTestChannel1Button_Click"
+                                                Content="Test channel 1" />
+                                        <Button Width="140"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="ManualAsioHardwareTestBothChannelsButton_Click"
+                                                Content="Mono / both" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="ManualAsioHardwareStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="ManualAsioHardwareBlockedReasonText"
+                                               Margin="0,6,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                 </StackPanel>
                             </Border>
 
@@ -1039,6 +1085,74 @@
                                                Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}" />
                                     <ItemsControl x:Name="ShiftIntentItemsControl"
+                                                  Margin="0,10,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,0,0,8"
+                                                           Style="{StaticResource MutedTextBlockStyle}"
+                                                           Text="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Margin="0,18,0,0"
+                                               Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                               Text="Paddle Gear Bench Test" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}"
+                                               Text="Local validation only. Normal live-driving shift intent still requires recent telemetry outside this bench mode." />
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <CheckBox x:Name="PaddleGearBenchEnabledCheckBox"
+                                                  Margin="0,4,12,8"
+                                                  Checked="PaddleGearBenchControl_Changed"
+                                                  Unchecked="PaddleGearBenchControl_Changed"
+                                                  Content="Enable Paddle Gear Bench Test" />
+                                        <CheckBox x:Name="PaddleGearBenchArmCheckBox"
+                                                  Margin="0,4,12,8"
+                                                  Checked="PaddleGearBenchControl_Changed"
+                                                  Unchecked="PaddleGearBenchControl_Changed"
+                                                  Content="Arm Bench Test" />
+                                        <ComboBox x:Name="PaddleGearBenchOutputModeComboBox"
+                                                  Width="120"
+                                                  Margin="0,0,8,8"
+                                                  SelectionChanged="PaddleGearBenchControl_Changed" />
+                                        <ComboBox x:Name="PaddleGearBenchTargetComboBox"
+                                                  Width="130"
+                                                  Margin="0,0,8,8"
+                                                  SelectionChanged="PaddleGearBenchControl_Changed" />
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Strength %" />
+                                        <TextBox x:Name="PaddleGearBenchStrengthTextBox"
+                                                 Width="72"
+                                                 Margin="0,0,8,8"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 LostFocus="PaddleGearBenchControl_LostFocus" />
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Hz" />
+                                        <TextBox x:Name="PaddleGearBenchFrequencyTextBox"
+                                                 Width="72"
+                                                 Margin="0,0,8,8"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 LostFocus="PaddleGearBenchControl_LostFocus" />
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Duration ms" />
+                                        <TextBox x:Name="PaddleGearBenchDurationTextBox"
+                                                 Width="72"
+                                                 Margin="0,0,8,8"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 LostFocus="PaddleGearBenchControl_LostFocus" />
+                                        <Button Width="170"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="ClearPaddleGearBenchCountersButton_Click"
+                                                Content="Clear bench counters" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="PaddleGearBenchStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <ItemsControl x:Name="PaddleGearBenchItemsControl"
                                                   Margin="0,10,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>

@@ -18,6 +18,22 @@ The ASIO/BST-1 path is separate from Simagic P-HPR output. ASIO uses the audio e
 
 Physical Dayton BST-1 feel, safe gain, latency, and final frequency tuning remain pending local hardware validation.
 
+## Manual ASIO Bass Shaker Test
+
+Use Devices `Manual ASIO Bass Shaker Test` only when you deliberately want this app to energize the connected BST-1.
+
+Before pressing a 40 Hz or 50 Hz button, confirm:
+
+- Output mode is `ASIO Output`,
+- the selected driver is the M-Audio / M-Track ASIO driver,
+- the intended zero-based output channel is selected,
+- ASIO is armed,
+- haptics are started and ASIO is running,
+- Emergency Mute is clear,
+- normal mute is off.
+
+The pulse runs through the app mixer, safety chain, limiter, and selected ASIO output channel. It is separate from the Null synthetic benchmark, which remains the safe automated-test path.
+
 ## F1 25 Telemetry
 
 The app listens for F1 25 UDP telemetry on port `20778` by default.
@@ -52,6 +68,16 @@ Shift Intent Diagnostics show:
 - current `DrivingArmed` state and reason.
 
 Keep `InstantPaddleOnly` as the default mode for immediate gear pulse routing. It still requires cached `DrivingArmed` true.
+
+## Paddle Gear Bench Test
+
+Use Devices `Paddle Gear Bench Test` for local validation when live F1 telemetry is unavailable.
+
+Bench mode is disabled and unarmed by default, is not persisted, and still requires mapped paddles. A mapped left or right GT Neo paddle can create a local bench shift-intent event without recent telemetry. Normal live-driving shift intent is unchanged and still suppresses paddle events when cached `DrivingArmed` is false.
+
+Start with output mode `Mock`. Mock bench routing increments mock gear routing diagnostics only; it does not send HID reports and does not route to ASIO.
+
+Use output mode `Direct` only after the normal direct P-HPR gates are green: selected device, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled. The initial direct bench defaults are brake only, 10%, 50 Hz, 50 ms, one paddle press, no loop.
 
 ## UDP Forwarding
 
@@ -103,6 +129,8 @@ Manual real output requires:
 - SimPro/SimHub coexistence `Clear`,
 - emergency stop clear,
 - safety limiter acceptance.
+
+Paddle Gear Bench Direct uses the same real direct backend plus additional validation gates for the known FeatureReport `0xF1` / 64-byte path and for disabling road, slip, and lock routes during bench pulses.
 
 Device path, enable state, armed state, emergency stop latch, command history, and write history are not persisted.
 

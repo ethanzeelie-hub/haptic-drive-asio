@@ -25,6 +25,32 @@ The app starts with `NullAudioOutputDevice` as the safe default. ASIO and real P
 5. Map left and right paddles.
 6. Confirm Shift Intent Diagnostics show accepted or suppressed events with the current `DrivingArmed` reason.
 
+## Manual ASIO Bass Shaker Test
+
+Use this only when the connected BST-1 chain is ready for a short app-driven pulse.
+
+1. Open Devices.
+2. Select `ASIO Output`.
+3. Select the M-Audio / M-Track ASIO driver.
+4. Select channel 0 or 1 deliberately.
+5. Arm ASIO.
+6. Press Start Haptics.
+7. In `Manual ASIO Bass Shaker Test`, start with 250 ms at 40 Hz or 50 Hz.
+
+The Null synthetic benchmark remains the automated-test path and does not energize the shaker.
+
+## Paddle Gear Bench Test
+
+Use this when mapped paddles need validation without live F1 telemetry.
+
+1. Open Devices.
+2. Enable and arm `Paddle Gear Bench Test`.
+3. Keep output mode `Mock` first.
+4. Press one mapped paddle and confirm accepted bench gear events plus mock gear routing count increase.
+5. Use `Direct` only after the FeatureReport `0xF1` / 64-byte direct gates, coexistence, emergency stop, approval, road, slip, and lock checks are green.
+
+Bench enable/arm state is not persisted, and normal live-driving shift intent still requires cached `DrivingArmed`.
+
 ## Mock P-HPR First
 
 Use mock mode before real direct control.

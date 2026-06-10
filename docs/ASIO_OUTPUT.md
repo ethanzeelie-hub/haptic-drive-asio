@@ -1,6 +1,6 @@
 # ASIO Output
 
-ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics. Stage 18 adds launch/runtime prerequisite handling, app settings persistence, forwarding/recording/diagnostics polish, and final pre-shaker readiness cleanup.
+ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics. Stage 18 adds launch/runtime prerequisite handling, app settings persistence, forwarding/recording/diagnostics polish, and final pre-shaker readiness cleanup. The Stage 18 follow-up adds a manual-only ASIO hardware test that routes short 40/50 Hz pulses through the selected real ASIO output path.
 
 ## Stage 02 Implementation
 
@@ -15,9 +15,9 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 ## Current Limitations
 
 - Native ASIO streaming is wired through `NativeAsioOutputBackend` and `NAudio.Asio`.
-- Physical Dayton BST-1 output has not been validated yet.
-- Test bench, Stage 12/13 effect buffers, and Stage 15/16 pipeline renders use `NullAudioOutputDevice` by default and do not prove physical latency, safe gain, or shaker response.
-- Real device sample streaming remains local Windows validation work before any shaker claims.
+- The M-Audio -> Fosi -> Dayton BST-1 chain has been locally proven through SimHub, but Haptic Drive ASIO app-driven BST-1 output remains a manual validation item.
+- The deterministic synthetic benchmark, Stage 12/13 effect buffers, and automated pipeline renders use `NullAudioOutputDevice` by default and do not prove physical latency, safe gain, or shaker response.
+- Manual ASIO hardware pulses can energize the BST-1 through the selected ASIO output, but they are still deliberate local validation steps rather than final tuning claims.
 - ASIO failure does not select WASAPI automatically.
 - Windows sound output visibility is not proof of ASIO usage.
 - Persisted ASIO driver/channel settings are convenience selections only; ASIO armed state and auto-start are not persisted.
@@ -57,6 +57,16 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - Generated buffers pass through the Stage 10 mixer and safety chain before null-output submission.
 - WASAPI remains manual/debug only and ASIO remains the later intended hardware path.
 
+## Manual ASIO Hardware Test
+
+- The Devices page exposes `Manual ASIO Bass Shaker Test` separately from the Null synthetic benchmark.
+- The test supports 40 Hz and 50 Hz sine pulses, 250 ms and 500 ms durations from the UI, and a maximum continuous request of 1 second in the runtime API.
+- The test is blocked unless Output mode is `ASIO Output`, the selected driver name is M-Audio / M-Track-like, ASIO is explicitly armed, haptics are running, emergency mute is clear, normal mute is off, and the selected output channel is valid.
+- The signal is injected into `HapticPipelineCoordinator` as an `AudioMixerInput`, then processed by the existing Stage 10 mixer, safety chain, limiter, and selected ASIO output channel routing.
+- The manual test bypasses stale telemetry only for its own short pulse. Normal VehicleState-driven effects still require fresh telemetry.
+- The active manual test state is runtime-only and stops when haptics stop. It is not persisted and is never started automatically.
+- Automated tests use fake ASIO backends for this path and do not require M-Audio, Fosi, BST-1, SimHub, SimPro, or live F1 telemetry.
+
 ## Stage 12 Effects
 
 - Gear shift and engine vibration generate deterministic source buffers from shared `VehicleState`.
@@ -79,7 +89,7 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - Stop Haptics stops ASIO output, and switching away from ASIO must stop the old output path first.
 - Stage 16 mono routing clears all routed channels and writes the safety-processed mono source only to the selected ASIO channel.
 - Diagnostics report selected driver, sample rate, buffer size, output channel count when available, selected output channel, arming state, running state, buffer counters, drops, last error, and M-Audio / M-Track visibility.
-- Hardware-dependent validation remains manual and opt-in. Prior skipped tests now run as readiness/pending checks, so the suite can report zero skipped tests without requiring physical output. Dayton BST-1 physical output testing is deferred until the shaker arrives.
+- Hardware-dependent validation remains manual and opt-in. Prior skipped tests now run as readiness/pending checks, so the suite can report zero skipped tests without requiring physical output. Haptic Drive ASIO app-driven BST-1 output testing is performed only through deliberate local manual checks.
 
 ## Stage 17 Manual Streaming
 

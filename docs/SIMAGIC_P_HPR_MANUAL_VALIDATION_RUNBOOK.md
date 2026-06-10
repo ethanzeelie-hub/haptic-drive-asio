@@ -4,7 +4,7 @@
 
 This runbook defines how Ethan should manually validate P-HPR direct control after the gated Stage 2Q implementation.
 
-Stage 2Q does not execute this runbook automatically. A gated real adapter and manual pulse UI exist, but no real P-HPR hardware output has been validated by Codex.
+Stage 2Q does not execute this runbook automatically. A gated real adapter and manual pulse UI exist. User-run local validation has now confirmed brake direct pulse, throttle direct pulse, and strength/frequency/duration response on the selected FeatureReport path, but Codex still does not claim independent physical measurement, safe gain, or physical latency.
 
 Stage 2R adds a Devices-page validation harness for checklist status and private local result export. The harness does not trigger hardware output.
 
@@ -77,6 +77,26 @@ Run these after one-pulse brake/throttle behavior is correct:
 - no real write occurs when direct control is unarmed,
 - and no real write occurs on app startup.
 
+## Paddle Gear Bench Validation
+
+Use this after manual brake and throttle direct pulses are understood.
+
+1. Confirm GT Neo paddle mapping remains left button `14` and right button `13`.
+2. Confirm no live F1 telemetry is required for this bench check.
+3. Enable `Paddle Gear Bench Test`.
+4. Arm `Paddle Gear Bench Test`.
+5. Set output mode to `Mock`.
+6. Press one mapped paddle.
+7. Confirm accepted bench gear events increase.
+8. Confirm mock gear routing count increases.
+9. Confirm no real HID report is sent.
+10. Confirm no ASIO output is triggered.
+11. Clear counters if needed.
+
+Only after the mock path is correct, switch bench output mode to `Direct` and verify every direct gate is green: selected openable HID device-interface path, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled.
+
+For the first direct paddle bench pulse, use brake only, `10%`, `50 Hz`, `50 ms`, one paddle press, no loop.
+
 ## Result Template
 
 Save private local results under an ignored path in a later validation stage, such as `manual-validation/private/`.
@@ -135,6 +155,6 @@ As of Stage 2Q:
 - readiness diagnostics implemented,
 - gated real adapter implemented,
 - manual Devices-page direct-control UI implemented,
-- physical validation pending local user run,
-- no real hardware validation has been recorded,
+- user-run local validation has confirmed manual brake and throttle direct pulses and parameter response on the selected FeatureReport path,
+- paddle-triggered direct validation can now be run through the runtime-only Paddle Gear Bench Test,
 - no real hardware vibration has been executed by Codex.

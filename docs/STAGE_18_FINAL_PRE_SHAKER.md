@@ -1,12 +1,12 @@
 # Stage 18 Final Pre-Shaker Readiness
 
-Stage 18 is the final software package before the Dayton BT-1/BST-1 shaker arrives. It completes launch, routing, replay, diagnostics, and documentation polish without requiring physical shaker output.
+Stage 18 is the final software package before app-driven Dayton BT-1/BST-1 validation. It completes launch, routing, replay, diagnostics, and documentation polish without requiring physical shaker output.
 
 ## Hardware State
 
 - M-Audio M-Track Solo / Duo ASIO interface: available locally.
 - Fosi amplifier: available locally.
-- Dayton shaker: not arrived and not physically validated.
+- Dayton shaker: available locally and proven through SimHub; Haptic Drive ASIO app-driven output validation remains manual.
 - Null output remains the default safe output.
 
 ## Launch
@@ -35,7 +35,7 @@ Use this to verify launch prerequisites without opening another window:
 
 ## Stage 18 Checks
 
-Before the shaker arrives, verify:
+Before deliberate app-driven shaker validation, verify:
 
 - The app opens from `Run-HapticDrive.cmd`.
 - Startup output is `NullAudioOutputDevice`.
@@ -48,6 +48,8 @@ Before the shaker arrives, verify:
 - Replay Latest and Replay Selected feed the same parser, VehicleState, effects, mixer, safety, and output-owned render path.
 - Diagnostics can be refreshed and copied.
 - Emergency Mute and Stop Haptics remain visible and reliable.
+
+Stage 18 follow-up adds the deliberate `Manual ASIO Bass Shaker Test` for short 40/50 Hz pulses through the selected real ASIO output and the runtime-only `Paddle Gear Bench Test` for mapped-paddle validation without live telemetry. These follow-up controls do not change Null default startup, ASIO arming rules, P-HPR direct gates, or normal telemetry-driven `DrivingArmed` behavior.
 
 ## Explicit Non-Claims
 

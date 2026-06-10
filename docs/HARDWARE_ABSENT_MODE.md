@@ -1,6 +1,6 @@
 # Hardware-Absent Mode
 
-Hardware-absent mode is the default development and automated-test posture until the real M-Audio interface, amplifier, and Dayton BST-1 chain is fully available and manually validated. The M-Audio M-Track Solo and Fosi amplifier are now available locally, but the Dayton BST-1 shaker has not arrived or been physically validated.
+Hardware-absent mode is the default development and automated-test posture even though the real M-Audio interface, amplifier, and Dayton BST-1 chain are now locally available. The chain has been proven through SimHub, but Haptic Drive ASIO app-driven BST-1 output, safe gain, physical latency, and effect tuning still require deliberate local validation.
 
 ## Current Behavior
 
@@ -25,6 +25,7 @@ Hardware-absent mode is the default development and automated-test posture until
 - Stage 18 adds a launch wrapper/script that sets `DOTNET_ROOT` to the repo-local .NET 8 runtime and checks for `Microsoft.WindowsDesktop.App 8.x` before starting the WPF executable.
 - Stage 18 app settings persist theme, forwarding destinations, and last ASIO driver/channel selection, but never persist ASIO armed state or haptic auto-start.
 - Stage 18 forwarding and recording-library UI work without shaker hardware and do not require ASIO output.
+- Stage 18 follow-up adds a manual-only ASIO hardware test that can energize the selected real ASIO output with short 40/50 Hz pulses after explicit ASIO selection, arming, and Start Haptics. Automated tests still use fake ASIO backends or Null output.
 
 ## Output Modes
 
@@ -36,7 +37,7 @@ Hardware-absent mode is the default development and automated-test posture until
 
 ## Rules
 
-- Do not block development because physical shaker hardware is missing.
+- Do not block development or CI because physical shaker hardware is unavailable, disconnected, or intentionally unused.
 - Do not claim final haptic feel, safe gain, physical latency, or frequency tuning.
 - Do not make automated tests depend on output hardware.
 - Do not fall back from ASIO to WASAPI automatically.

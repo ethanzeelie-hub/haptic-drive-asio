@@ -50,6 +50,7 @@
 - Phase 3H: Final P-HPR acceptance package complete.
 - Phase 3I: Simplified P-HPR controls and routing UI complete.
 - Phase 3J: Final controlled P-HPR hardware readiness and zero-skip test reporting complete.
+- Stage 18 follow-up: Manual ASIO hardware test and paddle gear bench validation complete.
 
 ## Planned Stages
 
@@ -71,6 +72,7 @@
 16. Stage 16: Manual ASIO hardware readiness. Complete.
 17. Stage 17: Native ASIO streaming and low-latency pre-shaker hardening. Complete.
 18. Stage 18: Final pre-shaker readiness package. Complete.
+19. Stage 18 follow-up: Manual ASIO hardware test and paddle gear bench validation. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -124,6 +126,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 16 ASIO readiness includes discovery, explicit selection/arming/channel routing seams, diagnostics, fake-backend tests, and manual M-Audio/Fosi/BST-1 checklist.
 - Stage 17 adds native ASIO streaming behind the backend seam, output-owned render cadence, stale telemetry mute, render/backend diagnostics, and fake-backend tests while keeping Null output as the automated-test default.
 - Stage 18 adds launch/runtime prerequisite handling, persisted app settings, forwarding destination UI, recordings library, selected replay, packet-ID diagnostics, copyable diagnostics reports, and final pre-shaker documentation cleanup.
+- Stage 18 follow-up adds a manual-only ASIO hardware test that injects short 40/50 Hz sine pulses through the selected real ASIO output after output mode, M-Audio / M-Track driver, channel, arming, haptics running, mute, and channel gates pass. It also keeps the existing deterministic synthetic benchmark on Null output.
 - No Simagic P-HPR implementation in V1.
 - Stage 2A adds Simagic Phase 2 documentation and safety gates only; it does not implement P-HPR output.
 - Stage 2B adds contracts and mock-only P-HPR scaffolding only; it does not implement real input discovery, protocol control, or device writes.
@@ -153,3 +156,4 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Phase 3H completes final quick-start, troubleshooting, acceptance, safety, and user-guide documentation; it does not change runtime output paths, execute hardware writes, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
 - Phase 3I simplifies the WPF shell into Dashboard, Devices, Effects, Routing / Mixer, Telemetry / UDP, Profiles, and Advanced / Diagnostics; moves P-HPR research/direct internals behind persisted Advanced mode; changes P-HPR UI settings to 0-100% strength, 1-50 Hz frequency, and 10-1000 ms duration; it does not execute hardware writes, validate physical P-HPR behavior, or touch ASIO/BST-1 routing.
 - Phase 3J adds a `controlled-write-test` CLI that defaults to dry-run and requires `--execute`, selected private HID path, successful no-report open-check, clear coexistence, and the exact approval phrase before real P-HPR writes; converts the prior skipped ASIO manual tests into zero-skip readiness checks; adds a local-only direct-output candidate picker, HID device-interface discovery, HID registry metadata surfacing for `VID_3670` family PIDs, dry-run gates, no-report open-check, read-only HID report-capability discovery, explicit OutputReport/FeatureReport transport selection, FeatureReport `0xF1` shape validation, and no-command report-shape validation so `VID_3670` HID candidates can be selected without printing private paths while Raw Input/registry metadata-only and invalid-shape candidates remain blocked; it does not add unattended hardware vibration, physical validation claims, persisted direct arming, or ASIO/BST-1 routing changes.
+- Stage 18 follow-up adds a runtime-only Paddle Gear Bench Test that accepts mapped GT Neo paddles without recent telemetry for validation, routes first to mock P-HPR output, and reaches direct P-HPR output only through the strict FeatureReport `0xF1`, 64-byte, open-check, approval, coexistence, emergency-stop, road, slip, and lock gates. It does not alter normal `DrivingArmed` telemetry gating, confirmed paddle mappings, P-HPR protocol bytes, or ASIO/BST-1 routing.

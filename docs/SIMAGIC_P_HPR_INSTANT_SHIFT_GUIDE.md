@@ -17,6 +17,8 @@ mapped GT Neo paddle press
 
 The hot path does not wait for F1 25 telemetry gear-change confirmation and does not fire a default second confirmation pulse. F1 25 telemetry is still used to maintain cached `DrivingArmed` state for menu suppression, stale-telemetry suppression, diagnostics, and future optional rejected-shift behavior.
 
+The Stage 18 follow-up adds a separate `Paddle Gear Bench Test` for local validation without recent F1 telemetry. That bench path is disabled/unarmed by default, is not persisted, and does not change this normal live-driving `DrivingArmed` gate.
+
 ## Pedal Settings
 
 Brake and throttle gear pulses are configured independently:
@@ -68,6 +70,8 @@ A real gear pulse can write only when all direct-control gates pass:
 - safety limiter accepts the command.
 
 Mock mode remains available for diagnostics without hardware output. Real mode is default-off and requires explicit manual enable and arm.
+
+Bench Direct mode is stricter than normal diagnostics: it requires the selected openable HID path to use FeatureReport transport, report ID `0xF1`, 64-byte report length, successful open-check, accepted report shape/capability, approval confirmation, coexistence `Clear`, emergency stop clear, and road/slip/lock routes disabled before a paddle bench pulse can reach the real output.
 
 ## Latency Diagnostics
 

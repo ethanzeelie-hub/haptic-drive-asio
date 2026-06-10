@@ -2,9 +2,9 @@
 
 ## Status
 
-Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock/fake output only. Phase 3I simplifies normal Devices controls and moves research internals behind Advanced diagnostics. Phase 3J adds the final controlled CLI smoke-test command and zero-skip readiness reporting.
+Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock/fake output only. Phase 3I simplifies normal Devices controls and moves research internals behind Advanced diagnostics. Phase 3J adds the final controlled CLI smoke-test command and zero-skip readiness reporting. The Stage 18 follow-up adds a runtime-only Paddle Gear Bench Test for mapped-paddle validation without live telemetry.
 
-No real P-HPR hardware validation has been performed by Codex. Do not treat any default as physically validated.
+Current user-validated local status: brake direct pulse works, throttle direct pulse works, strength/frequency/duration changes physically respond, and writes have succeeded with no reported failures on the selected `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte path. Codex did not independently perform physical measurement, and no safe-gain, physical latency, or sustained-vibration claim is made.
 
 ## Devices Page Controls
 
@@ -53,6 +53,24 @@ The Diagnostics page and copied report include P-HPR workflow mode, profile path
 Phase 3F diagnostics also include pipeline input source, replay source file name or in-memory replay status, and replay packet count. Replay does not synthesize GT Neo paddle events.
 
 Phase 3G diagnostics add a passive live F1 25 validation checklist covering telemetry, `DrivingArmed`, paddle listener, shift-intent acceptance, P-HPR mode, selected output readiness, SimPro/SimHub coexistence, emergency stop, mock gear pulse, real manual arming, road, slip/lock, and menu suppression.
+
+## Paddle Gear Bench Test
+
+Use `Paddle Gear Bench Test` on Devices when you need to validate the GT Neo paddle-to-gear-pulse path without live F1 telemetry.
+
+Bench mode:
+
+- starts disabled and unarmed,
+- is not persisted,
+- requires mapped left/right paddles,
+- does not change normal `DrivingArmed` gating outside the bench,
+- records accepted/suppressed counts, last accepted event, last suppression reason, and output mode.
+
+Start in `Mock` output mode. Mock bench routing sends no HID reports and does not touch ASIO/BST-1.
+
+Use `Direct` output mode only when direct gates are green: selected openable HID device-interface path, FeatureReport transport, report ID `0xF1`, 64-byte report length, successful open-check, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled.
+
+Initial direct bench defaults are brake only, `10%`, `50 Hz`, `50 ms`, one paddle press, no loop.
 
 ## First Safe Manual Settings
 

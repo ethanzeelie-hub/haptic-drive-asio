@@ -4,7 +4,7 @@ Manual hardware tests are opt-in checks for real output devices. They now run as
 
 These tests must not require physical output for automated validation until the matching hardware path is explicitly enabled through local flags or a controlled manual command.
 
-Current Stage 18 hardware status: the M-Audio M-Track Solo is connected to the user's Windows PC and the driver is installed. The Fosi amplifier has been received. The Dayton BST-1 shaker has not arrived, so physical shaker output testing is deferred. Stage 18 diagnostics may report ASIO driver visibility, render callbacks, backend callbacks, drops, underruns, jitter, telemetry age, forwarding destinations, recording library state, and packet-ID counts, but automated tests still use fake ASIO catalogs/backends and Null output.
+Current Stage 18 follow-up hardware status: the M-Audio M-Track Solo is connected to the user's Windows PC, the driver is installed, the Fosi amplifier is connected, and the Dayton BST-1 chain has been proven working through SimHub. Haptic Drive ASIO app-driven BST-1 output remains pending the new manual ASIO hardware test. Diagnostics may report ASIO driver visibility, render callbacks, backend callbacks, drops, underruns, jitter, telemetry age, forwarding destinations, recording library state, packet-ID counts, manual ASIO hardware test status, and blocked reasons, but automated tests still use fake ASIO catalogs/backends and Null output.
 
 ## Manual Test Markers
 
@@ -30,7 +30,7 @@ Do not set the BST-1 validation flag until the shaker output check has actually 
 - Confirm Windows sound settings can see the M-Audio endpoint, but do not treat that as proof of ASIO usage.
 - Confirm the app ASIO driver list can see the M-Audio / M-Track ASIO driver.
 - Confirm the amplifier is at minimum volume if connected.
-- Confirm the Dayton BST-1 is connected correctly only after it arrives. If it has not arrived, do not run physical output tests.
+- Confirm the Dayton BST-1 is connected correctly before any manual ASIO hardware pulse.
 - Confirm Windows default audio/WASAPI debug output is not being mistaken for ASIO.
 - Confirm the test is expected to make sound or haptic movement before enabling it.
 - Confirm the app is not using `NullAudioOutputDevice` if the goal is a future physical-output test.
@@ -87,16 +87,44 @@ Short version:
 - Watch render callbacks, backend callbacks, dropped buffers, underruns, jitter, and telemetry age.
 - Verify stale telemetry mute by stopping replay or live telemetry and confirming output returns to silence.
 - Verify Emergency Mute and Stop Haptics.
-- Do not connect or energize the Dayton BST-1 until it arrives and the manual physical test is intentionally run.
+- Do not energize the Dayton BST-1 from Haptic Drive ASIO unless the manual physical test is intentionally being run.
+
+## Manual ASIO Bass Shaker Test
+
+Use this only when you deliberately want Haptic Drive ASIO to energize the connected BST-1 for a short pulse.
+
+Required gates:
+
+- Output mode is `ASIO Output`.
+- Driver is the M-Audio / M-Track ASIO driver.
+- Output channel 0 or 1 is selected deliberately.
+- ASIO is armed.
+- Start Haptics has been pressed and ASIO is running.
+- Emergency mute is clear.
+- Normal mute is off.
+- The selected output channel is within the reported ASIO output-channel count.
+
+UI workflow:
+
+- Open Devices.
+- Confirm Bass Shaker / ASIO status shows ASIO Output, the M-Audio / M-Track driver, armed true, running true, and a valid channel.
+- Use `Test channel 0` or `Test channel 1` to select the intended zero-based ASIO channel. If that channel is already selected and haptics are running, the button starts a short 50 Hz pulse.
+- Use `40 Hz` or `50 Hz` to run the selected duration.
+- Use 250 ms first; 500 ms is the next deliberate step. Runtime requests are capped at 1 second.
+- `Mono / both` is diagnostic-only in the current single-selected-channel architecture and does not start output.
+
+The manual ASIO test signal is routed through the Stage 10 mixer, safety chain, limiter, and selected ASIO output channel. It is separate from the Null synthetic benchmark, and it never routes to Simagic P-HPR.
 
 ## Stage 18 Final Pre-Shaker Checklist
 
-Before the BT-1 arrives, the safe software package should be checked through:
+Before app-driven BST-1 validation, the safe software package should be checked through:
 
 - Launch wrapper startup.
 - Null output startup.
 - ASIO driver visibility refresh.
 - Explicit ASIO driver/channel selection without auto-arming.
+- Manual ASIO Bass Shaker Test blocked-reason display while still on Null output.
+- Deliberate manual ASIO 40/50 Hz pulse only after the connected BST-1 chain is ready.
 - UDP forwarding destination add/edit/remove with loopback protection.
 - Recording start/stop and recordings library refresh.
 - Replay latest and replay selected recording.

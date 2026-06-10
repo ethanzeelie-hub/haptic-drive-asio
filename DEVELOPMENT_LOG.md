@@ -2154,3 +2154,40 @@ Self-review:
 - The F1 EC report bytes were not modified.
 - Private HID paths remain held in memory only and are absent from safe labels, CLI output, copied diagnostics, docs, and tests.
 - The ASIO/BST-1 audio path was not changed.
+
+## Stage 18 Follow-up - Manual ASIO and Paddle Bench Validation
+
+Date: 2026-06-10
+
+Status: Complete.
+
+Goal: Add two focused manual validation surfaces without merging hardware paths: a controlled Paddle Gear Bench Test for mapped GT Neo paddles without live F1 telemetry, and a Manual ASIO Bass Shaker Test for short 40/50 Hz pulses through the selected real ASIO output.
+
+Missing Items Addressed:
+
+- Added a runtime-only `PaddleGearBenchTestController` that requires local enable and arm, accepts mapped paddle input without recent telemetry, records accepted/suppressed diagnostics, and leaves normal `ShiftIntentProcessor` / `DrivingArmed` behavior unchanged.
+- Added mock paddle-bench routing through `PHprGearPulseRouter` with per-call bench options so mock gear routing can be validated without HID output or ASIO output.
+- Added strict Paddle Gear Bench Direct gating requiring selected/openable HID device-interface output, FeatureReport transport, report ID `0xF1`, 64-byte report length, successful open-check, report-shape/capability acceptance, approval, coexistence `Clear`, emergency stop clear, and disabled road/slip/lock routes.
+- Added Devices-page Paddle Gear Bench controls for enable, arm, output mode, target, strength, frequency, duration, counters, status, and diagnostics.
+- Added a manual ASIO hardware test request/snapshot/result model and runtime injection path that creates short 40/50 Hz sine pulses as mixer inputs, then uses the existing Stage 10 mixer, safety chain, limiter, and selected ASIO output channel.
+- Added Devices-page Manual ASIO Bass Shaker Test controls for 40 Hz, 50 Hz, 250/500 ms duration, channel 0, channel 1, mono/both diagnostic status, peak, and blocked reason.
+- Kept the existing Null synthetic benchmark unchanged for deterministic automated tests.
+- Updated README, architecture, roadmap, known issues, hardware-absent, ASIO, manual hardware, user guide, quick start, persistence, and P-HPR validation docs for the new runtime-only validation surfaces and current local hardware status.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal` passed with 529 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- The F1 25 parser, UDP forwarding, recording/replay raw-packet preservation, confirmed paddle mappings, and confirmed P-HPR protocol bytes were not changed.
+- Simagic P-HPR remains a separate USB/HID FeatureReport actuator path and is not routed through ASIO or `IAudioOutputDevice`.
+- ASIO/BST-1 remains an audio output path and is not routed through P-HPR.
+- Null output remains default. Manual ASIO hardware tests require explicit ASIO selection, M-Audio / M-Track driver selection, arming, haptics running, clear mutes, and valid channel selection.
+- Paddle bench enable/arm state, manual ASIO active state, ASIO armed state, direct-control armed state, emergency-stop state, selected private HID path, command history, and write history are not persisted.
+- Automated tests use Null output, fake ASIO backends, mock P-HPR output, and fake HID writer/gate models only. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.
+- Current local status is documented as user-validated brake/throttle direct P-HPR pulses and SimHub-proven BST-1 chain, while Haptic Drive ASIO app-driven BST-1 validation, physical safe gain, physical latency, sustained-output behavior, road/slip/lock feel, and final tuning remain manual local work.

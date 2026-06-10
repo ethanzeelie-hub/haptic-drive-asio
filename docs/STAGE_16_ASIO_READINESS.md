@@ -6,7 +6,7 @@ Stage 16 prepares the app for controlled local ASIO readiness checks with the M-
 
 - M-Audio M-Track Solo: received, plugged into the user's Windows PC, visible in Windows sound settings, and driver installed.
 - Fosi Audio BT20A: received.
-- Dayton BST-1: not yet received, so physical shaker testing is deferred.
+- Dayton BST-1: available locally and proven through SimHub, but Haptic Drive ASIO app-driven output validation is pending the manual ASIO hardware test.
 
 Windows sound output visibility only proves that Windows sees an audio endpoint. It does not prove that Haptic Drive ASIO is using ASIO. ASIO usage must be confirmed through the app ASIO driver catalog, selected output mode, selected driver, channel route, arming state, and output diagnostics.
 
@@ -32,20 +32,20 @@ Native ASIO streaming is now implemented in Stage 17 behind `IAsioOutputBackend`
 4. Start the app and confirm output starts as `NullAudioOutputDevice`.
 5. Open Devices and press `Refresh ASIO`.
 6. Confirm the app ASIO driver list shows an M-Audio / M-Track ASIO driver.
-7. Keep the Fosi BT20A volume at minimum if it is connected.
-8. Do not connect or test the Dayton BST-1 until it arrives.
+7. Keep the Fosi BT20A volume low before the first Haptic Drive ASIO manual pulse.
+8. Confirm the Dayton BST-1 chain is connected only when you intend to run a manual app-driven output check.
 9. Select ASIO deliberately in the app.
 10. Select the M-Audio / M-Track ASIO driver deliberately.
 11. Select a single output channel deliberately.
 12. Arm ASIO deliberately.
 13. Keep master/effect/safety gains conservative.
 14. Press Start Haptics only after selection, routing, and arming are intentional.
-15. Use the synthetic test bench path first at low software level when a real streaming backend exists.
+15. Use the separate `Manual ASIO Bass Shaker Test` first at low software level when the real streaming backend is selected and running.
 16. Verify Emergency Mute.
 17. Verify Stop Haptics.
 18. Verify replay-driven pipeline before live F1 25 UDP.
 19. Verify live F1 25 UDP only after replay/test-bench checks are safe.
-20. Increase physical gain only gradually by the human tester after the Dayton BST-1 arrives.
+20. Increase physical gain only gradually by the human tester after the app-driven manual ASIO pulse is confirmed.
 21. Record observed driver, routing, underrun, or startup issues manually.
 
-Do not claim final shaker feel, safe physical gain, physical latency, or final frequency tuning until the actual Dayton BST-1 chain has been installed and tested locally.
+Do not claim final shaker feel, safe physical gain, physical latency, or final frequency tuning until the actual Dayton BST-1 chain has been tested locally through Haptic Drive ASIO and tuned deliberately.

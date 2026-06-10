@@ -22,6 +22,18 @@ F1 25 UDP packets
 -> audio output device
 ```
 
+Manual ASIO hardware validation reuses the same audio boundary:
+
+```text
+Manual 40/50 Hz test request
+-> synthetic sine generator
+-> mixer and safety chain
+-> limiter
+-> selected ASIO output device/channel
+```
+
+The deterministic synthetic benchmark remains a separate Null-output test bench for automated validation.
+
 ## Phase 2 Planned Actuator Boundary
 
 Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. Phase 3D completes real wheel-slip and wheel-lock production integration with safe per-effect settings, route-interval suppression, and priority above road and below gear pulse. Phase 3E adds UI workflow summaries, safe P-HPR effect profiles, and diagnostics report coverage around those existing routes. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock output only. Phase 3G adds a passive live F1 25 validation checklist and diagnostics line. Phase 3H packages final quick-start, troubleshooting, acceptance, and safety documentation. Phase 3I simplifies normal app navigation and moves P-HPR research internals behind persisted Advanced diagnostics while keeping the same actuator boundaries. The real adapter is disabled/unarmed by default and is not physically validated.
@@ -44,6 +56,18 @@ GT Neo paddle input and VehicleState
 ```
 
 The default P-HPR gear-pulse path is `InstantPaddleOnly`: read-only GT Neo paddle press, cached `DrivingArmed` gate, then immediate pedal gear pulse. It does not wait for a fresh telemetry packet at paddle-press time and does not fire a default second telemetry-confirmed pulse.
+
+The Paddle Gear Bench Test is a runtime-only validation branch, not a replacement for normal shift intent:
+
+```text
+mapped GT Neo paddle input
+-> local bench enable/arm gate
+-> bench ShiftIntentEvent
+-> mock P-HPR gear router or strict direct P-HPR gate
+-> P-HPR output path
+```
+
+Normal live-driving shift intent still uses `ShiftIntentProcessor` and cached `DrivingArmed` telemetry gating. The bench branch exists so mapped paddle input, mock routing, and later strictly gated direct pulses can be validated without live F1 telemetry.
 
 Real P-HPR USB writes are gated behind the exact approval phrase in `docs/SIMAGIC_P_HPR_SAFETY_PLAN.md`.
 

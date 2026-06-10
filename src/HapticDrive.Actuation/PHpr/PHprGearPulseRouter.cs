@@ -74,6 +74,31 @@ public sealed class PHprGearPulseRouter
             options = _options;
         }
 
+        return await RouteWithOptionsAsync(shiftIntentEvent, options, safetyContext, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async ValueTask<PHprGearPulseRoutingResult> RouteAsync(
+        ShiftIntentEvent? shiftIntentEvent,
+        PHprGearPulseRouterOptions routeOptions,
+        PHprSafetyContext? safetyContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var options = (routeOptions ?? PHprGearPulseRouterOptions.Default).Normalize();
+        return await RouteWithOptionsAsync(shiftIntentEvent, options, safetyContext, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask<PHprGearPulseRoutingResult> RouteWithOptionsAsync(
+        ShiftIntentEvent? shiftIntentEvent,
+        PHprGearPulseRouterOptions options,
+        PHprSafetyContext? safetyContext,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (!options.IsEnabled)
         {
             return StoreIgnored(

@@ -24,7 +24,7 @@ Profiles do not include:
 - Recording files or replay files.
 - Physical shaker gain, calibration, safe physical output, latency, or frequency-response data.
 
-Stage 18 app settings are separate from profiles. App settings persist theme, UDP forwarding destinations, and last ASIO driver/channel selections. They do not persist ASIO armed state, haptic running state, emergency mute, or physical calibration.
+Stage 18 app settings are separate from profiles. App settings persist theme, UDP forwarding destinations, and last ASIO driver/channel selections. They do not persist ASIO armed state, haptic running state, emergency mute, Manual ASIO Hardware Test active state, Paddle Gear Bench Test enable/arm state, or physical calibration.
 
 ## JSON Format
 

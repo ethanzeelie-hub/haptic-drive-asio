@@ -3,6 +3,7 @@ using HapticDrive.Asio.Audio.Effects;
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Profiles;
+using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
@@ -14,6 +15,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 {
     private readonly object _diagnosticsGate = new();
     private readonly object _renderCallbackGate = new();
+    private readonly object _manualAsioHardwareTestGate = new();
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly AudioSampleBuffer _outputBuffer;
@@ -37,6 +39,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private string _lastPacketMessage = "Waiting for F1 25 packets.";
     private string _lastVehicleStateMessage = "Waiting for parsed F1 25 packets.";
     private string? _lastPipelineError;
+    private string? _lastManualAsioHardwareTestBlockedReason;
+    private string? _lastManualAsioHardwareTestError;
+    private ManualAsioHardwareTestRequest? _lastManualAsioHardwareTestRequest;
+    private ManualAsioHardwareTestRun? _manualAsioHardwareTestRun;
+    private long _manualAsioHardwareTestRenderedFrameCount;
     private bool _disposed;
     private bool _isRunning;
     private bool _outputOpened;
@@ -153,6 +160,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         {
             await ReplayService.StopAsync().ConfigureAwait(false);
             _isRunning = false;
+            StopManualAsioHardwareTest("Manual ASIO Hardware Test stopped because haptics stopped.");
 
             var status = OutputDevice.GetStatus();
             if (status.State is AudioOutputDeviceState.Started or AudioOutputDeviceState.Open or AudioOutputDeviceState.Stopped)
@@ -222,6 +230,107 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         }
 
         return await RenderNextBufferAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public ManualAsioHardwareTestResult StartManualAsioHardwareTest(
+        ManualAsioHardwareTestRequest request)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var normalized = request.Normalize();
+        if (!normalized.IsSupportedFrequency)
+        {
+            return StoreBlockedManualAsioHardwareTest(
+                $"Manual ASIO Hardware Test supports only 40 Hz or 50 Hz sine signals; requested {normalized.FrequencyHz:0.#} Hz.");
+        }
+
+        if (normalized.Duration <= TimeSpan.Zero || normalized.Duration > ManualAsioHardwareTestRequest.MaximumDuration)
+        {
+            return StoreBlockedManualAsioHardwareTest(
+                "Manual ASIO Hardware Test duration must be greater than zero and no more than 1 second.");
+        }
+
+        var outputStatus = OutputDevice.GetStatus();
+        var blockedReason = GetManualAsioHardwareTestBlockedReason(outputStatus);
+        if (blockedReason is not null)
+        {
+            return StoreBlockedManualAsioHardwareTest(blockedReason);
+        }
+
+        var frameCount = Math.Max(1L, (long)Math.Ceiling(normalized.Duration.TotalSeconds * Configuration.SampleRate));
+        var signal = new AudioTestSignalDefinition(
+            AudioTestSignalKind.SineTone,
+            normalized.Amplitude,
+            normalized.FrequencyHz);
+        var run = new ManualAsioHardwareTestRun(
+            AudioTestSignalGeneratorFactory.Create(signal),
+            AudioSampleBuffer.Allocate(Format),
+            normalized,
+            frameCount);
+
+        lock (_manualAsioHardwareTestGate)
+        {
+            _manualAsioHardwareTestRun = run;
+            _lastManualAsioHardwareTestRequest = normalized;
+            _lastManualAsioHardwareTestBlockedReason = null;
+            _lastManualAsioHardwareTestError = null;
+            _manualAsioHardwareTestRenderedFrameCount = 0;
+        }
+
+        return ManualAsioHardwareTestResult.Success(
+            $"Manual ASIO Hardware Test armed for {normalized.SignalName}, {normalized.Duration.TotalMilliseconds:0} ms.",
+            GetManualAsioHardwareTestSnapshot());
+    }
+
+    public void StopManualAsioHardwareTest(string? reason = null)
+    {
+        lock (_manualAsioHardwareTestGate)
+        {
+            _manualAsioHardwareTestRun = null;
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                _lastManualAsioHardwareTestError = reason.Trim();
+            }
+        }
+    }
+
+    public ManualAsioHardwareTestSnapshot GetManualAsioHardwareTestSnapshot()
+    {
+        var outputStatus = OutputDevice.GetStatus();
+        ManualAsioHardwareTestRequest? lastRequest;
+        ManualAsioHardwareTestRun? activeRun;
+        long renderedFrames;
+        string? blockedReason;
+        string? lastError;
+        lock (_manualAsioHardwareTestGate)
+        {
+            lastRequest = _lastManualAsioHardwareTestRequest;
+            activeRun = _manualAsioHardwareTestRun;
+            renderedFrames = _manualAsioHardwareTestRenderedFrameCount;
+            blockedReason = _lastManualAsioHardwareTestBlockedReason;
+            lastError = _lastManualAsioHardwareTestError;
+        }
+
+        return new ManualAsioHardwareTestSnapshot(
+            IsActive: activeRun is not null,
+            TestMode: outputStatus.Kind == AudioOutputDeviceKind.Asio ? "ASIO Hardware" : "Null",
+            SelectedAsioDriver: outputStatus.DeviceName ?? outputStatus.DisplayName,
+            SelectedOutputChannel: outputStatus.SelectedOutputChannel,
+            AsioRunning: outputStatus.Kind == AudioOutputDeviceKind.Asio
+                && outputStatus.State == AudioOutputDeviceState.Started,
+            AsioArmed: outputStatus.IsHardwareArmed,
+            HapticsRunning: _isRunning,
+            EmergencyMute: _emergencyMuted,
+            NormalMute: _normalMuted,
+            OutputPeakLevel: _lastAudioSnapshot?.OutputPeakLevel ?? 0f,
+            FramesSubmitted: outputStatus.SubmittedBufferCount * Math.Max(0, outputStatus.BufferSize),
+            FramesRendered: renderedFrames,
+            RenderCallbackCount: outputStatus.RenderCallbackCount,
+            BlockedReason: blockedReason,
+            LastTestSignal: lastRequest?.SignalName,
+            LastTestDuration: lastRequest?.Duration,
+            LastError: lastError ?? outputStatus.LastError);
     }
 
     public async ValueTask<HapticPipelinePacketResult> OfferLiveTelemetryPacketAsync(
@@ -401,6 +510,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             _lastEffectSnapshot,
             _lastAudioSnapshot,
             OutputDevice.GetStatus(),
+            GetManualAsioHardwareTestSnapshot(),
             OutputDevice is NullAudioOutputDevice nullOutput ? nullOutput.GetSampleSinkSnapshot() : null,
             TelemetryForwarder.GetSnapshot(),
             CreatePacketDiagnosticsSnapshot(),
@@ -602,18 +712,26 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             && !telemetryTimedOut
             && !_normalMuted
             && !_emergencyMuted;
-        IReadOnlyList<AudioMixerInput> mixerInputs = [];
+        var mixerInputs = new List<AudioMixerInput>();
 
         if (shouldRenderEffects)
         {
             var effectRender = EffectEngine.RenderNextBuffer();
             _lastEffectSnapshot = effectRender.Snapshot;
-            mixerInputs = effectRender.MixerInputs;
+            mixerInputs.AddRange(effectRender.MixerInputs);
+        }
+
+        var manualAsioHardwareTestActive = TryAddManualAsioHardwareTestInput(mixerInputs);
+        var telemetryMuteAppliesToMixer = telemetryTimedOut && !manualAsioHardwareTestActive;
+
+        if (manualAsioHardwareTestActive)
+        {
+            _lastEffectSnapshot = EffectEngine.GetSnapshot();
         }
 
         AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
         {
-            IsMuted = _normalMuted || telemetryTimedOut,
+            IsMuted = _normalMuted || telemetryMuteAppliesToMixer,
             EmergencyMute = _emergencyMuted
         };
         AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
@@ -629,7 +747,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             _telemetryTimedOutMuted = telemetryTimedOut;
             if (telemetryTimedOut)
             {
-                _lastVehicleStateMessage = $"Telemetry stale for {telemetryAge!.Value.TotalMilliseconds:0} ms; effects muted until fresh VehicleState arrives.";
+                _lastVehicleStateMessage = manualAsioHardwareTestActive
+                    ? $"Telemetry stale for {telemetryAge!.Value.TotalMilliseconds:0} ms; normal effects muted while Manual ASIO Hardware Test remains local."
+                    : $"Telemetry stale for {telemetryAge!.Value.TotalMilliseconds:0} ms; effects muted until fresh VehicleState arrives.";
             }
         }
 
@@ -650,8 +770,163 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         }
     }
 
+    private bool TryAddManualAsioHardwareTestInput(List<AudioMixerInput> mixerInputs)
+    {
+        ManualAsioHardwareTestRun? activeRun;
+        lock (_manualAsioHardwareTestGate)
+        {
+            activeRun = _manualAsioHardwareTestRun;
+            if (activeRun is null)
+            {
+                return false;
+            }
+
+            if (activeRun.FramesRemaining <= 0)
+            {
+                _manualAsioHardwareTestRun = null;
+                return false;
+            }
+
+            try
+            {
+                activeRun.Generator.Generate(activeRun.SignalBuffer);
+                var framesThisBuffer = (int)Math.Min(activeRun.FramesRemaining, activeRun.SignalBuffer.FrameCount);
+                if (framesThisBuffer < activeRun.SignalBuffer.FrameCount)
+                {
+                    ClearFrames(activeRun.SignalBuffer, framesThisBuffer);
+                }
+
+                activeRun.FramesRemaining -= framesThisBuffer;
+                _manualAsioHardwareTestRenderedFrameCount += framesThisBuffer;
+                mixerInputs.Add(new AudioMixerInput(
+                    activeRun.SignalBuffer,
+                    name: $"Manual ASIO Hardware Test {activeRun.Request.SignalName}"));
+
+                if (activeRun.FramesRemaining <= 0)
+                {
+                    _manualAsioHardwareTestRun = null;
+                }
+
+                return framesThisBuffer > 0;
+            }
+            catch (Exception ex)
+            {
+                _manualAsioHardwareTestRun = null;
+                _lastManualAsioHardwareTestError = $"Manual ASIO Hardware Test failed safely: {ex.Message}";
+                return false;
+            }
+        }
+    }
+
+    private static void ClearFrames(AudioSampleBuffer buffer, int firstFrameToClear)
+    {
+        for (var frame = Math.Max(0, firstFrameToClear); frame < buffer.FrameCount; frame++)
+        {
+            for (var channel = 0; channel < buffer.ChannelCount; channel++)
+            {
+                buffer[frame, channel] = 0f;
+            }
+        }
+    }
+
+    private ManualAsioHardwareTestResult StoreBlockedManualAsioHardwareTest(string reason)
+    {
+        lock (_manualAsioHardwareTestGate)
+        {
+            _manualAsioHardwareTestRun = null;
+            _lastManualAsioHardwareTestBlockedReason = reason;
+            _lastManualAsioHardwareTestError = null;
+        }
+
+        return ManualAsioHardwareTestResult.Blocked(
+            $"Manual ASIO Hardware Test blocked: {reason}",
+            GetManualAsioHardwareTestSnapshot());
+    }
+
+    private string? GetManualAsioHardwareTestBlockedReason(AudioOutputStatus outputStatus)
+    {
+        if (outputStatus.Kind != AudioOutputDeviceKind.Asio)
+        {
+            return "Output mode must be ASIO Output.";
+        }
+
+        if (!IsMTrackAsioDriver(outputStatus.DeviceName))
+        {
+            return $"M-Audio / M-Track ASIO driver must be selected; current driver is {outputStatus.DeviceName ?? "none"}.";
+        }
+
+        if (!outputStatus.IsHardwareArmed)
+        {
+            return "ASIO must be explicitly armed.";
+        }
+
+        if (!_isRunning || outputStatus.State != AudioOutputDeviceState.Started)
+        {
+            return "Haptics and ASIO output must be running.";
+        }
+
+        if (_emergencyMuted)
+        {
+            return "Emergency mute is active.";
+        }
+
+        if (_normalMuted)
+        {
+            return "Normal mute is active.";
+        }
+
+        if (outputStatus.SelectedOutputChannel is null)
+        {
+            return "Selected ASIO output channel is missing.";
+        }
+
+        if (outputStatus.SelectedOutputChannel < 0)
+        {
+            return "Selected ASIO output channel must be zero or greater.";
+        }
+
+        if (outputStatus.DeviceOutputChannelCount is { } channelCount
+            && outputStatus.SelectedOutputChannel >= channelCount)
+        {
+            return $"Selected ASIO output channel {outputStatus.SelectedOutputChannel} is outside the reported {channelCount} output channel(s).";
+        }
+
+        return null;
+    }
+
+    private static bool IsMTrackAsioDriver(string? driverName)
+    {
+        return !string.IsNullOrWhiteSpace(driverName)
+            && (driverName.Contains("M-Audio", StringComparison.OrdinalIgnoreCase)
+                || driverName.Contains("M-Track", StringComparison.OrdinalIgnoreCase));
+    }
+
     private sealed record PacketProcessingResult(
         F125PacketParseStatus ParseStatus,
         bool VehicleStateUpdated,
         string Message);
+
+    private sealed class ManualAsioHardwareTestRun
+    {
+        public ManualAsioHardwareTestRun(
+            IAudioTestSignalGenerator generator,
+            AudioSampleBuffer signalBuffer,
+            ManualAsioHardwareTestRequest request,
+            long framesRemaining)
+        {
+            Generator = generator;
+            SignalBuffer = signalBuffer;
+            Request = request;
+            FramesRemaining = framesRemaining;
+            Generator.Reset();
+        }
+
+        public IAudioTestSignalGenerator Generator { get; }
+
+        public AudioSampleBuffer SignalBuffer { get; }
+
+        public ManualAsioHardwareTestRequest Request { get; }
+
+        public long FramesRemaining { get; set; }
+    }
 }

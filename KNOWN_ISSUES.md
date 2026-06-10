@@ -140,7 +140,7 @@
 - The M-Audio M-Track Solo and Fosi amplifier may be present locally, but automated tests and normal startup do not require them.
 - Seeing the M-Audio device in the Windows sound output selector is not proof that the app is using ASIO.
 - Real ASIO streaming, M-Audio hardware readiness, physical latency measurement, physical gain calibration, and Dayton BST-1 shaker tuning remain deferred to Stage 16/manual testing.
-- The Dayton BST-1 has not been physically validated in this project yet, so no final shaker feel, safe gain, latency, or frequency tuning claims can be made.
+- The Dayton BST-1 chain has been proven through SimHub, but Haptic Drive ASIO app-driven shaker feel, safe gain, latency, and frequency tuning are still not final.
 
 ## Stage 16
 
@@ -149,9 +149,9 @@
 - Selecting ASIO with the default unavailable backend can discover a driver but fail safely at backend open/start; this is readiness behavior, not physical output validation.
 - Output channel count is known only when a backend can open the selected ASIO driver. Until then, channel choices are manual readiness selections and must be confirmed locally.
 - The WPF shell still uses simple code-behind wiring and rebuilds the runtime pipeline when output mode/settings change; polished device profiles and persisted output selection are deferred.
-- Test bench remains bound to Null output by default. Manual ASIO test-bench streaming awaits the native backend and local validation.
+- The deterministic synthetic benchmark remains bound to Null output by default for CI and hardware-absent development. Stage 18 follow-up adds a separate manual ASIO hardware test for short 40/50 Hz pulses through the selected M-Audio / M-Track ASIO output; local app-driven BST-1 validation is still pending.
 - The Fosi amplifier is available, but no gain safety, physical shaker feel, physical latency, or frequency tuning is claimed.
-- Dayton BST-1 physical shaker testing is deferred until the shaker arrives.
+- Haptic Drive ASIO app-driven Dayton BST-1 physical shaker testing is still pending deliberate local validation even though the chain has been proven through SimHub.
 - Windows sound output visibility is explicitly treated as separate from ASIO driver visibility and does not prove ASIO usage.
 
 ## Stage 17
@@ -168,10 +168,12 @@
 
 - The final pre-shaker software package is implemented: launch/runtime prerequisite handling, app settings persistence, UDP forwarding destination UI, recordings library UI, selected replay, packet-ID diagnostics, and copyable diagnostics reports are now available.
 - App settings are separate from haptic profiles and persist theme, forwarding destinations, and last ASIO driver/channel only. ASIO armed state, haptic running state, emergency mute, and physical calibration are not persisted.
+- Stage 18 follow-up adds `Manual ASIO Bass Shaker Test` for deliberate short 40/50 Hz ASIO pulses through the selected real ASIO output. It requires ASIO Output mode, M-Audio / M-Track driver selection, arming, haptics running, emergency mute clear, normal mute off, and a valid selected output channel. The existing Null synthetic benchmark remains unchanged.
+- Stage 18 follow-up adds `Paddle Gear Bench Test` for local GT Neo paddle validation without recent telemetry. Enable/arm are runtime-only, mapped paddles are still required, mock output sends no HID reports, and direct output is blocked unless all strict P-HPR direct gates are green.
 - UDP forwarding now supports IP addresses, `localhost`, and DNS hostnames. Obvious enabled loopback to the local listener port `20778` is blocked in the UI.
 - Recordings are listed from local app data with metadata summaries, but recording trimming, profile snapshots, and route snapshots are not implemented.
 - Advanced routing matrices, live graphing, real WASAPI output, Simagic P-HPR output, and physical calibration UI remain outside the pre-BT-1 scope.
-- Physical Dayton BST-1 output, safe physical gain, shaker feel, physical latency, and final frequency tuning remain unvalidated until the BT-1 arrives and the full M-Audio -> Fosi -> Dayton BST-1 chain is tested locally.
+- The M-Audio -> Fosi -> Dayton BST-1 chain has been locally proven through SimHub, but Haptic Drive ASIO app-driven BST-1 output, safe physical gain, shaker feel, physical latency, and final frequency tuning remain pending deliberate local validation with the manual ASIO hardware test and later effect checks.
 
 ## Stage 2A
 
@@ -360,11 +362,11 @@
 
 ## Stage 2R
 
-- The controlled validation harness exists, but no real P-HPR validation run has been completed or recorded.
+- The controlled validation harness exists. User-run local direct pulse validation has confirmed brake and throttle pulses plus parameter response, but not every harness/safety-envelope check is complete.
 - Exported validation results are private local files and must not be committed if they contain raw captures, private device paths, serial numbers, or unsanitized hardware data.
 - A `pass` decision is blocked in the result model until required manual fields and hardware confirmations are present, but the app cannot independently verify physical truth.
 - The harness does not trigger hardware output; brake, throttle, emergency stop, and paddle tests remain manual user actions.
-- Physical P-HPR validation, wrong-pedal checks, sustained-vibration checks, safe-gain confirmation, emergency-stop physical behavior, and direct-pulse latency remain pending Ethan's local supervised run.
+- Remaining P-HPR physical validation includes wrong-pedal checks beyond the one-pulse cases, sustained-vibration checks, safe-gain confirmation, emergency-stop physical behavior, real coexistence behavior, road/slip/lock feel, and direct-pulse latency.
 - The ASIO/BST-1 audio path is unchanged by Stage 2R.
 
 ## Phase 3A
@@ -455,5 +457,5 @@
 - A local `VID_3670/PID_0905` candidate can be openable while exposing feature reports but no output-report length. The picker now surfaces feature report ID `0xF1` and can validate the FeatureReport shape without writing, but real pulses remain blocked unless the selected output/feature transport, report ID, report length, no-command shape validation, open-check, approval, coexistence, and emergency-stop gates all pass. The correct physical behavior still requires Ethan's supervised hardware validation.
 - Console output, copied diagnostics, docs, and sanitized exports intentionally hide private HID paths; command history or local validation notes may still contain private local data if Ethan types a path manually; do not commit those artifacts.
 - The full automated suite now reports zero skipped tests, but zero skipped tests are readiness coverage, not physical validation.
-- Physical P-HPR brake/throttle mapping, emergency-stop behavior, wrong-pedal checks, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.
+- User-run local validation has confirmed brake and throttle direct pulses plus parameter response. Emergency-stop physical behavior, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.
 - The ASIO/BST-1 audio path is unchanged by Phase 3J.

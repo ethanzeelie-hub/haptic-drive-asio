@@ -60,6 +60,7 @@ public partial class MainWindow : Window
     private readonly PHprHidOpenCheckRunner _phprHidOpenCheckRunner = new();
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
+    private readonly PaddleGearBenchTestController _paddleGearBenchTestController = new();
     private readonly IPHprSoftwareCoexistenceDetector _phprSoftwareCoexistenceDetector =
         new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider());
     private readonly IPHprDirectOutputCandidateProvider _phprDirectOutputCandidateProvider =
@@ -88,6 +89,10 @@ public partial class MainWindow : Window
     private readonly IReadOnlyList<int> _asioOutputChannelChoices = Enumerable.Range(0, 8).ToArray();
     private readonly IReadOnlyList<ShiftIntentMode> _shiftIntentModeOptions = Enum.GetValues<ShiftIntentMode>();
     private readonly IReadOnlyList<PHprGearPulseTarget> _mockGearPulseTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
+    private readonly IReadOnlyList<PHprGearPulseTarget> _paddleGearBenchTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
+    private readonly IReadOnlyList<PaddleGearBenchTestOutputMode> _paddleGearBenchOutputModeOptions =
+        Enum.GetValues<PaddleGearBenchTestOutputMode>();
+    private readonly IReadOnlyList<int> _manualAsioHardwareTestDurationOptions = [250, 500, 1000];
     private readonly IReadOnlyList<PHprGearPulseTarget> _mockPedalEffectTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
     private readonly IReadOnlyList<PHprHidReportTransport> _realPhprReportTransportOptions =
         Enum.GetValues<PHprHidReportTransport>();
@@ -206,6 +211,7 @@ public partial class MainWindow : Window
     private bool _updatingSettingsUi;
     private bool _updatingPaddleInputUi;
     private bool _updatingShiftIntentUi;
+    private bool _updatingPaddleGearBenchUi;
     private bool _updatingAdvancedDiagnosticsUi;
     private bool _updatingPhprPedalsUi;
     private bool _updatingRealPhprDirectControlUi;
@@ -283,6 +289,10 @@ public partial class MainWindow : Window
         ShiftIntentModeComboBox.ItemsSource = _shiftIntentModeOptions;
         PhprPedalsModeComboBox.ItemsSource = _phprPedalsModeOptions;
         MockGearPulseTargetComboBox.ItemsSource = _mockGearPulseTargetOptions;
+        PaddleGearBenchTargetComboBox.ItemsSource = _paddleGearBenchTargetOptions;
+        PaddleGearBenchOutputModeComboBox.ItemsSource = _paddleGearBenchOutputModeOptions;
+        ManualAsioHardwareDurationComboBox.ItemsSource = _manualAsioHardwareTestDurationOptions;
+        ManualAsioHardwareDurationComboBox.SelectedItem = 250;
         RoadPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         SlipPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         LockPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
@@ -297,6 +307,7 @@ public partial class MainWindow : Window
         UpdateProfileStatus("Default conservative profile loaded.", []);
         ApplyPaddleMappingToControls();
         ApplyShiftIntentSettingsToControls();
+        ApplyPaddleGearBenchSettingsToControls();
         ApplyMockGearPulseSettingsToControls();
         ApplyMockPedalEffectsSettingsToControls();
         ApplyRealPhprOptionsToControls();
@@ -331,6 +342,7 @@ public partial class MainWindow : Window
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
         UpdateProfileStatus();
         UpdateTestBenchStatus();
+        UpdateManualAsioHardwareTestStatus();
         UpdateDiagnosticsStatus();
         UpdateForwardingEditorStatus();
         await RefreshRecordingLibraryAsync();
@@ -384,6 +396,7 @@ public partial class MainWindow : Window
             UpdatePhprPedalsStatus();
             UpdateProfileStatus();
             UpdateTestBenchStatus();
+            UpdateManualAsioHardwareTestStatus();
             UpdateDiagnosticsStatus();
             UpdateAdvancedDiagnosticsVisibility();
             if (isTelemetryPage)
@@ -568,6 +581,44 @@ public partial class MainWindow : Window
         UpdateShiftIntentStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = "Shift intent diagnostics cleared.";
+    }
+
+    private void PaddleGearBenchControl_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingPaddleGearBenchUi)
+        {
+            return;
+        }
+
+        ApplyPaddleGearBenchOptionsFromControls("Paddle Gear Bench Test settings updated for this session only.");
+    }
+
+    private void PaddleGearBenchControl_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingPaddleGearBenchUi)
+        {
+            return;
+        }
+
+        ApplyPaddleGearBenchOptionsFromControls("Paddle Gear Bench Test settings updated for this session only.");
+    }
+
+    private void PaddleGearBenchControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_updatingPaddleGearBenchUi)
+        {
+            return;
+        }
+
+        ApplyPaddleGearBenchOptionsFromControls("Paddle Gear Bench Test profile updated for this session only.");
+    }
+
+    private void ClearPaddleGearBenchCountersButton_Click(object sender, RoutedEventArgs e)
+    {
+        _paddleGearBenchTestController.ClearDiagnostics();
+        UpdatePaddleGearBenchStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Paddle Gear Bench Test counters cleared.";
     }
 
     private void MockGearPulseControl_Changed(object sender, RoutedEventArgs e)
@@ -973,6 +1024,24 @@ public partial class MainWindow : Window
         FooterStatusText.Text = footerMessage;
     }
 
+    private void ApplyPaddleGearBenchOptionsFromControls(string footerMessage)
+    {
+        if (!TryBuildPaddleGearBenchOptionsFromControls(out var options, out var message))
+        {
+            PaddleGearBenchStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return;
+        }
+
+        _paddleGearBenchTestController.Configure(options);
+        _updatingPaddleGearBenchUi = true;
+        PaddleGearBenchArmCheckBox.IsChecked = options.IsArmed;
+        _updatingPaddleGearBenchUi = false;
+        UpdatePaddleGearBenchStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = footerMessage;
+    }
+
     private void ApplyMockGearPulseOptionsFromControls(string footerMessage)
     {
         if (!TryBuildMockGearPulseOptionsFromControls(out var options, out var message))
@@ -1113,6 +1182,7 @@ public partial class MainWindow : Window
         UpdateHapticsStateText();
         UpdateRecordingStatus();
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
+        UpdateManualAsioHardwareTestStatus();
         UpdateDeviceStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = footerMessage;
@@ -1520,6 +1590,63 @@ public partial class MainWindow : Window
             }
         }.Normalize();
         message = "Mock P-HPR gear pulse routing ready.";
+        return true;
+    }
+
+    private bool TryBuildPaddleGearBenchOptionsFromControls(
+        out PaddleGearBenchTestOptions options,
+        out string message)
+    {
+        var current = _paddleGearBenchTestController.GetSnapshot().Options;
+        options = current;
+
+        if (!PhprUiValueConverter.TryParseStrengthPercent(
+                PaddleGearBenchStrengthTextBox.Text,
+                "Paddle Gear Bench Test",
+                out var strength,
+                out message))
+        {
+            return false;
+        }
+
+        if (!PhprUiValueConverter.TryParseFrequencyHz(
+                PaddleGearBenchFrequencyTextBox.Text,
+                "Paddle Gear Bench Test",
+                out var frequency,
+                out message))
+        {
+            return false;
+        }
+
+        if (!PhprUiValueConverter.TryParseDurationMs(
+                PaddleGearBenchDurationTextBox.Text,
+                "Paddle Gear Bench Test",
+                out var duration,
+                out message))
+        {
+            return false;
+        }
+
+        var target = PaddleGearBenchTargetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
+            ? selectedTarget
+            : PHprGearPulseTarget.Brake;
+        var outputMode = PaddleGearBenchOutputModeComboBox.SelectedItem is PaddleGearBenchTestOutputMode selectedMode
+            ? selectedMode
+            : PaddleGearBenchTestOutputMode.Mock;
+        options = new PaddleGearBenchTestOptions
+        {
+            IsEnabled = PaddleGearBenchEnabledCheckBox.IsChecked == true,
+            IsArmed = PaddleGearBenchArmCheckBox.IsChecked == true,
+            OutputMode = outputMode,
+            TargetModule = target,
+            Profile = PHprGearPulseProfile.Default with
+            {
+                Strength01 = strength,
+                FrequencyHz = frequency,
+                DurationMs = duration
+            }
+        }.Normalize();
+        message = "Paddle Gear Bench Test options ready.";
         return true;
     }
 
@@ -2340,6 +2467,21 @@ public partial class MainWindow : Window
         UpdateShiftIntentStatus();
     }
 
+    private void ApplyPaddleGearBenchSettingsToControls()
+    {
+        var snapshot = _paddleGearBenchTestController.GetSnapshot();
+        _updatingPaddleGearBenchUi = true;
+        PaddleGearBenchEnabledCheckBox.IsChecked = snapshot.Options.IsEnabled;
+        PaddleGearBenchArmCheckBox.IsChecked = snapshot.Options.IsArmed;
+        PaddleGearBenchTargetComboBox.SelectedItem = snapshot.Options.TargetModule;
+        PaddleGearBenchOutputModeComboBox.SelectedItem = snapshot.Options.OutputMode;
+        PaddleGearBenchStrengthTextBox.Text = PhprUiValueConverter.FormatPercent(snapshot.Options.Profile.Strength01);
+        PaddleGearBenchFrequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(snapshot.Options.Profile.FrequencyHz);
+        PaddleGearBenchDurationTextBox.Text = snapshot.Options.Profile.DurationMs.ToString(CultureInfo.InvariantCulture);
+        _updatingPaddleGearBenchUi = false;
+        UpdatePaddleGearBenchStatus();
+    }
+
     private void ApplyMockGearPulseSettingsToControls()
     {
         var snapshot = _mockGearPulseRouter.GetSnapshot();
@@ -2985,6 +3127,7 @@ public partial class MainWindow : Window
             : "Haptics stopped";
         RefreshDrivingArmedAndShiftIntentTelemetry();
         UpdateOutputStatus(result.OutputResult?.Status ?? _hapticPipeline.GetSnapshot().Output);
+        UpdateManualAsioHardwareTestStatus();
         UpdateEffectStatus();
         UpdateShiftIntentStatus();
         UpdateMockPedalEffectsStatus();
@@ -3195,6 +3338,7 @@ public partial class MainWindow : Window
         UpdateEffectStatus();
         UpdateMixerStatus();
         UpdateTestBenchStatus();
+        UpdateManualAsioHardwareTestStatus();
     }
 
     private void UpdateHapticsStateText()
@@ -3619,6 +3763,70 @@ public partial class MainWindow : Window
         UpdateTestBenchStatus();
     }
 
+    private void ManualAsioHardwareTest40HzButton_Click(object sender, RoutedEventArgs e)
+    {
+        StartManualAsioHardwareTest(40f);
+    }
+
+    private void ManualAsioHardwareTest50HzButton_Click(object sender, RoutedEventArgs e)
+    {
+        StartManualAsioHardwareTest(50f);
+    }
+
+    private void ManualAsioHardwareTestChannel0Button_Click(object sender, RoutedEventArgs e)
+    {
+        SelectManualAsioHardwareTestChannel(0);
+    }
+
+    private void ManualAsioHardwareTestChannel1Button_Click(object sender, RoutedEventArgs e)
+    {
+        SelectManualAsioHardwareTestChannel(1);
+    }
+
+    private void ManualAsioHardwareTestBothChannelsButton_Click(object sender, RoutedEventArgs e)
+    {
+        ManualAsioHardwareStatusText.Text = "Mono/both channel test uses the currently selected single ASIO output channel in this architecture. Select channel 0 or 1 explicitly before starting the test.";
+        FooterStatusText.Text = "Manual ASIO mono/both test is diagnostic-only until multi-channel routing exists; no output was started.";
+        UpdateManualAsioHardwareTestStatus();
+    }
+
+    private void StartManualAsioHardwareTest(float frequencyHz)
+    {
+        var durationMs = ManualAsioHardwareDurationComboBox.SelectedItem is int selectedDuration
+            ? selectedDuration
+            : 250;
+        var result = _hapticPipeline.StartManualAsioHardwareTest(
+            new ManualAsioHardwareTestRequest(
+                frequencyHz,
+                TimeSpan.FromMilliseconds(durationMs)));
+
+        FooterStatusText.Text = result.Message;
+        UpdateManualAsioHardwareTestStatus();
+        UpdateDiagnosticsStatus();
+    }
+
+    private async void SelectManualAsioHardwareTestChannel(int channel)
+    {
+        var wasSelected = _selectedAsioOutputChannel == channel;
+        _selectedAsioOutputChannel = channel;
+        AsioOutputChannelComboBox.SelectedItem = channel;
+        SaveAppSettings();
+        if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
+        {
+            if (wasSelected && _hapticsStarted)
+            {
+                StartManualAsioHardwareTest(50f);
+                return;
+            }
+
+            await RebuildHapticPipelineForOutputSelectionAsync($"Manual ASIO Hardware Test selected channel {channel}; haptics are stopped until started explicitly.");
+            return;
+        }
+
+        UpdateManualAsioHardwareTestStatus();
+        FooterStatusText.Text = $"Manual ASIO Hardware Test selected channel {channel}; switch Output mode to ASIO Output before testing.";
+    }
+
     private void UpdateTestBenchStatus()
     {
         var snapshot = _testBench.GetSnapshot();
@@ -3641,6 +3849,16 @@ public partial class MainWindow : Window
         }
 
         UpdateDiagnosticsStatus();
+    }
+
+    private void UpdateManualAsioHardwareTestStatus()
+    {
+        var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
+        ManualAsioHardwareStatusText.Text =
+            $"Manual ASIO Hardware Test: mode {snapshot.TestMode}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; haptics {snapshot.HapticsRunning}; peak {snapshot.OutputPeakLevel:0.000}.";
+        ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason is null
+            ? $"Last signal {snapshot.LastTestSignal ?? "none"}; duration {(snapshot.LastTestDuration is null ? "none" : $"{snapshot.LastTestDuration.Value.TotalMilliseconds:0} ms")}; submitted {snapshot.FramesSubmitted:N0} frame(s); rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}; last error {snapshot.LastError ?? "none"}."
+            : $"Blocked: {snapshot.BlockedReason}";
     }
 
     private static SolidColorBrush BrushFrom(string color)
@@ -3690,6 +3908,7 @@ public partial class MainWindow : Window
         AsioStatusText.Text = $"{_asioVisibilitySnapshot.Message} Windows sound output visibility is not proof of ASIO usage; Null output remains default.";
         AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; render callbacks {status.RenderCallbackCount:N0}; backend callbacks {status.BackendCallbackCount:N0}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; underruns {status.UnderrunCount:N0}; last error {status.LastError ?? "none"}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
+        UpdateManualAsioHardwareTestStatus();
         UpdatePhprSoftwareCoexistenceStatus();
         UpdatePhprControlledWriteReadinessStatus();
         UpdateRealPhprDirectControlStatus();
@@ -3698,6 +3917,7 @@ public partial class MainWindow : Window
         UpdateInputDiscoveryStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
+        UpdatePaddleGearBenchStatus();
         UpdateMockGearPulseStatus();
         UpdateMockPedalEffectsStatus();
         UpdatePhprPedalsStatus();
@@ -3716,14 +3936,14 @@ public partial class MainWindow : Window
         var phprPath = PhprEffectProfileStore.GetDefaultProfilePath();
         ProfileStatusText.Text = message ?? $"Active profile: {_currentProfile.Name}.";
         ProfilePathText.Text = $"Audio profile path: {path}";
-        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; profile saves shift intent, mock gear/pedal effects, real gear, road, slip, and lock preferences only.";
+        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; profile saves shift intent, mock gear/pedal effects, real gear, road, slip, and lock preferences only. Paddle bench enable/arm is runtime-only.";
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
             : "Profile values are clamped to conservative software ranges on load and save.";
         var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
         var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}/{(_realPhprOptions.DirectControlArmed ? "armed" : "unarmed")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Paddle bench enable/arm and manual ASIO test active state are not saved. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -3838,6 +4058,34 @@ public partial class MainWindow : Window
             $"Last suppression reason: {diagnostics.LastSuppressionReason ?? "none"}",
             $"Last known telemetry: gear {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownGear)}, speed {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownSpeedKph)} km/h, RPM {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownRpm)}, frame {FormatOptionalUInt(diagnostics.LastTelemetry.LastKnownFrameIdentifier)}",
             $"Pending confirmation records: {diagnostics.PendingConfirmationCount:N0}; error {diagnostics.LastError ?? "none"}"
+        };
+    }
+
+    private void UpdatePaddleGearBenchStatus()
+    {
+        var snapshot = _paddleGearBenchTestController.GetSnapshot();
+        var options = snapshot.Options;
+        var lastAccepted = snapshot.LastAcceptedBenchEvent is null
+            ? "none"
+            : $"{snapshot.LastAcceptedBenchEvent.Direction} {snapshot.LastAcceptedBenchEvent.PaddleSide} button {snapshot.LastAcceptedBenchEvent.SourceButtonId?.ToString() ?? "unknown"} at {snapshot.LastAcceptedBenchEvent.TimestampUtc.ToLocalTime():T}";
+        var directReady = PaddleGearBenchDirectGate.TryGetReady(
+            _realPhprOptions,
+            _phprSoftwareCoexistenceSnapshot.Status,
+            _realPhprOutput.GetSnapshot(),
+            _realRoadVibrationOptions.IsEnabled,
+            _realSlipLockOptions.IsEnabled,
+            out var directMessage);
+
+        PaddleGearBenchStatusText.Text =
+            $"Paddle bench: {(options.IsEnabled ? "enabled" : "disabled")}; {(options.IsArmed ? "armed" : "unarmed")}; output {options.OutputMode}; target {options.TargetModule}; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}.";
+        PaddleGearBenchItemsControl.ItemsSource = new[]
+        {
+            "Safety: local validation only. Normal live-driving shift intent still requires DrivingArmed and recent telemetry outside this bench mode.",
+            $"Mapped-paddle gate: left accepted {snapshot.LeftPaddleAcceptedCount:N0}; right accepted {snapshot.RightPaddleAcceptedCount:N0}; last accepted {lastAccepted}.",
+            $"Bench pulse: target {options.TargetModule}; strength {PhprUiValueConverter.FormatPercent(options.Profile.Strength01)}%; frequency {PhprUiValueConverter.FormatFrequency(options.Profile.FrequencyHz)} Hz; duration {options.Profile.DurationMs} ms.",
+            $"Output mode/status: {options.OutputMode}; last output {snapshot.LastOutputStatus ?? "none"}.",
+            $"Direct output readiness: {(directReady ? "ready" : $"blocked: {directMessage}")}. Direct bench output requires FeatureReport, report ID 0xF1, 64-byte shape, open-check, approval, clear coexistence, clear emergency stop, and road/slip-lock disabled.",
+            $"Last suppression reason: {snapshot.LastSuppressionReason ?? "none"}; last error {snapshot.LastError ?? "none"}."
         };
     }
 
@@ -4137,11 +4385,13 @@ public partial class MainWindow : Window
             $"P-HPR direct write readiness: {BuildPhprControlledWriteReadinessDiagnosticsText()}",
             $"P-HPR real direct control: {BuildRealPhprDirectDiagnosticsText()}",
             $"P-HPR validation harness: {BuildPhprValidationDiagnosticsText()}",
+            $"Paddle gear bench test: {BuildPaddleGearBenchDiagnosticsText()}",
             $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
             $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
+            $"Manual ASIO Hardware Test: {BuildManualAsioHardwareTestDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR real direct-control enabled/armed/selected device, P-HPR emergency stop state, safety latch state, and mock histories are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR real direct-control enabled/armed/selected device, P-HPR emergency stop state, safety latch state, paddle bench enable/arm state, manual ASIO test active state, and mock histories are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
@@ -4295,6 +4545,18 @@ public partial class MainWindow : Window
         return $"{_phprManualValidationReadiness.Status}; brake {_phprManualValidationReadiness.CanRunBrakePulse}; throttle {_phprManualValidationReadiness.CanRunThrottlePulse}; gear {_phprManualValidationReadiness.CanRunGearPaddleTest}; issues {FormatPhprValidationIssues(_phprManualValidationReadiness.Issues)}; pass requested {evaluation.PassRequested}; can mark pass {evaluation.CanMarkPass}; result issues {FormatPhprValidationIssues(evaluation.Issues)}; confirmations user {checklist.UserPhysicallyPresent}, P700 {checklist.P700Connected}, brake {checklist.BrakeModuleInstalled}, throttle {checklist.ThrottleModuleInstalled}; last export {_lastPhprValidationExportPath ?? "none"}; no hardware output triggered by harness.";
     }
 
+    private string BuildPaddleGearBenchDiagnosticsText()
+    {
+        var snapshot = _paddleGearBenchTestController.GetSnapshot();
+        return $"{(snapshot.IsEnabled ? "enabled" : "disabled")}/{(snapshot.IsArmed ? "armed" : "unarmed")}; output {snapshot.OutputMode}; target {snapshot.Options.TargetModule}; strength {PhprUiValueConverter.FormatPercent(snapshot.Options.Profile.Strength01)}%; frequency {PhprUiValueConverter.FormatFrequency(snapshot.Options.Profile.FrequencyHz)} Hz; duration {snapshot.Options.Profile.DurationMs} ms; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}; left {snapshot.LeftPaddleAcceptedCount:N0}; right {snapshot.RightPaddleAcceptedCount:N0}; last suppression {snapshot.LastSuppressionReason ?? "none"}; last output {snapshot.LastOutputStatus ?? "none"}; runtime-only enable/arm.";
+    }
+
+    private string BuildManualAsioHardwareTestDiagnosticsText()
+    {
+        var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
+        return $"mode {snapshot.TestMode}; active {snapshot.IsActive}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; ASIO running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; haptics {snapshot.HapticsRunning}; emergency {snapshot.EmergencyMute}; normal mute {snapshot.NormalMute}; peak {snapshot.OutputPeakLevel:0.000}; submitted {snapshot.FramesSubmitted:N0} frame(s); rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}; blocked {snapshot.BlockedReason ?? "none"}; last signal {snapshot.LastTestSignal ?? "none"}; duration {(snapshot.LastTestDuration is null ? "none" : $"{snapshot.LastTestDuration.Value.TotalMilliseconds:0} ms")}; error {snapshot.LastError ?? "none"}.";
+    }
+
     private string BuildMockGearPulseDiagnosticsText()
     {
         var snapshot = _mockGearPulseRouter.GetSnapshot();
@@ -4336,6 +4598,17 @@ public partial class MainWindow : Window
     private static string FormatButtonMapping(int? buttonId)
     {
         return buttonId is null ? "unmapped" : $"button {buttonId}";
+    }
+
+    private static IReadOnlyList<PHprModuleId> ExpandBenchTarget(PHprGearPulseTarget target)
+    {
+        return target switch
+        {
+            PHprGearPulseTarget.Brake => [PHprModuleId.Brake],
+            PHprGearPulseTarget.Throttle => [PHprModuleId.Throttle],
+            PHprGearPulseTarget.Both => [PHprModuleId.Brake, PHprModuleId.Throttle],
+            _ => [PHprModuleId.Brake]
+        };
     }
 
     private static string FormatPhprCommand(PHprCommand? command)
@@ -4499,8 +4772,10 @@ public partial class MainWindow : Window
         UpdateHapticsStateText();
         UpdateMixerStatus();
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
+        UpdateManualAsioHardwareTestStatus();
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
+        UpdatePaddleGearBenchStatus();
         UpdateMockPedalEffectsStatus();
         UpdatePhprSoftwareCoexistenceStatus();
         UpdatePhprControlledWriteReadinessStatus();
@@ -4706,6 +4981,8 @@ public partial class MainWindow : Window
         var result = _shiftIntentProcessor.HandlePaddleInput(e);
         PHprGearPulseRoutingResult? routingResult = null;
         PHprDirectGearPulseRoutingResult? realRoutingResult = null;
+        var benchResult = _paddleGearBenchTestController.HandlePaddleInput(e, _paddleMapping);
+        string? benchRoutingMessage = null;
         if (result.WasAccepted && result.ShiftIntentEvent is not null)
         {
             routingResult = await _mockGearPulseRouter.RouteAsync(
@@ -4716,6 +4993,11 @@ public partial class MainWindow : Window
                 BuildRealGearPulseSafetyContext(result.ShiftIntentEvent));
         }
 
+        if (benchResult.Accepted && benchResult.ShiftIntentEvent is not null)
+        {
+            benchRoutingMessage = await RoutePaddleGearBenchAsync(benchResult);
+        }
+
         _ = Dispatcher.InvokeAsync(() =>
         {
             if (realRoutingResult is not null)
@@ -4724,6 +5006,7 @@ public partial class MainWindow : Window
             }
 
             UpdateShiftIntentStatus();
+            UpdatePaddleGearBenchStatus();
             UpdateRealPhprDirectControlStatus();
             UpdatePhprValidationStatus();
             UpdateMockGearPulseStatus();
@@ -4735,9 +5018,93 @@ public partial class MainWindow : Window
                     ? $" {realRoutingResult.Message}"
                     : string.Empty;
             FooterStatusText.Text = routingResult is null
-                ? $"{result.Message}{realMessage}"
-                : $"{result.Message} {routingResult.Message}{realMessage}";
+                ? $"{result.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}"
+                : $"{result.Message} {routingResult.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}";
         });
+    }
+
+    private async Task<string> RoutePaddleGearBenchAsync(PaddleGearBenchTestResult benchResult)
+    {
+        var options = benchResult.Options.Normalize();
+        if (benchResult.ShiftIntentEvent is null)
+        {
+            _paddleGearBenchTestController.RecordOutputStatus("No bench shift event was available.");
+            return "Bench routing skipped: no bench shift event was available.";
+        }
+
+        if (options.OutputMode == PaddleGearBenchTestOutputMode.Mock)
+        {
+            var routeOptions = new PHprGearPulseRouterOptions
+            {
+                IsEnabled = true,
+                TargetModule = options.TargetModule,
+                Profile = options.Profile
+            }.Normalize();
+            var result = await _mockGearPulseRouter.RouteAsync(
+                benchResult.ShiftIntentEvent,
+                routeOptions,
+                BuildPaddleGearBenchMockSafetyContext());
+            var message = $"Bench Mock: {result.Message}";
+            _paddleGearBenchTestController.RecordOutputStatus(message);
+            return message;
+        }
+
+        var directMessage = await RoutePaddleGearBenchDirectAsync(benchResult.ShiftIntentEvent, options);
+        _paddleGearBenchTestController.RecordOutputStatus(directMessage);
+        return directMessage;
+    }
+
+    private async Task<string> RoutePaddleGearBenchDirectAsync(
+        ShiftIntentEvent shiftIntentEvent,
+        PaddleGearBenchTestOptions options)
+    {
+        if (!PaddleGearBenchDirectGate.TryGetReady(
+                _realPhprOptions,
+                _phprSoftwareCoexistenceSnapshot.Status,
+                _realPhprOutput.GetSnapshot(),
+                _realRoadVibrationOptions.IsEnabled,
+                _realSlipLockOptions.IsEnabled,
+                out var blockedReason))
+        {
+            return $"Bench Direct blocked: {blockedReason}.";
+        }
+
+        _realPhprOutput.SetSafetyContext(BuildPaddleGearBenchDirectSafetyContext());
+        var modules = ExpandBenchTarget(options.TargetModule);
+        var results = new List<PHprCommandResult>(modules.Count);
+        foreach (var module in modules)
+        {
+            var command = PHprCommand.Create(
+                module,
+                options.Profile.Strength01,
+                options.Profile.FrequencyHz,
+                options.Profile.DurationMs,
+                PHprCommandSource.TestBench,
+                priority: options.Profile.Priority,
+                timestampUtc: shiftIntentEvent.TimestampUtc);
+            results.Add(await _realPhprOutput.SendAsync(command));
+        }
+
+        var accepted = results.Count(result => result.Succeeded);
+        UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
+        return accepted > 0
+            ? $"Bench Direct: sent {accepted:N0}/{results.Count:N0} {options.TargetModule} pulse(s)."
+            : $"Bench Direct blocked: {string.Join(" ", results.Select(result => result.Message))}";
+    }
+
+    private static string FormatBenchRoutingFooter(
+        PaddleGearBenchTestResult benchResult,
+        string? routingMessage)
+    {
+        if (benchResult.Accepted)
+        {
+            return string.IsNullOrWhiteSpace(routingMessage)
+                ? " Bench event accepted."
+                : $" {routingMessage}";
+        }
+
+        return $" {benchResult.Message}";
     }
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
@@ -4798,6 +5165,40 @@ public partial class MainWindow : Window
             HapticsStopped: !pipelineSnapshot.IsRunning,
             EmergencyMuteActive: _emergencyMuted,
             DrivingArmed: shiftIntentEvent.DrivingArmedAtEvent.IsArmed,
+            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
+            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
+            RequiresRealDeviceWrites: true);
+    }
+
+    private PHprSafetyContext BuildPaddleGearBenchMockSafetyContext()
+    {
+        var outputSnapshot = _mockPhprSafetyOutput.GetSnapshot();
+        return new PHprSafetyContext(
+            IsMockOutput: true,
+            IsDeviceConnected: outputSnapshot.IsConnected,
+            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
+            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
+            TelemetryStale: false,
+            HapticsStopped: false,
+            EmergencyMuteActive: _emergencyMuted,
+            DrivingArmed: true,
+            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
+            SoftwareConflictStatus: PHprSoftwareConflictStatus.Clear,
+            RequiresRealDeviceWrites: false);
+    }
+
+    private PHprSafetyContext BuildPaddleGearBenchDirectSafetyContext()
+    {
+        var outputSnapshot = _realPhprOutput.GetSnapshot();
+        return new PHprSafetyContext(
+            IsMockOutput: false,
+            IsDeviceConnected: outputSnapshot.IsConnected,
+            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
+            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
+            TelemetryStale: false,
+            HapticsStopped: false,
+            EmergencyMuteActive: _emergencyMuted,
+            DrivingArmed: true,
             EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
             SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
             RequiresRealDeviceWrites: true);

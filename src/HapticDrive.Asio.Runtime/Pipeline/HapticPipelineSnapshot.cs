@@ -31,6 +31,7 @@ public sealed record HapticPipelineSnapshot(
     HapticEffectEngineSnapshot Effects,
     AudioRenderPipelineSnapshot? Audio,
     AudioOutputStatus Output,
+    ManualAsioHardwareTestSnapshot ManualAsioHardwareTest,
     NullAudioOutputDeviceSnapshot? NullOutput,
     UdpTelemetryForwarderSnapshot Forwarding,
     IReadOnlyList<HapticPipelinePacketDiagnostics> PacketDiagnostics,
