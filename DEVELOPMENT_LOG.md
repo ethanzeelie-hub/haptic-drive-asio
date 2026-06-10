@@ -2061,3 +2061,49 @@ Self-review:
 - Real direct P-HPR writes remain blocked unless selected output, openable HID device-interface candidate, successful open-check, direct enabled, direct armed, exact approval phrase, coexistence `Clear`, emergency stop clear, and local manual action are all present.
 - Automated tests use fake writers and do not open real hardware or send HID reports.
 - The F1 25 telemetry parser, ASIO/BST-1 audio path, and protocol bytes were not changed.
+
+## Phase 3J Follow-up - HID Report Capability and Shape Gate
+
+Date: 2026-06-10
+
+Status: Complete.
+
+Goal: Fix the direct P-HPR validation blocker where a selected `VID_3670` HID path could pass open-check but reject the actual output report write with `IOException:0x80070057`.
+
+Missing Items Addressed:
+
+- Added read-only HID capability discovery for `VID_3670` HID device-interface candidates, surfacing usage page/usage, input/output/feature report byte lengths, and report IDs when Windows exposes them.
+- Added candidate output/feature capability flags and report-ID-safe labels while continuing to redact private HID paths.
+- Added no-command report-shape validation based on HID output-report capability metadata.
+- Updated dry-run, app diagnostics, normal P-HPR controls, manual validation readiness, direct gear-pulse routing, road/slip/lock routing, and the final real-output command gate so `can pulse True` requires selected/openable/open-check/approval/coexistence/emergency-stop plus known output-report capability or successful report-shape validation.
+- Kept the confirmed SimHub F1 EC protocol bytes unchanged.
+- Reclassified HID write `IOException:0x80070057` as an invalid report-shape/write-format failure instead of a plain disconnect.
+- Preferred output/feature-capable HID device-interface candidates ahead of input-only/game-controller-style candidates.
+- Kept real pulses blocked when output-report length is unavailable.
+
+Notes:
+
+- Open-check still sends no report and proves only that the selected path can be opened and closed.
+- The direct-output dry run now prints a separate `VID_3670` candidate section with safe labels only.
+- No real P-HPR hardware write, output report, feature report, vibration command, or physical validation was executed by Codex in this follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build` passed with 118 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 28 passing tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --no-restore` completed.
+- Rebuilt after formatting with `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore`; passed with 0 warnings and 0 errors.
+- Full `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal` passed with 504 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- Read-only `inventory --console-only` passed and observed 168 inventory items, 10 specific Simagic-family candidates, 158 generic HID/USB candidates, and 0 P-HPR/module-controller candidates.
+- `direct-output-dry-run --enable --arm --approval ...` passed without opening the HID writer, listed 27 safe-labeled candidates, surfaced the `VID_3670/PID_0905` HID device-interface candidate separately, and reported `can pulse False` with no selected candidate.
+- `direct-output-dry-run --candidate-index 0 --enable --arm --approval ...` selected the `VID_3670/PID_0905` HID device-interface candidate and reported input 64 bytes, output unavailable, feature 64 bytes, input report IDs `0x01,0x02`, feature IDs `0x80,0xF1`, report-shape validation failed, and `can pulse False`; the same dry-run surfaced a separate sanitized `VID_3670` inventory section including `PID_0500`, `PID_0905`, `PID_B500`, and `PID_B905`.
+- `direct-output-open-check --candidate-index 0 --enable --arm --approval ...` opened and closed the selected HID writer without sending any output report, reported open-check succeeded, and still kept dry-run `can pulse False` because output-report length was unavailable.
+
+Self-review:
+
+- The F1 EC report bytes were not modified.
+- Private HID paths remain held in memory only and are absent from safe labels, CLI output, copied diagnostics, and docs.
+- The ASIO/BST-1 audio path was not changed.

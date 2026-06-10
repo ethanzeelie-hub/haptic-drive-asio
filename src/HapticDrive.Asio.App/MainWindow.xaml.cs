@@ -1400,8 +1400,9 @@ public partial class MainWindow : Window
         var selector = item.Candidate.ToSelector(ParseOptionalReportIdOrNull(RealPhprReportIdTextBox.Text));
         RealPhprInterfaceTextBox.Text = selector.InterfaceName;
         RealPhprReportLengthTextBox.Text = selector.ReportLength.ToString(CultureInfo.InvariantCulture);
+        var reportShape = PHprHidReportShapeValidator.Validate(item.Candidate, selector);
         RealPhprCandidatePickerStatusText.Text =
-            $"Selected [{item.Index}] {item.Candidate.SafeLabel}. Report length source: {item.Candidate.SelectedReportLengthSource}. Private HID path is held in memory only.";
+            $"Selected [{item.Index}] {item.Candidate.SafeLabel}. Report length source: {item.Candidate.SelectedReportLengthSource}. Report-shape validation {reportShape.Succeeded}; {reportShape.Message} Private HID path is held in memory only.";
     }
 
     private void ApplyRealPhprOpenCheckResult(PHprHidOpenCheckResult result)
@@ -1619,11 +1620,16 @@ public partial class MainWindow : Window
         var candidateSourceMethod = selectedCandidate?.Candidate.SourceMethod ?? PHprDirectOutputCandidateSourceMethod.Unknown;
         var candidateIsRawInputOnly = selectedCandidate?.Candidate.IsRawInputOnly ?? false;
         var candidateHasOpenableHidPath = selectedCandidate?.Candidate.HasOpenableHidPath ?? false;
+        var candidateOutputReportCapabilityKnown = selectedCandidate?.Candidate.HasKnownOutputReportCapability ?? false;
+        var candidateFeatureReportCapabilityKnown = selectedCandidate?.Candidate.HasKnownFeatureReportCapability ?? false;
+        var reportShape = PHprHidReportShapeValidator.Validate(selectedCandidate?.Candidate, normalizedSelector);
         var openCheckStillSameSelector = current.OpenCheckAttempted
             && SelectorMatchesForOpenCheck(previousSelector, normalizedSelector)
             && current.CandidateSourceMethod == candidateSourceMethod
             && current.CandidateIsRawInputOnly == candidateIsRawInputOnly
-            && current.CandidateHasOpenableHidPath == candidateHasOpenableHidPath;
+            && current.CandidateHasOpenableHidPath == candidateHasOpenableHidPath
+            && current.CandidateOutputReportCapabilityKnown == candidateOutputReportCapabilityKnown
+            && current.CandidateFeatureReportCapabilityKnown == candidateFeatureReportCapabilityKnown;
         options = current with
         {
             DirectControlEnabled = directEnabled,
@@ -1632,6 +1638,12 @@ public partial class MainWindow : Window
             CandidateSourceMethod = candidateSourceMethod,
             CandidateIsRawInputOnly = candidateIsRawInputOnly,
             CandidateHasOpenableHidPath = candidateHasOpenableHidPath,
+            CandidateOutputReportCapabilityKnown = candidateOutputReportCapabilityKnown,
+            CandidateFeatureReportCapabilityKnown = candidateFeatureReportCapabilityKnown,
+            ReportShapeValidationAttempted = reportShape.Attempted,
+            ReportShapeValidationSucceeded = reportShape.Succeeded,
+            ReportShapeValidationFailed = reportShape.Failed,
+            ReportShapeValidationMessage = reportShape.Message,
             OpenCheckAttempted = openCheckStillSameSelector && current.OpenCheckAttempted,
             OpenCheckSucceeded = openCheckStillSameSelector && current.OpenCheckSucceeded,
             OpenCheckFailed = openCheckStillSameSelector && current.OpenCheckFailed,
@@ -2720,6 +2732,14 @@ public partial class MainWindow : Window
             return false;
         }
 
+        if (!_realPhprOptions.AllowsDirectPulseReportShape)
+        {
+            message = _realPhprOptions.ReportShapeValidationFailed
+                ? $"selected candidate report shape is blocked: {_realPhprOptions.ReportShapeValidationMessage ?? "validation failed"}"
+                : "selected candidate output-report length is unavailable";
+            return false;
+        }
+
         if (!_realPhprOptions.DirectControlApprovalConfirmed)
         {
             message = "exact controlled-write approval phrase is missing";
@@ -2789,7 +2809,7 @@ public partial class MainWindow : Window
             _ => "P-HPR pedal mode unavailable."
         };
         PhprPedalsDeviceStatusText.Text =
-            $"Mock output: {(mockSnapshot.IsEmergencyStopActive ? "emergency stop active" : "ready")}; accepted {mockSnapshot.AcceptedCommandCount:N0}, rejected {mockSnapshot.RejectedCommandCount:N0}. Direct output: {realDiagnostics.Connection.State}; selected {(realDiagnostics.Options.Selector.IsSelected ? "yes" : "no")}; source {realDiagnostics.Options.CandidateSourceMethod}; raw-input-only {realDiagnostics.Options.CandidateIsRawInputOnly}; openable {realDiagnostics.Options.CandidateHasOpenableHidPath}; open-check {realDiagnostics.Options.OpenCheckAttempted}/{realDiagnostics.Options.OpenCheckSucceeded}; enabled {realDiagnostics.Options.DirectControlEnabled}; armed {realDiagnostics.Options.DirectControlArmed}; approval {(realDiagnostics.Options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.";
+            $"Mock output: {(mockSnapshot.IsEmergencyStopActive ? "emergency stop active" : "ready")}; accepted {mockSnapshot.AcceptedCommandCount:N0}, rejected {mockSnapshot.RejectedCommandCount:N0}. Direct output: {realDiagnostics.Connection.State}; selected {(realDiagnostics.Options.Selector.IsSelected ? "yes" : "no")}; source {realDiagnostics.Options.CandidateSourceMethod}; raw-input-only {realDiagnostics.Options.CandidateIsRawInputOnly}; openable {realDiagnostics.Options.CandidateHasOpenableHidPath}; output report known {realDiagnostics.Options.CandidateOutputReportCapabilityKnown}; report-shape {realDiagnostics.Options.ReportShapeValidationAttempted}/{realDiagnostics.Options.ReportShapeValidationSucceeded}; open-check {realDiagnostics.Options.OpenCheckAttempted}/{realDiagnostics.Options.OpenCheckSucceeded}; enabled {realDiagnostics.Options.DirectControlEnabled}; armed {realDiagnostics.Options.DirectControlArmed}; approval {(realDiagnostics.Options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.";
         PhprPedalsLastResultText.Text = _lastPhprPedalsPulseMessage;
     }
 
@@ -3981,6 +4001,7 @@ public partial class MainWindow : Window
             && !options.CandidateIsRawInputOnly
             && options.CandidateHasOpenableHidPath
             && options.OpenCheckSucceeded
+            && options.AllowsDirectPulseReportShape
             && selector.IsSelected
             && coexistenceClear
             && !diagnostics.Output.IsEmergencyStopActive;
@@ -3992,13 +4013,13 @@ public partial class MainWindow : Window
         {
             "Safety: write-capable Stage 2Q path, disabled and unarmed by default. Enable/arm/device selection are runtime-only and are not persisted.",
             $"Selected interface: {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0} byte(s); private path {(selector.IsSelected ? "held in memory only" : "none")}.",
-            $"Direct-output candidate picker: {_realPhprCandidateItems.Count:N0} refreshed candidate(s); source {options.CandidateSourceMethod}; raw-input-only {options.CandidateIsRawInputOnly}; openable HID path {options.CandidateHasOpenableHidPath}; open-check attempted {options.OpenCheckAttempted}; succeeded {options.OpenCheckSucceeded}; failed {options.OpenCheckFailed}; sanitized open error {options.OpenCheckSanitizedErrorCategory ?? "none"}; approval {(options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}.",
+            $"Direct-output candidate picker: {_realPhprCandidateItems.Count:N0} refreshed candidate(s); source {options.CandidateSourceMethod}; raw-input-only {options.CandidateIsRawInputOnly}; openable HID path {options.CandidateHasOpenableHidPath}; output report known {options.CandidateOutputReportCapabilityKnown}; feature report known {options.CandidateFeatureReportCapabilityKnown}; report-shape attempted {options.ReportShapeValidationAttempted}; succeeded {options.ReportShapeValidationSucceeded}; failed {options.ReportShapeValidationFailed}; message {options.ReportShapeValidationMessage ?? "none"}; open-check attempted {options.OpenCheckAttempted}; succeeded {options.OpenCheckSucceeded}; failed {options.OpenCheckFailed}; sanitized open error {options.OpenCheckSanitizedErrorCategory ?? "none"}; approval {(options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}.",
             $"Lifecycle: connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; timeout {options.WriteTimeoutMs:N0} ms.",
             $"Brake pulse: {(options.BrakeGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {PhprUiValueConverter.FormatPercent(options.BrakeGearPulse.Strength01)}%; frequency {PhprUiValueConverter.FormatFrequency(options.BrakeGearPulse.FrequencyHz)} Hz; duration {options.BrakeGearPulse.DurationMs} ms.",
             $"Throttle pulse: {(options.ThrottleGearPulse.IsEnabled ? "enabled" : "disabled")}; strength {PhprUiValueConverter.FormatPercent(options.ThrottleGearPulse.Strength01)}%; frequency {PhprUiValueConverter.FormatFrequency(options.ThrottleGearPulse.FrequencyHz)} Hz; duration {options.ThrottleGearPulse.DurationMs} ms.",
             $"Road vibration: {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)}; throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)}; last {BuildRealRoadVibrationRoutingText()}.",
             $"Slip/lock: {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)}; lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)}; last {BuildRealSlipLockRoutingText()}.",
-            $"Manual pulse buttons: {(canPulse ? "available" : "blocked")}; requires enabled, armed, approval phrase, selected HID device-interface candidate, successful open-check, clear coexistence, and no emergency stop latch.",
+            $"Manual pulse buttons: {(canPulse ? "available" : "blocked")}; requires enabled, armed, approval phrase, selected HID device-interface candidate, successful open-check, known output-report capability or successful no-command report-shape validation, clear coexistence, and no emergency stop latch.",
             $"Last command: {FormatPhprCommand(diagnostics.Output.LastCommand)}; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; message {diagnostics.Output.LastMessage ?? "none"}.",
             $"Last gear-pulse latency: {BuildRealPhprGearPulseLatencyText()}.",
             $"Last HID report: {diagnostics.LastReportState?.ToString() ?? "none"}; target {diagnostics.LastTarget?.ToString() ?? "none"}; length {diagnostics.LastReportLength:N0}; summary {diagnostics.LastReportSummary ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; error {diagnostics.LastError ?? "none"}.",
@@ -4198,10 +4219,11 @@ public partial class MainWindow : Window
             && !options.CandidateIsRawInputOnly
             && options.CandidateHasOpenableHidPath
             && options.OpenCheckSucceeded
+            && options.AllowsDirectPulseReportShape
             && selector.IsSelected
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
             && !diagnostics.Output.IsEmergencyStopActive;
-        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; approval {(options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; selected {selector.IsSelected}; candidates {_realPhprCandidateItems.Count:N0}; source {options.CandidateSourceMethod}; raw-input-only {options.CandidateIsRawInputOnly}; openable {options.CandidateHasOpenableHidPath}; open-check attempted {options.OpenCheckAttempted}; succeeded {options.OpenCheckSucceeded}; failed {options.OpenCheckFailed}; open error {options.OpenCheckSanitizedErrorCategory ?? "none"}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; private path {(selector.IsSelected ? "held in memory only" : "none")}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")} brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)} throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)} last road {BuildRealRoadVibrationRoutingText()}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")} slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)} lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)} last slip/lock {BuildRealSlipLockRoutingText()}; gear latency {BuildRealPhprGearPulseLatencyText()}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only enable/arm/approval/open-check/device not persisted; safe gear-pulse, road, and slip/lock settings persisted.";
+        return $"{(options.DirectControlEnabled ? "enabled" : "disabled")}/{(options.DirectControlArmed ? "armed" : "unarmed")}; approval {(options.DirectControlApprovalConfirmed ? "confirmed" : "missing")}; selected {selector.IsSelected}; candidates {_realPhprCandidateItems.Count:N0}; source {options.CandidateSourceMethod}; raw-input-only {options.CandidateIsRawInputOnly}; openable {options.CandidateHasOpenableHidPath}; output report known {options.CandidateOutputReportCapabilityKnown}; feature report known {options.CandidateFeatureReportCapabilityKnown}; report-shape attempted {options.ReportShapeValidationAttempted}; succeeded {options.ReportShapeValidationSucceeded}; failed {options.ReportShapeValidationFailed}; shape message {options.ReportShapeValidationMessage ?? "none"}; open-check attempted {options.OpenCheckAttempted}; succeeded {options.OpenCheckSucceeded}; failed {options.OpenCheckFailed}; open error {options.OpenCheckSanitizedErrorCategory ?? "none"}; connection {diagnostics.Connection.State}; writer open {diagnostics.Connection.WriterOpen}; interface {selector.InterfaceName}; report ID {(selector.ReportId is null ? "none" : selector.ReportId.Value.ToString(CultureInfo.InvariantCulture))}; report length {selector.ReportLength:N0}; private path {(selector.IsSelected ? "held in memory only" : "none")}; timeout {options.WriteTimeoutMs:N0} ms; can pulse {canPulse}; brake {FormatRealPhprPulse(options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(options.ThrottleGearPulse)}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")} brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)} throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)} last road {BuildRealRoadVibrationRoutingText()}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")} slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)} lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)} last slip/lock {BuildRealSlipLockRoutingText()}; gear latency {BuildRealPhprGearPulseLatencyText()}; writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}; opens {diagnostics.Connection.OpenSuccessCount:N0}/{diagnostics.Connection.OpenAttemptCount:N0}; closes {diagnostics.Connection.CloseSuccessCount:N0}/{diagnostics.Connection.CloseAttemptCount:N0}; stops {diagnostics.Connection.StopReportWriteCount:N0}; disconnects {diagnostics.Connection.DisconnectCount:N0}; timeouts {diagnostics.Connection.TimeoutCount:N0}; invalid reports {diagnostics.Connection.InvalidReportCount:N0}; last target {diagnostics.LastTarget?.ToString() ?? "none"}; last report {diagnostics.LastReportState?.ToString() ?? "none"} {diagnostics.LastReportLength:N0} bytes; last status {diagnostics.Output.LastStatus?.ToString() ?? "none"}; write {diagnostics.Connection.LastWriteStatus?.ToString() ?? "none"}; stop {diagnostics.Connection.LastStopStatus?.ToString() ?? "none"}; open {diagnostics.Connection.LastOpenStatus?.ToString() ?? "none"}; close {diagnostics.Connection.LastCloseStatus?.ToString() ?? "none"}; last error {diagnostics.LastError ?? "none"}; runtime-only enable/arm/approval/open-check/device not persisted; safe gear-pulse, road, and slip/lock settings persisted.";
     }
 
     private string BuildRealRoadVibrationRoutingText()
@@ -4502,6 +4524,7 @@ public partial class MainWindow : Window
             && !options.CandidateIsRawInputOnly
             && options.CandidateHasOpenableHidPath
             && options.OpenCheckSucceeded
+            && options.AllowsDirectPulseReportShape
             && options.Selector.IsSelected
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
             && !diagnostics.Output.IsEmergencyStopActive;
@@ -4587,6 +4610,7 @@ public partial class MainWindow : Window
             || _realPhprOptions.CandidateIsRawInputOnly
             || !_realPhprOptions.CandidateHasOpenableHidPath
             || !_realPhprOptions.OpenCheckSucceeded
+            || !_realPhprOptions.AllowsDirectPulseReportShape
             || !_realPhprOptions.Selector.IsSelected
             || pipelineSnapshot.VehicleStateUpdateCount <= 0)
         {
@@ -4625,6 +4649,7 @@ public partial class MainWindow : Window
             || _realPhprOptions.CandidateIsRawInputOnly
             || !_realPhprOptions.CandidateHasOpenableHidPath
             || !_realPhprOptions.OpenCheckSucceeded
+            || !_realPhprOptions.AllowsDirectPulseReportShape
             || !_realPhprOptions.Selector.IsSelected
             || pipelineSnapshot.VehicleStateUpdateCount <= 0)
         {

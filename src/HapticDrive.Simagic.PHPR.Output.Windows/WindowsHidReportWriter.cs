@@ -138,9 +138,11 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
                 _stream = null;
             }
 
-            var status = ex is IOException ? PHprHidWriteStatus.Disconnected : PHprHidWriteStatus.Failed;
+            var status = PHprHidPathSafety.ClassifyWriteExceptionStatus(ex);
             return PHprHidWriteResult.Failure(
-                "P-HPR HID report write failed.",
+                status == PHprHidWriteStatus.InvalidReport
+                    ? "P-HPR HID report write failed; Windows rejected the report shape/write format."
+                    : "P-HPR HID report write failed.",
                 PHprHidPathSafety.SanitizeExceptionCategory(ex),
                 status);
         }

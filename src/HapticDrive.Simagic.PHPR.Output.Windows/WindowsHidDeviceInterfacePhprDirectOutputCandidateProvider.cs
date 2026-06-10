@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
@@ -61,7 +62,9 @@ public sealed partial class WindowsHidDeviceInterfacePhprDirectOutputCandidatePr
             }
 
             return candidates
-                .OrderByDescending(candidate => candidate.Confidence)
+                .OrderByDescending(candidate => candidate.HasKnownOutputReportCapability)
+                .ThenByDescending(candidate => candidate.HasOutputOrFeatureReportCapability)
+                .ThenByDescending(candidate => candidate.Confidence)
                 .ThenBy(candidate => candidate.VendorProductText, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(candidate => candidate.SafeDisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -118,6 +121,9 @@ public sealed partial class WindowsHidDeviceInterfacePhprDirectOutputCandidatePr
         var productId = ParseHexToken(devicePath, "PID");
         var usagePage = ParseHexToken(devicePath, "UP");
         var usage = ParseHexToken(devicePath, "U");
+        var capabilities = SimagicPhprDeviceIdentity.IsSimagicFamilyVendor(vendorId)
+            ? WindowsHidReportCapabilityDiscovery.Discover(devicePath)
+            : PHprHidReportCapabilities.Unavailable;
 
         return new PHprDirectOutputCandidate
         {
@@ -130,8 +136,14 @@ public sealed partial class WindowsHidDeviceInterfacePhprDirectOutputCandidatePr
             ProductId = productId,
             InterfaceNumber = ParsePathToken(devicePath, InterfaceRegex()),
             CollectionNumber = ParsePathToken(devicePath, CollectionRegex()),
-            HidUsagePage = usagePage,
-            HidUsage = usage
+            HidUsagePage = capabilities.UsagePage ?? usagePage,
+            HidUsage = capabilities.Usage ?? usage,
+            InputReportByteLength = capabilities.InputReportByteLength,
+            OutputReportByteLength = capabilities.OutputReportByteLength,
+            FeatureReportByteLength = capabilities.FeatureReportByteLength,
+            InputReportIds = capabilities.InputReportIds,
+            OutputReportIds = capabilities.OutputReportIds,
+            FeatureReportIds = capabilities.FeatureReportIds
         };
     }
 

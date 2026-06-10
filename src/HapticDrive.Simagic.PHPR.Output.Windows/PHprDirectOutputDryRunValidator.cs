@@ -5,12 +5,14 @@ namespace HapticDrive.Simagic.PHPR.Output.Windows;
 public sealed record PHprDirectOutputDryRunResult(
     bool CanPulse,
     PHprHidDeviceSelector Selector,
+    bool OutputReportCapabilityKnown,
+    bool ReportShapeValidationSucceeded,
     PHprSoftwareConflictStatus CoexistenceStatus,
     bool EmergencyStopActive,
     IReadOnlyList<string> Issues)
 {
     public string Summary =>
-        $"Direct-output dry run: selected {Selector.IsSelected}; report length {Selector.ReportLength:N0} bytes; can pulse {CanPulse}; coexistence {CoexistenceStatus}; emergency stop {EmergencyStopActive}; issues {Issues.Count:N0}.";
+        $"Direct-output dry run: selected {Selector.IsSelected}; report length {Selector.ReportLength:N0} bytes; output report known {OutputReportCapabilityKnown}; report-shape validated {ReportShapeValidationSucceeded}; can pulse {CanPulse}; coexistence {CoexistenceStatus}; emergency stop {EmergencyStopActive}; issues {Issues.Count:N0}.";
 }
 
 public static class PHprDirectOutputDryRunValidator
@@ -42,6 +44,13 @@ public static class PHprDirectOutputDryRunValidator
         if (!normalized.OpenCheckSucceeded)
         {
             issues.Add("Selected direct-output candidate has not passed HID open-check.");
+        }
+
+        if (!normalized.AllowsDirectPulseReportShape)
+        {
+            issues.Add(normalized.ReportShapeValidationFailed
+                ? $"Selected HID report shape is not validated for real pulses: {normalized.ReportShapeValidationMessage ?? "validation failed"}"
+                : "Selected HID output-report capability is unknown; open-check alone cannot permit a real pulse.");
         }
 
         if (selector.ReportLength != SimHubF1EcRealReportEncoder.PayloadLengthBytes)
@@ -77,6 +86,8 @@ public static class PHprDirectOutputDryRunValidator
         return new PHprDirectOutputDryRunResult(
             CanPulse: issues.Count == 0,
             selector,
+            normalized.CandidateOutputReportCapabilityKnown,
+            normalized.ReportShapeValidationSucceeded,
             coexistenceStatus,
             emergencyStopActive,
             issues);

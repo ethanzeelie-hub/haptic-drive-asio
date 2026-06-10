@@ -462,6 +462,13 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             return (PHprCommandStatus.RejectedInvalidCommand, "Real P-HPR direct control requires a successful HID open-check for the selected candidate before pulsing.");
         }
 
+        if (!options.AllowsDirectPulseReportShape)
+        {
+            return (PHprCommandStatus.RejectedInvalidCommand, options.ReportShapeValidationFailed
+                ? $"Real P-HPR direct control requires a valid HID output-report shape before pulsing: {options.ReportShapeValidationMessage ?? "report-shape validation failed"}"
+                : "Real P-HPR direct control requires known HID output-report capability before pulsing; open-check alone is not sufficient.");
+        }
+
         var selectorValidation = ValidateSelector(options, requireWriterSelectorMatch: false, writerSelector: null);
         if (selectorValidation is not null)
         {

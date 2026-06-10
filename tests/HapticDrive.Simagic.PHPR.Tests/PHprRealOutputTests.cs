@@ -600,18 +600,25 @@ public sealed class PHprRealOutputTests
             VendorId = 0x3670,
             ProductId = 0x0905,
             InterfaceNumber = "00",
-            CollectionNumber = "01"
+            CollectionNumber = "01",
+            HidUsagePage = 0xFF00,
+            HidUsage = 0x0001,
+            OutputReportByteLength = SimHubF1EcRealReportEncoder.PayloadLengthBytes,
+            OutputReportIds = [0]
         }.Score();
 
         var selector = candidate.ToSelector();
 
-        Assert.Equal(PHprDirectOutputCandidateConfidence.SimagicFamily, candidate.Confidence);
+        Assert.Equal(PHprDirectOutputCandidateConfidence.Preferred, candidate.Confidence);
         Assert.True(candidate.HasOpenableHidPath);
         Assert.False(candidate.IsRawInputOnly);
         Assert.Equal(privatePath, selector.DevicePath);
         Assert.DoesNotContain(privatePath, candidate.SafeLabel, StringComparison.Ordinal);
         Assert.DoesNotContain("private-serial", candidate.SafeLabel, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("VID_3670/PID_0905", candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.Contains("usage 0xFF00/0x0001", candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.Contains("output 64 bytes", candidate.SafeLabel, StringComparison.Ordinal);
+        Assert.Contains("output IDs none", candidate.SafeLabel, StringComparison.Ordinal);
         Assert.Contains("source HidDeviceInterface", candidate.SafeLabel, StringComparison.Ordinal);
         Assert.Contains("raw-input-only False", candidate.SafeLabel, StringComparison.Ordinal);
         Assert.Contains("openable HID path True", candidate.SafeLabel, StringComparison.Ordinal);
@@ -656,7 +663,130 @@ public sealed class PHprRealOutputTests
 
         Assert.True(result.CanPulse);
         Assert.Empty(result.Issues);
+        Assert.True(result.OutputReportCapabilityKnown);
         Assert.Contains("can pulse True", result.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DirectOutputDryRunBlocksOpenCheckSuccessWhenOutputReportLengthUnavailable()
+    {
+        var options = ArmedOptions() with
+        {
+            CandidateOutputReportCapabilityKnown = false,
+            ReportShapeValidationAttempted = true,
+            ReportShapeValidationSucceeded = false,
+            ReportShapeValidationFailed = true,
+            ReportShapeValidationMessage = "Selected candidate HID output-report byte length is unavailable."
+        };
+
+        var result = PHprDirectOutputDryRunValidator.Validate(
+            options,
+            PHprSoftwareConflictStatus.Clear,
+            emergencyStopActive: false);
+
+        Assert.False(result.CanPulse);
+        Assert.False(result.OutputReportCapabilityKnown);
+        Assert.Contains("can pulse False", result.Summary, StringComparison.Ordinal);
+        Assert.Contains(result.Issues, issue => issue.Contains("report shape", StringComparison.OrdinalIgnoreCase)
+            || issue.Contains("output-report", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RealOutputBlocksPulseBeforeOpeningWhenOutputReportLengthUnavailable()
+    {
+        var writer = new FakeHidReportWriter(SelectedDevice());
+        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        {
+            CandidateOutputReportCapabilityKnown = false,
+            ReportShapeValidationAttempted = true,
+            ReportShapeValidationSucceeded = false,
+            ReportShapeValidationFailed = true,
+            ReportShapeValidationMessage = "Selected candidate HID output-report byte length is unavailable."
+        });
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, writer.OpenCount);
+        Assert.Empty(writer.Reports);
+        Assert.Contains("output-report", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ReportShapeValidationUsesOutputReportCapabilitiesWithoutSendingCommand()
+    {
+        var candidate = new PHprDirectOutputCandidate
+        {
+            CandidateId = "hid-interface:test",
+            DevicePath = @"\\?\hid#vid_3670&pid_0905#sanitized",
+            DisplayName = "P-HPR HID output candidate",
+            SourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
+            VendorId = 0x3670,
+            ProductId = 0x0905,
+            OutputReportByteLength = SimHubF1EcRealReportEncoder.PayloadLengthBytes,
+            OutputReportIds = [0]
+        };
+
+        var result = PHprHidReportShapeValidator.Validate(candidate, candidate.ToSelector());
+
+        Assert.True(result.Attempted);
+        Assert.True(result.Succeeded);
+        Assert.False(result.Failed);
+        Assert.Contains("No-command", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReportShapeValidationRejectsMissingOutputReportLength()
+    {
+        var candidate = new PHprDirectOutputCandidate
+        {
+            CandidateId = "hid-interface:test",
+            DevicePath = @"\\?\hid#vid_3670&pid_0905#sanitized",
+            DisplayName = "P-HPR HID unknown output candidate",
+            SourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
+            VendorId = 0x3670,
+            ProductId = 0x0905,
+            InputReportByteLength = SimHubF1EcRealReportEncoder.PayloadLengthBytes
+        };
+
+        var result = PHprHidReportShapeValidator.Validate(candidate, candidate.ToSelector());
+
+        Assert.True(result.Attempted);
+        Assert.False(result.Succeeded);
+        Assert.True(result.Failed);
+        Assert.Equal("OutputReportLengthUnavailable", result.SanitizedErrorCategory);
+        Assert.Contains("open-check alone is not enough", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CandidatesWithOutputCapabilityArePreferredOverInputOnlyCandidates()
+    {
+        var provider = new WindowsPhprDirectOutputCandidateProvider(
+            [
+                new StaticCandidateProvider(
+                    CreateCandidate("input-only", outputLength: null, featureLength: null, source: PHprDirectOutputCandidateSourceMethod.HidDeviceInterface)),
+                new StaticCandidateProvider(
+                    CreateCandidate("output-capable", outputLength: SimHubF1EcRealReportEncoder.PayloadLengthBytes, featureLength: null, source: PHprDirectOutputCandidateSourceMethod.HidDeviceInterface)),
+                new StaticCandidateProvider(
+                    CreateCandidate("raw-input", outputLength: null, featureLength: null, source: PHprDirectOutputCandidateSourceMethod.RawInputMetadata))
+            ]);
+
+        var candidates = provider.DiscoverCandidates();
+
+        Assert.Equal("output-capable", candidates[0].CandidateId);
+        Assert.True(candidates[0].HasKnownOutputReportCapability);
+        Assert.DoesNotContain(@"\\?\hid", candidates[0].SafeLabel, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void InvalidParameterIOExceptionIsReportShapeFailure()
+    {
+        var exception = new IOException("invalid parameter", unchecked((int)0x80070057));
+
+        var status = PHprHidPathSafety.ClassifyWriteExceptionStatus(exception);
+
+        Assert.Equal(PHprHidWriteStatus.InvalidReport, status);
+        Assert.Equal("IOException:0x80070057", PHprHidPathSafety.SanitizeExceptionCategory(exception));
     }
 
     [Fact]
@@ -803,6 +933,7 @@ public sealed class PHprRealOutputTests
             CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
             CandidateIsRawInputOnly = false,
             CandidateHasOpenableHidPath = true,
+            CandidateOutputReportCapabilityKnown = true,
             OpenCheckAttempted = true,
             OpenCheckSucceeded = true,
             OpenCheckFailed = false,
@@ -819,6 +950,29 @@ public sealed class PHprRealOutputTests
             "manual test interface",
             null,
             SimHubF1EcRealReportEncoder.PayloadLengthBytes);
+    }
+
+    private static PHprDirectOutputCandidate CreateCandidate(
+        string id,
+        int? outputLength,
+        int? featureLength,
+        PHprDirectOutputCandidateSourceMethod source)
+    {
+        return new PHprDirectOutputCandidate
+        {
+            CandidateId = id,
+            DevicePath = source == PHprDirectOutputCandidateSourceMethod.HidDeviceInterface
+                ? $@"\\?\hid#vid_3670&pid_0905#{id}"
+                : $"raw-input:VID_3670&PID_0905:{id}",
+            DisplayName = id,
+            SourceMethod = source,
+            VendorId = 0x3670,
+            ProductId = 0x0905,
+            OutputReportByteLength = outputLength,
+            FeatureReportByteLength = featureLength,
+            HidUsagePage = 0xFF00,
+            HidUsage = 0x0001
+        }.Score();
     }
 
     private static PHprSafetyContext RealSafetyContext()
@@ -1179,6 +1333,14 @@ public sealed class PHprRealOutputTests
             }
 
             return result;
+        }
+    }
+
+    private sealed class StaticCandidateProvider(params PHprDirectOutputCandidate[] candidates) : IPHprDirectOutputCandidateProvider
+    {
+        public IReadOnlyList<PHprDirectOutputCandidate> DiscoverCandidates(DateTimeOffset? discoveredAtUtc = null)
+        {
+            return candidates;
         }
     }
 }

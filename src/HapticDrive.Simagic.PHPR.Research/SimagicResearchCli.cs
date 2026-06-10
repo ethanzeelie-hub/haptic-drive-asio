@@ -1,3 +1,4 @@
+using System.Globalization;
 using HapticDrive.Simagic.PHPR.Abstractions.Coexistence;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 using HapticDrive.Simagic.PHPR.Output.Windows;
@@ -465,8 +466,11 @@ public static class SimagicResearchCli
             await output.WriteLineAsync($"... {candidates.Count - 24:N0} additional candidate(s) hidden from console output.");
         }
 
+        await WriteSimagicFamilyCandidateSummaryAsync(output, candidates);
+        await WriteSimagicFamilyInventorySummaryAsync(output);
         await output.WriteLineAsync($"Selected candidate: {(selectedCandidate is null ? "none" : $"index {options.CandidateIndex}; {selectedCandidate.SafeLabel}")}");
         await output.WriteLineAsync($"Selected report length source: {selectedCandidate?.SelectedReportLengthSource ?? "none"}");
+        await output.WriteLineAsync($"Report-shape validation: attempted {realOptions.ReportShapeValidationAttempted}; succeeded {realOptions.ReportShapeValidationSucceeded}; failed {realOptions.ReportShapeValidationFailed}; message {realOptions.ReportShapeValidationMessage ?? "none"}.");
         await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
         await output.WriteLineAsync(dryRun.Summary);
         await output.WriteLineAsync($"Approval phrase: {(realOptions.DirectControlApprovalConfirmed ? "present" : "missing")}");
@@ -537,6 +541,7 @@ public static class SimagicResearchCli
         await output.WriteLineAsync($"Selected candidate: index {options.CandidateIndex}; {selectedCandidate.SafeLabel}");
         await output.WriteLineAsync($"Open-check: attempted {openCheck.Attempted}; succeeded {openCheck.Succeeded}; failed {openCheck.Failed}; open {openCheck.OpenStatus?.ToString() ?? "none"}; close {openCheck.CloseStatus?.ToString() ?? "none"}; sanitized error {openCheck.SanitizedErrorCategory ?? "none"}.");
         await output.WriteLineAsync($"Selected report length source: {selectedCandidate.SelectedReportLengthSource}");
+        await output.WriteLineAsync($"Report-shape validation: attempted {realOptions.ReportShapeValidationAttempted}; succeeded {realOptions.ReportShapeValidationSucceeded}; failed {realOptions.ReportShapeValidationFailed}; message {realOptions.ReportShapeValidationMessage ?? "none"}.");
         await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
         await output.WriteLineAsync(dryRun.Summary);
         await output.WriteLineAsync($"Approval phrase: {(realOptions.DirectControlApprovalConfirmed ? "present" : "missing")}");
@@ -579,6 +584,72 @@ public static class SimagicResearchCli
         error.WriteLine($"Unknown command '{command}'.");
         PrintHelp(output);
         return 2;
+    }
+
+    private static async Task WriteSimagicFamilyCandidateSummaryAsync(
+        TextWriter output,
+        IReadOnlyList<PHprDirectOutputCandidate> candidates)
+    {
+        var simagicFamily = candidates
+            .Select((candidate, index) => (candidate, index))
+            .Where(item => item.candidate.VendorId == SimagicPhprDeviceIdentity.SimagicVendorId)
+            .ToArray();
+        if (simagicFamily.Length == 0)
+        {
+            await output.WriteLineAsync("VID_3670 candidates: none discovered.");
+            return;
+        }
+
+        await output.WriteLineAsync($"VID_3670 candidates discovered separately: {simagicFamily.Length:N0}");
+        foreach (var item in simagicFamily)
+        {
+            await output.WriteLineAsync($"[VID_3670 {item.index}] {item.candidate.SafeLabel}");
+        }
+    }
+
+    private static async Task WriteSimagicFamilyInventorySummaryAsync(TextWriter output)
+    {
+        var snapshot = await CompositeSimagicDeviceInventoryProvider.CreateDefault().DiscoverAsync();
+        var simagicFamily = snapshot.Items
+            .Where(item => item.VendorId == SimagicPhprDeviceIdentity.SimagicVendorId)
+            .OrderBy(item => item.ProductId)
+            .ThenBy(item => item.DiscoveryMethod)
+            .ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (simagicFamily.Length == 0)
+        {
+            await output.WriteLineAsync("VID_3670 inventory candidates: none discovered.");
+            return;
+        }
+
+        await output.WriteLineAsync($"VID_3670 inventory candidates discovered separately: {simagicFamily.Length:N0}");
+        foreach (var item in simagicFamily)
+        {
+            await output.WriteLineAsync($"- {FormatSimagicFamilyInventoryItem(item)}");
+        }
+    }
+
+    private static string FormatSimagicFamilyInventoryItem(SimagicDeviceInventoryItem item)
+    {
+        var displayName = SimagicDeviceInventorySanitizer.SanitizeIdentifier(item.DisplayName) ?? "Unknown device";
+        var usage = item.HidUsagePage is null || item.HidUsage is null
+            ? "usage unavailable"
+            : $"usage 0x{item.HidUsagePage.Value:X4}/0x{item.HidUsage.Value:X4}";
+        var reports =
+            $"input {FormatReportLength(item.InputReportByteLength)}, output {FormatReportLength(item.OutputReportByteLength)}, feature {FormatReportLength(item.FeatureReportByteLength)}";
+        return $"{item.VendorProductText ?? "VID/PID unavailable"}; {displayName}; method {item.DiscoveryMethod}; kind {item.CandidateKind}; class {FormatOptional(item.DeviceClass)}; interface {FormatOptional(item.InterfaceNumber)}; collection {FormatOptional(item.CollectionNumber)}; {usage}; reports {reports}";
+    }
+
+    private static string FormatReportLength(int? value)
+    {
+        return value is > 0 ? $"{value.Value.ToString(CultureInfo.InvariantCulture)} bytes" : "unavailable";
+    }
+
+    private static string FormatOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "unavailable"
+            : SimagicDeviceInventorySanitizer.SanitizeIdentifier(value) ?? "unavailable";
     }
 
     private static bool IsHelp(string arg)
@@ -836,6 +907,9 @@ public static class SimagicResearchCli
             selector = selector with { ReportLength = options.ReportLength.Value };
         }
 
+        selector = selector.Normalize();
+        var reportShape = PHprHidReportShapeValidator.Validate(selectedCandidate, selector);
+
         return (PHprRealOutputOptions.Disabled with
         {
             DirectControlEnabled = options.DirectControlEnabled,
@@ -844,6 +918,12 @@ public static class SimagicResearchCli
             CandidateSourceMethod = selectedCandidate?.SourceMethod ?? PHprDirectOutputCandidateSourceMethod.Unknown,
             CandidateIsRawInputOnly = selectedCandidate?.IsRawInputOnly ?? false,
             CandidateHasOpenableHidPath = selectedCandidate?.HasOpenableHidPath ?? false,
+            CandidateOutputReportCapabilityKnown = selectedCandidate?.HasKnownOutputReportCapability ?? false,
+            CandidateFeatureReportCapabilityKnown = selectedCandidate?.HasKnownFeatureReportCapability ?? false,
+            ReportShapeValidationAttempted = reportShape.Attempted,
+            ReportShapeValidationSucceeded = reportShape.Succeeded,
+            ReportShapeValidationFailed = reportShape.Failed,
+            ReportShapeValidationMessage = reportShape.Message,
             Selector = selector
         }).Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
     }

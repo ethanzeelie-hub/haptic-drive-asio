@@ -24,6 +24,18 @@ public sealed record PHprRealOutputOptions
 
     public bool CandidateHasOpenableHidPath { get; init; }
 
+    public bool CandidateOutputReportCapabilityKnown { get; init; }
+
+    public bool CandidateFeatureReportCapabilityKnown { get; init; }
+
+    public bool ReportShapeValidationAttempted { get; init; }
+
+    public bool ReportShapeValidationSucceeded { get; init; }
+
+    public bool ReportShapeValidationFailed { get; init; }
+
+    public string? ReportShapeValidationMessage { get; init; }
+
     public bool OpenCheckAttempted { get; init; }
 
     public bool OpenCheckSucceeded { get; init; }
@@ -39,6 +51,10 @@ public sealed record PHprRealOutputOptions
     public PHprRealGearPulseSettings BrakeGearPulse { get; init; } = PHprRealGearPulseSettings.Default;
 
     public PHprRealGearPulseSettings ThrottleGearPulse { get; init; } = PHprRealGearPulseSettings.Default;
+
+    public bool AllowsDirectPulseReportShape =>
+        !ReportShapeValidationFailed
+        && (CandidateOutputReportCapabilityKnown || ReportShapeValidationSucceeded);
 
     public PHprRealOutputOptions Normalize(PHprSafetyLimits? limits = null)
     {

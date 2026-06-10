@@ -29,7 +29,8 @@ Phase 3H packages the current P-HPR implementation for final review. Phase 3J ad
 - Emergency stop remains available and latched until cleared.
 - SimPro/SimHub non-clear coexistence blocks real direct starts.
 - Raw Input metadata-only candidates cannot pass real direct-output gates.
-- Real direct `can pulse` requires a successful no-report HID open-check on the selected HID device-interface candidate.
+- Real direct `can pulse` requires a successful no-report HID open-check plus known HID output-report capability or successful no-command report-shape validation on the selected HID device-interface candidate.
+- `IOException:0x80070057` from HID writes is treated as a report-shape/write-format failure.
 - Automated tests and CI do not write to hardware.
 - Automated tests now report zero skips by converting prior manual ASIO checks into readiness/pending checks.
 - Real P-HPR writes require the controlled CLI command or manually armed app direct mode; they are not part of normal tests.
@@ -56,7 +57,8 @@ Use this checklist locally before claiming physical validation:
 16. Private local validation notes are exported outside committed docs.
 17. The selected direct-output candidate is a HID device-interface candidate, not Raw Input metadata only.
 18. Open-check succeeds for the selected candidate without sending an output report.
-19. Optional final CLI smoke test is run with `controlled-write-test --execute` only after the dry run and open-check look correct.
+19. Dry-run reports known output-report capability or successful report-shape validation before any manual pulse.
+20. Optional final CLI smoke test is run with `controlled-write-test --execute` only after the dry run and open-check look correct.
 
 ## Verification
 

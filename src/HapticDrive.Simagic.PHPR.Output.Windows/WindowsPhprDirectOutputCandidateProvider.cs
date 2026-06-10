@@ -26,9 +26,13 @@ public sealed class WindowsPhprDirectOutputCandidateProvider : IPHprDirectOutput
             .GroupBy(candidate => DeduplicateKey(candidate), StringComparer.OrdinalIgnoreCase)
             .Select(group => group
                 .OrderByDescending(candidate => candidate.HasOpenableHidPath)
+                .ThenByDescending(candidate => candidate.HasKnownOutputReportCapability)
+                .ThenByDescending(candidate => candidate.HasOutputOrFeatureReportCapability)
                 .ThenByDescending(candidate => candidate.Confidence)
                 .First())
             .OrderByDescending(candidate => candidate.HasOpenableHidPath)
+            .ThenByDescending(candidate => candidate.HasKnownOutputReportCapability)
+            .ThenByDescending(candidate => candidate.HasOutputOrFeatureReportCapability)
             .ThenByDescending(candidate => candidate.Confidence)
             .ThenBy(candidate => candidate.IsRawInputOnly)
             .ThenBy(candidate => candidate.VendorProductText, StringComparer.OrdinalIgnoreCase)
