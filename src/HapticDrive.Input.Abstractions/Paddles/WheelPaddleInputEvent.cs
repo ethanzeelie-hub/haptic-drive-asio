@@ -7,7 +7,8 @@ public sealed record WheelPaddleInputEvent(
     InputDeviceSelection? SourceDevice,
     int ButtonId,
     InputEventTimestamp Timestamp,
-    long SequenceNumber)
+    long SequenceNumber,
+    InputButtonState ButtonState = InputButtonState.Pressed)
 {
     public DateTimeOffset TimestampUtc => Timestamp.Utc;
 

@@ -254,6 +254,56 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
+    public async Task WatchdogSendsStopAllWhenScheduledStopFails()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        var start = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 20));
+        writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("scheduled stop failed"));
+
+        Assert.True(start.Succeeded, start.Message);
+        await WaitForScheduledDelayAsync(clock, 1);
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(20));
+        await WaitForWriteAttemptsAsync(writer, 2);
+        Assert.True(device.GetDiagnostics().ActivePulse);
+
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForWriteAttemptsAsync(writer, 4);
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.False(diagnostics.ActivePulse);
+        Assert.True(diagnostics.Output.IsEmergencyStopActive);
+        Assert.Equal(1, diagnostics.WatchdogStopAllCount);
+        Assert.Contains(writer.WriteAttempts, report => report.State == PHprHidReportState.EmergencyStop && report.TargetModule == PHprModuleId.Brake);
+        Assert.Contains(writer.WriteAttempts, report => report.State == PHprHidReportState.EmergencyStop && report.TargetModule == PHprModuleId.Throttle);
+    }
+
+    [Fact]
+    public async Task EmergencyStopRetriesAndAttemptsBrakeAndThrottleWhenFirstStopFails()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 100));
+        await WaitForScheduledDelayAsync(clock, 1);
+        writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("brake emergency stop failed"));
+
+        await device.EmergencyStopAsync();
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.False(diagnostics.ActivePulse);
+        Assert.True(diagnostics.Output.IsEmergencyStopActive);
+        Assert.NotNull(diagnostics.LastEmergencyStopRequestedAtUtc);
+        Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.LastEmergencyStopResultStatus);
+        Assert.Contains(writer.WriteAttempts, report => report.State == PHprHidReportState.EmergencyStop && report.TargetModule == PHprModuleId.Brake);
+        Assert.Contains(writer.WriteAttempts, report => report.State == PHprHidReportState.EmergencyStop && report.TargetModule == PHprModuleId.Throttle);
+        Assert.True(writer.WriteAttempts.Count(report => report.State == PHprHidReportState.EmergencyStop) >= 3);
+    }
+
+    [Fact]
     public async Task ExplicitOpenAndCloseUpdateConnectionDiagnosticsWithoutReports()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
@@ -308,7 +358,7 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
-    public async Task StopFailureRecordsLastStopStatusWithoutClearingEmergencyLatch()
+    public async Task EmergencyStopRetryRecordsFailedAttemptAndFinalSuccess()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
         writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("fake stop failed", "planned stop failure"));
@@ -318,9 +368,12 @@ public sealed class PHprRealOutputTests
         var diagnostics = device.GetDiagnostics();
 
         Assert.True(diagnostics.Output.IsEmergencyStopActive);
-        Assert.Equal(PHprHidConnectionState.Faulted, diagnostics.Connection.State);
-        Assert.Equal(PHprHidWriteStatus.Failed, diagnostics.Connection.LastStopStatus);
+        Assert.Equal(PHprHidConnectionState.Open, diagnostics.Connection.State);
+        Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.Connection.LastStopStatus);
+        Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.LastEmergencyStopResultStatus);
+        Assert.Contains("attempt 2", diagnostics.LastEmergencyStopResultMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, diagnostics.FailedReportWriteCount);
+        Assert.Contains("planned stop failure", diagnostics.LastError, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1564,6 +1617,22 @@ public sealed class PHprRealOutputTests
         }
 
         Assert.True(writer.Reports.Count >= count, $"Expected {count} reports but saw {writer.Reports.Count}.");
+    }
+
+    private static async Task WaitForWriteAttemptsAsync(FakeHidReportWriter writer, int count)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (writer.WriteAttempts.Count >= count)
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.True(writer.WriteAttempts.Count >= count, $"Expected {count} write attempts but saw {writer.WriteAttempts.Count}.");
     }
 
     private static async Task WaitForScheduledDelayAsync(FakeDirectStopClock clock, int count)

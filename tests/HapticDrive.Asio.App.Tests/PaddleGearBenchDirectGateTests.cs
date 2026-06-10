@@ -180,7 +180,7 @@ public sealed class PaddleGearBenchDirectGateTests
     }
 
     [Fact]
-    public void PaddleBenchDirectPlannerUsesDevicePedalCardValues()
+    public void DeviceCardPulseServiceUsesDevicePedalCardValues()
     {
         var shift = ShiftIntentEvent.CreatePaddlePress(
             PaddleSide.Right,
@@ -199,14 +199,15 @@ public sealed class PaddleGearBenchDirectGateTests
             DurationMs = 88
         };
 
-        var commands = PaddleGearBenchDirectPulsePlanner.BuildCommands(
-            shift,
-            PHprGearPulseTarget.Both,
+        var brakeCommand = PhprDeviceCardPulseService.CreateDirectPulseCommand(
+            PHprModuleId.Brake,
             brake,
-            throttle);
+            shift.TimestampUtc);
+        var throttleCommand = PhprDeviceCardPulseService.CreateDirectPulseCommand(
+            PHprModuleId.Throttle,
+            throttle,
+            shift.TimestampUtc);
 
-        var brakeCommand = Assert.Single(commands, command => command.TargetModule == PHprModuleId.Brake);
-        var throttleCommand = Assert.Single(commands, command => command.TargetModule == PHprModuleId.Throttle);
         Assert.Equal(0.11d, brakeCommand.Strength01, precision: 6);
         Assert.Equal(41d, brakeCommand.FrequencyHz, precision: 6);
         Assert.Equal(64, brakeCommand.DurationMs);

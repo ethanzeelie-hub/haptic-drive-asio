@@ -72,6 +72,30 @@ public sealed class PaddleGearBenchTestControllerTests
         Assert.True(controller.GetSnapshot().IsArmed);
     }
 
+    [Fact]
+    public void BenchMode_DefaultDirectTargetIsBoth()
+    {
+        var controller = new PaddleGearBenchTestController(PaddleGearBenchTestOptions.EnabledDirect);
+
+        var snapshot = controller.GetSnapshot();
+
+        Assert.Equal(PHprGearPulseTarget.Both, snapshot.Options.TargetModule);
+    }
+
+    [Fact]
+    public void BenchMode_RejectsReleasedPaddleEvents()
+    {
+        var controller = new PaddleGearBenchTestController(EnabledArmedOptions());
+
+        var result = controller.HandlePaddleInput(
+            CreatePaddleEvent(PaddleSide.Right, buttonId: 13, InputButtonState.Released),
+            Mapping());
+
+        Assert.False(result.Accepted);
+        Assert.Contains("Pressed", result.SuppressionReason, StringComparison.Ordinal);
+        Assert.Equal(1, controller.GetSnapshot().SuppressedBenchGearEventCount);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -232,7 +256,10 @@ public sealed class PaddleGearBenchTestControllerTests
         };
     }
 
-    private static WheelPaddleInputEvent CreatePaddleEvent(PaddleSide side, int buttonId)
+    private static WheelPaddleInputEvent CreatePaddleEvent(
+        PaddleSide side,
+        int buttonId,
+        InputButtonState buttonState = InputButtonState.Pressed)
     {
         return new WheelPaddleInputEvent(
             side,
@@ -241,7 +268,8 @@ public sealed class PaddleGearBenchTestControllerTests
             new InputEventTimestamp(
                 new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero).AddMilliseconds(buttonId),
                 10_000 + buttonId),
-            buttonId);
+            buttonId,
+            buttonState);
     }
 
     private static InputDeviceSelection CreateSelection(int buttonCount)

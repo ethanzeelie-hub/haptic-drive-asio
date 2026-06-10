@@ -14,15 +14,15 @@ public sealed class PaddleGearBenchDirectPulseTests
         var harness = new DirectBenchHarness();
         var brake = PHprRealGearPulseSettings.Default with { Strength01 = 0.11d, FrequencyHz = 41d, DurationMs = 40 };
 
-        var commands = PaddleGearBenchDirectPulsePlanner.BuildCommands(
-            Shift(),
-            PHprGearPulseTarget.Brake,
+        var result = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Brake,
             brake,
-            PHprRealGearPulseSettings.Default);
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
 
-        var result = await harness.Device.SendAsync(Assert.Single(commands));
-
-        Assert.True(result.Succeeded, result.Message);
+        Assert.True(result.Succeeded, result.CommandResult.Message);
+        Assert.Equal(PhprDeviceCardPulseService.RouteName, result.RouteName);
         Assert.Single(harness.Writer.Reports);
         Assert.Equal(PHprHidReportState.Start, harness.Writer.Reports[0].State);
         Assert.Equal(PHprModuleId.Brake, harness.Writer.Reports[0].TargetModule);
@@ -52,15 +52,15 @@ public sealed class PaddleGearBenchDirectPulseTests
         var harness = new DirectBenchHarness();
         var throttle = PHprRealGearPulseSettings.Default with { Strength01 = 0.22d, FrequencyHz = 49d, DurationMs = 35 };
 
-        var commands = PaddleGearBenchDirectPulsePlanner.BuildCommands(
-            Shift(),
-            PHprGearPulseTarget.Throttle,
-            PHprRealGearPulseSettings.Default,
-            throttle);
+        var result = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Throttle,
+            throttle,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
 
-        var result = await harness.Device.SendAsync(Assert.Single(commands));
-
-        Assert.True(result.Succeeded, result.Message);
+        Assert.True(result.Succeeded, result.CommandResult.Message);
+        Assert.Equal(PhprDeviceCardPulseService.RouteName, result.RouteName);
         Assert.Single(harness.Writer.Reports);
         Assert.Equal(PHprHidReportState.Start, harness.Writer.Reports[0].State);
         Assert.Equal(PHprModuleId.Throttle, harness.Writer.Reports[0].TargetModule);
@@ -80,27 +80,29 @@ public sealed class PaddleGearBenchDirectPulseTests
         var brake = PHprRealGearPulseSettings.Default with { Strength01 = 0.11d, FrequencyHz = 41d, DurationMs = 40 };
         var throttle = PHprRealGearPulseSettings.Default with { Strength01 = 0.22d, FrequencyHz = 49d, DurationMs = 55 };
 
-        var commands = PaddleGearBenchDirectPulsePlanner.BuildCommands(
-            Shift(),
-            PHprGearPulseTarget.Both,
+        var brakeResult = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Brake,
             brake,
-            throttle);
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
+        var throttleResult = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Throttle,
+            throttle,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
 
-        Assert.Equal(2, commands.Count);
-        Assert.Contains(commands, command => command.TargetModule == PHprModuleId.Brake
-            && Math.Abs(command.Strength01 - 0.11d) < 0.000001d
-            && Math.Abs(command.FrequencyHz - 41d) < 0.000001d
-            && command.DurationMs == 40);
-        Assert.Contains(commands, command => command.TargetModule == PHprModuleId.Throttle
-            && Math.Abs(command.Strength01 - 0.22d) < 0.000001d
-            && Math.Abs(command.FrequencyHz - 49d) < 0.000001d
-            && command.DurationMs == 55);
-
-        foreach (var command in commands)
-        {
-            var result = await harness.Device.SendAsync(command);
-            Assert.True(result.Succeeded, result.Message);
-        }
+        Assert.True(brakeResult.Succeeded, brakeResult.CommandResult.Message);
+        Assert.True(throttleResult.Succeeded, throttleResult.CommandResult.Message);
+        Assert.Equal(PHprModuleId.Brake, brakeResult.Command.TargetModule);
+        Assert.Equal(0.11d, brakeResult.Command.Strength01, precision: 6);
+        Assert.Equal(41d, brakeResult.Command.FrequencyHz, precision: 6);
+        Assert.Equal(40, brakeResult.Command.DurationMs);
+        Assert.Equal(PHprModuleId.Throttle, throttleResult.Command.TargetModule);
+        Assert.Equal(0.22d, throttleResult.Command.Strength01, precision: 6);
+        Assert.Equal(49d, throttleResult.Command.FrequencyHz, precision: 6);
+        Assert.Equal(55, throttleResult.Command.DurationMs);
 
         Assert.Equal(2, harness.Writer.Reports.Count);
         Assert.Equal(2, harness.Writer.Reports.Count(report => report.State == PHprHidReportState.Start));

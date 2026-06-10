@@ -65,6 +65,15 @@ public sealed class PaddleGearBenchTestController
                     evaluatedAtUtc);
             }
 
+            if (paddleEvent.ButtonState != InputButtonState.Pressed)
+            {
+                return StoreSuppressed(
+                    paddleEvent,
+                    options,
+                    $"Paddle Gear Bench Test Mode accepts Pressed events only; received {paddleEvent.ButtonState}.",
+                    evaluatedAtUtc);
+            }
+
             var normalizedMapping = (mapping ?? WheelPaddleMapping.Default).Normalize();
             var mappedSide = normalizedMapping.ResolvePaddleSide(paddleEvent.ButtonId);
             if (paddleEvent.PaddleSide == PaddleSide.Unknown

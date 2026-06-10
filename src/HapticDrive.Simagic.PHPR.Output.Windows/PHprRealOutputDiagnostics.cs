@@ -22,4 +22,11 @@ public sealed record PHprRealOutputDiagnostics(
     PHprModuleId? LastStopReportTarget,
     PHprHidWriteStatus? LastStopResultStatus,
     string? LastStopResultMessage,
-    int? LastScheduledPulseDurationMs);
+    int? LastScheduledPulseDurationMs,
+    DateTimeOffset? LastScheduledStopDueAtUtc,
+    DateTimeOffset? LastEmergencyStopRequestedAtUtc,
+    PHprHidWriteStatus? LastEmergencyStopResultStatus,
+    string? LastEmergencyStopResultMessage,
+    long WatchdogStopAllCount,
+    DateTimeOffset? LastWatchdogStopAllAtUtc,
+    string? LastWatchdogStopAllMessage);

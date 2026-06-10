@@ -6,6 +6,9 @@ namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
 public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 {
+    private const int DirectPulseWatchdogToleranceMs = 100;
+    private const int EmergencyStopWriteAttemptCount = 3;
+
     public static PHprSafetyLimits DirectControlSafetyLimits { get; } = PHprSafetyLimits.Default with
     {
         AllowRealDeviceWrites = true
@@ -59,6 +62,13 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
     private PHprHidWriteStatus? _lastStopResultStatus;
     private string? _lastStopResultMessage;
     private int? _lastScheduledPulseDurationMs;
+    private DateTimeOffset? _lastScheduledStopDueAtUtc;
+    private DateTimeOffset? _lastEmergencyStopRequestedAtUtc;
+    private PHprHidWriteStatus? _lastEmergencyStopResultStatus;
+    private string? _lastEmergencyStopResultMessage;
+    private long _watchdogStopAllCount;
+    private DateTimeOffset? _lastWatchdogStopAllAtUtc;
+    private string? _lastWatchdogStopAllMessage;
     private bool _disposed;
 
     public SimagicPhprOutputDevice(
@@ -144,7 +154,14 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
                 _lastStopReportTarget,
                 _lastStopResultStatus,
                 _lastStopResultMessage,
-                _lastScheduledPulseDurationMs);
+                _lastScheduledPulseDurationMs,
+                _lastScheduledStopDueAtUtc,
+                _lastEmergencyStopRequestedAtUtc,
+                _lastEmergencyStopResultStatus,
+                _lastEmergencyStopResultMessage,
+                _watchdogStopAllCount,
+                _lastWatchdogStopAllAtUtc,
+                _lastWatchdogStopAllMessage);
         }
     }
 
@@ -295,10 +312,12 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         cancellationToken.ThrowIfCancellationRequested();
         List<CancellationTokenSource> pendingStops;
         PHprRealOutputOptions options;
+        var requestedAtUtc = DateTimeOffset.UtcNow;
         lock (_gate)
         {
             _emergencyStopActive = true;
             _emergencyStopCount++;
+            _lastEmergencyStopRequestedAtUtc = requestedAtUtc;
             _limiter.RecordEmergencyStop(BuildContext(_options));
             pendingStops = _pendingStops.ToList();
             _pendingStops.Clear();
@@ -313,13 +332,25 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         PHprHidWriteResult? writeResult = null;
         if (options.Selector.IsSelected)
         {
-            var reports = _encoder.EncodeStop(PHprModuleId.Both, options.Selector.ReportId, emergencyStop: true);
-            writeResult = await WriteReportsAsync(reports, options, PHprHidOperationKind.EmergencyStop, cancellationToken);
+            writeResult = await WriteStopAllReportsWithRetryAsync(
+                options,
+                PHprHidOperationKind.EmergencyStop,
+                emergencyStop: true,
+                EmergencyStopWriteAttemptCount,
+                cancellationToken);
         }
 
         lock (_gate)
         {
-            _activePulseModules.Clear();
+            if (writeResult is null || writeResult.Succeeded)
+            {
+                _activePulseModules.Clear();
+            }
+
+            _lastEmergencyStopResultStatus = writeResult?.Status ?? PHprHidWriteStatus.Succeeded;
+            _lastEmergencyStopResultMessage = writeResult is null
+                ? "No P-HPR direct device was selected; no stop reports were sent."
+                : writeResult.Message;
             _lastStatus = writeResult is null || writeResult.Succeeded
                 ? PHprCommandStatus.Accepted
                 : PHprCommandStatus.RejectedInvalidCommand;
@@ -346,7 +377,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             }
 
             shouldRequestStop = _options.Selector.IsSelected
-                && (_options.DirectControlEnabled || _pendingStops.Count > 0);
+                && (_options.DirectControlEnabled || _pendingStops.Count > 0 || _activePulseModules.Count > 0);
         }
 
         try
@@ -625,13 +656,84 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         return PHprHidWriteResult.Success(reports.Last().Length, "P-HPR HID reports written.");
     }
 
+    private async ValueTask<PHprHidWriteResult> WriteStopAllReportsWithRetryAsync(
+        PHprRealOutputOptions options,
+        PHprHidOperationKind operationKind,
+        bool emergencyStop,
+        int maxAttempts,
+        CancellationToken cancellationToken)
+    {
+        PHprHidWriteResult? result = null;
+        var attempts = Math.Max(1, maxAttempts);
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            result = await WriteStopAllReportsOnceAsync(
+                options,
+                operationKind,
+                emergencyStop,
+                attempt,
+                attempts,
+                cancellationToken).ConfigureAwait(false);
+            if (result.Succeeded)
+            {
+                return result;
+            }
+        }
+
+        return result ?? PHprHidWriteResult.Failure("P-HPR stop-all was not attempted.");
+    }
+
+    private async ValueTask<PHprHidWriteResult> WriteStopAllReportsOnceAsync(
+        PHprRealOutputOptions options,
+        PHprHidOperationKind operationKind,
+        bool emergencyStop,
+        int attempt,
+        int maxAttempts,
+        CancellationToken cancellationToken)
+    {
+        var brake = await WriteReportsAsync(
+            _encoder.EncodeStop(PHprModuleId.Brake, options.Selector.ReportId, emergencyStop),
+            options,
+            operationKind,
+            cancellationToken).ConfigureAwait(false);
+        var throttle = await WriteReportsAsync(
+            _encoder.EncodeStop(PHprModuleId.Throttle, options.Selector.ReportId, emergencyStop),
+            options,
+            operationKind,
+            cancellationToken).ConfigureAwait(false);
+
+        if (brake.Succeeded && throttle.Succeeded)
+        {
+            return PHprHidWriteResult.Success(
+                Math.Max(brake.ReportLength, throttle.ReportLength),
+                maxAttempts == 1
+                    ? "P-HPR stop-all wrote brake and throttle stop reports."
+                    : $"P-HPR stop-all wrote brake and throttle stop reports on attempt {attempt:N0}/{maxAttempts:N0}.");
+        }
+
+        var failed = new[] { ("brake", brake), ("throttle", throttle) }
+            .Where(result => !result.Item2.Succeeded)
+            .Select(result => $"{result.Item1}: {result.Item2.Message}")
+            .ToArray();
+        var status = !brake.Succeeded ? brake.Status : throttle.Status;
+        var errorMessage = string.Join("; ", failed);
+        return PHprHidWriteResult.Failure(
+            maxAttempts == 1
+                ? $"P-HPR stop-all failed after attempting brake and throttle stop reports: {errorMessage}"
+                : $"P-HPR stop-all attempt {attempt:N0}/{maxAttempts:N0} failed after attempting brake and throttle stop reports: {errorMessage}",
+            errorMessage,
+            status);
+    }
+
     private void ScheduleStop(PHprModuleId targetModule, int durationMs, PHprRealOutputOptions options)
     {
         var cts = new CancellationTokenSource();
+        var scheduledStopDueAtUtc = DateTimeOffset.UtcNow.AddMilliseconds(durationMs);
         lock (_gate)
         {
             _pendingStops.Add(cts);
             _lastScheduledPulseDurationMs = durationMs;
+            _lastScheduledStopDueAtUtc = scheduledStopDueAtUtc;
         }
 
         _ = Task.Run(async () =>
@@ -647,6 +749,41 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
                     _lastStopReportTarget = targetModule;
                     _lastStopResultStatus = result.Status;
                     _lastStopResultMessage = result.Message;
+                    _pendingStops.Remove(cts);
+                }
+
+                await _stopClock.DelayAsync(TimeSpan.FromMilliseconds(DirectPulseWatchdogToleranceMs), cts.Token);
+                if (IsTargetActive(targetModule))
+                {
+                    var watchdogResult = await WriteStopAllReportsWithRetryAsync(
+                        options,
+                        PHprHidOperationKind.EmergencyStop,
+                        emergencyStop: true,
+                        EmergencyStopWriteAttemptCount,
+                        cts.Token);
+                    lock (_gate)
+                    {
+                        _watchdogStopAllCount++;
+                        _lastWatchdogStopAllAtUtc = watchdogResult.CompletedAtUtc;
+                        _lastWatchdogStopAllMessage = watchdogResult.Message;
+                        _lastEmergencyStopResultStatus = watchdogResult.Status;
+                        _lastEmergencyStopResultMessage = watchdogResult.Message;
+                        _lastStopSentAtUtc = watchdogResult.CompletedAtUtc;
+                        _lastStopReportTarget = PHprModuleId.Both;
+                        _lastStopResultStatus = watchdogResult.Status;
+                        _lastStopResultMessage = $"Watchdog stop-all: {watchdogResult.Message}";
+                        if (watchdogResult.Succeeded)
+                        {
+                            _activePulseModules.Clear();
+                            _emergencyStopActive = true;
+                            _lastMessage = "P-HPR direct pulse watchdog forced stop-all and latched emergency stop.";
+                        }
+                        else
+                        {
+                            _lastError = watchdogResult.ErrorMessage ?? watchdogResult.Message;
+                            _connectionState = PHprHidConnectionState.Faulted;
+                        }
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -675,6 +812,14 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
                 cts.Dispose();
             }
         });
+    }
+
+    private bool IsTargetActive(PHprModuleId targetModule)
+    {
+        lock (_gate)
+        {
+            return IsTargetActiveLocked(targetModule);
+        }
     }
 
     private static PHprHidWriteResult? ValidateSelector(
@@ -800,6 +945,17 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         {
             _activePulseModules.Remove(PHprModuleId.Throttle);
         }
+    }
+
+    private bool IsTargetActiveLocked(PHprModuleId targetModule)
+    {
+        return targetModule switch
+        {
+            PHprModuleId.Brake => _activePulseModules.Contains(PHprModuleId.Brake),
+            PHprModuleId.Throttle => _activePulseModules.Contains(PHprModuleId.Throttle),
+            PHprModuleId.Both => _activePulseModules.Count > 0,
+            _ => _activePulseModules.Count > 0
+        };
     }
 
     private void ApplyOperationResultLocked(PHprHidWriteResult result, PHprHidOperationKind operationKind)

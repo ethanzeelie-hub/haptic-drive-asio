@@ -98,7 +98,8 @@ public sealed class WheelPaddleInputProcessor
                     eventDevice,
                     buttonId,
                     eventTimestamp,
-                    _paddlePressCount);
+                    _paddlePressCount,
+                    normalizedState);
                 _lastPaddleEvent = paddleEvent;
             }
         }

@@ -224,6 +224,10 @@ public partial class MainWindow : Window
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
     private string _lastPhprPedalsPulseMessage = "No normal P-HPR test pulse has been sent.";
+    private long _lastPaddleGearBenchPulseId;
+    private bool _lastPaddleGearBenchRoutedThroughDevicePulseService;
+    private DateTimeOffset? _lastPaddleGearBenchPulseStartUtc;
+    private DateTimeOffset? _lastPaddleGearBenchPulseScheduledStopUtc;
     private PHprDirectGearPulseRoutingResult? _lastRealPhprGearPulseRoutingResult;
     private PHprRoadVibrationRoutingResult? _lastRealRoadVibrationRoutingResult;
     private PHprSlipLockRoutingResult? _lastRealSlipLockRoutingResult;
@@ -318,6 +322,9 @@ public partial class MainWindow : Window
         _paddleInputSource.PaddleInputReceived += PaddleInputSource_PaddleInputReceived;
         _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick += TelemetryStatusTimer_Tick;
+        Dispatcher.UnhandledException += MainWindow_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
         Loaded += MainWindow_Loaded;
     }
 
@@ -348,6 +355,21 @@ public partial class MainWindow : Window
         UpdateDiagnosticsStatus();
         UpdateForwardingEditorStatus();
         await RefreshRecordingLibraryAsync();
+    }
+
+    private void MainWindow_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        WritePaddleGearBenchCrashLog("dispatcher-unhandled", e.Exception);
+    }
+
+    private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        WritePaddleGearBenchCrashLog("appdomain-unhandled", e.ExceptionObject as Exception);
+    }
+
+    private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        WritePaddleGearBenchCrashLog("task-unobserved", e.Exception);
     }
 
     private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1139,19 +1161,15 @@ public partial class MainWindow : Window
             return;
         }
 
-        _realPhprOutput.SetSafetyContext(BuildManualRealPhprSafetyContext());
-        var command = PHprCommand.Create(
+        var pulse = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            _realPhprOutput,
             moduleId,
-            settings.Strength01,
-            settings.FrequencyHz,
-            settings.DurationMs,
-            PHprCommandSource.TestBench,
-            priority: 100);
-        var result = await _realPhprOutput.SendAsync(command);
+            settings,
+            BuildManualRealPhprSafetyContext());
         UpdateRealPhprDirectControlStatus();
         UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
-        FooterStatusText.Text = result.Message;
+        FooterStatusText.Text = pulse.CommandResult.Message;
     }
 
     private void PaddleInputDeviceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1691,7 +1709,7 @@ public partial class MainWindow : Window
 
         var target = PaddleGearBenchTargetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
             ? selectedTarget
-            : PHprGearPulseTarget.Brake;
+            : PHprGearPulseTarget.Both;
         var sourceSettings = target == PHprGearPulseTarget.Throttle
             ? _realPhprOptions.ThrottleGearPulse
             : _realPhprOptions.BrakeGearPulse;
@@ -2911,18 +2929,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        _realPhprOutput.SetSafetyContext(BuildManualRealPhprSafetyContext());
-        var directCommand = PHprCommand.Create(
+        var directPulse = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            _realPhprOutput,
             moduleId,
-            settings.Strength01,
-            settings.FrequencyHz,
-            settings.DurationMs,
-            PHprCommandSource.TestBench,
-            priority: 100);
-        var directResult = await _realPhprOutput.SendAsync(directCommand);
-        _lastPhprPedalsPulseMessage = directResult.Status == PHprCommandStatus.Accepted
+            settings,
+            BuildManualRealPhprSafetyContext());
+        _lastPhprPedalsPulseMessage = directPulse.Succeeded
             ? $"Sent direct {moduleId.ToString().ToLowerInvariant()} pulse."
-            : $"Blocked: {directResult.Message}";
+            : $"Blocked: {directPulse.CommandResult.Message}";
         UpdateRealPhprDirectControlStatus();
         UpdatePhprPedalsStatus();
         UpdatePhprValidationStatus();
@@ -4167,7 +4181,7 @@ public partial class MainWindow : Window
             : $"{snapshot.LastAcceptedBenchEvent.Direction} {snapshot.LastAcceptedBenchEvent.PaddleSide} button {snapshot.LastAcceptedBenchEvent.SourceButtonId?.ToString() ?? "unknown"} at {snapshot.LastAcceptedBenchEvent.TimestampUtc.ToLocalTime():T}";
         var lastBenchSource = snapshot.LastPaddleEvent is null
             ? "none"
-            : $"listener device {snapshot.LastPaddleEvent.SourceDevice?.DeviceId ?? "unknown"}; mapped side {snapshot.LastPaddleEvent.PaddleSide}; mapped button {snapshot.LastPaddleEvent.ButtonId}; sequence {snapshot.LastPaddleEvent.SequenceNumber:N0}";
+            : $"listener device {snapshot.LastPaddleEvent.SourceDevice?.DeviceId ?? "unknown"}; event {snapshot.LastPaddleEvent.ButtonState}; mapped side {snapshot.LastPaddleEvent.PaddleSide}; mapped button {snapshot.LastPaddleEvent.ButtonId}; sequence {snapshot.LastPaddleEvent.SequenceNumber:N0}";
         var lastBenchDecision = snapshot.LastResult is null
             ? "none"
             : snapshot.LastResult.Accepted
@@ -4193,9 +4207,10 @@ public partial class MainWindow : Window
             $"Last accepted paddle: {lastAccepted}; left accepted {snapshot.LeftPaddleAcceptedCount:N0}; right accepted {snapshot.RightPaddleAcceptedCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}.",
             $"Bench event source: {lastBenchSource}.",
             $"Bench accepted/rejected reason: {lastBenchDecision}.",
-            $"Bench pulse source: target {options.TargetModule}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}.",
-            $"Direct pulse diagnostics: active pulse {realDiagnostics.ActivePulse}; pending stop count {realOutputSnapshot.PendingScheduledStopCount:N0}; scheduled duration {realDiagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms.",
+            $"Bench pulse source: target {options.TargetModule}; route service {(_lastPaddleGearBenchRoutedThroughDevicePulseService ? PhprDeviceCardPulseService.RouteName : "none")}; pulse id {_lastPaddleGearBenchPulseId:N0}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}.",
+            $"Direct pulse diagnostics: active pulse {realDiagnostics.ActivePulse}; pending stop count {realOutputSnapshot.PendingScheduledStopCount:N0}; scheduled duration {realDiagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms; pulse start {FormatTimestamp(_lastPaddleGearBenchPulseStartUtc)}; scheduled stop {FormatTimestamp(realDiagnostics.LastScheduledStopDueAtUtc ?? _lastPaddleGearBenchPulseScheduledStopUtc)}; actual stop {FormatTimestamp(realDiagnostics.LastStopSentAtUtc)}.",
             $"Last start sent: {FormatTimestamp(realDiagnostics.LastStartSentAtUtc)} target {realDiagnostics.LastStartReportTarget?.ToString() ?? "none"}; last stop sent: {FormatTimestamp(realDiagnostics.LastStopSentAtUtc)} target {realDiagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {realDiagnostics.LastStopResultStatus?.ToString() ?? "none"} {realDiagnostics.LastStopResultMessage ?? "none"}.",
+            $"Emergency stop: requested {FormatTimestamp(realDiagnostics.LastEmergencyStopRequestedAtUtc)}; result {realDiagnostics.LastEmergencyStopResultStatus?.ToString() ?? "none"} {realDiagnostics.LastEmergencyStopResultMessage ?? "none"}; watchdog stop-all {realDiagnostics.WatchdogStopAllCount:N0} last {FormatTimestamp(realDiagnostics.LastWatchdogStopAllAtUtc)} {realDiagnostics.LastWatchdogStopAllMessage ?? "none"}.",
             $"Last output target: {realDiagnostics.LastTarget?.ToString() ?? "none"}; last report state: {realDiagnostics.LastReportState?.ToString() ?? "none"}; pending stops {realOutputSnapshot.PendingScheduledStopCount:N0}.",
             $"Output mode/status: {options.OutputMode}; last output {snapshot.LastOutputStatus ?? "none"}.",
             $"Direct output readiness: {(directReady ? "ready" : $"blocked: {directMessage}")}. Direct bench output requires FeatureReport, report ID 0xF1, 64-byte shape, open-check, clear coexistence, clear emergency stop, and road/slip-lock disabled.",
@@ -4661,13 +4676,13 @@ public partial class MainWindow : Window
         var diagnostics = _realPhprOutput.GetDiagnostics();
         var lastSource = snapshot.LastPaddleEvent is null
             ? "none"
-            : $"device {snapshot.LastPaddleEvent.SourceDevice?.DeviceId ?? "unknown"} side {snapshot.LastPaddleEvent.PaddleSide} button {snapshot.LastPaddleEvent.ButtonId} seq {snapshot.LastPaddleEvent.SequenceNumber:N0}";
+            : $"device {snapshot.LastPaddleEvent.SourceDevice?.DeviceId ?? "unknown"} event {snapshot.LastPaddleEvent.ButtonState} side {snapshot.LastPaddleEvent.PaddleSide} button {snapshot.LastPaddleEvent.ButtonId} seq {snapshot.LastPaddleEvent.SequenceNumber:N0}";
         var lastDecision = snapshot.LastResult is null
             ? "none"
             : snapshot.LastResult.Accepted
                 ? $"accepted {snapshot.LastResult.Message}"
                 : $"rejected {snapshot.LastResult.SuppressionReason ?? snapshot.LastResult.Message}";
-        return $"{(snapshot.IsEnabled ? "enabled" : "disabled")}/{(snapshot.IsArmed ? "auto-armed" : "blocked")}; output {snapshot.OutputMode}; target {snapshot.Options.TargetModule}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}; left {snapshot.LeftPaddleAcceptedCount:N0}; right {snapshot.RightPaddleAcceptedCount:N0}; source {lastSource}; decision {lastDecision}; active pulse {diagnostics.ActivePulse}; pending stops {diagnostics.Output.PendingScheduledStopCount:N0}; last start {FormatTimestamp(diagnostics.LastStartSentAtUtc)} target {diagnostics.LastStartReportTarget?.ToString() ?? "none"}; last stop {FormatTimestamp(diagnostics.LastStopSentAtUtc)} target {diagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {diagnostics.LastStopResultStatus?.ToString() ?? "none"} {diagnostics.LastStopResultMessage ?? "none"}; scheduled duration {diagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms; last suppression {snapshot.LastSuppressionReason ?? "none"}; last output {snapshot.LastOutputStatus ?? "none"}; runtime-only enable.";
+        return $"{(snapshot.IsEnabled ? "enabled" : "disabled")}/{(snapshot.IsArmed ? "auto-armed" : "blocked")}; output {snapshot.OutputMode}; target {snapshot.Options.TargetModule}; route service {(_lastPaddleGearBenchRoutedThroughDevicePulseService ? PhprDeviceCardPulseService.RouteName : "none")}; pulse id {_lastPaddleGearBenchPulseId:N0}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}; left {snapshot.LeftPaddleAcceptedCount:N0}; right {snapshot.RightPaddleAcceptedCount:N0}; source {lastSource}; decision {lastDecision}; active pulse {diagnostics.ActivePulse}; pending stops {diagnostics.Output.PendingScheduledStopCount:N0}; last start {FormatTimestamp(diagnostics.LastStartSentAtUtc)} target {diagnostics.LastStartReportTarget?.ToString() ?? "none"}; scheduled stop {FormatTimestamp(diagnostics.LastScheduledStopDueAtUtc ?? _lastPaddleGearBenchPulseScheduledStopUtc)}; last stop {FormatTimestamp(diagnostics.LastStopSentAtUtc)} target {diagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {diagnostics.LastStopResultStatus?.ToString() ?? "none"} {diagnostics.LastStopResultMessage ?? "none"}; emergency stop {FormatTimestamp(diagnostics.LastEmergencyStopRequestedAtUtc)} {diagnostics.LastEmergencyStopResultStatus?.ToString() ?? "none"} {diagnostics.LastEmergencyStopResultMessage ?? "none"}; watchdog stop-all {diagnostics.WatchdogStopAllCount:N0} {FormatTimestamp(diagnostics.LastWatchdogStopAllAtUtc)} {diagnostics.LastWatchdogStopAllMessage ?? "none"}; scheduled duration {diagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms; last suppression {snapshot.LastSuppressionReason ?? "none"}; last output {snapshot.LastOutputStatus ?? "none"}; runtime-only enable.";
     }
 
     private string BuildManualAsioHardwareTestDiagnosticsText()
@@ -5171,9 +5186,15 @@ public partial class MainWindow : Window
         PaddleGearBenchTestResult benchResult,
         PaddleGearBenchTestOptions options)
     {
+        _lastPaddleGearBenchRoutedThroughDevicePulseService = false;
         if (benchResult.ShiftIntentEvent is null)
         {
             return "Bench Direct blocked: no accepted bench event was available.";
+        }
+
+        if (benchResult.PaddleEvent.ButtonState != InputButtonState.Pressed)
+        {
+            return $"Bench Direct blocked: {benchResult.PaddleEvent.ButtonState} events do not start pulses.";
         }
 
         var paddleSnapshot = _paddleInputSource.GetPaddleSnapshot();
@@ -5188,6 +5209,18 @@ public partial class MainWindow : Window
             return "Bench Direct blocked: mapped paddle event did not come from a usable button-capable listener device.";
         }
 
+        if (!await ApplyPhprPedalsNormalOptionsFromControlsAsync(
+                "P-HPR pedal settings applied for Paddle Gear Bench Test."))
+        {
+            return "Bench Direct blocked: Devices-tab pedal card settings are invalid.";
+        }
+
+        var beforeDiagnostics = _realPhprOutput.GetDiagnostics();
+        if (beforeDiagnostics.ActivePulse || beforeDiagnostics.Output.PendingScheduledStopCount > 0)
+        {
+            return $"Bench Direct ignored: a previous direct pulse is still active or waiting for its scheduled stop (active {beforeDiagnostics.ActivePulse}; pending stops {beforeDiagnostics.Output.PendingScheduledStopCount:N0}).";
+        }
+
         if (!PaddleGearBenchDirectGate.TryGetReady(
                 _realPhprOptions,
                 _phprSoftwareCoexistenceSnapshot.Status,
@@ -5199,29 +5232,55 @@ public partial class MainWindow : Window
             return $"Bench Direct blocked: {blockedReason}.";
         }
 
-        _realPhprOutput.SetSafetyContext(BuildPaddleGearBenchDirectSafetyContext());
-        var commands = PaddleGearBenchDirectPulsePlanner.BuildCommands(
-            benchResult.ShiftIntentEvent,
-            options.TargetModule,
-            _realPhprOptions.BrakeGearPulse,
-            _realPhprOptions.ThrottleGearPulse);
-        if (commands.Count == 0)
+        var modules = ExpandBenchTarget(options.TargetModule);
+        var enabledModules = modules
+            .Where(module => GetDeviceCardPulseSettings(module).IsEnabled)
+            .ToArray();
+        if (enabledModules.Length == 0)
         {
             return $"Bench Direct blocked: {options.TargetModule} P-HPR pulse is disabled.";
         }
 
-        var results = new List<PHprCommandResult>(commands.Count);
-        foreach (var command in commands)
+        _lastPaddleGearBenchPulseId++;
+        _lastPaddleGearBenchRoutedThroughDevicePulseService = true;
+        _lastPaddleGearBenchPulseStartUtc = DateTimeOffset.UtcNow;
+        _lastPaddleGearBenchPulseScheduledStopUtc = _lastPaddleGearBenchPulseStartUtc.Value.AddMilliseconds(
+            enabledModules.Max(module => GetDeviceCardPulseSettings(module).DurationMs));
+
+        var pulseResults = new List<PhprDeviceCardPulseResult>(enabledModules.Length);
+        foreach (var module in enabledModules)
         {
-            results.Add(await _realPhprOutput.SendAsync(command));
+            pulseResults.Add(await PhprDeviceCardPulseService.SendDirectPulseAsync(
+                _realPhprOutput,
+                module,
+                GetDeviceCardPulseSettings(module),
+                BuildPaddleGearBenchDirectSafetyContext(),
+                benchResult.ShiftIntentEvent.TimestampUtc));
         }
 
-        var accepted = results.Count(result => result.Succeeded);
+        var accepted = pulseResults.Count(result => result.Succeeded);
         UpdateRealPhprDirectControlStatus();
         UpdatePhprValidationStatus();
         return accepted > 0
-            ? $"Bench Direct: sent {accepted:N0}/{results.Count:N0} {options.TargetModule} pulse(s)."
-            : $"Bench Direct blocked: {string.Join(" ", results.Select(result => result.Message))}";
+            ? $"Bench Direct: sent {accepted:N0}/{pulseResults.Count:N0} {options.TargetModule} pulse(s) through {PhprDeviceCardPulseService.RouteName}; pulse id {_lastPaddleGearBenchPulseId:N0}."
+            : $"Bench Direct blocked: {string.Join(" ", pulseResults.Select(result => result.CommandResult.Message))}";
+    }
+
+    private Task<bool> ApplyPhprPedalsNormalOptionsFromControlsAsync(string footerMessage)
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            return Task.FromResult(ApplyPhprPedalsNormalOptionsFromControls(footerMessage));
+        }
+
+        return Dispatcher.InvokeAsync(() => ApplyPhprPedalsNormalOptionsFromControls(footerMessage)).Task;
+    }
+
+    private PHprRealGearPulseSettings GetDeviceCardPulseSettings(PHprModuleId moduleId)
+    {
+        return moduleId == PHprModuleId.Throttle
+            ? _realPhprOptions.ThrottleGearPulse
+            : _realPhprOptions.BrakeGearPulse;
     }
 
     private static string FormatBenchRoutingFooter(
@@ -5649,6 +5708,66 @@ public partial class MainWindow : Window
             : Path.Combine(repoRoot, "local-validation-results");
     }
 
+    private void WritePaddleGearBenchCrashLog(string reason, Exception? exception)
+    {
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HapticDrive.Asio",
+                "CrashLogs");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, $"paddle-gear-bench-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss-fff}.log");
+            var bench = _paddleGearBenchTestController.GetSnapshot();
+            var output = _realPhprOutput.GetDiagnostics();
+            var paddle = _paddleInputSource.GetPaddleSnapshot();
+            var lines = new[]
+            {
+                $"created_utc={DateTimeOffset.UtcNow:O}",
+                $"reason={reason}",
+                $"exception_type={exception?.GetType().FullName ?? "none"}",
+                $"exception_message={exception?.Message ?? "none"}",
+                $"bench_enabled={bench.IsEnabled}",
+                $"bench_armed={bench.IsArmed}",
+                $"bench_output={bench.OutputMode}",
+                $"bench_target={bench.Options.TargetModule}",
+                $"bench_route_service={(_lastPaddleGearBenchRoutedThroughDevicePulseService ? PhprDeviceCardPulseService.RouteName : "none")}",
+                $"bench_pulse_id={_lastPaddleGearBenchPulseId}",
+                $"bench_pulse_start_utc={_lastPaddleGearBenchPulseStartUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "none"}",
+                $"bench_pulse_scheduled_stop_utc={(output.LastScheduledStopDueAtUtc ?? _lastPaddleGearBenchPulseScheduledStopUtc)?.ToString("O", CultureInfo.InvariantCulture) ?? "none"}",
+                $"bench_last_event_state={bench.LastPaddleEvent?.ButtonState.ToString() ?? "none"}",
+                $"bench_last_event_side={bench.LastPaddleEvent?.PaddleSide.ToString() ?? "none"}",
+                $"bench_last_event_button={bench.LastPaddleEvent?.ButtonId.ToString(CultureInfo.InvariantCulture) ?? "none"}",
+                $"bench_last_event_sequence={bench.LastPaddleEvent?.SequenceNumber.ToString(CultureInfo.InvariantCulture) ?? "none"}",
+                $"bench_last_result={(bench.LastResult?.Accepted == true ? "accepted" : "not-accepted")}",
+                $"bench_last_suppression={bench.LastSuppressionReason ?? "none"}",
+                $"bench_last_output={bench.LastOutputStatus ?? "none"}",
+                $"paddle_listener={paddle.Status}",
+                $"paddle_selected_method={paddle.SelectedDevice?.Method.ToString() ?? "none"}",
+                $"paddle_selected_button_count={paddle.SelectedDevice?.ButtonCount?.ToString(CultureInfo.InvariantCulture) ?? "none"}",
+                $"direct_active_pulse={output.ActivePulse}",
+                $"direct_pending_stops={output.Output.PendingScheduledStopCount}",
+                $"direct_last_start_utc={output.LastStartSentAtUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "none"}",
+                $"direct_last_start_target={output.LastStartReportTarget?.ToString() ?? "none"}",
+                $"direct_last_stop_utc={output.LastStopSentAtUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "none"}",
+                $"direct_last_stop_target={output.LastStopReportTarget?.ToString() ?? "none"}",
+                $"direct_last_stop_status={output.LastStopResultStatus?.ToString() ?? "none"}",
+                $"direct_last_stop_message={output.LastStopResultMessage ?? "none"}",
+                $"direct_emergency_requested_utc={output.LastEmergencyStopRequestedAtUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "none"}",
+                $"direct_emergency_status={output.LastEmergencyStopResultStatus?.ToString() ?? "none"}",
+                $"direct_emergency_message={output.LastEmergencyStopResultMessage ?? "none"}",
+                $"direct_watchdog_count={output.WatchdogStopAllCount}",
+                $"direct_watchdog_utc={output.LastWatchdogStopAllAtUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "none"}",
+                $"direct_watchdog_message={output.LastWatchdogStopAllMessage ?? "none"}"
+            };
+            File.WriteAllLines(path, lines);
+        }
+        catch (Exception)
+        {
+            // Crash logging must never make shutdown or exception handling worse.
+        }
+    }
+
     private static string? TryReadGitHeadSummary()
     {
         var repoRoot = FindRepositoryRoot();
@@ -5707,6 +5826,9 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        Dispatcher.UnhandledException -= MainWindow_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException -= CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException -= TaskScheduler_UnobservedTaskException;
         _telemetryStatusTimer.Stop();
         _testBench.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _paddleInputSource.DisposeAsync().AsTask().GetAwaiter().GetResult();

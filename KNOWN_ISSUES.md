@@ -476,3 +476,11 @@
 - Direct bench routing is limited to mapped paddle events from the visible listener path and still requires direct readiness, FeatureReport `0xF1`, 64-byte report shape, successful open-check, clear coexistence, clear emergency stop, and disabled road/slip/lock routes.
 - Automated coverage uses fake HID writers, fake stop clocks, and read-only/fake input paths only. Physical GT Neo input behavior, real P-HPR stop behavior, emergency-stop physical behavior, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local validation.
 - The ASIO/BST-1 audio path is unchanged by Stage 18c.
+
+## Stage 18d
+
+- Direct Paddle Gear Bench now routes through the same Devices-tab direct pulse service used by the blue Test Brake/Throttle buttons and no longer uses a bench-only pulse planner. Physical stop behavior still must be revalidated locally after the runaway-output report.
+- Bench target defaults to Both; both mapped paddles intentionally trigger the selected output target. Release events and retriggers while a direct pulse is active or awaiting stop are blocked in software.
+- Direct timed pulses now have a `DurationMs + 100 ms` watchdog that forces stop-all if the target remains active, and emergency stop attempts brake and throttle stop reports independently with retries. These safeguards improve software safety but do not prove physical emergency-stop behavior until Ethan validates the actual hardware chain.
+- Sanitized local crash-state logs are written on unhandled app/task failures under local app data; they avoid private HID paths and are not intended for repository commits.
+- The ASIO/BST-1 audio path is unchanged by Stage 18d.
