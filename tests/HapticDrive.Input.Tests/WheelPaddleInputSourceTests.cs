@@ -25,6 +25,29 @@ public sealed class WheelPaddleInputSourceTests
     }
 
     [Fact]
+    public async Task WindowsGameControllerReader_BlocksZeroButtonSelectedDevice()
+    {
+        var reader = new WindowsGameControllerButtonStateReader();
+        var selection = CreateSelection(buttonCount: 0);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await reader.StartAsync(selection));
+
+        Assert.Contains("0 usable buttons", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task WindowsGameControllerReader_StartsOnThirtyTwoButtonSelectedDevice()
+    {
+        var reader = new WindowsGameControllerButtonStateReader();
+        var selection = CreateSelection(buttonCount: 32);
+
+        await reader.StartAsync(selection);
+
+        await reader.StopAsync();
+    }
+
+    [Fact]
     public void Processor_MapsLeftAndRightPaddlePresses()
     {
         var processor = CreateProcessor();
@@ -229,14 +252,14 @@ public sealed class WheelPaddleInputSourceTests
         return new WheelPaddleInputProcessor(clock);
     }
 
-    private static InputDeviceSelection CreateSelection()
+    private static InputDeviceSelection CreateSelection(int buttonCount = 12)
     {
         return new InputDeviceSelection(
             "windowsgamecontroller:test",
             "Synthetic GT Neo wheel input",
             InputDiscoveryMethod.WindowsGameController,
             NativeDeviceIndex: 0,
-            ButtonCount: 12);
+            ButtonCount: buttonCount);
     }
 
     private static WheelPaddleMapping CreateMapping()

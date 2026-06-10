@@ -9,10 +9,16 @@ public sealed class WheelInputCandidateProvider : IWheelInputCandidateProvider
         var haystack = BuildSearchText(device);
         var isHidOrGameController = device.Kind is InputDeviceKind.Hid or InputDeviceKind.GameController;
         var hasGameControllerUsage = device.HidUsagePage == 0x01 && device.HidUsage is 0x04 or 0x05 or 0x08;
-        var looksLikeSimagic = ContainsAny(haystack, "simagic", "alpha evo", "gt neo", "gtneo", "p700");
+        var isKnownSimagicGtNeoWindowsController = device.DiscoveryMethod == InputDiscoveryMethod.WindowsGameController
+            && device.Kind == InputDeviceKind.GameController
+            && device.VendorId == 0x3670
+            && device.ProductId == 0x0905;
+        var looksLikeSimagic = isKnownSimagicGtNeoWindowsController
+            || ContainsAny(haystack, "simagic", "alpha evo", "gt neo", "gtneo", "p700");
         var looksLikeP700 = ContainsAny(haystack, "p700", "p 700")
             || (looksLikeSimagic && ContainsAny(haystack, "pedal", "pedals", "brake", "throttle"));
-        var looksLikeGtNeo = ContainsAny(haystack, "gt neo", "gtneo")
+        var looksLikeGtNeo = isKnownSimagicGtNeoWindowsController
+            || ContainsAny(haystack, "gt neo", "gtneo")
             || (looksLikeSimagic && isHidOrGameController && !looksLikeP700);
         var looksLikeWheelBase = ContainsAny(haystack, "alpha evo", "alpha", "wheelbase", "wheel base", "steering wheel")
             || (looksLikeSimagic && ContainsAny(haystack, "base"));
@@ -24,6 +30,18 @@ public sealed class WheelInputCandidateProvider : IWheelInputCandidateProvider
         {
             score += 50;
             reasons.Add("Simagic-like name or metadata");
+        }
+
+        if (isKnownSimagicGtNeoWindowsController)
+        {
+            score += 70;
+            reasons.Add("VID_3670/PID_0905 Windows game-controller metadata");
+        }
+
+        if (isKnownSimagicGtNeoWindowsController && device.ButtonCount is >= 32)
+        {
+            score += 30;
+            reasons.Add("32-button wheel input capability");
         }
 
         if (looksLikeP700)

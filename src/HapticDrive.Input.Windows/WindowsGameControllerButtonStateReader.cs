@@ -28,6 +28,11 @@ public sealed class WindowsGameControllerButtonStateReader : IInputButtonStateRe
             throw new InvalidOperationException("Selected Windows game-controller device is missing its native joystick index. Refresh input devices before starting the listener.");
         }
 
+        if (selection.ButtonCount is <= 0)
+        {
+            throw new InvalidOperationException("Selected Windows game-controller device reports 0 usable buttons. Refresh input devices or select the 32-button VID_3670/PID_0905 wheel input device.");
+        }
+
         _joystickId = checked((uint)selection.NativeDeviceIndex.Value);
         _buttonCount = Math.Clamp(selection.ButtonCount ?? 32, 1, 32);
         return ValueTask.CompletedTask;

@@ -219,6 +219,7 @@ public sealed class PHprRealOutputTests
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 100));
         await WaitForScheduledDelayAsync(clock, 1);
+        Assert.True(device.GetDiagnostics().ActivePulse);
         await device.EmergencyStopAsync();
         clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
         await Task.Yield();
@@ -228,6 +229,7 @@ public sealed class PHprRealOutputTests
         Assert.Single(writer.Reports.Where(report => report.State == PHprHidReportState.Start));
         Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.EmergencyStop));
         Assert.Equal(0, device.GetSnapshot().PendingScheduledStopCount);
+        Assert.False(device.GetDiagnostics().ActivePulse);
     }
 
     [Fact]
@@ -240,12 +242,15 @@ public sealed class PHprRealOutputTests
         await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 20));
         await WaitForScheduledDelayAsync(clock, 1);
         Assert.Equal(1, device.GetSnapshot().PendingScheduledStopCount);
+        Assert.True(device.GetDiagnostics().ActivePulse);
 
         clock.AdvanceBy(TimeSpan.FromMilliseconds(20));
         await WaitForReportsAsync(writer, 2);
 
         Assert.Equal(0, device.GetSnapshot().PendingScheduledStopCount);
         Assert.Contains(writer.Reports, report => report.State == PHprHidReportState.Stop);
+        Assert.False(device.GetDiagnostics().ActivePulse);
+        Assert.Equal(PHprHidWriteStatus.Succeeded, device.GetDiagnostics().LastStopResultStatus);
     }
 
     [Fact]
@@ -420,6 +425,26 @@ public sealed class PHprRealOutputTests
         Assert.All(writer.Reports, report => Assert.Equal(PHprHidReportState.EmergencyStop, report.State));
         Assert.Equal(PHprHidConnectionState.Disposed, diagnostics.Connection.State);
         Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.Connection.LastStopStatus);
+    }
+
+    [Fact]
+    public async Task DisposeSendsStopsIfPulseActiveAndClearsActiveState()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 100));
+        await WaitForScheduledDelayAsync(clock, 1);
+        Assert.True(device.GetDiagnostics().ActivePulse);
+
+        await device.DisposeAsync();
+        var diagnostics = device.GetDiagnostics();
+
+        Assert.Contains(writer.Reports, report => report.State == PHprHidReportState.Start);
+        Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.EmergencyStop));
+        Assert.Equal(0, diagnostics.Output.PendingScheduledStopCount);
+        Assert.False(diagnostics.ActivePulse);
     }
 
     [Fact]

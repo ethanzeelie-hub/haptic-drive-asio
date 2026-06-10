@@ -529,6 +529,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!PaddleInputDeviceSelector.HasUsableButtons(deviceItem.Device))
+        {
+            var blocked = $"Selected Windows game-controller reports {PaddleInputDeviceSelector.GetUsableButtonCount(deviceItem.Device):N0} usable buttons. Select the 32-button VID_3670/PID_0905 wheel input device before starting the listener.";
+            PaddleInputStatusText.Text = blocked;
+            FooterStatusText.Text = $"Paddle input listener was not started; {blocked}";
+            return;
+        }
+
         _paddleMapping = mapping with
         {
             SelectedDeviceId = deviceItem.Selection.DeviceId,
@@ -1403,14 +1411,9 @@ public partial class MainWindow : Window
     private void UpdatePaddleDeviceSelectionItems()
     {
         var devices = _inputDiscoverySnapshot.HasRun
-            ? _inputDiscoverySnapshot.Devices
-                .Where(device => device.DiscoveryMethod == InputDiscoveryMethod.WindowsGameController
-                    && device.Kind == InputDeviceKind.GameController
-                    && device.NativeDeviceIndex is not null)
-                .OrderByDescending(device => device.LooksLikeGtNeoOrWheelInput)
-                .ThenByDescending(device => device.CandidateScore)
-                .ThenBy(device => device.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ToArray()
+            ? PaddleInputDeviceSelector.OrderForDisplay(
+                _inputDiscoverySnapshot.Devices,
+                _paddleMapping.SelectedDeviceId)
             : [];
 
         _paddleDeviceItems = devices
@@ -1449,23 +1452,16 @@ public partial class MainWindow : Window
 
     private PaddleDeviceListItem? SelectPreferredPaddleDeviceItem()
     {
-        var saved = _paddleDeviceItems.FirstOrDefault(item =>
-            string.Equals(item.Selection.DeviceId, _paddleMapping.SelectedDeviceId, StringComparison.OrdinalIgnoreCase));
-        if (saved is not null)
+        var selectedDevice = PaddleInputDeviceSelector.SelectPreferred(
+            _paddleDeviceItems.Select(item => item.Device),
+            _paddleMapping.SelectedDeviceId);
+        if (selectedDevice is null)
         {
-            return saved;
+            return null;
         }
 
-        return _paddleDeviceItems
-            .Where(item => item.Device.VendorId == 0x3670
-                && item.Device.ProductId == 0x0905
-                && item.Device.DiscoveryMethod == InputDiscoveryMethod.WindowsGameController
-                && item.Device.Kind == InputDeviceKind.GameController
-                && item.Device.NativeDeviceIndex is not null)
-            .OrderByDescending(item => item.Device.LooksLikeGtNeoOrWheelInput)
-            .ThenByDescending(item => item.Device.CandidateScore)
-            .ThenBy(item => item.Device.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        return _paddleDeviceItems.FirstOrDefault(item =>
+            string.Equals(item.Device.DeviceId, selectedDevice.DeviceId, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task RefreshRealPhprCandidateItemsAsync(bool autoSelectPreferred)
@@ -4054,8 +4050,11 @@ public partial class MainWindow : Window
     private void UpdatePaddleInputStatus()
     {
         var snapshot = _paddleInputSource.GetPaddleSnapshot();
+        var selectedComboItem = PaddleInputDeviceComboBox.SelectedItem as PaddleDeviceListItem;
         var selectedText = snapshot.SelectedDevice is null
-            ? _paddleMapping.SelectedDeviceId is null ? "none" : $"saved {_paddleMapping.SelectedDeviceId}"
+            ? selectedComboItem is not null
+                ? $"{selectedComboItem.DisplayText}"
+                : _paddleMapping.SelectedDeviceId is null ? "none" : $"saved {_paddleMapping.SelectedDeviceId}"
             : $"{snapshot.SelectedDevice.DisplayName} ({snapshot.SelectedDevice.Method})";
         var lastRaw = snapshot.LastChangedButtonId is null
             ? "none"
@@ -4064,9 +4063,17 @@ public partial class MainWindow : Window
             ? "none"
             : $"{snapshot.LastPaddleEvent.PaddleSide} paddle button {snapshot.LastPaddleEvent.ButtonId} at {snapshot.LastPaddleEvent.TimestampUtc.ToLocalTime():T}";
         var error = snapshot.LastErrorMessage ?? "none";
+        var selectionBlocker = BuildPaddleInputSelectionBlocker();
+        var selectedButtonCount = selectedComboItem is null
+            ? "none"
+            : $"{PaddleInputDeviceSelector.GetUsableButtonCount(selectedComboItem.Device):N0}";
 
         StartPaddleInputListenerButton.IsEnabled = snapshot.Status is not InputListenerStatus.Listening
-            and not InputListenerStatus.Starting;
+            and not InputListenerStatus.Starting
+            && selectionBlocker is null;
+        StartPaddleInputListenerButton.ToolTip = selectionBlocker is null
+            ? "Start the read-only Windows game-controller paddle listener."
+            : $"Blocked: {selectionBlocker}";
         StopPaddleInputListenerButton.IsEnabled = snapshot.Status is InputListenerStatus.Listening
             or InputListenerStatus.Starting
             or InputListenerStatus.Error
@@ -4075,10 +4082,11 @@ public partial class MainWindow : Window
             ? "Listening"
             : "Listener stopped";
         PaddleInputStatusText.Text =
-            $"Paddle listener: {snapshot.Status}; selected {selectedText}; mapped presses {snapshot.PaddlePressCount:N0}; last raw {lastRaw}; last mapped {lastMapped}; error {error}.";
+            $"Paddle listener: {snapshot.Status}; selected {selectedText}; selection {(selectionBlocker is null ? "ready" : $"blocked: {selectionBlocker}")}; mapped presses {snapshot.PaddlePressCount:N0}; last raw {lastRaw}; last mapped {lastMapped}; error {error}.";
         PaddleInputItemsControl.ItemsSource = new[]
         {
             "Safety: mapped paddle presses can feed DrivingArmed-gated shift intent and configured P-HPR routes. Direct hardware output still requires explicit direct-control gates.",
+            $"Selected device usable buttons: {selectedButtonCount}; auto-selection prefers a saved usable device, then VID_3670/PID_0905 with at least 32 buttons, then any usable button-capable controller.",
             $"Selected method: {(_paddleMapping.SelectedMethod == InputDiscoveryMethod.Unknown ? InputDiscoveryMethod.WindowsGameController : _paddleMapping.SelectedMethod)}",
             $"Left paddle mapping: {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}; current state {snapshot.LeftPaddleState}",
             $"Right paddle mapping: {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}; current state {snapshot.RightPaddleState}",
@@ -4088,6 +4096,36 @@ public partial class MainWindow : Window
             $"Debounce: {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms",
             $"Listener error: {error}"
         };
+    }
+
+    private string? BuildPaddleInputSelectionBlocker()
+    {
+        if (!_inputDiscoverySnapshot.HasRun)
+        {
+            return "input discovery has not completed";
+        }
+
+        if (PaddleInputDeviceComboBox.SelectedItem is not PaddleDeviceListItem selected)
+        {
+            if (_paddleDeviceItems.Count == 0)
+            {
+                return "no Windows game-controller input devices were discovered";
+            }
+
+            if (!_paddleDeviceItems.Any(item => PaddleInputDeviceSelector.HasUsableButtons(item.Device)))
+            {
+                return "only 0-button Windows game-controller candidates were discovered; the listener is blocked until a usable button-capable device appears";
+            }
+
+            return "no usable Windows game-controller input device is selected";
+        }
+
+        if (!PaddleInputDeviceSelector.HasUsableButtons(selected.Device))
+        {
+            return $"{selected.DisplayText} exposes 0 usable buttons; 0-button controllers are blocked";
+        }
+
+        return null;
     }
 
     private void UpdateShiftIntentStatus()
@@ -4127,6 +4165,14 @@ public partial class MainWindow : Window
         var lastAccepted = snapshot.LastAcceptedBenchEvent is null
             ? "none"
             : $"{snapshot.LastAcceptedBenchEvent.Direction} {snapshot.LastAcceptedBenchEvent.PaddleSide} button {snapshot.LastAcceptedBenchEvent.SourceButtonId?.ToString() ?? "unknown"} at {snapshot.LastAcceptedBenchEvent.TimestampUtc.ToLocalTime():T}";
+        var lastBenchSource = snapshot.LastPaddleEvent is null
+            ? "none"
+            : $"listener device {snapshot.LastPaddleEvent.SourceDevice?.DeviceId ?? "unknown"}; mapped side {snapshot.LastPaddleEvent.PaddleSide}; mapped button {snapshot.LastPaddleEvent.ButtonId}; sequence {snapshot.LastPaddleEvent.SequenceNumber:N0}";
+        var lastBenchDecision = snapshot.LastResult is null
+            ? "none"
+            : snapshot.LastResult.Accepted
+                ? $"accepted: {snapshot.LastResult.Message}"
+                : $"rejected: {snapshot.LastResult.SuppressionReason ?? snapshot.LastResult.Message}";
         var realOutputSnapshot = _realPhprOutput.GetSnapshot();
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var paddleSnapshot = _paddleInputSource.GetPaddleSnapshot();
@@ -4139,14 +4185,18 @@ public partial class MainWindow : Window
             out var directMessage);
 
         PaddleGearBenchStatusText.Text =
-            $"Paddle bench: {(options.IsEnabled ? "enabled" : "disabled")}; {(options.IsArmed ? "auto-armed" : "blocked")}; output {options.OutputMode}; target {options.TargetModule}; direct {(directReady ? "ready" : $"blocked: {directMessage}")}; active pulse {(realOutputSnapshot.PendingScheduledStopCount > 0 ? "yes" : "no")}.";
+            $"Paddle bench: {(options.IsEnabled ? "enabled" : "disabled")}; {(options.IsArmed ? "auto-armed" : "blocked")}; output {options.OutputMode}; target {options.TargetModule}; direct {(directReady ? "ready" : $"blocked: {directMessage}")}; active pulse {realDiagnostics.ActivePulse}; pending stops {realOutputSnapshot.PendingScheduledStopCount:N0}.";
         PaddleGearBenchItemsControl.ItemsSource = new[]
         {
             "Safety: local validation only. Normal live-driving shift intent still requires DrivingArmed and recent telemetry outside this bench mode.",
             $"Enabled: {options.IsEnabled}; direct ready: {directReady}; paddle listener: {paddleSnapshot.Status}; mapped left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}.",
             $"Last accepted paddle: {lastAccepted}; left accepted {snapshot.LeftPaddleAcceptedCount:N0}; right accepted {snapshot.RightPaddleAcceptedCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}.",
+            $"Bench event source: {lastBenchSource}.",
+            $"Bench accepted/rejected reason: {lastBenchDecision}.",
             $"Bench pulse source: target {options.TargetModule}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}.",
-            $"Last output target: {realDiagnostics.LastTarget?.ToString() ?? "none"}; last start/stop sent: {realDiagnostics.LastReportState?.ToString() ?? "none"}; pending stops {realOutputSnapshot.PendingScheduledStopCount:N0}.",
+            $"Direct pulse diagnostics: active pulse {realDiagnostics.ActivePulse}; pending stop count {realOutputSnapshot.PendingScheduledStopCount:N0}; scheduled duration {realDiagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms.",
+            $"Last start sent: {FormatTimestamp(realDiagnostics.LastStartSentAtUtc)} target {realDiagnostics.LastStartReportTarget?.ToString() ?? "none"}; last stop sent: {FormatTimestamp(realDiagnostics.LastStopSentAtUtc)} target {realDiagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {realDiagnostics.LastStopResultStatus?.ToString() ?? "none"} {realDiagnostics.LastStopResultMessage ?? "none"}.",
+            $"Last output target: {realDiagnostics.LastTarget?.ToString() ?? "none"}; last report state: {realDiagnostics.LastReportState?.ToString() ?? "none"}; pending stops {realOutputSnapshot.PendingScheduledStopCount:N0}.",
             $"Output mode/status: {options.OutputMode}; last output {snapshot.LastOutputStatus ?? "none"}.",
             $"Direct output readiness: {(directReady ? "ready" : $"blocked: {directMessage}")}. Direct bench output requires FeatureReport, report ID 0xF1, 64-byte shape, open-check, clear coexistence, clear emergency stop, and road/slip-lock disabled.",
             $"Last suppression reason: {snapshot.LastSuppressionReason ?? "none"}; last error {snapshot.LastError ?? "none"}."
@@ -4608,7 +4658,16 @@ public partial class MainWindow : Window
     private string BuildPaddleGearBenchDiagnosticsText()
     {
         var snapshot = _paddleGearBenchTestController.GetSnapshot();
-        return $"{(snapshot.IsEnabled ? "enabled" : "disabled")}/{(snapshot.IsArmed ? "auto-armed" : "blocked")}; output {snapshot.OutputMode}; target {snapshot.Options.TargetModule}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}; left {snapshot.LeftPaddleAcceptedCount:N0}; right {snapshot.RightPaddleAcceptedCount:N0}; last suppression {snapshot.LastSuppressionReason ?? "none"}; last output {snapshot.LastOutputStatus ?? "none"}; runtime-only enable.";
+        var diagnostics = _realPhprOutput.GetDiagnostics();
+        var lastSource = snapshot.LastPaddleEvent is null
+            ? "none"
+            : $"device {snapshot.LastPaddleEvent.SourceDevice?.DeviceId ?? "unknown"} side {snapshot.LastPaddleEvent.PaddleSide} button {snapshot.LastPaddleEvent.ButtonId} seq {snapshot.LastPaddleEvent.SequenceNumber:N0}";
+        var lastDecision = snapshot.LastResult is null
+            ? "none"
+            : snapshot.LastResult.Accepted
+                ? $"accepted {snapshot.LastResult.Message}"
+                : $"rejected {snapshot.LastResult.SuppressionReason ?? snapshot.LastResult.Message}";
+        return $"{(snapshot.IsEnabled ? "enabled" : "disabled")}/{(snapshot.IsArmed ? "auto-armed" : "blocked")}; output {snapshot.OutputMode}; target {snapshot.Options.TargetModule}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}; left {snapshot.LeftPaddleAcceptedCount:N0}; right {snapshot.RightPaddleAcceptedCount:N0}; source {lastSource}; decision {lastDecision}; active pulse {diagnostics.ActivePulse}; pending stops {diagnostics.Output.PendingScheduledStopCount:N0}; last start {FormatTimestamp(diagnostics.LastStartSentAtUtc)} target {diagnostics.LastStartReportTarget?.ToString() ?? "none"}; last stop {FormatTimestamp(diagnostics.LastStopSentAtUtc)} target {diagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {diagnostics.LastStopResultStatus?.ToString() ?? "none"} {diagnostics.LastStopResultMessage ?? "none"}; scheduled duration {diagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms; last suppression {snapshot.LastSuppressionReason ?? "none"}; last output {snapshot.LastOutputStatus ?? "none"}; runtime-only enable.";
     }
 
     private string BuildManualAsioHardwareTestDiagnosticsText()
@@ -5103,15 +5162,32 @@ public partial class MainWindow : Window
             return message;
         }
 
-        var directMessage = await RoutePaddleGearBenchDirectAsync(benchResult.ShiftIntentEvent, options);
+        var directMessage = await RoutePaddleGearBenchDirectAsync(benchResult, options);
         _paddleGearBenchTestController.RecordOutputStatus(directMessage);
         return directMessage;
     }
 
     private async Task<string> RoutePaddleGearBenchDirectAsync(
-        ShiftIntentEvent shiftIntentEvent,
+        PaddleGearBenchTestResult benchResult,
         PaddleGearBenchTestOptions options)
     {
+        if (benchResult.ShiftIntentEvent is null)
+        {
+            return "Bench Direct blocked: no accepted bench event was available.";
+        }
+
+        var paddleSnapshot = _paddleInputSource.GetPaddleSnapshot();
+        if (paddleSnapshot.Status != InputListenerStatus.Listening)
+        {
+            return $"Bench Direct blocked: paddle listener is {paddleSnapshot.Status}.";
+        }
+
+        if (benchResult.PaddleEvent.SourceDevice is null
+            || benchResult.PaddleEvent.SourceDevice.ButtonCount is <= 0)
+        {
+            return "Bench Direct blocked: mapped paddle event did not come from a usable button-capable listener device.";
+        }
+
         if (!PaddleGearBenchDirectGate.TryGetReady(
                 _realPhprOptions,
                 _phprSoftwareCoexistenceSnapshot.Status,
@@ -5125,7 +5201,7 @@ public partial class MainWindow : Window
 
         _realPhprOutput.SetSafetyContext(BuildPaddleGearBenchDirectSafetyContext());
         var commands = PaddleGearBenchDirectPulsePlanner.BuildCommands(
-            shiftIntentEvent,
+            benchResult.ShiftIntentEvent,
             options.TargetModule,
             _realPhprOptions.BrakeGearPulse,
             _realPhprOptions.ThrottleGearPulse);

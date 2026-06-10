@@ -2234,3 +2234,45 @@ Self-review:
 
 - The F1 25 parser, UDP forwarding, recording/replay raw-packet preservation, ASIO/BST-1 audio output path, and confirmed P-HPR protocol bytes were not changed.
 - Automated tests use fake writers, fake timing, fake ASIO backends, and Null output. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.
+
+## Stage 18c - Paddle Device Auto-selection and Direct Bench Stop Hardening
+
+Date: 2026-06-10
+
+Status: Complete.
+
+Goal: Fix the remaining Paddle Gear Bench follow-up blockers without adding ASIO or bass-shaker work: select the usable GT Neo / wheelbase input device automatically, block 0-button listener starts, and make Direct Paddle Gear Bench stop behavior and diagnostics reuse the shared direct P-HPR output path.
+
+Missing Items Addressed:
+
+- Added metadata-based paddle input selection that prefers a saved usable controller, then the 32-button `VID_3670/PID_0905` Windows game-controller, then other usable button-capable controllers, and never auto-selects a 0-button controller when a usable controller exists.
+- Treated generic Windows `Microsoft PC-joystick driver` entries with `VID_3670/PID_0905` as Simagic GT Neo / wheel input candidates even when the friendly name is generic.
+- Blocked Windows game-controller listener start when the selected device explicitly reports 0 usable buttons, and surfaced a clear Devices-page blocked state instead of silently polling the wrong controller.
+- Kept Paddle Gear Bench Direct routing tied to the same visible mapped paddle event path that updates listener diagnostics, including listener device ID, mapped side/button, event sequence number, and accepted/rejected reason.
+- Extended the shared `SimagicPhprOutputDevice` diagnostics with active-pulse state, pending stop count, last start/stop sent timestamps, last start/stop targets, stop success/failure status, stop message, and scheduled duration.
+- Hardened direct stop scheduling so emergency stop cancels pending stops without racing token-source disposal, app dispose clears active pulse state, and scheduled stop failures are visible diagnostics instead of silent background failures.
+- Added direct bench fake-writer/fake-clock tests for brake, throttle, both targets, Devices-card brake/throttle settings, no startup output, emergency stop, and dispose-stop behavior.
+
+Notes:
+
+- Direct Paddle Gear Bench still requires P-HPR direct ready, FeatureReport `0xF1`, 64-byte report shape, successful open-check, clear coexistence, clear emergency stop, disabled road/slip/lock routes, a running usable listener, and a mapped paddle event from the visible listener path.
+- Hardware still never vibrates on startup; startup work remains discovery, candidate selection, open-check, and dry-run readiness only.
+- No physical stop feel, sustained vibration safety, safe gain, physical latency, or road/slip/lock feel is claimed by this stage.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused tests passed: Input 29, Actuation 86, Simagic P-HPR 130, and App 45.
+- Full sequential `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal -m:1` passed with 553 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --no-restore` completed.
+- Rebuilt after formatting with `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore`; passed with 0 warnings and 0 errors.
+- Full sequential `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal -m:1` passed again with 553 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- The ASIO/BST-1 audio path, F1 25 parser, UDP forwarding, recording/replay raw-packet preservation, and confirmed P-HPR protocol bytes were not changed.
+- Direct P-HPR remains a separate HID FeatureReport actuator path and is not routed through `IAudioOutputDevice`.
+- Automated coverage uses fake HID writers, fake stop clocks, read-only/fake input paths, fake ASIO backends, and Null output. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.

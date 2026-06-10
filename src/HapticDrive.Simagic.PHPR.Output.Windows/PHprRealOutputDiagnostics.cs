@@ -14,4 +14,12 @@ public sealed record PHprRealOutputDiagnostics(
     PHprModuleId? LastTarget,
     PHprHidReportState? LastReportState,
     string? LastReportSummary,
-    string? LastError);
+    string? LastError,
+    bool ActivePulse,
+    DateTimeOffset? LastStartSentAtUtc,
+    DateTimeOffset? LastStopSentAtUtc,
+    PHprModuleId? LastStartReportTarget,
+    PHprModuleId? LastStopReportTarget,
+    PHprHidWriteStatus? LastStopResultStatus,
+    string? LastStopResultMessage,
+    int? LastScheduledPulseDurationMs);

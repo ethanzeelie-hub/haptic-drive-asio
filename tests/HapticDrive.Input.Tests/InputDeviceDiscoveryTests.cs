@@ -109,6 +109,26 @@ public sealed class InputDeviceDiscoveryTests
     }
 
     [Fact]
+    public void CandidateProvider_UsesKnownSimagicVidPidForGenericWindowsControllerName()
+    {
+        var provider = new WheelInputCandidateProvider();
+        var genericWindowsName = CreateDevice("Microsoft PC-joystick driver", InputDeviceKind.GameController) with
+        {
+            VendorId = 0x3670,
+            ProductId = 0x0905,
+            ButtonCount = 32
+        };
+
+        var scored = provider.ScoreDevice(genericWindowsName);
+
+        Assert.True(scored.LooksLikeSimagic);
+        Assert.True(scored.LooksLikeGtNeoOrWheelInput);
+        Assert.Equal(InputDeviceCandidateKind.LikelyGtNeoWheelInputPath, scored.CandidateKind);
+        Assert.Contains("VID_3670/PID_0905", scored.CandidateReason, StringComparison.Ordinal);
+        Assert.Contains("32-button", scored.CandidateReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CandidateProvider_ConsumesEmptySnapshotSafely()
     {
         var provider = new WheelInputCandidateProvider();

@@ -72,6 +72,68 @@ public sealed class PaddleGearBenchTestControllerTests
         Assert.True(controller.GetSnapshot().IsArmed);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BenchMode_ConsumesSameMappedEventWithoutHidingListenerDiagnostics(bool benchEnabled)
+    {
+        var processor = new WheelPaddleInputProcessor();
+        var mapping = Mapping();
+        var selection = CreateSelection(buttonCount: 32);
+        processor.RefreshSelection(selection, InputListenerStatus.Listening);
+        processor.RefreshMapping(mapping);
+        var controller = new PaddleGearBenchTestController(EnabledArmedOptions() with
+        {
+            IsEnabled = benchEnabled,
+            OutputMode = PaddleGearBenchTestOutputMode.Direct
+        });
+
+        var paddleEvent = processor.ProcessButtonState(13, InputButtonState.Pressed, selection);
+
+        Assert.NotNull(paddleEvent);
+        var bench = controller.HandlePaddleInput(paddleEvent, mapping);
+        var listener = processor.GetSnapshot();
+        var benchSnapshot = controller.GetSnapshot();
+
+        Assert.Equal(1, listener.PaddlePressCount);
+        Assert.Equal(13, listener.LastChangedButtonId);
+        Assert.Equal(InputButtonState.Pressed, listener.LastChangedButtonState);
+        Assert.NotNull(listener.LastPaddleEvent);
+        Assert.Equal(PaddleSide.Right, listener.LastPaddleEvent.PaddleSide);
+        Assert.Equal(13, listener.LastPaddleEvent.ButtonId);
+        Assert.Equal(selection.DeviceId, listener.LastPaddleEvent.SourceDevice?.DeviceId);
+        Assert.Equal(listener.LastPaddleEvent.SequenceNumber, benchSnapshot.LastPaddleEvent?.SequenceNumber);
+        Assert.Equal(benchEnabled, bench.Accepted);
+        if (benchEnabled)
+        {
+            Assert.Equal(1, benchSnapshot.AcceptedBenchGearEventCount);
+            Assert.Equal(selection.DeviceId, benchSnapshot.LastAcceptedBenchEvent?.SourceDeviceId);
+        }
+        else
+        {
+            Assert.Equal(1, benchSnapshot.SuppressedBenchGearEventCount);
+            Assert.Contains("disabled", bench.SuppressionReason, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void LastChangedRawButtonCanBeMappedAsLeftAndRightPaddle()
+    {
+        var processor = new WheelPaddleInputProcessor();
+        var selection = CreateSelection(buttonCount: 32);
+        processor.RefreshSelection(selection, InputListenerStatus.Listening);
+        processor.RefreshMapping(new WheelPaddleMapping());
+
+        processor.ProcessButtonState(21, InputButtonState.Pressed, selection);
+        var lastRawButton = processor.GetSnapshot().LastChangedButtonId;
+
+        var leftMapping = new WheelPaddleMapping { LeftPaddleButtonId = lastRawButton };
+        var rightMapping = new WheelPaddleMapping { RightPaddleButtonId = lastRawButton };
+
+        Assert.Equal(PaddleSide.Left, leftMapping.ResolvePaddleSide(21));
+        Assert.Equal(PaddleSide.Right, rightMapping.ResolvePaddleSide(21));
+    }
+
     [Fact]
     public void UnmappedPaddleEvent_IsSuppressed()
     {
@@ -174,17 +236,22 @@ public sealed class PaddleGearBenchTestControllerTests
     {
         return new WheelPaddleInputEvent(
             side,
-            new InputDeviceSelection(
-                "windowsgamecontroller:gt-neo",
-                "Synthetic GT Neo wheel input",
-                InputDiscoveryMethod.WindowsGameController,
-                NativeDeviceIndex: 0,
-                ButtonCount: 16),
+            CreateSelection(buttonCount: 16),
             buttonId,
             new InputEventTimestamp(
                 new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero).AddMilliseconds(buttonId),
                 10_000 + buttonId),
             buttonId);
+    }
+
+    private static InputDeviceSelection CreateSelection(int buttonCount)
+    {
+        return new InputDeviceSelection(
+            "windowsgamecontroller:gt-neo",
+            "Synthetic GT Neo wheel input",
+            InputDiscoveryMethod.WindowsGameController,
+            NativeDeviceIndex: 0,
+            ButtonCount: buttonCount);
     }
 
     private sealed class FakeDrivingArmedProvider : IDrivingArmedStateProvider
@@ -194,7 +261,11 @@ public sealed class PaddleGearBenchTestControllerTests
             Current = state;
         }
 
-        public event EventHandler<DrivingArmedState>? DrivingArmedChanged;
+        public event EventHandler<DrivingArmedState>? DrivingArmedChanged
+        {
+            add { }
+            remove { }
+        }
 
         public DrivingArmedState Current { get; }
     }

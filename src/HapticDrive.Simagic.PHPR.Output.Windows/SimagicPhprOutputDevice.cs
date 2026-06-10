@@ -17,6 +17,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
     private readonly SimHubF1EcRealReportEncoder _encoder = new();
     private readonly IPHprSafetyLimiter _limiter;
     private readonly List<CancellationTokenSource> _pendingStops = [];
+    private readonly HashSet<PHprModuleId> _activePulseModules = [];
     private PHprRealOutputOptions _options;
     private PHprSafetyContext _baseContext;
     private PHprHidConnectionState _connectionState = PHprHidConnectionState.Closed;
@@ -51,6 +52,13 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
     private DateTimeOffset? _lastWriteAtUtc;
     private DateTimeOffset? _lastStopAtUtc;
     private DateTimeOffset? _lastCloseAtUtc;
+    private DateTimeOffset? _lastStartSentAtUtc;
+    private DateTimeOffset? _lastStopSentAtUtc;
+    private PHprModuleId? _lastStartReportTarget;
+    private PHprModuleId? _lastStopReportTarget;
+    private PHprHidWriteStatus? _lastStopResultStatus;
+    private string? _lastStopResultMessage;
+    private int? _lastScheduledPulseDurationMs;
     private bool _disposed;
 
     public SimagicPhprOutputDevice(
@@ -128,7 +136,15 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
                 _lastTarget,
                 _lastReportState,
                 _lastReportSummary,
-                _lastError);
+                _lastError,
+                _activePulseModules.Count > 0,
+                _lastStartSentAtUtc,
+                _lastStopSentAtUtc,
+                _lastStartReportTarget,
+                _lastStopReportTarget,
+                _lastStopResultStatus,
+                _lastStopResultMessage,
+                _lastScheduledPulseDurationMs);
         }
     }
 
@@ -292,7 +308,6 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         foreach (var pendingStop in pendingStops)
         {
             pendingStop.Cancel();
-            pendingStop.Dispose();
         }
 
         PHprHidWriteResult? writeResult = null;
@@ -304,6 +319,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
         lock (_gate)
         {
+            _activePulseModules.Clear();
             _lastStatus = writeResult is null || writeResult.Succeeded
                 ? PHprCommandStatus.Accepted
                 : PHprCommandStatus.RejectedInvalidCommand;
@@ -354,10 +370,10 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
                 foreach (var pendingStop in _pendingStops)
                 {
                     pendingStop.Cancel();
-                    pendingStop.Dispose();
                 }
 
                 _pendingStops.Clear();
+                _activePulseModules.Clear();
             }
         }
     }
@@ -569,6 +585,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
                 {
                     RecordLastReportLocked(report);
                     ApplyOperationResultLocked(reportValidation, operationKind);
+                    RecordPulseReportResultLocked(report, operationKind, reportValidation);
                 }
 
                 return reportValidation;
@@ -583,6 +600,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             {
                 RecordLastReportLocked(report);
                 ApplyOperationResultLocked(result, operationKind);
+                RecordPulseReportResultLocked(report, operationKind, result);
                 if (result.Succeeded)
                 {
                     _reportWriteCount++;
@@ -613,6 +631,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         lock (_gate)
         {
             _pendingStops.Add(cts);
+            _lastScheduledPulseDurationMs = durationMs;
         }
 
         _ = Task.Run(async () =>
@@ -621,10 +640,30 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             {
                 await _stopClock.DelayAsync(TimeSpan.FromMilliseconds(durationMs), cts.Token);
                 var reports = _encoder.EncodeStop(targetModule, options.Selector.ReportId);
-                await WriteReportsAsync(reports, options, PHprHidOperationKind.Stop, cts.Token);
+                var result = await WriteReportsAsync(reports, options, PHprHidOperationKind.Stop, cts.Token);
+                lock (_gate)
+                {
+                    _lastStopSentAtUtc = result.CompletedAtUtc;
+                    _lastStopReportTarget = targetModule;
+                    _lastStopResultStatus = result.Status;
+                    _lastStopResultMessage = result.Message;
+                }
             }
             catch (OperationCanceledException)
             {
+            }
+            catch (Exception ex)
+            {
+                lock (_gate)
+                {
+                    _lastStopSentAtUtc = DateTimeOffset.UtcNow;
+                    _lastStopReportTarget = targetModule;
+                    _lastStopResultStatus = PHprHidWriteStatus.Failed;
+                    _lastStopResultMessage = $"Scheduled P-HPR stop failed: {ex.Message}";
+                    _lastError = ex.Message;
+                    _failedReportWriteCount++;
+                    _connectionState = PHprHidConnectionState.Faulted;
+                }
             }
             finally
             {
@@ -704,6 +743,63 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         _lastTarget = report.TargetModule;
         _lastReportState = report.State;
         _lastReportSummary = $"{report.State} {report.TargetModule} {report.Length:N0} bytes";
+    }
+
+    private void RecordPulseReportResultLocked(
+        PHprHidReport report,
+        PHprHidOperationKind operationKind,
+        PHprHidWriteResult result)
+    {
+        if (operationKind == PHprHidOperationKind.Write && report.State == PHprHidReportState.Start)
+        {
+            if (result.Succeeded)
+            {
+                MarkPulseActiveLocked(report.TargetModule);
+                _lastStartSentAtUtc = result.CompletedAtUtc;
+                _lastStartReportTarget = report.TargetModule;
+            }
+
+            return;
+        }
+
+        if (operationKind is PHprHidOperationKind.Stop or PHprHidOperationKind.EmergencyStop
+            || report.State is PHprHidReportState.Stop or PHprHidReportState.EmergencyStop)
+        {
+            _lastStopSentAtUtc = result.CompletedAtUtc;
+            _lastStopReportTarget = report.TargetModule;
+            _lastStopResultStatus = result.Status;
+            _lastStopResultMessage = result.Message;
+            if (result.Succeeded)
+            {
+                MarkPulseStoppedLocked(report.TargetModule);
+            }
+        }
+    }
+
+    private void MarkPulseActiveLocked(PHprModuleId targetModule)
+    {
+        if (targetModule is PHprModuleId.Brake or PHprModuleId.Both)
+        {
+            _activePulseModules.Add(PHprModuleId.Brake);
+        }
+
+        if (targetModule is PHprModuleId.Throttle or PHprModuleId.Both)
+        {
+            _activePulseModules.Add(PHprModuleId.Throttle);
+        }
+    }
+
+    private void MarkPulseStoppedLocked(PHprModuleId targetModule)
+    {
+        if (targetModule is PHprModuleId.Brake or PHprModuleId.Both)
+        {
+            _activePulseModules.Remove(PHprModuleId.Brake);
+        }
+
+        if (targetModule is PHprModuleId.Throttle or PHprModuleId.Both)
+        {
+            _activePulseModules.Remove(PHprModuleId.Throttle);
+        }
     }
 
     private void ApplyOperationResultLocked(PHprHidWriteResult result, PHprHidOperationKind operationKind)

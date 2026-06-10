@@ -468,3 +468,11 @@
 - The full automated suite now reports zero skipped tests, but zero skipped tests are readiness coverage, not physical validation.
 - User-run local validation has confirmed brake and throttle direct pulses plus parameter response. Emergency-stop physical behavior, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.
 - The ASIO/BST-1 audio path is unchanged by Phase 3J.
+
+## Stage 18c
+
+- Paddle input auto-selection now prefers a saved usable controller, then the 32-button `VID_3670/PID_0905` Windows game-controller, and blocks automatic selection/listener start for 0-button-only devices. If Windows exposes only 0-button candidates, the listener remains blocked until a usable button-capable device appears.
+- Direct Paddle Gear Bench pulses now use the shared direct P-HPR output path and expose active-pulse, pending-stop, last-start, last-stop, stop-result, stop-target, and scheduled-duration diagnostics. These software diagnostics do not prove physical stop feel or sustained-vibration safety.
+- Direct bench routing is limited to mapped paddle events from the visible listener path and still requires direct readiness, FeatureReport `0xF1`, 64-byte report shape, successful open-check, clear coexistence, clear emergency stop, and disabled road/slip/lock routes.
+- Automated coverage uses fake HID writers, fake stop clocks, and read-only/fake input paths only. Physical GT Neo input behavior, real P-HPR stop behavior, emergency-stop physical behavior, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local validation.
+- The ASIO/BST-1 audio path is unchanged by Stage 18c.
