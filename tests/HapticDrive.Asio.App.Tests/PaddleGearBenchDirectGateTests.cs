@@ -1,5 +1,9 @@
 using System.IO;
 using HapticDrive.Asio.App;
+using HapticDrive.Actuation.PHpr;
+using HapticDrive.Input.Abstractions.Driving;
+using HapticDrive.Input.Abstractions.Shift;
+using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 using HapticDrive.Simagic.PHPR.Output.Windows;
@@ -64,6 +68,25 @@ public sealed class PaddleGearBenchDirectGateTests
     }
 
     [Fact]
+    public void DirectGate_DoesNotRequireArmOrApprovalPhrase()
+    {
+        var ready = PaddleGearBenchDirectGate.TryGetReady(
+            ReadyOptions() with
+            {
+                DirectControlArmed = false,
+                DirectControlApprovalConfirmed = false
+            },
+            PHprSoftwareConflictStatus.Clear,
+            OutputSnapshot(emergencyStop: false),
+            roadVibrationEnabled: false,
+            slipLockEnabled: false,
+            out var message);
+
+        Assert.True(ready, message);
+        Assert.Equal("direct bench gear pulse ready", message);
+    }
+
+    [Fact]
     public void DirectGate_BlocksEmergencyStopRoadAndSlipLock()
     {
         Assert.False(PaddleGearBenchDirectGate.TryGetReady(
@@ -109,6 +132,89 @@ public sealed class PaddleGearBenchDirectGateTests
         Assert.DoesNotContain("ManualAsioHardwareTest", json, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AutoReadySelector_SelectsPreferredFeatureReportCandidateWithoutHardcodedIndex()
+    {
+        var selected = PhprDirectAutoReadySelector.Select(
+            [
+                Candidate("generic-output-first", vendorId: 0x1234, productId: 0x5678, outputLength: 64, featureLength: null, featureIds: []),
+                Candidate("preferred-second", vendorId: 0x3670, productId: 0x0905, outputLength: null, featureLength: 64, featureIds: [PHprDirectOutputCandidate.F1EcFeatureReportId])
+            ],
+            PHprRealOutputOptions.Disabled,
+            enableWhenPreferredPresent: true);
+
+        Assert.True(selected.HasPreferredCandidate);
+        Assert.Equal("preferred-second", selected.Candidate?.CandidateId);
+        Assert.Equal(PHprHidReportTransport.FeatureReport, selected.Selector.Transport);
+        Assert.Equal(PHprDirectOutputCandidate.F1EcFeatureReportId, selected.Selector.ReportId);
+        Assert.Equal(SimHubF1EcRealReportEncoder.PayloadLengthBytes, selected.Selector.ReportLength);
+        Assert.True(selected.Options.DirectControlEnabled);
+        Assert.True(selected.Options.DirectControlArmed);
+        Assert.True(selected.Options.DirectControlApprovalConfirmed);
+        Assert.True(selected.Options.ReportShapeValidationSucceeded);
+    }
+
+    [Fact]
+    public void AutoReadyDryRunCanPassAfterFakeOpenCheckWithoutApprovalPhrase()
+    {
+        var selected = PhprDirectAutoReadySelector.Select(
+            [Candidate("preferred", vendorId: 0x3670, productId: 0x0905, outputLength: null, featureLength: 64, featureIds: [PHprDirectOutputCandidate.F1EcFeatureReportId])],
+            PHprRealOutputOptions.Disabled,
+            enableWhenPreferredPresent: true);
+        var options = selected.Options with
+        {
+            DirectControlArmed = false,
+            DirectControlApprovalConfirmed = false,
+            OpenCheckAttempted = true,
+            OpenCheckSucceeded = true,
+            OpenCheckFailed = false
+        };
+
+        var dryRun = PHprDirectOutputDryRunValidator.Validate(
+            options,
+            PHprSoftwareConflictStatus.Clear,
+            emergencyStopActive: false);
+
+        Assert.True(dryRun.CanPulse, string.Join("; ", dryRun.Issues));
+        Assert.Empty(dryRun.Issues);
+    }
+
+    [Fact]
+    public void PaddleBenchDirectPlannerUsesDevicePedalCardValues()
+    {
+        var shift = ShiftIntentEvent.CreatePaddlePress(
+            PaddleSide.Right,
+            DrivingArmedState.Armed("bench test"),
+            timestampUtc: new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero));
+        var brake = PHprRealGearPulseSettings.Default with
+        {
+            Strength01 = 0.11d,
+            FrequencyHz = 41d,
+            DurationMs = 64
+        };
+        var throttle = PHprRealGearPulseSettings.Default with
+        {
+            Strength01 = 0.22d,
+            FrequencyHz = 49d,
+            DurationMs = 88
+        };
+
+        var commands = PaddleGearBenchDirectPulsePlanner.BuildCommands(
+            shift,
+            PHprGearPulseTarget.Both,
+            brake,
+            throttle);
+
+        var brakeCommand = Assert.Single(commands, command => command.TargetModule == PHprModuleId.Brake);
+        var throttleCommand = Assert.Single(commands, command => command.TargetModule == PHprModuleId.Throttle);
+        Assert.Equal(0.11d, brakeCommand.Strength01, precision: 6);
+        Assert.Equal(41d, brakeCommand.FrequencyHz, precision: 6);
+        Assert.Equal(64, brakeCommand.DurationMs);
+        Assert.Equal(0.22d, throttleCommand.Strength01, precision: 6);
+        Assert.Equal(49d, throttleCommand.FrequencyHz, precision: 6);
+        Assert.Equal(88, throttleCommand.DurationMs);
+    }
+
     private static PHprRealOutputOptions ReadyOptions()
     {
         return PHprRealOutputOptions.Disabled with
@@ -137,6 +243,28 @@ public sealed class PaddleGearBenchDirectGateTests
             PaddleGearBenchDirectGate.RequiredReportId,
             SimHubF1EcRealReportEncoder.PayloadLengthBytes,
             PHprHidReportTransport.FeatureReport);
+    }
+
+    private static PHprDirectOutputCandidate Candidate(
+        string id,
+        ushort vendorId,
+        ushort productId,
+        int? outputLength,
+        int? featureLength,
+        IReadOnlyList<byte> featureIds)
+    {
+        return new PHprDirectOutputCandidate
+        {
+            CandidateId = id,
+            DevicePath = $@"\\?\hid#vid_{vendorId:X4}&pid_{productId:X4}#{id}",
+            DisplayName = id,
+            SourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
+            VendorId = vendorId,
+            ProductId = productId,
+            OutputReportByteLength = outputLength,
+            FeatureReportByteLength = featureLength,
+            FeatureReportIds = featureIds
+        }.Score();
     }
 
     private static PHprOutputSnapshot OutputSnapshot(bool emergencyStop)

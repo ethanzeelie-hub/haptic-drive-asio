@@ -60,7 +60,7 @@ public sealed class PaddleGearBenchTestControllerTests
     }
 
     [Fact]
-    public void BenchModeUnarmed_SuppressesBenchEvents()
+    public void BenchModeEnabled_AutoArmsBenchEvents()
     {
         var controller = new PaddleGearBenchTestController(EnabledArmedOptions() with { IsArmed = false });
 
@@ -68,8 +68,8 @@ public sealed class PaddleGearBenchTestControllerTests
             CreatePaddleEvent(PaddleSide.Right, buttonId: 13),
             Mapping());
 
-        Assert.False(result.Accepted);
-        Assert.Contains("not armed", result.SuppressionReason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Accepted, result.Message);
+        Assert.True(controller.GetSnapshot().IsArmed);
     }
 
     [Fact]

@@ -7,5 +7,5 @@ public sealed record PHprDirectControlArmingState(
 {
     public static PHprDirectControlArmingState Disabled { get; } = new(false, false);
 
-    public bool CanSend => DirectControlEnabled && DirectControlArmed;
+    public bool CanSend => DirectControlEnabled;
 }

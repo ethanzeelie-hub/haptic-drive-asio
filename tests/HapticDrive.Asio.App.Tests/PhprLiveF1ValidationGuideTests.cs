@@ -14,7 +14,7 @@ public sealed class PhprLiveF1ValidationGuideTests
         Assert.Contains(status.Checklist, item => item.Contains("F1 25 telemetry active", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("Paddle press accepted", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("Mock mode gear pulse diagnostics", StringComparison.Ordinal));
-        Assert.Contains(status.Checklist, item => item.Contains("Real mode armed manually", StringComparison.Ordinal));
+        Assert.Contains(status.Checklist, item => item.Contains("Real mode direct ready", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("Brake/throttle gear pulse test", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("Road vibration test", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("Slip/lock test if safe", StringComparison.Ordinal));
@@ -65,7 +65,7 @@ public sealed class PhprLiveF1ValidationGuideTests
             RealSlipLockEnabled = true
         });
 
-        Assert.Contains(status.Checklist, item => item.Contains("direct control enabled/armed", StringComparison.Ordinal));
+        Assert.Contains(status.Checklist, item => item.Contains("direct control enabled", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("selected output selected for this session", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("local supervision", StringComparison.Ordinal));
         Assert.Contains(status.Checklist, item => item.Contains("real road vibration enabled", StringComparison.Ordinal));

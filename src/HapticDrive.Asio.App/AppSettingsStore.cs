@@ -379,9 +379,9 @@ internal sealed record PaddleInputMappingSetting
 
     public InputDiscoveryMethod SelectedMethod { get; init; } = InputDiscoveryMethod.WindowsGameController;
 
-    public int? LeftPaddleButtonId { get; init; }
+    public int? LeftPaddleButtonId { get; init; } = 14;
 
-    public int? RightPaddleButtonId { get; init; }
+    public int? RightPaddleButtonId { get; init; } = 13;
 
     public int DebounceMilliseconds { get; init; } = (int)WheelPaddleMapping.DefaultDebounceDuration.TotalMilliseconds;
 }

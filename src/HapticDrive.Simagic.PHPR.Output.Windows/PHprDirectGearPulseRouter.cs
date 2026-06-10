@@ -62,14 +62,9 @@ public sealed class PHprDirectGearPulseRouter
             return Ignored("ShiftIntentEvent direction is unknown.", shiftIntentEvent);
         }
 
-        if (!_options.DirectControlEnabled || !_options.DirectControlArmed)
+        if (!_options.DirectControlEnabled)
         {
-            return Ignored("Real direct gear pulse routing is disabled or unarmed.", shiftIntentEvent);
-        }
-
-        if (!_options.DirectControlApprovalConfirmed)
-        {
-            return Ignored("Real direct gear pulse routing is missing the exact controlled-write approval phrase.", shiftIntentEvent);
+            return Ignored("Real direct gear pulse routing is disabled.", shiftIntentEvent);
         }
 
         if (_options.CandidateIsRawInputOnly || !_options.CandidateHasOpenableHidPath)

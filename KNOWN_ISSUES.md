@@ -175,6 +175,15 @@
 - Advanced routing matrices, live graphing, real WASAPI output, Simagic P-HPR output, and physical calibration UI remain outside the pre-BT-1 scope.
 - The M-Audio -> Fosi -> Dayton BST-1 chain has been locally proven through SimHub, but Haptic Drive ASIO app-driven BST-1 output, safe physical gain, shaker feel, physical latency, and final frequency tuning remain pending deliberate local validation with the manual ASIO hardware test and later effect checks.
 
+## Stage 18b
+
+- Paddle Gear Bench Direct mode now schedules matching SimHub/F1 EC stop reports after `DurationMs`; fake-writer tests cover brake stop, throttle stop, both-target starts/stops, emergency-stop cancellation, and active-pulse cleanup.
+- Startup may auto-refresh P-HPR candidates, auto-select the known `VID_3670/PID_0905` HID device-interface candidate by FeatureReport `0xF1` / 64-byte capability, and run no-output open-check/dry-run readiness work in the background. Startup still sends no P-HPR vibration command.
+- The bench is enabled, auto-armed, and Direct-mode by default for local validation. It uses the normal Devices brake/throttle P-HPR gear-pulse strength/frequency/duration values; duplicate bench strength/frequency/duration controls are no longer part of the normal workflow.
+- Direct bench output remains blocked unless the selected candidate is openable, uses FeatureReport transport with report ID `0xF1` and 64-byte shape, passes open-check/report-shape readiness, has clear coexistence, has clear emergency stop, and road/slip/lock direct routes are disabled.
+- Defaults now prefer GT Neo paddle buttons left `14` and right `13`, but physical paddle mapping, safe gain, sustained behavior, emergency-stop physical behavior, road/slip/lock feel, and physical latency still require Ethan's supervised local validation.
+- The ASIO/BST-1 audio path is unchanged by Stage 18b.
+
 ## Stage 2A
 
 - Stage 2A is documentation and readiness only; no P-HPR abstractions, input listener, mock output, protocol code, or real P-HPR output exists yet.
@@ -453,8 +462,8 @@
 - Controlled P-HPR write testing is approved and the `controlled-write-test` CLI exists, but this commit did not execute a real hardware pulse.
 - The direct-output picker now treats `VID_3670` HID entries as Simagic-family candidates and can apply an openable HID device-interface private path internally, but physical validation still requires Ethan's local supervised run.
 - Raw Input metadata-only candidates can help identify Simagic-family hardware, but they are not openable HID output targets and cannot pass real direct-output gates.
-- The CLI/app write paths require selected output, an openable HID device-interface candidate, successful no-report open-check, known HID output-report capability or successful no-command report-shape validation, enabled direct control, armed direct control, exact approval phrase, clear SimPro/SimHub coexistence, clear emergency stop, and local physical presence before real writes.
-- A local `VID_3670/PID_0905` candidate can be openable while exposing feature reports but no output-report length. The picker now surfaces feature report ID `0xF1` and can validate the FeatureReport shape without writing, but real pulses remain blocked unless the selected output/feature transport, report ID, report length, no-command shape validation, open-check, approval, coexistence, and emergency-stop gates all pass. The correct physical behavior still requires Ethan's supervised hardware validation.
+- The `controlled-write-test --execute` CLI path still requires the exact approval phrase and local physical presence before real writes. Normal app direct paths now use runtime Direct mode enablement plus selected openable HID device-interface candidate, successful no-report open-check, known HID output-report capability or successful no-command report-shape validation, clear SimPro/SimHub coexistence, and clear emergency stop.
+- A local `VID_3670/PID_0905` candidate can be openable while exposing feature reports but no output-report length. The picker now surfaces feature report ID `0xF1` and can validate the FeatureReport shape without writing, but real pulses remain blocked unless the selected output/feature transport, report ID, report length, no-command shape validation, open-check, coexistence, and emergency-stop gates all pass. The correct physical behavior still requires Ethan's supervised hardware validation.
 - Console output, copied diagnostics, docs, and sanitized exports intentionally hide private HID paths; command history or local validation notes may still contain private local data if Ethan types a path manually; do not commit those artifacts.
 - The full automated suite now reports zero skipped tests, but zero skipped tests are readiness coverage, not physical validation.
 - User-run local validation has confirmed brake and throttle direct pulses plus parameter response. Emergency-stop physical behavior, sustained vibration, safe gain, road/slip/lock feel, physical latency, and real SimPro/SimHub coexistence remain pending Ethan's local run.

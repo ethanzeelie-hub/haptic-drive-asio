@@ -26,12 +26,6 @@ internal static class PaddleGearBenchDirectGate
             return false;
         }
 
-        if (!normalized.DirectControlArmed)
-        {
-            message = "direct control is not armed";
-            return false;
-        }
-
         if (!selector.IsSelected)
         {
             message = "no P-HPR device/interface/report is selected";
@@ -73,12 +67,6 @@ internal static class PaddleGearBenchDirectGate
             message = normalized.ReportShapeValidationFailed
                 ? $"selected candidate report shape is blocked: {normalized.ReportShapeValidationMessage ?? "validation failed"}"
                 : "selected candidate report transport/capability/shape is unavailable";
-            return false;
-        }
-
-        if (!normalized.DirectControlApprovalConfirmed)
-        {
-            message = "exact controlled-write approval phrase is missing";
             return false;
         }
 

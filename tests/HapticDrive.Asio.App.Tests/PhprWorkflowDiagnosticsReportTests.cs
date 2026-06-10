@@ -24,7 +24,7 @@ public sealed class PhprWorkflowDiagnosticsReportTests
         Assert.Contains("telemetry input Replay", line, StringComparison.Ordinal);
         Assert.Contains("replay source test-session.hdrec", line, StringComparison.Ordinal);
         Assert.Contains("replay packets 5", line, StringComparison.Ordinal);
-        Assert.Contains("real direct enabled/armed", line, StringComparison.Ordinal);
+        Assert.Contains("real direct enabled", line, StringComparison.Ordinal);
         Assert.Contains("selected output True", line, StringComparison.Ordinal);
         Assert.Contains("mock pedal effects enabled", line, StringComparison.Ordinal);
         Assert.DoesNotContain("DevicePath", line, StringComparison.OrdinalIgnoreCase);
@@ -42,6 +42,6 @@ public sealed class PhprWorkflowDiagnosticsReportTests
         Assert.Contains("audio", line, StringComparison.Ordinal);
         Assert.Contains("P-HPR", line, StringComparison.Ordinal);
         Assert.Contains("effect preferences only", line, StringComparison.Ordinal);
-        Assert.Contains("excludes arm/device/emergency state", line, StringComparison.Ordinal);
+        Assert.Contains("excludes direct-enable/device/emergency state", line, StringComparison.Ordinal);
     }
 }

@@ -63,7 +63,7 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
-    public async Task NoWriteWhenApprovalPhraseIsNotConfirmed()
+    public async Task DirectPulseDoesNotRequireApprovalPhrase()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
         var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
@@ -73,10 +73,9 @@ public sealed class PHprRealOutputTests
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
 
-        Assert.False(result.Succeeded);
-        Assert.Empty(writer.Reports);
-        Assert.Equal(0, writer.OpenCount);
-        Assert.Contains("approval phrase", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(1, writer.OpenCount);
+        Assert.Contains(writer.Reports, report => report.State == PHprHidReportState.Start);
     }
 
     [Theory]
@@ -148,6 +147,105 @@ public sealed class PHprRealOutputTests
         Assert.Equal(PHprModuleId.Throttle, writer.Reports[0].TargetModule);
         Assert.Equal([0xF1, 0xEC, 0x02, 0x01, 0x32, 0x0A], writer.Reports[0].Payload.Take(6).ToArray());
         Assert.Equal([0xF1, 0xEC, 0x02, 0x00, 0x0A, 0x00], writer.Reports[1].Payload.Take(6).ToArray());
+    }
+
+    [Fact]
+    public async Task FakeClockBrakePulseSendsStopAfterDuration()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 40));
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Single(writer.Reports);
+        Assert.Equal(PHprHidReportState.Start, writer.Reports[0].State);
+        await WaitForScheduledDelayAsync(clock, 1);
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(39));
+        Assert.Single(writer.Reports);
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        await WaitForReportsAsync(writer, 2);
+        Assert.Equal(PHprHidReportState.Stop, writer.Reports[1].State);
+        Assert.Equal([0xF1, 0xEC, 0x01, 0x00, 0x0A, 0x00], writer.Reports[1].Payload.Take(6).ToArray());
+    }
+
+    [Fact]
+    public async Task FakeClockThrottlePulseSendsStopAfterDuration()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Throttle, durationMs: 35));
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Single(writer.Reports);
+        Assert.Equal(PHprHidReportState.Start, writer.Reports[0].State);
+        await WaitForScheduledDelayAsync(clock, 1);
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(35));
+        await WaitForReportsAsync(writer, 2);
+        Assert.Equal(PHprHidReportState.Stop, writer.Reports[1].State);
+        Assert.Equal([0xF1, 0xEC, 0x02, 0x00, 0x0A, 0x00], writer.Reports[1].Payload.Take(6).ToArray());
+    }
+
+    [Fact]
+    public async Task FakeClockBothTargetSendsBothStartsAndBothStops()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Both, durationMs: 25));
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(2, writer.Reports.Count);
+        Assert.Equal([PHprModuleId.Brake, PHprModuleId.Throttle], writer.Reports.Select(report => report.TargetModule).ToArray());
+        Assert.All(writer.Reports, report => Assert.Equal(PHprHidReportState.Start, report.State));
+        await WaitForScheduledDelayAsync(clock, 1);
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(25));
+        await WaitForReportsAsync(writer, 4);
+        Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.Stop));
+        Assert.Contains(writer.Reports, report => report.State == PHprHidReportState.Stop && report.TargetModule == PHprModuleId.Brake);
+        Assert.Contains(writer.Reports, report => report.State == PHprHidReportState.Stop && report.TargetModule == PHprModuleId.Throttle);
+    }
+
+    [Fact]
+    public async Task EmergencyStopSendsImmediateStopsAndCancelsPendingDurationStop()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        var result = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 100));
+        await WaitForScheduledDelayAsync(clock, 1);
+        await device.EmergencyStopAsync();
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await Task.Yield();
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(3, writer.Reports.Count);
+        Assert.Single(writer.Reports.Where(report => report.State == PHprHidReportState.Start));
+        Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.EmergencyStop));
+        Assert.Equal(0, device.GetSnapshot().PendingScheduledStopCount);
+    }
+
+    [Fact]
+    public async Task NoPulseRemainsActiveAfterConfiguredDuration()
+    {
+        var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
+        var clock = new FakeDirectStopClock();
+        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+
+        await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 20));
+        await WaitForScheduledDelayAsync(clock, 1);
+        Assert.Equal(1, device.GetSnapshot().PendingScheduledStopCount);
+
+        clock.AdvanceBy(TimeSpan.FromMilliseconds(20));
+        await WaitForReportsAsync(writer, 2);
+
+        Assert.Equal(0, device.GetSnapshot().PendingScheduledStopCount);
+        Assert.Contains(writer.Reports, report => report.State == PHprHidReportState.Stop);
     }
 
     [Fact]
@@ -398,11 +496,11 @@ public sealed class PHprRealOutputTests
 
         Assert.False(result.Routed);
         Assert.Empty(writer.Reports);
-        Assert.Contains("disabled or unarmed", result.Message);
+        Assert.Contains("disabled", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task DirectGearPulseWithoutApprovalDoesNotWrite()
+    public async Task DirectGearPulseWithoutApprovalStillRoutesWhenDirectReady()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
         var options = ArmedOptions() with
@@ -414,9 +512,8 @@ public sealed class PHprRealOutputTests
 
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
 
-        Assert.False(result.Routed);
-        Assert.Empty(writer.Reports);
-        Assert.Contains("approval", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Routed, result.Message);
+        Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.Start));
     }
 
     [Fact]
@@ -1132,6 +1229,26 @@ public sealed class PHprRealOutputTests
             PHprHidReportTransport.OutputReport);
     }
 
+    private static PHprHidDeviceSelector SelectedFeatureReportDevice()
+    {
+        return SelectedDevice() with
+        {
+            ReportId = PHprDirectOutputCandidate.F1EcFeatureReportId,
+            Transport = PHprHidReportTransport.FeatureReport
+        };
+    }
+
+    private static PHprRealOutputOptions FeatureReportOptions()
+    {
+        return ArmedOptions() with
+        {
+            Selector = SelectedFeatureReportDevice(),
+            CandidateOutputReportCapabilityKnown = false,
+            CandidateFeatureReportCapabilityKnown = true,
+            ReportShapeValidationMessage = "No-command HID report-shape validation succeeded from feature-report capability metadata; no P-HPR report was sent."
+        };
+    }
+
     private static PHprDirectOutputCandidate CreateCandidate(
         string id,
         int? outputLength,
@@ -1424,6 +1541,22 @@ public sealed class PHprRealOutputTests
         Assert.True(writer.Reports.Count >= count, $"Expected {count} reports but saw {writer.Reports.Count}.");
     }
 
+    private static async Task WaitForScheduledDelayAsync(FakeDirectStopClock clock, int count)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (clock.ScheduledDelayCount >= count)
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.True(clock.ScheduledDelayCount >= count, $"Expected {count} scheduled delay(s) but saw {clock.ScheduledDelayCount}.");
+    }
+
     private sealed class FakeHidReportWriter(PHprHidDeviceSelector selector) : IPhprHidReportWriter
     {
         private readonly List<PHprHidReport> _reports = [];
@@ -1513,6 +1646,96 @@ public sealed class PHprRealOutputTests
             }
 
             return result;
+        }
+    }
+
+    private sealed class FakeDirectStopClock : IPHprDirectStopClock
+    {
+        private readonly object _gate = new();
+        private readonly List<ScheduledDelay> _delays = [];
+        private TimeSpan _elapsed;
+
+        public int ScheduledDelayCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _delays.Count;
+                }
+            }
+        }
+
+        public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new ValueTask(Task.FromCanceled(cancellationToken));
+            }
+
+            lock (_gate)
+            {
+                if (delay <= TimeSpan.Zero)
+                {
+                    return ValueTask.CompletedTask;
+                }
+
+                var scheduled = new ScheduledDelay(_elapsed + delay, cancellationToken);
+                _delays.Add(scheduled);
+                return new ValueTask(scheduled.Task);
+            }
+        }
+
+        public void AdvanceBy(TimeSpan delay)
+        {
+            ScheduledDelay[] ready;
+            lock (_gate)
+            {
+                _elapsed += delay;
+                ready = _delays
+                    .Where(scheduled => scheduled.DueAt <= _elapsed)
+                    .ToArray();
+                foreach (var scheduled in ready)
+                {
+                    _delays.Remove(scheduled);
+                }
+            }
+
+            foreach (var scheduled in ready)
+            {
+                scheduled.Complete();
+            }
+        }
+
+        private sealed class ScheduledDelay : IDisposable
+        {
+            private readonly TaskCompletionSource _completion =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+            private readonly CancellationTokenRegistration _registration;
+
+            public ScheduledDelay(TimeSpan dueAt, CancellationToken cancellationToken)
+            {
+                DueAt = dueAt;
+                _registration = cancellationToken.Register(() =>
+                {
+                    _completion.TrySetCanceled(cancellationToken);
+                });
+            }
+
+            public TimeSpan DueAt { get; }
+
+            public Task Task => _completion.Task;
+
+            public void Complete()
+            {
+                _completion.TrySetResult();
+                Dispose();
+            }
+
+            public void Dispose()
+            {
+                _registration.Dispose();
+            }
         }
     }
 

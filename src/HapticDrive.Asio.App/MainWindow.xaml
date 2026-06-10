@@ -1108,39 +1108,47 @@
                                                   Content="Enable Paddle Gear Bench Test" />
                                         <CheckBox x:Name="PaddleGearBenchArmCheckBox"
                                                   Margin="0,4,12,8"
+                                                  Visibility="Collapsed"
                                                   Checked="PaddleGearBenchControl_Changed"
                                                   Unchecked="PaddleGearBenchControl_Changed"
                                                   Content="Arm Bench Test" />
                                         <ComboBox x:Name="PaddleGearBenchOutputModeComboBox"
                                                   Width="120"
                                                   Margin="0,0,8,8"
+                                                  Visibility="Collapsed"
                                                   SelectionChanged="PaddleGearBenchControl_Changed" />
                                         <ComboBox x:Name="PaddleGearBenchTargetComboBox"
                                                   Width="130"
                                                   Margin="0,0,8,8"
                                                   SelectionChanged="PaddleGearBenchControl_Changed" />
                                         <TextBlock Margin="0,4,6,8"
+                                                   Visibility="Collapsed"
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Strength %" />
                                         <TextBox x:Name="PaddleGearBenchStrengthTextBox"
                                                  Width="72"
                                                  Margin="0,0,8,8"
+                                                 Visibility="Collapsed"
                                                  Style="{StaticResource FieldTextBoxStyle}"
                                                  LostFocus="PaddleGearBenchControl_LostFocus" />
                                         <TextBlock Margin="0,4,6,8"
+                                                   Visibility="Collapsed"
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Hz" />
                                         <TextBox x:Name="PaddleGearBenchFrequencyTextBox"
                                                  Width="72"
                                                  Margin="0,0,8,8"
+                                                 Visibility="Collapsed"
                                                  Style="{StaticResource FieldTextBoxStyle}"
                                                  LostFocus="PaddleGearBenchControl_LostFocus" />
                                         <TextBlock Margin="0,4,6,8"
+                                                   Visibility="Collapsed"
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Duration ms" />
                                         <TextBox x:Name="PaddleGearBenchDurationTextBox"
                                                  Width="72"
                                                  Margin="0,0,8,8"
+                                                 Visibility="Collapsed"
                                                  Style="{StaticResource FieldTextBoxStyle}"
                                                  LostFocus="PaddleGearBenchControl_LostFocus" />
                                         <Button Width="170"
@@ -1266,7 +1274,7 @@
                                        Text="P-HPR Real Direct Control" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Manual low-strength hardware output only. Direct control is disabled and unarmed on startup, device selection is not saved, and test pulse buttons require enable, arm, selected device, clear coexistence, and clear emergency stop."
+                                       Text="Manual low-strength hardware output only. Startup may auto-select and validate a known P-HPR device, but no pulse is sent until a test button or mapped paddle is pressed."
                                        TextWrapping="Wrap" />
                             <WrapPanel Margin="0,10,0,0">
                                 <CheckBox x:Name="RealPhprDirectControlEnabledCheckBox"
@@ -1352,7 +1360,8 @@
                                          Margin="0,0,8,8"
                                          LostFocus="RealPhprDirectControl_LostFocus" />
                             </WrapPanel>
-                            <WrapPanel Margin="0,2,0,0">
+                            <WrapPanel Margin="0,2,0,0"
+                                       Visibility="Collapsed">
                                 <TextBlock Width="86"
                                            Margin="0,4,8,8"
                                            VerticalAlignment="Center"
@@ -1388,7 +1397,8 @@
                                          Margin="0,0,8,8"
                                          LostFocus="RealPhprDirectControl_LostFocus" />
                             </WrapPanel>
-                            <WrapPanel Margin="0,2,0,0">
+                            <WrapPanel Margin="0,2,0,0"
+                                       Visibility="Collapsed">
                                 <TextBlock Width="86"
                                            Margin="0,4,8,8"
                                            VerticalAlignment="Center"
@@ -1436,7 +1446,7 @@
                                 <TextBlock Margin="0,4,0,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                           Text="Requires direct control enabled, armed, selected device, clear coexistence, and DrivingArmed." />
+                                           Text="Requires direct control enabled, selected device, clear coexistence, and DrivingArmed." />
                             </WrapPanel>
                             <WrapPanel Margin="0,2,0,0">
                                 <TextBlock Width="86"

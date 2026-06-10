@@ -13,6 +13,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
     private readonly object _gate = new();
     private readonly IPhprHidReportWriter _writer;
+    private readonly IPHprDirectStopClock _stopClock;
     private readonly SimHubF1EcRealReportEncoder _encoder = new();
     private readonly IPHprSafetyLimiter _limiter;
     private readonly List<CancellationTokenSource> _pendingStops = [];
@@ -56,9 +57,11 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         IPhprHidReportWriter writer,
         PHprRealOutputOptions? options = null,
         IPHprSafetyLimiter? limiter = null,
-        PHprSafetyContext? context = null)
+        PHprSafetyContext? context = null,
+        IPHprDirectStopClock? stopClock = null)
     {
         _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+        _stopClock = stopClock ?? SystemPhprDirectStopClock.Instance;
         _options = (options ?? PHprRealOutputOptions.Disabled).Normalize();
         _limiter = limiter ?? new PHprSafetyLimiter(DirectControlSafetyLimits);
         _baseContext = context ?? PHprSafetyContext.DefaultMock with
@@ -103,7 +106,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         {
             _emergencyStopActive = false;
             _limiter.ClearEmergencyStop();
-            _lastMessage = "Real P-HPR emergency stop latch cleared; direct control still requires explicit enable and arm.";
+            _lastMessage = "Real P-HPR emergency stop latch cleared; direct control still requires enable and a direct-ready device.";
         }
     }
 
@@ -152,7 +155,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             options = _options;
         }
 
-        return await OpenWriterAsync(options, requireDirectArm: true, cancellationToken);
+        return await OpenWriterAsync(options, requireDirectEnabled: true, cancellationToken);
     }
 
     public async ValueTask<PHprHidWriteResult> CloseAsync(CancellationToken cancellationToken = default)
@@ -327,7 +330,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             }
 
             shouldRequestStop = _options.Selector.IsSelected
-                && (_options.DirectControlArmed || _pendingStops.Count > 0);
+                && (_options.DirectControlEnabled || _pendingStops.Count > 0);
         }
 
         try
@@ -378,7 +381,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             LastCommandUtc: _lastCommandUtc,
             SafetyLimits: _limiter.Limits,
             Mode: _options.DirectControlEnabled
-                ? _options.DirectControlArmed ? "RealDirectArmed" : "RealDirectEnabledUnarmed"
+                ? "RealDirectEnabled"
                 : "RealDirectDisabled",
             BrakeAvailable: connected,
             ThrottleAvailable: connected,
@@ -442,16 +445,6 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             return (PHprCommandStatus.RejectedInvalidCommand, "Real P-HPR direct control is disabled.");
         }
 
-        if (!options.DirectControlArmed)
-        {
-            return (PHprCommandStatus.RejectedInvalidCommand, "Real P-HPR direct control is not armed.");
-        }
-
-        if (!options.DirectControlApprovalConfirmed)
-        {
-            return (PHprCommandStatus.RejectedInvalidCommand, $"Real P-HPR direct control requires the exact approval phrase for this session: {PHprControlledWriteApproval.Phrase}");
-        }
-
         if (options.CandidateIsRawInputOnly || !options.CandidateHasOpenableHidPath)
         {
             return (PHprCommandStatus.RejectedInvalidCommand, "Selected P-HPR candidate does not provide an openable HID device-interface path.");
@@ -480,7 +473,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
     private async ValueTask<PHprHidWriteResult> OpenWriterAsync(
         PHprRealOutputOptions options,
-        bool requireDirectArm,
+        bool requireDirectEnabled,
         CancellationToken cancellationToken)
     {
         var selectorValidation = ValidateSelector(options, requireWriterSelectorMatch: true, _writer.Selector);
@@ -494,14 +487,12 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             return selectorValidation;
         }
 
-        if (requireDirectArm
+        if (requireDirectEnabled
             && (!options.DirectControlEnabled
-                || !options.DirectControlArmed
-                || !options.DirectControlApprovalConfirmed
                 || !options.OpenCheckSucceeded))
         {
             var gateFailure = PHprHidWriteResult.Failure(
-                "Real P-HPR HID writer open requires direct control enabled, armed, approval-confirmed, and open-check passed for this session.",
+                "Real P-HPR HID writer open requires direct control enabled and open-check passed for this session.",
                 status: PHprHidWriteStatus.Failed);
             lock (_gate)
             {
@@ -562,7 +553,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
         var openResult = await OpenWriterAsync(
             options,
-            requireDirectArm: operationKind == PHprHidOperationKind.Write,
+            requireDirectEnabled: operationKind == PHprHidOperationKind.Write,
             cancellationToken);
         if (!openResult.Succeeded)
         {
@@ -628,7 +619,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         {
             try
             {
-                await Task.Delay(durationMs, cts.Token);
+                await _stopClock.DelayAsync(TimeSpan.FromMilliseconds(durationMs), cts.Token);
                 var reports = _encoder.EncodeStop(targetModule, options.Selector.ReportId);
                 await WriteReportsAsync(reports, options, PHprHidOperationKind.Stop, cts.Token);
             }

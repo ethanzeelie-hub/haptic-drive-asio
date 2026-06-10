@@ -4,6 +4,13 @@ public sealed record PaddleGearBenchTestOptions
 {
     public static PaddleGearBenchTestOptions Disabled { get; } = new();
 
+    public static PaddleGearBenchTestOptions EnabledDirect { get; } = new()
+    {
+        IsEnabled = true,
+        IsArmed = true,
+        OutputMode = PaddleGearBenchTestOutputMode.Direct
+    };
+
     public bool IsEnabled { get; init; }
 
     public bool IsArmed { get; init; }
@@ -23,7 +30,7 @@ public sealed record PaddleGearBenchTestOptions
     {
         return this with
         {
-            IsArmed = IsEnabled && IsArmed,
+            IsArmed = IsEnabled,
             OutputMode = Enum.IsDefined(OutputMode) ? OutputMode : PaddleGearBenchTestOutputMode.Mock,
             TargetModule = Enum.IsDefined(TargetModule) ? TargetModule : PHprGearPulseTarget.Brake,
             Profile = (Profile ?? PHprGearPulseProfile.Default).Normalize()

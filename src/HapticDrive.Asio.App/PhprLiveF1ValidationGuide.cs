@@ -39,7 +39,7 @@ internal static class PhprLiveF1ValidationGuide
         var telemetryStatus = liveTelemetryActive
             ? $"active from live UDP; packets {snapshot.UdpPacketCount:N0}; parsed {snapshot.ParserSuccessCount:N0}; age {FormatAge(snapshot.TelemetryAge)}"
             : $"not yet active for live validation; source {snapshot.TelemetryInputSource}; receiver {(snapshot.UdpReceiverRunning ? "running" : "stopped")}; parsed {snapshot.ParserSuccessCount:N0}; stale mute {snapshot.TelemetryTimedOutMuted}";
-        var directState = $"{(snapshot.DirectControlEnabled ? "enabled" : "disabled")}/{(snapshot.DirectControlArmed ? "armed" : "unarmed")}";
+        var directState = snapshot.DirectControlEnabled ? "enabled" : "disabled";
         var selectedOutput = snapshot.SelectedOutputConfigured ? "selected for this session" : "not selected";
         var emergency = snapshot.EmergencyStopActive ? "latched" : "clear";
         var driving = snapshot.DrivingArmed ? "true" : "false";
@@ -59,7 +59,7 @@ internal static class PhprLiveF1ValidationGuide
             $"3. DrivingArmed true in session: current DrivingArmed {driving}; reason {snapshot.DrivingArmedReason}.",
             $"4. Paddle press accepted: listener {snapshot.PaddleListenerStatus}; shift intent {(snapshot.ShiftIntentEnabled ? "enabled" : "disabled")}; accepted {snapshot.AcceptedShiftIntentCount:N0}; suppressed {snapshot.SuppressedShiftIntentCount:N0}.",
             $"5. Mock mode gear pulse diagnostics: output mode {snapshot.OutputMode}; mock gear routing {(snapshot.MockGearRoutingEnabled ? "enabled" : "disabled")}.",
-            $"6. Real mode armed manually: direct control {directState}; selected output {selectedOutput}; only proceed under local supervision.",
+            $"6. Real mode direct ready: direct control {directState}; selected output {selectedOutput}; only proceed under local supervision.",
             $"7. Brake/throttle gear pulse test: brake and throttle tests stay manual; automated verification uses fake output only.",
             $"8. Road vibration test: real road vibration {(snapshot.RealRoadVibrationEnabled ? "enabled" : "disabled")}; verify only after gear pulse and stop behavior are safe.",
             $"9. Slip/lock test if safe: real slip/lock {(snapshot.RealSlipLockEnabled ? "enabled" : "disabled")}; skip if track conditions or pedal behavior are unclear.",

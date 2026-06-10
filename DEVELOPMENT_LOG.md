@@ -2191,3 +2191,46 @@ Self-review:
 - Paddle bench enable/arm state, manual ASIO active state, ASIO armed state, direct-control armed state, emergency-stop state, selected private HID path, command history, and write history are not persisted.
 - Automated tests use Null output, fake ASIO backends, mock P-HPR output, and fake HID writer/gate models only. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.
 - Current local status is documented as user-validated brake/throttle direct P-HPR pulses and SimHub-proven BST-1 chain, while Haptic Drive ASIO app-driven BST-1 validation, physical safe gain, physical latency, sustained-output behavior, road/slip/lock feel, and final tuning remain manual local work.
+
+## Stage 18b - Simplified P-HPR Direct Bench Startup and Stop Scheduling
+
+Date: 2026-06-10
+
+Status: Complete.
+
+Goal: Fix Paddle Gear Bench Direct mode so P-HPR pulses stop after the configured duration, and simplify the local P-HPR bench workflow around automatic direct readiness without adding ASIO/BST-1 work.
+
+Missing Items Addressed:
+
+- Added deterministic direct stop scheduling through an injectable stop clock so Direct mode sends matching SimHub/F1 EC stop reports after `DurationMs`.
+- Covered brake-only, throttle-only, both-target, emergency-stop cancellation, dispose-stop, and no-active-pulse-after-duration behavior with fake-writer tests.
+- Kept the confirmed F1 EC start/stop bytes unchanged, including stop reports shaped as `F1 EC 01/02 00 0A 00 ...`.
+- Added startup auto-refresh for input and P-HPR direct candidates, including automatic selection of the known `VID_3670/PID_0905` HID device-interface candidate by FeatureReport `0xF1` / 64-byte capability instead of candidate index.
+- Ran startup open-check and dry-run readiness work in the background without sending output reports, feature reports, or vibration commands.
+- Simplified normal P-HPR Direct mode by hiding the separate arm/approval workflow from the normal bench path while retaining selected-device, open-check, report-shape, coexistence, emergency-stop, and road/slip/lock gates.
+- Made Paddle Gear Bench runtime options Direct-mode, enabled, and auto-armed by default; defaulted GT Neo paddle mapping to left `14` and right `13`.
+- Removed duplicate normal bench strength/frequency/duration inputs from the workflow; bench direct pulses now use the normal Devices brake/throttle P-HPR gear-pulse values as the single source of truth.
+- Updated diagnostics and status text so emergency stop, pending scheduled stops, direct readiness, selected output, and Devices-sourced brake/throttle settings are visible.
+
+Notes:
+
+- Hardware never vibrates on startup; automatic startup work is candidate selection, no-report open-check, and dry-run readiness only.
+- Direct bench output is still blocked unless FeatureReport `0xF1`, 64-byte report shape, successful open-check, clear coexistence, clear emergency stop, and disabled road/slip/lock routes are all present.
+- No ASIO/BST-1 audio path changes were made.
+- No physical P-HPR safe gain, sustained-vibration behavior, emergency-stop physical behavior, road/slip/lock feel, or physical latency claim is made by this stage.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --no-restore` completed before final build/test verification.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build --verbosity minimal` passed with 129 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Audio.Tests\HapticDrive.Asio.Audio.Tests.csproj --no-build --verbosity minimal` passed with 102 passing tests after a parallel full-solution fan-out hit a transient audio callback cadence timing failure.
+- Full sequential `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal -m:1` passed across all projects: Core 12, Telemetry 47, Audio 102, Recording 16, Runtime 29, Input 26, PHPR 129, Actuation 83, Research 57, and App 37.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- The F1 25 parser, UDP forwarding, recording/replay raw-packet preservation, ASIO/BST-1 audio output path, and confirmed P-HPR protocol bytes were not changed.
+- Automated tests use fake writers, fake timing, fake ASIO backends, and Null output. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.

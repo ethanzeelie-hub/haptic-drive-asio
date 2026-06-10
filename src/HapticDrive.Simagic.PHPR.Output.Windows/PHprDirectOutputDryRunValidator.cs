@@ -71,16 +71,6 @@ public static class PHprDirectOutputDryRunValidator
             issues.Add("Direct control is disabled.");
         }
 
-        if (!normalized.DirectControlArmed)
-        {
-            issues.Add("Direct control is not armed.");
-        }
-
-        if (!normalized.DirectControlApprovalConfirmed)
-        {
-            issues.Add($"Exact approval phrase is not confirmed: {PHprControlledWriteApproval.Phrase}");
-        }
-
         if (coexistenceStatus != PHprSoftwareConflictStatus.Clear)
         {
             issues.Add($"SimPro/SimHub coexistence is {coexistenceStatus}; Clear is required.");
