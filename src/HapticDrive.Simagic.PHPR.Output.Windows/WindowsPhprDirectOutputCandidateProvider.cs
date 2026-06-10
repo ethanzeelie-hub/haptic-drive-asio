@@ -8,6 +8,7 @@ public sealed class WindowsPhprDirectOutputCandidateProvider : IPHprDirectOutput
         : this(
             [
                 new WindowsHidDeviceInterfacePhprDirectOutputCandidateProvider(),
+                new WindowsRegistryHidPhprDirectOutputCandidateProvider(),
                 new WindowsRawInputPhprDirectOutputCandidateProvider()
             ])
     {
@@ -28,11 +29,13 @@ public sealed class WindowsPhprDirectOutputCandidateProvider : IPHprDirectOutput
                 .OrderByDescending(candidate => candidate.HasOpenableHidPath)
                 .ThenByDescending(candidate => candidate.HasKnownOutputReportCapability)
                 .ThenByDescending(candidate => candidate.HasOutputOrFeatureReportCapability)
+                .ThenByDescending(candidate => candidate.HasF1EcFeatureReportId)
                 .ThenByDescending(candidate => candidate.Confidence)
                 .First())
             .OrderByDescending(candidate => candidate.HasOpenableHidPath)
             .ThenByDescending(candidate => candidate.HasKnownOutputReportCapability)
             .ThenByDescending(candidate => candidate.HasOutputOrFeatureReportCapability)
+            .ThenByDescending(candidate => candidate.HasF1EcFeatureReportId)
             .ThenByDescending(candidate => candidate.Confidence)
             .ThenBy(candidate => candidate.IsRawInputOnly)
             .ThenBy(candidate => candidate.VendorProductText, StringComparer.OrdinalIgnoreCase)
@@ -51,6 +54,6 @@ public sealed class WindowsPhprDirectOutputCandidateProvider : IPHprDirectOutput
 
         return candidate.VendorId is null || candidate.ProductId is null
             ? candidate.CandidateId
-            : $"raw:{candidate.VendorId:X4}:{candidate.ProductId:X4}:{candidate.HidUsagePage?.ToString("X4") ?? "none"}:{candidate.HidUsage?.ToString("X4") ?? "none"}";
+            : $"metadata:{candidate.SourceMethod}:{candidate.VendorId:X4}:{candidate.ProductId:X4}:{candidate.HidUsagePage?.ToString("X4") ?? "none"}:{candidate.HidUsage?.ToString("X4") ?? "none"}:{candidate.InterfaceNumber ?? "none"}:{candidate.CollectionNumber ?? "none"}:{candidate.CandidateId}";
     }
 }

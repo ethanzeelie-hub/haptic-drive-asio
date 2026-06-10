@@ -1224,6 +1224,14 @@
                                 <TextBlock Margin="0,4,6,8"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Transport" />
+                                <ComboBox x:Name="RealPhprReportTransportComboBox"
+                                          Width="130"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="RealPhprDirectControlCheckBox_Changed" />
+                                <TextBlock Margin="0,4,6,8"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Approval phrase" />
                                 <TextBox x:Name="RealPhprApprovalPhraseTextBox"
                                          Width="360"

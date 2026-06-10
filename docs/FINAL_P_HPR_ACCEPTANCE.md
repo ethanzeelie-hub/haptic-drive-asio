@@ -17,7 +17,7 @@ Phase 3H packages the current P-HPR implementation for final review. Phase 3J ad
 - Replay validation: implemented for road/slip/lock software routing.
 - Live F1 validation workflow: implemented as a passive manual checklist.
 - Controlled P-HPR CLI smoke test: implemented, dry-run by default, real writes gated by exact approval phrase plus `--execute`.
-- Direct-output candidate picker: implemented with safe labels, runtime-only private HID paths, HID device-interface selection, and no-report open-check.
+- Direct-output candidate picker: implemented with safe labels, runtime-only private HID paths, HID device-interface selection, HID registry metadata surfacing, OutputReport/FeatureReport transport selection, and no-report/no-feature-report open-check.
 - User guide, quick start, troubleshooting, and final acceptance docs: implemented.
 
 ## Safety Status
@@ -29,7 +29,8 @@ Phase 3H packages the current P-HPR implementation for final review. Phase 3J ad
 - Emergency stop remains available and latched until cleared.
 - SimPro/SimHub non-clear coexistence blocks real direct starts.
 - Raw Input metadata-only candidates cannot pass real direct-output gates.
-- Real direct `can pulse` requires a successful no-report HID open-check plus known HID output-report capability or successful no-command report-shape validation on the selected HID device-interface candidate.
+- Real direct `can pulse` requires a successful no-report HID open-check plus known selected HID output-report or feature-report capability, selected transport/report ID/length match, and successful no-command report-shape validation on the selected HID device-interface candidate.
+- Feature report ID `0xF1` is surfaced for compatible `VID_3670` candidates and treated as the likely F1 EC command-family shape, but no physical behavior is claimed until local supervised validation.
 - `IOException:0x80070057` from HID writes is treated as a report-shape/write-format failure.
 - Automated tests and CI do not write to hardware.
 - Automated tests now report zero skips by converting prior manual ASIO checks into readiness/pending checks.
@@ -56,8 +57,8 @@ Use this checklist locally before claiming physical validation:
 15. Sustained vibration is absent or documented.
 16. Private local validation notes are exported outside committed docs.
 17. The selected direct-output candidate is a HID device-interface candidate, not Raw Input metadata only.
-18. Open-check succeeds for the selected candidate without sending an output report.
-19. Dry-run reports known output-report capability or successful report-shape validation before any manual pulse.
+18. Open-check succeeds for the selected candidate without sending an output report or feature report.
+19. Dry-run reports selected transport, report ID, report byte length, expected first bytes, known output/feature capability, and successful report-shape validation before any manual pulse.
 20. Optional final CLI smoke test is run with `controlled-write-test --execute` only after the dry run and open-check look correct.
 
 ## Verification

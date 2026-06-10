@@ -470,6 +470,7 @@ public static class SimagicResearchCli
         await WriteSimagicFamilyInventorySummaryAsync(output);
         await output.WriteLineAsync($"Selected candidate: {(selectedCandidate is null ? "none" : $"index {options.CandidateIndex}; {selectedCandidate.SafeLabel}")}");
         await output.WriteLineAsync($"Selected report length source: {selectedCandidate?.SelectedReportLengthSource ?? "none"}");
+        await output.WriteLineAsync($"Selected transport: {realOptions.Selector.Transport}; selected report ID {FormatReportId(realOptions.Selector.ReportId)}; report byte length {realOptions.Selector.ReportLength:N0}; expected first bytes {dryRun.ExpectedFirstBytes ?? "unavailable"}.");
         await output.WriteLineAsync($"Report-shape validation: attempted {realOptions.ReportShapeValidationAttempted}; succeeded {realOptions.ReportShapeValidationSucceeded}; failed {realOptions.ReportShapeValidationFailed}; message {realOptions.ReportShapeValidationMessage ?? "none"}.");
         await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
         await output.WriteLineAsync(dryRun.Summary);
@@ -536,11 +537,12 @@ public static class SimagicResearchCli
             emergencyStopActive: false);
 
         await output.WriteLineAsync("P-HPR direct-output open-check");
-        await output.WriteLineAsync("Safety: this opens and closes the selected HID writer path but sends no output report and prints no private HID path.");
+        await output.WriteLineAsync("Safety: this opens and closes the selected HID writer path but sends no output report, no feature report, and prints no private HID path.");
         await output.WriteLineAsync($"Candidates discovered: {candidates.Count:N0}");
         await output.WriteLineAsync($"Selected candidate: index {options.CandidateIndex}; {selectedCandidate.SafeLabel}");
         await output.WriteLineAsync($"Open-check: attempted {openCheck.Attempted}; succeeded {openCheck.Succeeded}; failed {openCheck.Failed}; open {openCheck.OpenStatus?.ToString() ?? "none"}; close {openCheck.CloseStatus?.ToString() ?? "none"}; sanitized error {openCheck.SanitizedErrorCategory ?? "none"}.");
         await output.WriteLineAsync($"Selected report length source: {selectedCandidate.SelectedReportLengthSource}");
+        await output.WriteLineAsync($"Selected transport: {realOptions.Selector.Transport}; selected report ID {FormatReportId(realOptions.Selector.ReportId)}; report byte length {realOptions.Selector.ReportLength:N0}; expected first bytes {dryRun.ExpectedFirstBytes ?? "unavailable"}.");
         await output.WriteLineAsync($"Report-shape validation: attempted {realOptions.ReportShapeValidationAttempted}; succeeded {realOptions.ReportShapeValidationSucceeded}; failed {realOptions.ReportShapeValidationFailed}; message {realOptions.ReportShapeValidationMessage ?? "none"}.");
         await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
         await output.WriteLineAsync(dryRun.Summary);
@@ -559,7 +561,7 @@ public static class SimagicResearchCli
             }
         }
 
-        await output.WriteLineAsync("No output report was sent. Do not commit private HID paths, serials, raw captures, or local inventories.");
+        await output.WriteLineAsync("No output report or feature report was sent. Do not commit private HID paths, serials, raw captures, or local inventories.");
         return 0;
     }
 
@@ -645,6 +647,11 @@ public static class SimagicResearchCli
         return value is > 0 ? $"{value.Value.ToString(CultureInfo.InvariantCulture)} bytes" : "unavailable";
     }
 
+    private static string FormatReportId(byte? reportId)
+    {
+        return reportId is null ? "none" : $"0x{reportId.Value:X2}";
+    }
+
     private static string FormatOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value)
@@ -705,9 +712,9 @@ public static class SimagicResearchCli
         output.WriteLine();
         output.WriteLine("Direct-output local dry run:");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-dry-run [--candidate-index 0] [--enable] [--arm] [--approval \"I approve Phase 2 controlled P-HPR write testing\"]");
-        output.WriteLine("  Options: --report-id <0-255|none>, --report-length 64. This command enumerates local safe labels only and never opens the HID writer.");
+        output.WriteLine("  Options: --transport output|feature, --report-id <0-255|none>, --report-length 64. This command enumerates local safe labels only and never opens the HID writer.");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-open-check --candidate-index 0 --enable --arm --approval \"I approve Phase 2 controlled P-HPR write testing\"");
-        output.WriteLine("  Open-check opens and closes the selected HID writer path without sending an output report.");
+        output.WriteLine("  Open-check opens and closes the selected HID writer path without sending an output report or feature report.");
         output.WriteLine();
         output.WriteLine("Controlled P-HPR write command:");
         output.WriteLine("  dotnet run --project src\\HapticDrive.Simagic.PHPR.Research\\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval \"I approve Phase 2 controlled P-HPR write testing\" --device-path <private-hid-path> [--execute]");
@@ -887,6 +894,27 @@ public static class SimagicResearchCli
 
                 options = options with { ReportLength = reportLength };
             }
+            else if (string.Equals(arg, "--transport", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            {
+                var value = args[++index];
+                if (string.Equals(value, "output", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(value, "output-report", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(value, "OutputReport", StringComparison.OrdinalIgnoreCase))
+                {
+                    options = options with { Transport = PHprHidReportTransport.OutputReport };
+                }
+                else if (string.Equals(value, "feature", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(value, "feature-report", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(value, "FeatureReport", StringComparison.OrdinalIgnoreCase))
+                {
+                    options = options with { Transport = PHprHidReportTransport.FeatureReport };
+                }
+                else
+                {
+                    error = $"Invalid transport '{value}'. Use output or feature.";
+                    return false;
+                }
+            }
             else
             {
                 error = $"Unknown direct-output-dry-run option '{arg}'.";
@@ -901,7 +929,7 @@ public static class SimagicResearchCli
         DirectOutputDryRunCliOptions options,
         PHprDirectOutputCandidate? selectedCandidate)
     {
-        var selector = selectedCandidate?.ToSelector(options.ReportId) ?? PHprHidDeviceSelector.None;
+        var selector = selectedCandidate?.ToSelector(options.ReportId, options.Transport) ?? PHprHidDeviceSelector.None;
         if (options.ReportLength is not null)
         {
             selector = selector with { ReportLength = options.ReportLength.Value };
@@ -952,5 +980,7 @@ public static class SimagicResearchCli
         public byte? ReportId { get; init; }
 
         public int? ReportLength { get; init; }
+
+        public PHprHidReportTransport? Transport { get; init; }
     }
 }

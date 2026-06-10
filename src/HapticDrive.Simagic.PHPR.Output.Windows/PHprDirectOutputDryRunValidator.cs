@@ -6,13 +6,21 @@ public sealed record PHprDirectOutputDryRunResult(
     bool CanPulse,
     PHprHidDeviceSelector Selector,
     bool OutputReportCapabilityKnown,
+    bool FeatureReportCapabilityKnown,
     bool ReportShapeValidationSucceeded,
+    string? ReportShapeValidationMessage,
+    string? ExpectedFirstBytes,
     PHprSoftwareConflictStatus CoexistenceStatus,
     bool EmergencyStopActive,
     IReadOnlyList<string> Issues)
 {
     public string Summary =>
-        $"Direct-output dry run: selected {Selector.IsSelected}; report length {Selector.ReportLength:N0} bytes; output report known {OutputReportCapabilityKnown}; report-shape validated {ReportShapeValidationSucceeded}; can pulse {CanPulse}; coexistence {CoexistenceStatus}; emergency stop {EmergencyStopActive}; issues {Issues.Count:N0}.";
+        $"Direct-output dry run: selected {Selector.IsSelected}; transport {Selector.Transport}; report ID {FormatReportId(Selector.ReportId)}; report length {Selector.ReportLength:N0} bytes; output report known {OutputReportCapabilityKnown}; feature report known {FeatureReportCapabilityKnown}; expected first bytes {ExpectedFirstBytes ?? "unavailable"}; report-shape validated {ReportShapeValidationSucceeded}; can pulse {CanPulse}; coexistence {CoexistenceStatus}; emergency stop {EmergencyStopActive}; issues {Issues.Count:N0}.";
+
+    private static string FormatReportId(byte? reportId)
+    {
+        return reportId is null ? "none" : $"0x{reportId.Value:X2}";
+    }
 }
 
 public static class PHprDirectOutputDryRunValidator
@@ -50,7 +58,7 @@ public static class PHprDirectOutputDryRunValidator
         {
             issues.Add(normalized.ReportShapeValidationFailed
                 ? $"Selected HID report shape is not validated for real pulses: {normalized.ReportShapeValidationMessage ?? "validation failed"}"
-                : "Selected HID output-report capability is unknown; open-check alone cannot permit a real pulse.");
+                : "Selected HID report transport/capability/shape is not validated; open-check alone cannot permit a real pulse.");
         }
 
         if (selector.ReportLength != SimHubF1EcRealReportEncoder.PayloadLengthBytes)
@@ -87,7 +95,10 @@ public static class PHprDirectOutputDryRunValidator
             CanPulse: issues.Count == 0,
             selector,
             normalized.CandidateOutputReportCapabilityKnown,
+            normalized.CandidateFeatureReportCapabilityKnown,
             normalized.ReportShapeValidationSucceeded,
+            normalized.ReportShapeValidationMessage,
+            selector.IsSelected ? PHprHidReportShapeValidationResult.ExpectedF1EcStartFirstBytes : null,
             coexistenceStatus,
             emergencyStopActive,
             issues);

@@ -64,6 +64,7 @@ public sealed partial class WindowsHidDeviceInterfacePhprDirectOutputCandidatePr
             return candidates
                 .OrderByDescending(candidate => candidate.HasKnownOutputReportCapability)
                 .ThenByDescending(candidate => candidate.HasOutputOrFeatureReportCapability)
+                .ThenByDescending(candidate => candidate.HasF1EcFeatureReportId)
                 .ThenByDescending(candidate => candidate.Confidence)
                 .ThenBy(candidate => candidate.VendorProductText, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(candidate => candidate.SafeDisplayName, StringComparer.OrdinalIgnoreCase)

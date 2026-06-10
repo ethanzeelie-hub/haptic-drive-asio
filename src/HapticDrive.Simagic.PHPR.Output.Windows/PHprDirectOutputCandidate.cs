@@ -5,6 +5,8 @@ namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
 public sealed record PHprDirectOutputCandidate
 {
+    public const byte F1EcFeatureReportId = SimHubF1EcRealReportEncoder.Prefix0;
+
     public string CandidateId { get; init; } = "local-hid:unknown";
 
     public string DevicePath { get; init; } = string.Empty;
@@ -73,30 +75,60 @@ public sealed record PHprDirectOutputCandidate
     public bool HasOutputOrFeatureReportCapability =>
         HasKnownOutputReportCapability || HasKnownFeatureReportCapability;
 
-    public string SelectedReportLengthSource => OutputReportByteLength is > 0
-        ? "device output-report metadata"
-        : "SimHub F1 EC hypothesis default; device output-report length was not available";
+    public bool HasF1EcFeatureReportId => FeatureReportIds.Contains(F1EcFeatureReportId);
+
+    public PHprHidReportTransport PreferredTransport
+    {
+        get
+        {
+            if (FeatureReportByteLength == SimHubF1EcRealReportEncoder.PayloadLengthBytes
+                && HasF1EcFeatureReportId)
+            {
+                return PHprHidReportTransport.FeatureReport;
+            }
+
+            if (OutputReportByteLength == SimHubF1EcRealReportEncoder.PayloadLengthBytes)
+            {
+                return PHprHidReportTransport.OutputReport;
+            }
+
+            if (FeatureReportByteLength == SimHubF1EcRealReportEncoder.PayloadLengthBytes)
+            {
+                return PHprHidReportTransport.FeatureReport;
+            }
+
+            return PHprHidReportTransport.OutputReport;
+        }
+    }
+
+    public string PreferredTransportText =>
+        $"{PreferredTransport}; report ID {FormatSelectedReportId(GetPreferredReportId(PreferredTransport))}";
+
+    public string SelectedReportLengthSource => GetReportLengthSource(PreferredTransport);
 
     public string SafeLabel =>
-        $"{VendorProductText}; {SafeDisplayName}; source {SourceMethod}; raw-input-only {IsRawInputOnly}; openable HID path {HasOpenableHidPath}; class {FormatValue(DeviceClass)}; interface {FormatValue(InterfaceNumber)}; collection {FormatValue(CollectionNumber)}; {UsageText}; reports {ReportLengthText}; report IDs {ReportIdText}; confidence {Confidence}; {ConfidenceReason}";
+        $"{VendorProductText}; {SafeDisplayName}; source {SourceMethod}; raw-input-only {IsRawInputOnly}; openable HID path {HasOpenableHidPath}; class {FormatValue(DeviceClass)}; interface {FormatValue(InterfaceNumber)}; collection {FormatValue(CollectionNumber)}; {UsageText}; reports {ReportLengthText}; report IDs {ReportIdText}; preferred transport {PreferredTransportText}; confidence {Confidence}; {ConfidenceReason}";
 
-    public PHprHidDeviceSelector ToSelector(byte? reportId = null)
+    public PHprHidDeviceSelector ToSelector(
+        byte? reportId = null,
+        PHprHidReportTransport? transport = null)
     {
         if (!HasOpenableHidPath)
         {
             return PHprHidDeviceSelector.None;
         }
 
-        var reportLength = OutputReportByteLength is > 0
-            ? OutputReportByteLength.Value
-            : SimHubF1EcRealReportEncoder.PayloadLengthBytes;
+        var selectedTransport = transport ?? PreferredTransport;
+        var reportLength = GetReportLength(selectedTransport);
+        var selectedReportId = reportId ?? GetPreferredReportId(selectedTransport);
 
         return new PHprHidDeviceSelector(
             DevicePath,
             SafeDisplayName,
             BuildInterfaceName(),
-            reportId,
-            reportLength).Normalize();
+            selectedReportId,
+            reportLength,
+            selectedTransport).Normalize();
     }
 
     public override string ToString()
@@ -109,6 +141,7 @@ public sealed record PHprDirectOutputCandidate
         var isSimagicFamily = SimagicPhprDeviceIdentity.IsSimagicFamilyVendor(VendorId);
         var isObservedFamilyProduct = SimagicPhprDeviceIdentity.IsObservedSimagicFamilyProduct(ProductId);
         var outputLengthMatches = OutputReportByteLength == SimHubF1EcRealReportEncoder.PayloadLengthBytes;
+        var featureLengthMatches = FeatureReportByteLength == SimHubF1EcRealReportEncoder.PayloadLengthBytes;
 
         var confidence = HasOpenableHidPath
             ? PHprDirectOutputCandidateConfidence.GenericHid
@@ -146,6 +179,11 @@ public sealed record PHprDirectOutputCandidate
             reasons.Add($"feature report capability {FeatureReportByteLength.Value.ToString(CultureInfo.InvariantCulture)} bytes");
         }
 
+        if (HasF1EcFeatureReportId)
+        {
+            reasons.Add("feature report ID 0xF1 is available and likely matches the F1 EC command family");
+        }
+
         if (outputLengthMatches)
         {
             confidence = HasOpenableHidPath
@@ -155,11 +193,22 @@ public sealed record PHprDirectOutputCandidate
                 : confidence;
             reasons.Add($"output report length matches {SimHubF1EcRealReportEncoder.PayloadLengthBytes} bytes");
         }
-        else if (OutputReportByteLength is null)
+
+        if (featureLengthMatches)
+        {
+            confidence = HasOpenableHidPath
+                ? isSimagicFamily
+                    ? PHprDirectOutputCandidateConfidence.Preferred
+                    : PHprDirectOutputCandidateConfidence.LikelyOutputCapable
+                : confidence;
+            reasons.Add($"feature report length matches {SimHubF1EcRealReportEncoder.PayloadLengthBytes} bytes");
+        }
+
+        if (OutputReportByteLength is null)
         {
             reasons.Add("output report length unavailable; no role guessed from path alone");
         }
-        else
+        else if (!outputLengthMatches)
         {
             reasons.Add($"output report length {OutputReportByteLength.Value.ToString(CultureInfo.InvariantCulture)} bytes does not match current P-HPR hypothesis");
         }
@@ -184,9 +233,55 @@ public sealed record PHprDirectOutputCandidate
             parts.Add($"COL{CollectionNumber}");
         }
 
+        parts.Add($"transport: {PreferredTransport}");
         parts.Add($"report length source: {SelectedReportLengthSource}");
         parts.Add(UsageText);
         return string.Join("; ", parts);
+    }
+
+    private int GetReportLength(PHprHidReportTransport transport)
+    {
+        return transport == PHprHidReportTransport.FeatureReport
+            ? FeatureReportByteLength is > 0
+                ? FeatureReportByteLength.Value
+                : SimHubF1EcRealReportEncoder.PayloadLengthBytes
+            : OutputReportByteLength is > 0
+                ? OutputReportByteLength.Value
+                : SimHubF1EcRealReportEncoder.PayloadLengthBytes;
+    }
+
+    private string GetReportLengthSource(PHprHidReportTransport transport)
+    {
+        if (transport == PHprHidReportTransport.FeatureReport)
+        {
+            return FeatureReportByteLength is > 0
+                ? "device feature-report metadata"
+                : "SimHub F1 EC hypothesis default; device feature-report length was not available";
+        }
+
+        return OutputReportByteLength is > 0
+            ? "device output-report metadata"
+            : "SimHub F1 EC hypothesis default; device output-report length was not available";
+    }
+
+    private byte? GetPreferredReportId(PHprHidReportTransport transport)
+    {
+        var reportIds = transport == PHprHidReportTransport.FeatureReport
+            ? FeatureReportIds
+            : OutputReportIds;
+
+        if (transport == PHprHidReportTransport.FeatureReport
+            && reportIds.Contains(F1EcFeatureReportId))
+        {
+            return F1EcFeatureReportId;
+        }
+
+        if (reportIds.Count == 1)
+        {
+            return reportIds[0] == 0 ? null : reportIds[0];
+        }
+
+        return null;
     }
 
     private static string FormatReportLength(int? value)
@@ -208,7 +303,12 @@ public sealed record PHprDirectOutputCandidate
                 .Order()
                 .Select(reportId => reportId == 0
                     ? "none"
-                    : $"0x{reportId:X2}"));
+            : $"0x{reportId:X2}"));
+    }
+
+    private static string FormatSelectedReportId(byte? reportId)
+    {
+        return reportId is null ? "none" : $"0x{reportId.Value:X2}";
     }
 
     private static string FormatValue(string? value)

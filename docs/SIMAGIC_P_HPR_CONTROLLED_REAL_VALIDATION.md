@@ -12,6 +12,8 @@ The second Phase 3J picker follow-up fixes the Raw Input metadata blocker. Raw I
 
 The third Phase 3J picker follow-up fixes the HID report-write blocker observed after open-check success. Open-check only proves the selected path can be opened and closed without sending a report. Direct real output now also requires known HID output-report capability, or a successful no-command report-shape validation, before `can pulse` can become true. If output-report length is unavailable, real pulses stay blocked.
 
+The fourth Phase 3J picker follow-up adds explicit HID FeatureReport support for the current local evidence. The `VID_3670/PID_0905` HID device-interface candidate exposes a 64-byte feature report and report ID `0xF1`, which likely matches the known F1 EC SET_REPORT-style command family. Dry-run can validate that feature-report shape and show expected first bytes without sending a report. Real pulses remain blocked unless the selected transport, report ID, report length, open-check, approval, coexistence, and emergency-stop gates all pass.
+
 ## Implemented Harness
 
 The harness includes:
@@ -50,24 +52,26 @@ The Advanced / Diagnostics direct-control section includes a local-only candidat
 - Candidate labels show VID/PID, display name, class, interface, collection, report lengths when available, and confidence.
 - For `VID_3670` HID device-interface candidates, read-only HID capability discovery attempts to surface input/output/feature report byte lengths, report IDs when available, and usage page/usage.
 - `VID_3670` candidates are classified as Simagic-family candidates, including observed `PID_0500`, `PID_0905`, `PID_B500`, and `PID_B905`.
+- Safe HID registry metadata is surfaced separately so observed `VID_3670` family PIDs do not disappear from the picker merely because they are not openable HID device-interface paths.
 - Raw Input metadata-only candidates are labeled as such and cannot pass real direct-output gates.
 - HID device-interface candidates with output or feature report capability are preferred over input-only/game-controller-style candidates.
+- The selected report transport is explicit: `OutputReport` or `FeatureReport`. Feature report ID `0xF1` is shown when advertised and is treated as the likely F1 EC family shape.
 - The private HID path stays in memory only and is applied internally when a candidate is selected.
 - Copied diagnostics, docs, tests, and sanitized exports must not contain private HID paths.
-- Open Check opens and immediately closes the selected HID writer without sending any output report.
-- Dry Run Gates validates selected candidate, source method, Raw Input-only status, openable HID path status, report capability/shape validation, open-check result, report length, direct-control enable/arm, approval phrase, coexistence, and emergency-stop gates without opening the HID writer.
+- Open Check opens and immediately closes the selected HID writer without sending any output report or feature report.
+- Dry Run Gates validates selected candidate, source method, Raw Input-only status, openable HID path status, selected transport, selected report ID, report capability/shape validation, open-check result, report length, expected first bytes, direct-control enable/arm, approval phrase, coexistence, and emergency-stop gates without opening the HID writer.
 
 ## Controlled CLI Smoke Test
 
 `controlled-write-test` is the explicit command-line route for a final local P-HPR smoke test. It defaults to dry-run and does not open the HID writer unless `--execute` is supplied with the exact approval phrase.
 
-`direct-output-dry-run` is the local discovery-only companion command. It lists safe candidate labels and validates gates without opening the HID writer. A selected candidate cannot report `can pulse True` until `direct-output-open-check` has succeeded for that same openable HID device-interface candidate and known output-report capability or successful report-shape validation is present:
+`direct-output-dry-run` is the local discovery-only companion command. It lists safe candidate labels and validates gates without opening the HID writer. A selected candidate cannot report `can pulse True` until `direct-output-open-check` has succeeded for that same openable HID device-interface candidate and known output-report or feature-report capability plus successful report-shape validation is present:
 
 ```powershell
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-dry-run --candidate-index 0 --enable --arm --approval "I approve Phase 2 controlled P-HPR write testing"
 ```
 
-Open-check, no output report sent:
+Open-check, no output report or feature report sent:
 
 ```powershell
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- direct-output-open-check --candidate-index 0 --enable --arm --approval "I approve Phase 2 controlled P-HPR write testing"

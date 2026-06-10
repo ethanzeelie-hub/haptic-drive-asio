@@ -465,8 +465,8 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         if (!options.AllowsDirectPulseReportShape)
         {
             return (PHprCommandStatus.RejectedInvalidCommand, options.ReportShapeValidationFailed
-                ? $"Real P-HPR direct control requires a valid HID output-report shape before pulsing: {options.ReportShapeValidationMessage ?? "report-shape validation failed"}"
-                : "Real P-HPR direct control requires known HID output-report capability before pulsing; open-check alone is not sufficient.");
+                ? $"Real P-HPR direct control requires a valid HID report shape before pulsing: {options.ReportShapeValidationMessage ?? "report-shape validation failed"}"
+                : "Real P-HPR direct control requires selected HID output/feature report capability and successful report-shape validation before pulsing; open-check alone is not sufficient.");
         }
 
         var selectorValidation = ValidateSelector(options, requireWriterSelectorMatch: false, writerSelector: null);
@@ -794,7 +794,8 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
     {
         return string.Equals(left.DevicePath, right.DevicePath, StringComparison.Ordinal)
             && left.ReportId == right.ReportId
-            && left.ReportLength == right.ReportLength;
+            && left.ReportLength == right.ReportLength
+            && left.Transport == right.Transport;
     }
 
     private static bool IsStopCommand(PHprCommand command)

@@ -84,7 +84,7 @@ public sealed class PHprDirectGearPulseRouter
 
         if (!_options.AllowsDirectPulseReportShape)
         {
-            return Ignored("Real direct gear pulse routing requires known HID output-report capability or successful no-command report-shape validation.", shiftIntentEvent);
+            return Ignored("Real direct gear pulse routing requires selected HID output/feature report capability and successful no-command report-shape validation.", shiftIntentEvent);
         }
 
         _output.SetSafetyContext(safetyContext);

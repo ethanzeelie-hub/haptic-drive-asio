@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
 public sealed class WindowsHidReportWriter : IPhprHidReportWriter
@@ -85,7 +87,7 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
                     FileShare.ReadWrite,
                     _selector.ReportLength,
                     useAsync: true);
-                return ValueTask.FromResult(PHprHidWriteResult.Success(_selector.ReportLength, "P-HPR HID writer opened the selected device path."));
+                return ValueTask.FromResult(PHprHidWriteResult.Success(_selector.ReportLength, $"P-HPR HID writer opened the selected device path for {_selector.Transport}."));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
@@ -126,9 +128,23 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
                 return PHprHidWriteResult.Failure("P-HPR HID writer is not open.", status: PHprHidWriteStatus.Disconnected);
             }
 
+            if (selector.Transport == PHprHidReportTransport.FeatureReport)
+            {
+                if (!HidD_SetFeature(stream.SafeFileHandle, report.Payload, report.Payload.Length))
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    return PHprHidWriteResult.Failure(
+                        "P-HPR HID feature report write failed; Windows rejected the report shape/write format.",
+                        $"HidD_SetFeature:0x{error:X8}",
+                        PHprHidWriteStatus.InvalidReport);
+                }
+
+                return PHprHidWriteResult.Success(report.Payload.Length, "P-HPR HID feature report written to the selected device path.");
+            }
+
             await stream.WriteAsync(report.Payload, cancellationToken);
             await stream.FlushAsync(cancellationToken);
-            return PHprHidWriteResult.Success(report.Payload.Length, "P-HPR HID report written to the selected device path.");
+            return PHprHidWriteResult.Success(report.Payload.Length, "P-HPR HID output report written to the selected device path.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -199,4 +215,10 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
             return _stream;
         }
     }
+
+    [System.Runtime.InteropServices.DllImport("hid.dll", SetLastError = true)]
+    private static extern bool HidD_SetFeature(
+        Microsoft.Win32.SafeHandles.SafeFileHandle hidDeviceObject,
+        byte[] reportBuffer,
+        int reportBufferLength);
 }

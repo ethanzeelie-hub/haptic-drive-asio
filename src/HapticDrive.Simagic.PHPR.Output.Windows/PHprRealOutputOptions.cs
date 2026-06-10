@@ -52,9 +52,16 @@ public sealed record PHprRealOutputOptions
 
     public PHprRealGearPulseSettings ThrottleGearPulse { get; init; } = PHprRealGearPulseSettings.Default;
 
+    public bool SelectedTransportCapabilityKnown => Selector.Transport switch
+    {
+        PHprHidReportTransport.FeatureReport => CandidateFeatureReportCapabilityKnown,
+        _ => CandidateOutputReportCapabilityKnown
+    };
+
     public bool AllowsDirectPulseReportShape =>
         !ReportShapeValidationFailed
-        && (CandidateOutputReportCapabilityKnown || ReportShapeValidationSucceeded);
+        && ReportShapeValidationSucceeded
+        && SelectedTransportCapabilityKnown;
 
     public PHprRealOutputOptions Normalize(PHprSafetyLimits? limits = null)
     {

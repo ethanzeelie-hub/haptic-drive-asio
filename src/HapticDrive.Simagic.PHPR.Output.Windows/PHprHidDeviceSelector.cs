@@ -5,14 +5,16 @@ public sealed record PHprHidDeviceSelector(
     string DisplayName,
     string InterfaceName,
     byte? ReportId,
-    int ReportLength)
+    int ReportLength,
+    PHprHidReportTransport Transport = PHprHidReportTransport.OutputReport)
 {
     public static PHprHidDeviceSelector None { get; } = new(
         null,
         "No P-HPR HID device selected",
         "none",
         null,
-        SimHubF1EcRealReportEncoder.PayloadLengthBytes);
+        SimHubF1EcRealReportEncoder.PayloadLengthBytes,
+        PHprHidReportTransport.OutputReport);
 
     public bool IsSelected => !string.IsNullOrWhiteSpace(DevicePath) && ReportLength > 0;
 
@@ -27,7 +29,8 @@ public sealed record PHprHidDeviceSelector(
             DevicePath = string.IsNullOrWhiteSpace(DevicePath) ? null : DevicePath.Trim(),
             DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? "P-HPR HID device" : DisplayName.Trim(),
             InterfaceName = string.IsNullOrWhiteSpace(InterfaceName) ? "manual selection" : InterfaceName.Trim(),
-            ReportLength = reportLength
+            ReportLength = reportLength,
+            Transport = Transport
         };
     }
 }
