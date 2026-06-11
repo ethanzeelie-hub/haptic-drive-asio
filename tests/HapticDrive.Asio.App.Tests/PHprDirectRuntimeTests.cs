@@ -160,6 +160,57 @@ public sealed class PHprDirectRuntimeTests
         Assert.Contains(nameof(PHprDirectRuntimeErrorCategory.UserSafetyGate), log, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task PaddleInputExceptionIsRecordedAndAttemptsStopAllWhenDirectPulseMayHaveStarted()
+    {
+        using var harness = new RuntimeHarness();
+        harness.Runtime.Configure(harness.ReadyEnvironment());
+        await harness.Runtime.InitializeStartupCleanupAsync();
+        harness.Writer.Clear();
+
+        await harness.Runtime.HandlePaddleInputExceptionAsync(
+            "paddle-input-event-exception",
+            new InvalidOperationException("simulated WPF cross-thread setter failure"),
+            stopAllIfPulseMayHaveStarted: true);
+
+        var log = string.Join(Environment.NewLine, harness.RecorderLines());
+        Assert.Contains("paddle-input-event-exception", log, StringComparison.Ordinal);
+        Assert.Contains("InvalidOperationException", log, StringComparison.Ordinal);
+        Assert.Contains("simulated WPF cross-thread setter failure", log, StringComparison.Ordinal);
+        Assert.Equal(2, harness.Writer.Reports.Count);
+        Assert.All(harness.Writer.Reports, report => Assert.Equal(PHprHidReportState.Stop, report.State));
+        Assert.False(harness.Store.Exists());
+    }
+
+    [Fact]
+    public async Task DirectBenchRouteCompletesBeforeOffDispatcherUiRefreshRuns()
+    {
+        using var harness = new RuntimeHarness();
+        var dispatcher = new FakeMainWindowUiDispatcher(hasAccess: false);
+        var uiRefresh = new FakeUiRefresh();
+        harness.Runtime.Configure(harness.ReadyEnvironment());
+        await harness.Runtime.InitializeStartupCleanupAsync();
+        harness.Writer.Clear();
+
+        var message = await harness.Runtime.RouteBenchAsync(
+            BenchResult(),
+            BenchOptions(),
+            PaddleSnapshot(),
+            module => Card(durationMs: 40),
+            DirectSafetyContext());
+        var posted = MainWindowUiDispatch.BeginInvokeIfRequired(dispatcher, uiRefresh.UpdateRealPhprDirectControlStatus);
+
+        Assert.Contains("sent", message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(posted);
+        Assert.False(uiRefresh.Updated);
+        Assert.Single(harness.Writer.Reports);
+        Assert.Equal(PHprHidReportState.Start, harness.Writer.Reports[0].State);
+
+        dispatcher.RunNextOnUiThread();
+
+        Assert.True(uiRefresh.Updated);
+    }
+
     private static PaddleGearBenchTestOptions BenchOptions()
     {
         return new PaddleGearBenchTestOptions
@@ -405,6 +456,61 @@ public sealed class PHprDirectRuntimeTests
         public void Dispose()
         {
             _directory.Dispose();
+        }
+    }
+
+    private sealed class FakeUiRefresh
+    {
+        public bool Updated { get; private set; }
+
+        public void UpdateRealPhprDirectControlStatus()
+        {
+            Updated = true;
+        }
+    }
+
+    private sealed class FakeMainWindowUiDispatcher(bool hasAccess) : IMainWindowUiDispatcher
+    {
+        private readonly Queue<Action> _pending = [];
+        private bool _hasAccess = hasAccess;
+
+        public bool CheckAccess()
+        {
+            return _hasAccess;
+        }
+
+        public void BeginInvoke(Action action)
+        {
+            _pending.Enqueue(action);
+        }
+
+        public ValueTask InvokeAsync(Action action)
+        {
+            var previous = _hasAccess;
+            _hasAccess = true;
+            try
+            {
+                action();
+                return ValueTask.CompletedTask;
+            }
+            finally
+            {
+                _hasAccess = previous;
+            }
+        }
+
+        public void RunNextOnUiThread()
+        {
+            var previous = _hasAccess;
+            _hasAccess = true;
+            try
+            {
+                _pending.Dequeue().Invoke();
+            }
+            finally
+            {
+                _hasAccess = previous;
+            }
         }
     }
 

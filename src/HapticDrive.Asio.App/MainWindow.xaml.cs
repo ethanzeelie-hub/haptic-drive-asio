@@ -4471,6 +4471,11 @@ public partial class MainWindow : Window
 
     private void UpdateRealPhprDirectControlStatus()
     {
+        if (BeginInvokeOnUiIfRequired(UpdateRealPhprDirectControlStatus))
+        {
+            return;
+        }
+
         var diagnostics = _realPhprOutput.GetDiagnostics();
         var options = diagnostics.Options;
         var selector = options.Selector;
@@ -4507,6 +4512,11 @@ public partial class MainWindow : Window
 
     private void UpdatePhprValidationStatus()
     {
+        if (BeginInvokeOnUiIfRequired(UpdatePhprValidationStatus))
+        {
+            return;
+        }
+
         var checklist = BuildPhprManualValidationChecklist();
         _phprManualValidationReadiness = PHprManualValidationReadiness.Evaluate(checklist);
         var result = BuildPhprManualValidationResult();
@@ -4527,6 +4537,11 @@ public partial class MainWindow : Window
 
     private void UpdateDiagnosticsStatus()
     {
+        if (BeginInvokeOnUiIfRequired(UpdateDiagnosticsStatus))
+        {
+            return;
+        }
+
         if (DiagnosticsPanel.Visibility != Visibility.Visible
             && NavigationList.SelectedItem is not ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
         {
@@ -5180,7 +5195,7 @@ public partial class MainWindow : Window
 
     private void PaddleInputSource_InputChanged(object? sender, object e)
     {
-        _ = Dispatcher.InvokeAsync(() =>
+        _ = RunOnUiSafelyAsync("paddle-input-status-refresh", stopAllIfPulseMayHaveStarted: false, () =>
         {
             UpdatePaddleInputStatus();
             UpdateDiagnosticsStatus();
@@ -5189,49 +5204,62 @@ public partial class MainWindow : Window
 
     private async void PaddleInputSource_PaddleInputReceived(object? sender, WheelPaddleInputEvent e)
     {
-        var result = _shiftIntentProcessor.HandlePaddleInput(e);
-        PHprGearPulseRoutingResult? routingResult = null;
-        PHprDirectGearPulseRoutingResult? realRoutingResult = null;
-        var benchResult = _paddleGearBenchTestController.HandlePaddleInput(e, _paddleMapping);
-        string? benchRoutingMessage = null;
-        if (result.WasAccepted && result.ShiftIntentEvent is not null)
+        var stopAllIfPulseMayHaveStarted = false;
+        try
         {
-            routingResult = await _mockGearPulseRouter.RouteAsync(
-                result.ShiftIntentEvent,
-                BuildMockGearPulseSafetyContext(result.ShiftIntentEvent));
-            realRoutingResult = await _realPhprGearPulseRouter.RouteAsync(
-                result.ShiftIntentEvent,
-                BuildRealGearPulseSafetyContext(result.ShiftIntentEvent));
-        }
-
-        if (benchResult.Accepted && benchResult.ShiftIntentEvent is not null)
-        {
-            benchRoutingMessage = await RoutePaddleGearBenchAsync(benchResult);
-        }
-
-        _ = Dispatcher.InvokeAsync(() =>
-        {
-            if (realRoutingResult is not null)
+            var result = _shiftIntentProcessor.HandlePaddleInput(e);
+            PHprGearPulseRoutingResult? routingResult = null;
+            PHprDirectGearPulseRoutingResult? realRoutingResult = null;
+            var benchResult = _paddleGearBenchTestController.HandlePaddleInput(e, _paddleMapping);
+            string? benchRoutingMessage = null;
+            if (result.WasAccepted && result.ShiftIntentEvent is not null)
             {
-                _lastRealPhprGearPulseRoutingResult = realRoutingResult;
+                routingResult = await _mockGearPulseRouter.RouteAsync(
+                    result.ShiftIntentEvent,
+                    BuildMockGearPulseSafetyContext(result.ShiftIntentEvent));
+                realRoutingResult = await _realPhprGearPulseRouter.RouteAsync(
+                    result.ShiftIntentEvent,
+                    BuildRealGearPulseSafetyContext(result.ShiftIntentEvent));
             }
 
-            UpdateShiftIntentStatus();
-            UpdatePaddleGearBenchStatus();
-            UpdateRealPhprDirectControlStatus();
-            UpdatePhprValidationStatus();
-            UpdateMockGearPulseStatus();
-            UpdateMockPedalEffectsStatus();
-            UpdateDiagnosticsStatus();
+            if (benchResult.Accepted && benchResult.ShiftIntentEvent is not null)
+            {
+                stopAllIfPulseMayHaveStarted =
+                    benchResult.Options.Normalize().OutputMode == PaddleGearBenchTestOutputMode.Direct;
+                benchRoutingMessage = await RoutePaddleGearBenchAsync(benchResult);
+            }
 
-            var realMessage = realRoutingResult is not null
-                && (_realPhprOptions.DirectControlEnabled || realRoutingResult.Routed)
-                    ? $" {realRoutingResult.Message}"
-                    : string.Empty;
-            FooterStatusText.Text = routingResult is null
-                ? $"{result.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}"
-                : $"{result.Message} {routingResult.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}";
-        });
+            await RunOnUiAsync(() =>
+            {
+                if (realRoutingResult is not null)
+                {
+                    _lastRealPhprGearPulseRoutingResult = realRoutingResult;
+                }
+
+                UpdateShiftIntentStatus();
+                UpdatePaddleGearBenchStatus();
+                UpdateRealPhprDirectControlStatus();
+                UpdatePhprValidationStatus();
+                UpdateMockGearPulseStatus();
+                UpdateMockPedalEffectsStatus();
+                UpdateDiagnosticsStatus();
+
+                var realMessage = realRoutingResult is not null
+                    && (_realPhprOptions.DirectControlEnabled || realRoutingResult.Routed)
+                        ? $" {realRoutingResult.Message}"
+                        : string.Empty;
+                FooterStatusText.Text = routingResult is null
+                    ? $"{result.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}"
+                    : $"{result.Message} {routingResult.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}";
+            });
+        }
+        catch (Exception ex)
+        {
+            await HandlePaddleInputEventExceptionAsync(
+                "paddle-input-event-exception",
+                ex,
+                stopAllIfPulseMayHaveStarted);
+        }
     }
 
     private async Task<string> RoutePaddleGearBenchAsync(PaddleGearBenchTestResult benchResult)
@@ -5285,6 +5313,72 @@ public partial class MainWindow : Window
         UpdateRealPhprDirectControlStatus();
         UpdatePhprValidationStatus();
         return message;
+    }
+
+    private bool BeginInvokeOnUiIfRequired(Action action)
+    {
+        return MainWindowUiDispatch.BeginInvokeIfRequired(
+            new WpfMainWindowUiDispatcher(Dispatcher),
+            action);
+    }
+
+    private ValueTask RunOnUiAsync(Action action)
+    {
+        return MainWindowUiDispatch.InvokeAsync(
+            new WpfMainWindowUiDispatcher(Dispatcher),
+            action);
+    }
+
+    private async Task RunOnUiSafelyAsync(
+        string reason,
+        bool stopAllIfPulseMayHaveStarted,
+        Action action)
+    {
+        try
+        {
+            await RunOnUiAsync(action);
+        }
+        catch (Exception ex)
+        {
+            await HandlePaddleInputEventExceptionAsync(reason, ex, stopAllIfPulseMayHaveStarted);
+        }
+    }
+
+    private async Task HandlePaddleInputEventExceptionAsync(
+        string reason,
+        Exception exception,
+        bool stopAllIfPulseMayHaveStarted)
+    {
+        try
+        {
+            await _phprDirectRuntime.HandlePaddleInputExceptionAsync(
+                reason,
+                exception,
+                stopAllIfPulseMayHaveStarted);
+        }
+        catch
+        {
+            WritePaddleGearBenchCrashLog($"{reason}-recovery-failed", exception);
+        }
+
+        try
+        {
+            await RunOnUiAsync(() =>
+            {
+                UpdatePaddleGearBenchStatus();
+                UpdateRealPhprDirectControlStatus();
+                UpdatePhprValidationStatus();
+                UpdateDiagnosticsStatus();
+                FooterStatusText.Text = "Paddle input routing failed safely; P-HPR Stop All recovery was attempted when needed.";
+            });
+        }
+        catch (Exception uiException)
+        {
+            await _phprDirectRuntime.HandlePaddleInputExceptionAsync(
+                $"{reason}-status-update-failed",
+                uiException,
+                stopAllIfPulseMayHaveStarted: false);
+        }
     }
 
     private Task<bool> ApplyPhprPedalsNormalOptionsFromControlsAsync(string footerMessage)

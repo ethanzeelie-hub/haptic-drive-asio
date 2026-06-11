@@ -159,6 +159,12 @@ internal interface IPHprDirectRuntime
     void ClearEmergencyStop();
 
     void HandleUnhandledException(string reason, Exception? exception);
+
+    ValueTask HandlePaddleInputExceptionAsync(
+        string reason,
+        Exception exception,
+        bool stopAllIfPulseMayHaveStarted,
+        CancellationToken cancellationToken = default);
 }
 
 internal interface IPHprDirectCommandDispatcher
@@ -950,6 +956,28 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         catch (Exception ex)
         {
             RecordException("unhandled-exception-stop-all-failed", ex, PHprDirectRuntimeErrorCategory.EmergencyStop);
+        }
+    }
+
+    public async ValueTask HandlePaddleInputExceptionAsync(
+        string reason,
+        Exception exception,
+        bool stopAllIfPulseMayHaveStarted,
+        CancellationToken cancellationToken = default)
+    {
+        RecordException(reason, exception, PHprDirectRuntimeErrorCategory.UnhandledException);
+        if (!stopAllIfPulseMayHaveStarted)
+        {
+            return;
+        }
+
+        try
+        {
+            await StopAllAsync($"paddle input exception recovery: {reason}", cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            RecordException("paddle-input-exception-stop-all-failed", ex, PHprDirectRuntimeErrorCategory.EmergencyStop);
         }
     }
 

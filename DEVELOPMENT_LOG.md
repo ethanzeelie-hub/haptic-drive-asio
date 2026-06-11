@@ -2361,3 +2361,35 @@ Self-review:
 - The ASIO/BST-1 audio path, F1 25 parser, UDP forwarding, recording/replay raw-packet preservation, normal telemetry `DrivingArmed` route, and confirmed P-HPR report bytes were not changed.
 - Direct P-HPR remains a separate HID FeatureReport actuator path and is not routed through `IAudioOutputDevice`.
 - Automated coverage uses fake HID writers, fake runtime clocks, fake/read-only input paths, fake ASIO backends, and Null output. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.
+
+## Stage 18f - Direct Paddle Bench UI Thread Crash Hotfix
+
+Date: 2026-06-11
+
+Status: Complete.
+
+Goal: Fix the Direct Paddle Gear Bench crash caused by WPF controls being updated from the paddle input background callback after a successful P-HPR direct start write, without changing ASIO/BST-1, telemetry parsing, or confirmed P-HPR report bytes.
+
+Missing Items Addressed:
+
+- Added a small `MainWindowUiDispatch` helper so status refreshes can post to WPF asynchronously when called off the dispatcher instead of touching dependency properties from the input thread.
+- Made `UpdateRealPhprDirectControlStatus`, `UpdatePhprValidationStatus`, and `UpdateDiagnosticsStatus` self-marshal when invoked from a non-UI callback path.
+- Wrapped `PaddleInputSource_PaddleInputReceived` in defensive exception handling, awaited the final UI update, and records recoverable paddle-path failures through the Stage 18e flight recorder.
+- Added async paddle exception recovery to `PHprDirectRuntimeCoordinator`; when a direct bench pulse may have started, recovery attempts stop-all and does not rethrow into WPF/AppDomain.
+- Kept Direct Paddle Gear Bench runtime ownership, stop-all/marker cleanup, flight recorder behavior, shared Devices pulse service proof, writer/encoder path, VID/PID/report ID/report length assumptions, and P-HPR command format unchanged.
+- Added regression tests for off-dispatcher UI posting, awaited dispatcher exception flow, direct bench route completion after a fake successful start write, and paddle exception recording with stop-all attempts.
+
+Notes:
+
+- This hotfix addresses a software threading crash only. It does not prove physical stop feel, configured duration on real hardware, safe gain, physical latency, or real coexistence behavior.
+- Blue Devices-tab Test Brake/Throttle pulse behavior and ASIO/BST-1 paths were not changed.
+- No physical P-HPR validation was performed by Codex.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore` passed.
+- `.\.dotnet\dotnet.exe build --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed with 56 passing tests.
+- Full sequential `.\.dotnet\dotnet.exe test --no-build --verbosity minimal -m:1` passed with 568 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.

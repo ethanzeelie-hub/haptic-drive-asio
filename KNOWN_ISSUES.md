@@ -492,3 +492,9 @@
 - The flight recorder and marker are local validation artifacts under `local-validation-results/`; they should not be committed, and private HID paths remain redacted from recorder entries.
 - Startup cleanup may send stop-only brake/throttle reports when a selected direct device is already configured, but it never sends active/start/vibration reports.
 - The F1 25 parser, UDP forwarding, recording/replay raw-byte preservation, confirmed P-HPR report bytes, normal telemetry `DrivingArmed` routing, and ASIO/BST-1 audio path are unchanged by Stage 18e.
+
+## Stage 18f
+
+- The Direct Paddle Gear Bench WPF cross-thread crash is hotfixed in software by marshaling paddle-path status updates to the UI dispatcher and recording/recovering paddle callback exceptions. This does not prove physical P-HPR duration, stop feel, safe gain, physical latency, or real coexistence behavior.
+- If a paddle-path exception occurs after a direct bench pulse may have started, the runtime records it to the local flight recorder and attempts stop-all recovery. The local flight recorder and marker remain local validation artifacts and must not be committed.
+- Blue Test Brake/Throttle Pulse and Direct Paddle Gear Bench still use the same shared direct pulse service and confirmed FeatureReport `0xF1` / 64-byte command format; ASIO/BST-1, F1 25 parsing, UDP forwarding, and recording/replay paths are unchanged.
