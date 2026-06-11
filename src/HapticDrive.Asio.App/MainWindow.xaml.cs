@@ -95,7 +95,6 @@ public partial class MainWindow : Window
     private readonly IReadOnlyList<PHprGearPulseTarget> _paddleGearBenchTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
     private readonly IReadOnlyList<PaddleGearBenchTestOutputMode> _paddleGearBenchOutputModeOptions =
         Enum.GetValues<PaddleGearBenchTestOutputMode>();
-    private readonly IReadOnlyList<int> _manualAsioHardwareTestDurationOptions = [250, 500, 1000];
     private readonly IReadOnlyList<PHprGearPulseTarget> _mockPedalEffectTargetOptions = Enum.GetValues<PHprGearPulseTarget>();
     private readonly IReadOnlyList<PHprHidReportTransport> _realPhprReportTransportOptions =
         Enum.GetValues<PHprHidReportTransport>();
@@ -220,6 +219,7 @@ public partial class MainWindow : Window
     private bool _updatingRealPhprDirectControlUi;
     private bool _updatingMockGearPulseUi;
     private bool _updatingMockPedalEffectsUi;
+    private bool _updatingBst1PulseUi;
     private bool _advancedDiagnosticsEnabled;
     private bool _routingMockPedalEffects;
     private bool _routingRealRoadVibration;
@@ -227,6 +227,15 @@ public partial class MainWindow : Window
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
     private string _lastPhprPedalsPulseMessage = "No normal P-HPR test pulse has been sent.";
+    private string _lastBst1PaddleGearPulseMessage = "BST-1 paddle gear pulse is disabled.";
+    private bool _bst1PaddleGearPulseEnabled;
+    private float _manualBst1StrengthPercent = 50f;
+    private float _manualBst1FrequencyHz = 50f;
+    private int _manualBst1DurationMs = 45;
+    private float _bst1PaddleGearStrengthPercent = 50f;
+    private float _bst1PaddleGearFrequencyHz = 50f;
+    private bool _bst1PaddleGearSyncDuration = true;
+    private int _bst1PaddleGearCustomDurationMs = 45;
     private PHprDirectGearPulseRoutingResult? _lastRealPhprGearPulseRoutingResult;
     private PHprRoadVibrationRoutingResult? _lastRealRoadVibrationRoutingResult;
     private PHprSlipLockRoutingResult? _lastRealSlipLockRoutingResult;
@@ -304,8 +313,6 @@ public partial class MainWindow : Window
         MockGearPulseTargetComboBox.ItemsSource = _mockGearPulseTargetOptions;
         PaddleGearBenchTargetComboBox.ItemsSource = _paddleGearBenchTargetOptions;
         PaddleGearBenchOutputModeComboBox.ItemsSource = _paddleGearBenchOutputModeOptions;
-        ManualAsioHardwareDurationComboBox.ItemsSource = _manualAsioHardwareTestDurationOptions;
-        ManualAsioHardwareDurationComboBox.SelectedItem = 250;
         RoadPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         SlipPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         LockPedalEffectTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
@@ -323,6 +330,7 @@ public partial class MainWindow : Window
         ApplyMockGearPulseSettingsToControls();
         ApplyMockPedalEffectsSettingsToControls();
         ApplyPhprPedalsNormalSettingsToControls();
+        ApplyBst1PulseSettingsToControls();
         ApplyPaddleGearBenchSettingsToControls();
         ApplyRealPhprOptionsToControls();
         ApplyAdvancedDiagnosticsPreferenceToControls();
@@ -1305,11 +1313,14 @@ public partial class MainWindow : Window
     private HapticPipelineCoordinator CreatePipelineForSelectedOutput()
     {
         var configuration = BuildSelectedOutputConfiguration();
-        return new HapticPipelineCoordinator(
+        var pipeline = new HapticPipelineCoordinator(
             configuration,
             CreateSelectedOutputDevice(),
             profile: _currentProfile,
             forwardingDestinations: CreateForwardingDestinations());
+        pipeline.SetManualAsioHardwareTestFlightRecorder(
+            new FileManualAsioHardwareTestFlightRecorder(GetLocalValidationResultsDirectory()));
+        return pipeline;
     }
 
     private IAudioOutputDevice CreateSelectedOutputDevice()
@@ -3912,14 +3923,44 @@ public partial class MainWindow : Window
         UpdateTestBenchStatus();
     }
 
-    private void ManualAsioHardwareTest40HzButton_Click(object sender, RoutedEventArgs e)
+    private void ManualBst1Control_LostFocus(object sender, RoutedEventArgs e)
     {
-        StartManualAsioHardwareTest(40f);
+        ApplyManualBst1SettingsFromControls("Manual BST-1 pulse settings updated.");
     }
 
-    private void ManualAsioHardwareTest50HzButton_Click(object sender, RoutedEventArgs e)
+    private void Bst1PaddleGearPulseControl_Changed(object sender, RoutedEventArgs e)
     {
-        StartManualAsioHardwareTest(50f);
+        if (_updatingBst1PulseUi)
+        {
+            return;
+        }
+
+        ApplyBst1PaddleGearPulseSettingsFromControls("BST-1 paddle gear pulse settings updated.");
+    }
+
+    private void Bst1PaddleGearPulseControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_updatingBst1PulseUi)
+        {
+            return;
+        }
+
+        ApplyBst1PaddleGearPulseSettingsFromControls("BST-1 paddle gear pulse settings updated.");
+    }
+
+    private async void ManualBst1PulseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ApplyManualBst1SettingsFromControls("Manual BST-1 pulse settings ready."))
+        {
+            return;
+        }
+
+        await StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            _manualBst1FrequencyHz,
+            TimeSpan.FromMilliseconds(_manualBst1DurationMs),
+            _manualBst1StrengthPercent / 100f,
+            Source: "manual test",
+            DurationMode: "manual"));
     }
 
     private void ManualAsioHardwareTestChannel0Button_Click(object sender, RoutedEventArgs e)
@@ -3939,15 +3980,9 @@ public partial class MainWindow : Window
         UpdateManualAsioHardwareTestStatus();
     }
 
-    private void StartManualAsioHardwareTest(float frequencyHz)
+    private async Task StartManualAsioHardwareTestAsync(ManualAsioHardwareTestRequest request)
     {
-        var durationMs = ManualAsioHardwareDurationComboBox.SelectedItem is int selectedDuration
-            ? selectedDuration
-            : 250;
-        var result = _hapticPipeline.StartManualAsioHardwareTest(
-            new ManualAsioHardwareTestRequest(
-                frequencyHz,
-                TimeSpan.FromMilliseconds(durationMs)));
+        var result = await _hapticPipeline.StartManualAsioHardwareTestAsync(request);
 
         FooterStatusText.Text = result.Message;
         UpdateManualAsioHardwareTestStatus();
@@ -3962,9 +3997,14 @@ public partial class MainWindow : Window
         SaveAppSettings();
         if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
         {
-            if (wasSelected && _hapticsStarted)
+            if (wasSelected)
             {
-                StartManualAsioHardwareTest(50f);
+                await StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+                    _manualBst1FrequencyHz,
+                    TimeSpan.FromMilliseconds(_manualBst1DurationMs),
+                    _manualBst1StrengthPercent / 100f,
+                    Source: "manual test",
+                    DurationMode: "manual"));
                 return;
             }
 
@@ -4003,11 +4043,176 @@ public partial class MainWindow : Window
     private void UpdateManualAsioHardwareTestStatus()
     {
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
+        TrueAsioStatusText.Text = BuildTrueAsioStatusText(snapshot);
         ManualAsioHardwareStatusText.Text =
-            $"Manual ASIO Hardware Test: mode {snapshot.TestMode}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; haptics {snapshot.HapticsRunning}; peak {snapshot.OutputPeakLevel:0.000}.";
+            $"BST-1 ASIO: mode {snapshot.OutputMode}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; armed {snapshot.AsioArmed}; ASIO running {snapshot.AsioRunning}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; peak {snapshot.ManualPulsePeak:0.000}.";
         ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason is null
-            ? $"Last signal {snapshot.LastTestSignal ?? "none"}; duration {(snapshot.LastTestDuration is null ? "none" : $"{snapshot.LastTestDuration.Value.TotalMilliseconds:0} ms")}; submitted {snapshot.FramesSubmitted:N0} frame(s); rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}; last error {snapshot.LastError ?? "none"}."
+            ? $"Last pulse {snapshot.LastSource ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs:0} ms")} ({snapshot.LastDurationMode ?? "manual"}); submitted {snapshot.SubmittedFrameCount:N0} frame(s); rendered {snapshot.FramesRendered:N0}; callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; dropped {snapshot.DroppedFrameCount:N0}; limiter {snapshot.LimiterApplied}; used ASIO {snapshot.LastPulseUsedAsio}; last error {snapshot.LastError ?? "none"}; flight recorder {snapshot.FlightRecorderPath}; {_lastBst1PaddleGearPulseMessage}"
             : $"Blocked: {snapshot.BlockedReason}";
+    }
+
+    private void ApplyBst1PulseSettingsToControls()
+    {
+        _updatingBst1PulseUi = true;
+        ManualBst1StrengthTextBox.Text = _manualBst1StrengthPercent.ToString("0", CultureInfo.InvariantCulture);
+        ManualBst1FrequencyTextBox.Text = _manualBst1FrequencyHz.ToString("0.#", CultureInfo.InvariantCulture);
+        ManualBst1DurationTextBox.Text = _manualBst1DurationMs.ToString(CultureInfo.InvariantCulture);
+        Bst1PaddleGearPulseEnabledCheckBox.IsChecked = _bst1PaddleGearPulseEnabled;
+        Bst1PaddleGearStrengthTextBox.Text = _bst1PaddleGearStrengthPercent.ToString("0", CultureInfo.InvariantCulture);
+        Bst1PaddleGearFrequencyTextBox.Text = _bst1PaddleGearFrequencyHz.ToString("0.#", CultureInfo.InvariantCulture);
+        Bst1PaddleGearSyncDurationCheckBox.IsChecked = _bst1PaddleGearSyncDuration;
+        Bst1PaddleGearDurationTextBox.Text = _bst1PaddleGearCustomDurationMs.ToString(CultureInfo.InvariantCulture);
+        Bst1PaddleGearDurationTextBox.IsEnabled = !_bst1PaddleGearSyncDuration;
+        _updatingBst1PulseUi = false;
+    }
+
+    private bool ApplyManualBst1SettingsFromControls(string footerMessage)
+    {
+        if (!TryParsePercent(ManualBst1StrengthTextBox.Text, out var strengthPercent, out var message))
+        {
+            ManualAsioHardwareStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return false;
+        }
+
+        if (!TryParseBst1Frequency(ManualBst1FrequencyTextBox.Text, out var frequencyHz, out message))
+        {
+            ManualAsioHardwareStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return false;
+        }
+
+        if (!TryParseBst1Duration(ManualBst1DurationTextBox.Text, out var durationMs, out message))
+        {
+            ManualAsioHardwareStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return false;
+        }
+
+        _manualBst1StrengthPercent = strengthPercent;
+        _manualBst1FrequencyHz = frequencyHz;
+        _manualBst1DurationMs = durationMs;
+        ApplyBst1PulseSettingsToControls();
+        UpdateManualAsioHardwareTestStatus();
+        FooterStatusText.Text = footerMessage;
+        return true;
+    }
+
+    private bool ApplyBst1PaddleGearPulseSettingsFromControls(string footerMessage)
+    {
+        if (!TryParsePercent(Bst1PaddleGearStrengthTextBox.Text, out var strengthPercent, out var message))
+        {
+            ManualAsioHardwareStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return false;
+        }
+
+        if (!TryParseBst1Frequency(Bst1PaddleGearFrequencyTextBox.Text, out var frequencyHz, out message))
+        {
+            ManualAsioHardwareStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return false;
+        }
+
+        if (!TryParseBst1Duration(Bst1PaddleGearDurationTextBox.Text, out var durationMs, out message))
+        {
+            ManualAsioHardwareStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return false;
+        }
+
+        _bst1PaddleGearPulseEnabled = Bst1PaddleGearPulseEnabledCheckBox.IsChecked == true;
+        _bst1PaddleGearStrengthPercent = strengthPercent;
+        _bst1PaddleGearFrequencyHz = frequencyHz;
+        _bst1PaddleGearSyncDuration = Bst1PaddleGearSyncDurationCheckBox.IsChecked == true;
+        _bst1PaddleGearCustomDurationMs = durationMs;
+        _lastBst1PaddleGearPulseMessage = _bst1PaddleGearPulseEnabled
+            ? "BST-1 paddle gear pulse enabled for accepted bench Pressed events."
+            : "BST-1 paddle gear pulse is disabled.";
+        ApplyBst1PulseSettingsToControls();
+        UpdateManualAsioHardwareTestStatus();
+        FooterStatusText.Text = footerMessage;
+        return true;
+    }
+
+    private static bool TryParsePercent(string text, out float value, out string message)
+    {
+        if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            || !float.IsFinite(value))
+        {
+            message = "BST-1 strength must be a number from 0 to 100%.";
+            value = 50f;
+            return false;
+        }
+
+        value = Math.Clamp(value, 0f, 100f);
+        message = "BST-1 strength ready.";
+        return true;
+    }
+
+    private static bool TryParseBst1Frequency(string text, out float value, out string message)
+    {
+        if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            || !float.IsFinite(value))
+        {
+            message = "BST-1 frequency must be a number from 10 to 80 Hz.";
+            value = 50f;
+            return false;
+        }
+
+        value = Math.Clamp(
+            value,
+            ManualAsioHardwareTestRequest.MinimumFrequencyHz,
+            ManualAsioHardwareTestRequest.MaximumFrequencyHz);
+        message = "BST-1 frequency ready.";
+        return true;
+    }
+
+    private static bool TryParseBst1Duration(string text, out int value, out string message)
+    {
+        if (!int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            message = "BST-1 duration must be a whole number of milliseconds.";
+            value = 45;
+            return false;
+        }
+
+        value = Math.Clamp(
+            value,
+            ManualAsioHardwareTestRequest.MinimumDurationMilliseconds,
+            (int)ManualAsioHardwareTestRequest.MaximumDuration.TotalMilliseconds);
+        message = "BST-1 duration ready.";
+        return true;
+    }
+
+    private static string BuildTrueAsioStatusText(ManualAsioHardwareTestSnapshot snapshot)
+    {
+        if (snapshot.OutputMode == AudioOutputDeviceKind.Null.ToString())
+        {
+            return "True ASIO: NO - Null Output";
+        }
+
+        if (snapshot.OutputMode == AudioOutputDeviceKind.WasapiDebug.ToString())
+        {
+            return "True ASIO: NO - WASAPI/debug";
+        }
+
+        if (!snapshot.AsioArmed)
+        {
+            return "True ASIO: NO - ASIO not armed";
+        }
+
+        if (!snapshot.AsioRunning)
+        {
+            return "True ASIO: NO - ASIO not running";
+        }
+
+        if (!snapshot.AsioCallbackActive)
+        {
+            return "True ASIO: NO - callback inactive";
+        }
+
+        return "True ASIO: YES";
     }
 
     private static SolidColorBrush BrushFrom(string color)
@@ -4797,7 +5002,7 @@ public partial class MainWindow : Window
     private string BuildManualAsioHardwareTestDiagnosticsText()
     {
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
-        return $"mode {snapshot.TestMode}; active {snapshot.IsActive}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; ASIO running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; haptics {snapshot.HapticsRunning}; emergency {snapshot.EmergencyMute}; normal mute {snapshot.NormalMute}; peak {snapshot.OutputPeakLevel:0.000}; submitted {snapshot.FramesSubmitted:N0} frame(s); rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}; blocked {snapshot.BlockedReason ?? "none"}; last signal {snapshot.LastTestSignal ?? "none"}; duration {(snapshot.LastTestDuration is null ? "none" : $"{snapshot.LastTestDuration.Value.TotalMilliseconds:0} ms")}; error {snapshot.LastError ?? "none"}.";
+        return $"mode {snapshot.OutputMode}; true ASIO {BuildTrueAsioStatusText(snapshot)}; active {snapshot.IsActive}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; ASIO running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; emergency {snapshot.EmergencyMute}; normal mute {snapshot.NormalMute}; peak {snapshot.ManualPulsePeak:0.000}; submitted {snapshot.SubmittedFrameCount:N0} frame(s); dropped {snapshot.DroppedFrameCount:N0}; rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; limiter {snapshot.LimiterApplied}; blocked {snapshot.BlockedReason ?? "none"}; used ASIO {snapshot.LastPulseUsedAsio}; last source {snapshot.LastSource ?? "none"}; last signal {snapshot.LastTestSignal ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs.Value:0} ms")}; duration mode {snapshot.LastDurationMode ?? "none"}; flight recorder {snapshot.FlightRecorderPath}; error {snapshot.LastError ?? "none"}.";
     }
 
     private string BuildMockGearPulseDiagnosticsText()
@@ -5284,24 +5489,93 @@ public partial class MainWindow : Window
 
         if (options.OutputMode == PaddleGearBenchTestOutputMode.Mock)
         {
-            var routeOptions = new PHprGearPulseRouterOptions
-            {
-                IsEnabled = true,
-                TargetModule = options.TargetModule,
-                Profile = options.Profile
-            }.Normalize();
-            var result = await _mockGearPulseRouter.RouteAsync(
-                benchResult.ShiftIntentEvent,
-                routeOptions,
-                BuildPaddleGearBenchMockSafetyContext());
-            var message = $"Bench Mock: {result.Message}";
+            var bst1Task = RouteBst1PaddleGearBenchAsync(benchResult);
+            var phprTask = RoutePaddleGearBenchMockAsync(benchResult, options);
+            await Task.WhenAll(phprTask, bst1Task);
+            var message = $"{phprTask.Result} {bst1Task.Result}".Trim();
             _paddleGearBenchTestController.RecordOutputStatus(message);
             return message;
         }
 
-        var directMessage = await RoutePaddleGearBenchDirectAsync(benchResult, options);
+        var directTask = RoutePaddleGearBenchDirectAsync(benchResult, options);
+        var bstTask = RouteBst1PaddleGearBenchAsync(benchResult);
+        await Task.WhenAll(directTask, bstTask);
+        var directMessage = $"{directTask.Result} {bstTask.Result}".Trim();
         _paddleGearBenchTestController.RecordOutputStatus(directMessage);
         return directMessage;
+    }
+
+    private async Task<string> RoutePaddleGearBenchMockAsync(
+        PaddleGearBenchTestResult benchResult,
+        PaddleGearBenchTestOptions options)
+    {
+        var routeOptions = new PHprGearPulseRouterOptions
+        {
+            IsEnabled = true,
+            TargetModule = options.TargetModule,
+            Profile = options.Profile
+        }.Normalize();
+        var result = await _mockGearPulseRouter.RouteAsync(
+            benchResult.ShiftIntentEvent!,
+            routeOptions,
+            BuildPaddleGearBenchMockSafetyContext());
+        return $"Bench Mock: {result.Message}";
+    }
+
+    private async Task<string> RouteBst1PaddleGearBenchAsync(PaddleGearBenchTestResult benchResult)
+    {
+        if (!_bst1PaddleGearPulseEnabled)
+        {
+            _lastBst1PaddleGearPulseMessage = "BST-1 paddle gear pulse is disabled.";
+            return "BST-1 paddle pulse skipped: disabled.";
+        }
+
+        if (benchResult is not { Accepted: true, ShiftIntentEvent: not null })
+        {
+            _lastBst1PaddleGearPulseMessage = "BST-1 paddle pulse skipped: bench event was not accepted.";
+            return "BST-1 paddle pulse skipped: bench event was not accepted.";
+        }
+
+        var pHprDuration = GetBst1SyncedPaddleDurationMs(benchResult.Options.Normalize());
+        var durationMs = _bst1PaddleGearSyncDuration
+            ? pHprDuration
+            : _bst1PaddleGearCustomDurationMs;
+        var durationMode = _bst1PaddleGearSyncDuration ? "sync" : "custom";
+        var request = new ManualAsioHardwareTestRequest(
+            _bst1PaddleGearFrequencyHz,
+            TimeSpan.FromMilliseconds(durationMs),
+            _bst1PaddleGearStrengthPercent / 100f,
+            Source: "paddle gear bench",
+            DurationMode: durationMode,
+            AcceptedPaddleEventSequence: benchResult.PaddleEvent.SequenceNumber,
+            PaddleSide: benchResult.PaddleEvent.PaddleSide.ToString(),
+            PaddleButtonId: benchResult.PaddleEvent.ButtonId,
+            AcceptedGearPulseId: benchResult.ShiftIntentEvent.SequenceNumber);
+        var result = await _hapticPipeline.StartManualAsioHardwareTestAsync(request);
+        _lastBst1PaddleGearPulseMessage = result.Succeeded
+            ? $"Paddle gear BST-1 pulse accepted on ASIO channel {result.Snapshot.SelectedOutputChannel}; {durationMode} duration {durationMs:N0} ms."
+            : $"Paddle gear BST-1 pulse blocked: {result.Snapshot.BlockedReason ?? result.Message}";
+        return result.Succeeded
+            ? _lastBst1PaddleGearPulseMessage
+            : _lastBst1PaddleGearPulseMessage;
+    }
+
+    private int GetBst1SyncedPaddleDurationMs(PaddleGearBenchTestOptions options)
+    {
+        var durations = new List<int>();
+        if (options.TargetModule is PHprGearPulseTarget.Brake or PHprGearPulseTarget.Both)
+        {
+            durations.Add(_realPhprOptions.BrakeGearPulse.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits).DurationMs);
+        }
+
+        if (options.TargetModule is PHprGearPulseTarget.Throttle or PHprGearPulseTarget.Both)
+        {
+            durations.Add(_realPhprOptions.ThrottleGearPulse.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits).DurationMs);
+        }
+
+        return durations.Count == 0
+            ? _bst1PaddleGearCustomDurationMs
+            : durations.Max();
     }
 
     private async Task<string> RoutePaddleGearBenchDirectAsync(

@@ -1,6 +1,6 @@
 # ASIO Output
 
-ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics. Stage 18 adds launch/runtime prerequisite handling, app settings persistence, forwarding/recording/diagnostics polish, and final pre-shaker readiness cleanup. The Stage 18 follow-up adds a manual-only ASIO hardware test that routes short 40/50 Hz pulses through the selected real ASIO output path.
+ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics. Stage 18 adds launch/runtime prerequisite handling, app settings persistence, forwarding/recording/diagnostics polish, and final pre-shaker readiness cleanup. The Stage 18 follow-up adds manual ASIO hardware tests, and Stage 18i adds configurable BST-1 10-80 Hz short pulses plus optional accepted-paddle bench synchronization through the selected ASIO channel.
 
 ## Stage 02 Implementation
 
@@ -15,7 +15,7 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 ## Current Limitations
 
 - Native ASIO streaming is wired through `NativeAsioOutputBackend` and `NAudio.Asio`.
-- The M-Audio -> Fosi -> Dayton BST-1 chain has been locally proven through SimHub, but Haptic Drive ASIO app-driven BST-1 output remains a manual validation item.
+- The M-Audio -> Fosi -> Dayton BST-1 chain has been locally proven through SimHub, and app-driven ASIO test pulses have locally validated channel 1 as the BST-1 output channel. Safe gain, final feel, and physical latency remain manual validation items.
 - The deterministic synthetic benchmark, Stage 12/13 effect buffers, and automated pipeline renders use `NullAudioOutputDevice` by default and do not prove physical latency, safe gain, or shaker response.
 - Manual ASIO hardware pulses can energize the BST-1 through the selected ASIO output, but they are still deliberate local validation steps rather than final tuning claims.
 - ASIO failure does not select WASAPI automatically.
@@ -57,15 +57,26 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - Generated buffers pass through the Stage 10 mixer and safety chain before null-output submission.
 - WASAPI remains manual/debug only and ASIO remains the later intended hardware path.
 
-## Manual ASIO Hardware Test
+## Manual BST-1 ASIO Pulse
 
-- The Devices page exposes `Manual ASIO Bass Shaker Test` separately from the Null synthetic benchmark.
-- The test supports 40 Hz and 50 Hz sine pulses, 250 ms and 500 ms durations from the UI, and a maximum continuous request of 1 second in the runtime API.
-- The test is blocked unless Output mode is `ASIO Output`, the selected driver name is M-Audio / M-Track-like, ASIO is explicitly armed, haptics are running, emergency mute is clear, normal mute is off, and the selected output channel is valid.
+- The Devices page exposes `BST-1 ASIO Pulse Control` separately from the Null synthetic benchmark.
+- The test supports user-controlled 0-100% strength, 10-80 Hz frequency, short millisecond durations, and a maximum continuous request of 1 second in the runtime API.
+- The test is blocked unless Output mode is `ASIO Output`, the selected driver name is M-Audio / M-Track-like, ASIO is explicitly armed, emergency mute is clear, normal mute is off, and the selected output channel is valid.
+- Manual BST-1 pulse testing does not require global Start Haptics; it may open/start a bounded temporary ASIO session, render and submit the short pulse, then stop again.
 - The signal is injected into `HapticPipelineCoordinator` as an `AudioMixerInput`, then processed by the existing Stage 10 mixer, safety chain, limiter, and selected ASIO output channel routing.
 - The manual test bypasses stale telemetry only for its own short pulse. Normal VehicleState-driven effects still require fresh telemetry.
-- The active manual test state is runtime-only and stops when haptics stop. It is not persisted and is never started automatically.
+- The active manual test state is runtime-only. It is not persisted and is never started automatically.
+- The app reports True ASIO from internal output state: selected output mode, selected driver/channel, ASIO armed/running/callback state, submitted/dropped frame counts, callback counts, and last ASIO error. Windows Sound Settings visibility is not proof of ASIO usage.
+- `local-validation-results/bst1-asio-gear-flight-recorder.jsonl` records accepted, blocked, completed, and failed BST-1 manual and paddle-bench pulse attempts and is ignored local validation output.
 - Automated tests use fake ASIO backends for this path and do not require M-Audio, Fosi, BST-1, SimHub, SimPro, or live F1 telemetry.
+
+## BST-1 Paddle Gear Pulse
+
+- Devices `BST-1 paddle gear pulse` is off by default.
+- When enabled, accepted Paddle Gear Bench mapped `Pressed` events can fire a short BST-1 ASIO pulse from the same accepted bench event as the P-HPR gear pulse.
+- The BST-1 pulse does not wait for F1 telemetry gear-change confirmation and does not require Start Haptics in bench mode.
+- Duration can sync to the P-HPR gear-pulse duration or use a custom BST-1 duration because the audio shaker may feel different from the P-HPR modules.
+- Release, held, repeat, unknown, unmapped, and suppressed events must not trigger BST-1 output.
 
 ## Stage 12 Effects
 

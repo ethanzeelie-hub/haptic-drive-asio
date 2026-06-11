@@ -25,19 +25,31 @@ The app starts with `NullAudioOutputDevice` as the safe default. ASIO and real P
 5. Map left and right paddles.
 6. Confirm Shift Intent Diagnostics show accepted or suppressed events with the current `DrivingArmed` reason.
 
-## Manual ASIO Bass Shaker Test
+## Manual BST-1 ASIO Pulse
 
 Use this only when the connected BST-1 chain is ready for a short app-driven pulse.
 
 1. Open Devices.
 2. Select `ASIO Output`.
 3. Select the M-Audio / M-Track ASIO driver.
-4. Select channel 0 or 1 deliberately.
+4. Select channel `1`, the locally validated BST-1 output channel.
 5. Arm ASIO.
-6. Press Start Haptics.
-7. In `Manual ASIO Bass Shaker Test`, start with 250 ms at 40 Hz or 50 Hz.
+6. In `BST-1 ASIO Pulse Control`, start with 50% strength, 50 Hz, and 45-50 ms.
+7. Press `Test BST-1 Pulse`.
 
-The Null synthetic benchmark remains the automated-test path and does not energize the shaker.
+Manual BST-1 pulse uses ASIO and does not require Start Haptics. The Null synthetic benchmark remains the automated-test path and does not energize the shaker. Windows Sound Settings visibility does not prove ASIO; use the in-app True ASIO and callback diagnostics.
+
+## BST-1 Paddle Gear Pulse
+
+Use this only for local Paddle Gear Bench validation after manual BST-1 pulse works.
+
+1. Keep the P-HPR Paddle Gear Bench path working first.
+2. In `Bass Shaker / ASIO`, enable `BST-1 paddle gear pulse`.
+3. Use 50% strength and 50 Hz as a starting software setting.
+4. Keep duration synced to P-HPR first, then switch to custom duration if the Dayton shaker needs different timing.
+5. Press mapped paddles and confirm accepted bench events plus BST-1 ASIO diagnostics.
+
+BST-1 paddle gear pulse is off by default, uses accepted mapped `Pressed` bench events only, and still targets selected ASIO channel `1`.
 
 ## Paddle Gear Bench Test
 

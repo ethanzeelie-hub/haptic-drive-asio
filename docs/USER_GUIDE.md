@@ -12,27 +12,41 @@ The app starts in hardware-absent safe mode. `NullAudioOutputDevice` remains the
 
 ## ASIO / BST-1 Path
 
-ASIO output requires explicit output-mode selection, driver selection, output-channel selection, arming, and Start Haptics.
+ASIO output requires explicit output-mode selection, driver selection, output-channel selection, and arming. Live telemetry effects also require Start Haptics and valid telemetry. Manual BST-1 pulse testing does not require Start Haptics.
 
 The ASIO/BST-1 path is separate from Simagic P-HPR output. ASIO uses the audio effect engine, mixer, audio safety processor, and `IAudioOutputDevice`. P-HPR uses a separate actuator output path and never routes through ASIO.
 
-Physical Dayton BST-1 feel, safe gain, latency, and final frequency tuning remain pending local hardware validation.
+Channel 1 is the locally validated BST-1 ASIO output channel. Physical Dayton BST-1 safe gain, latency, and final feel/tuning remain local validation items.
 
-## Manual ASIO Bass Shaker Test
+Windows Sound Settings visibility does not prove ASIO usage. Confirm ASIO inside the app with selected driver, channel, ASIO armed/running state, callback diagnostics, submitted/dropped frames, and last error.
 
-Use Devices `Manual ASIO Bass Shaker Test` only when you deliberately want this app to energize the connected BST-1.
+## Manual BST-1 ASIO Pulse
 
-Before pressing a 40 Hz or 50 Hz button, confirm:
+Use Devices `BST-1 ASIO Pulse Control` only when you deliberately want this app to energize the connected BST-1.
+
+Before pressing `Test BST-1 Pulse`, confirm:
 
 - Output mode is `ASIO Output`,
 - the selected driver is the M-Audio / M-Track ASIO driver,
-- the intended zero-based output channel is selected,
+- channel `1` is selected unless you are deliberately testing another channel,
 - ASIO is armed,
-- haptics are started and ASIO is running,
 - Emergency Mute is clear,
 - normal mute is off.
 
-The pulse runs through the app mixer, safety chain, limiter, and selected ASIO output channel. It is separate from the Null synthetic benchmark, which remains the safe automated-test path.
+Set BST-1 strength from `0-100%`, frequency in the Dayton BST-1 normal control range `10-80 Hz`, and duration as a short millisecond pulse. The pulse runs through the app mixer, safety chain, limiter, and selected ASIO output channel. It is separate from the Null synthetic benchmark, which remains the safe automated-test path.
+
+## BST-1 Paddle Gear Pulse
+
+In Devices `Bass Shaker / ASIO`, `BST-1 paddle gear pulse` is off by default. When enabled for local bench validation, each accepted Paddle Gear Bench mapped `Pressed` event can fire a short BST-1 ASIO pulse alongside the P-HPR bench pulse.
+
+Controls:
+
+- strength percent,
+- frequency Hz in the `10-80 Hz` normal range,
+- duration synced to the P-HPR gear pulse duration or a custom BST-1 duration,
+- selected ASIO channel, with channel `1` locally validated.
+
+This bench path does not wait for F1 telemetry gear-change confirmation and does not require Start Haptics. Live driving effects still use their normal haptics and telemetry gates.
 
 ## F1 25 Telemetry
 
@@ -77,7 +91,7 @@ Bench mode is disabled and unarmed by default, is not persisted, and still requi
 
 Start with output mode `Mock`. Mock bench routing increments mock gear routing diagnostics only; it does not send HID reports and does not route to ASIO.
 
-Use output mode `Direct` only after the normal direct P-HPR gates are green: selected device, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled. Direct Bench uses the same Devices brake/throttle gear-pulse settings as the blue Test Brake/Throttle buttons, defaults target to Both, suppresses release/retrigger events during an active pulse, and records local recovery diagnostics under `local-validation-results/`.
+Use output mode `Direct` only after the normal direct P-HPR gates are green: selected device, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled. Direct Bench uses the same Devices brake/throttle gear-pulse settings as the blue Test Brake/Throttle buttons and records local recovery diagnostics under `local-validation-results/`. Stage 18g allows latest-press-wins retriggering with generation-guarded stops for rapid bench shifts; physical stop feel, safe gain, and latency still require local validation.
 
 ## UDP Forwarding
 

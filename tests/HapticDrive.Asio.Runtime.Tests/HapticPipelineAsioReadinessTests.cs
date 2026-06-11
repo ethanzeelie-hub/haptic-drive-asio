@@ -68,7 +68,7 @@ public sealed class HapticPipelineAsioReadinessTests
     }
 
     [Fact]
-    public async Task ManualAsioHardwareTest_BlocksUnlessAsioIsArmedAndRunning()
+    public async Task ManualAsioHardwareTest_BlocksUnlessAsioIsArmed()
     {
         await using var unarmed = new HapticPipelineCoordinator(
             ArmedConfiguration() with { IsHardwareArmed = false },
@@ -84,22 +84,19 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.False(unarmedResult.Succeeded);
         Assert.Contains("armed", unarmedResult.Message, StringComparison.OrdinalIgnoreCase);
 
-        var stoppedBackend = new FakeAsioOutputBackend();
         await using var stopped = new HapticPipelineCoordinator(
             ArmedConfiguration(),
             new AsioAudioOutputDevice(
                 new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]),
-                stoppedBackend),
+                new FakeAsioOutputBackend()),
             options: HapticPipelineOptions.ManualRendering);
-        Assert.True((await stopped.StartAsync()).Succeeded);
-        Assert.True((await stopped.StopAsync()).Succeeded);
 
-        var stoppedResult = stopped.StartManualAsioHardwareTest(new ManualAsioHardwareTestRequest(
+        var stoppedResult = await stopped.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
             50f,
-            TimeSpan.FromMilliseconds(250)));
+            TimeSpan.FromMilliseconds(45)));
 
-        Assert.False(stoppedResult.Succeeded);
-        Assert.Contains("running", stoppedResult.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(stoppedResult.Succeeded, stoppedResult.Message);
+        Assert.False(stopped.GetSnapshot().IsRunning);
     }
 
     [Fact]
@@ -113,7 +110,7 @@ public sealed class HapticPipelineAsioReadinessTests
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
         Assert.True((await coordinator.SetEmergencyMuteAsync(true)).Succeeded);
-        var result = coordinator.StartManualAsioHardwareTest(new ManualAsioHardwareTestRequest(
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
             40f,
             TimeSpan.FromMilliseconds(250)));
 
@@ -149,15 +146,12 @@ public sealed class HapticPipelineAsioReadinessTests
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
 
-        Assert.True((await coordinator.StartAsync()).Succeeded);
-        var start = coordinator.StartManualAsioHardwareTest(new ManualAsioHardwareTestRequest(
+        var start = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
             frequencyHz,
-            TimeSpan.FromMilliseconds(250)));
-        var render = await coordinator.RenderNextBufferAsync();
+            TimeSpan.FromMilliseconds(45)));
         var snapshot = coordinator.GetManualAsioHardwareTestSnapshot();
 
         Assert.True(start.Succeeded, start.Message);
-        Assert.True(render.Succeeded, render.Message);
         Assert.NotNull(backend.LastSubmittedSamples);
         Assert.Contains(
             backend.LastSubmittedSamples!.Where((_, index) => index % 2 == 1),
@@ -165,10 +159,70 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.All(backend.LastSubmittedSamples.Where((_, index) => index % 2 == 0), sample => Assert.Equal(0f, sample, precision: 6));
         Assert.True(snapshot.OutputPeakLevel > 0f);
         Assert.True(snapshot.FramesRendered > 0);
+        Assert.False(snapshot.HapticsRunning);
+        Assert.True(snapshot.LastPulseUsedAsio);
     }
 
     [Fact]
-    public async Task StopHaptics_StopsManualAsioHardwareTest()
+    public async Task ManualAsioHardwareTest_UsesRequestedStrengthFrequencyDurationAndClampsRange()
+    {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
+        await using var coordinator = new HapticPipelineCoordinator(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
+            options: HapticPipelineOptions.ManualRendering);
+
+        var start = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            500f,
+            TimeSpan.FromMilliseconds(-5),
+            2f));
+        var snapshot = coordinator.GetManualAsioHardwareTestSnapshot();
+
+        Assert.True(start.Succeeded, start.Message);
+        Assert.Equal(80f, snapshot.LastFrequencyHz);
+        Assert.Equal(100f, snapshot.LastStrengthPercent);
+        Assert.Equal(45, snapshot.LastDurationMs);
+        Assert.Equal(1, snapshot.SelectedOutputChannel);
+        Assert.True(snapshot.SubmittedFrameCount > 0);
+    }
+
+    [Fact]
+    public async Task ManualAsioHardwareTest_WritesFlightRecorderForAcceptedAndBlockedPulses()
+    {
+        using var directory = new TempDirectory();
+        var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
+        await using var coordinator = new HapticPipelineCoordinator(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
+            options: HapticPipelineOptions.ManualRendering);
+        coordinator.SetManualAsioHardwareTestFlightRecorder(recorder);
+
+        var accepted = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            0.5f,
+            Source: "paddle gear bench",
+            AcceptedPaddleEventSequence: 42,
+            PaddleSide: "Left",
+            PaddleButtonId: 14));
+        await using var nullCoordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        nullCoordinator.SetManualAsioHardwareTestFlightRecorder(recorder);
+        var blocked = await nullCoordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45)));
+
+        var jsonl = File.ReadAllLines(recorder.LogPath);
+        Assert.True(accepted.Succeeded, accepted.Message);
+        Assert.False(blocked.Succeeded);
+        Assert.Contains(jsonl, line => line.Contains("pulse-accepted", StringComparison.Ordinal));
+        Assert.Contains(jsonl, line => line.Contains("pulse-completed", StringComparison.Ordinal));
+        Assert.Contains(jsonl, line => line.Contains("pulse-blocked", StringComparison.Ordinal));
+        Assert.Contains(jsonl, line => line.Contains("paddle gear bench", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ManualAsioHardwareTest_CompletesWithoutLeavingHapticsRunning()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
         await using var coordinator = new HapticPipelineCoordinator(
@@ -176,15 +230,12 @@ public sealed class HapticPipelineAsioReadinessTests
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
 
-        Assert.True((await coordinator.StartAsync()).Succeeded);
-        Assert.True(coordinator.StartManualAsioHardwareTest(new ManualAsioHardwareTestRequest(
+        Assert.True((await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
             40f,
-            TimeSpan.FromSeconds(1))).Succeeded);
-        Assert.True(coordinator.GetManualAsioHardwareTestSnapshot().IsActive);
-
-        Assert.True((await coordinator.StopAsync()).Succeeded);
+            TimeSpan.FromMilliseconds(45)))).Succeeded);
 
         Assert.False(coordinator.GetManualAsioHardwareTestSnapshot().IsActive);
+        Assert.False(coordinator.GetSnapshot().IsRunning);
     }
 
     private static AudioOutputConfiguration ArmedConfiguration(int channel = 0)
@@ -373,6 +424,27 @@ public sealed class HapticPipelineAsioReadinessTests
         {
             _state = AudioOutputDeviceState.Disposed;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class TempDirectory : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "HapticDrive.Asio.Runtime.Tests",
+            Guid.NewGuid().ToString("N"));
+
+        public TempDirectory()
+        {
+            Directory.CreateDirectory(Path);
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                Directory.Delete(Path, recursive: true);
+            }
         }
     }
 }

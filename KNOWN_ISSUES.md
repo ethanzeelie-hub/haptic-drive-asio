@@ -507,3 +507,14 @@
 - Paddle debounce defaults to 5 ms and remains per mapped button; Ethan may still need to tune debounce locally if the physical paddles bounce or double-fire.
 - Emergency Stop and Stop All override generations in software, but physical emergency-stop behavior still requires supervised local validation.
 - ASIO/BST-1, F1 25 parser, UDP forwarding, recording/replay raw-byte preservation, SimPro/SimHub coexistence, and confirmed P-HPR report bytes are unchanged by Stage 18g.
+
+## Stage 18i
+
+- Channel 1 is the locally validated BST-1 ASIO output channel, but safe gain, final physical feel, and physical latency remain Ethan-local validation items.
+- Manual BST-1 pulse can run as a short ASIO-only local test without Start Haptics, but it still requires ASIO Output, selected M-Audio/M-Track driver, ASIO arm, valid selected channel, clear emergency mute, and normal mute off.
+- Windows Sound Settings visibility does not prove ASIO usage; use the in-app True ASIO status and ASIO driver/callback diagnostics.
+- BST-1 Paddle Gear Bench output is disabled by default and only runs from accepted mapped `Pressed` bench events when explicitly enabled.
+- BST-1 gear-pulse duration can sync to P-HPR gear pulse duration or use a custom BST-1 duration because the Dayton shaker may feel different from the P-HPR modules.
+- `local-validation-results/bst1-asio-gear-flight-recorder.jsonl` is local/ignored validation output and must not be committed.
+- Automated coverage uses fake ASIO output and does not require M-Audio, Fosi, Dayton BST-1, ASIO driver installation, Simagic hardware, F1 25, or live telemetry.
+- P-HPR command format, HID report shape, paddle mappings, F1 25 parser, UDP forwarding, and recording/replay raw-byte preservation are unchanged by Stage 18i.

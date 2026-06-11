@@ -2392,7 +2392,54 @@ Verification:
 - Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed with 56 passing tests.
 - Full sequential `.\.dotnet\dotnet.exe test --no-build --verbosity minimal -m:1` passed with 568 passing tests and 0 skipped tests.
 - `.\.dotnet\dotnet.exe format --verify-no-changes --no-restore` passed.
+
+## Stage 18i - BST-1 ASIO Gear Pulse Controls
+
+Date: 2026-06-11
+
+Status: Complete.
+
+Goal: Replace the fixed manual ASIO bass-shaker test with Dayton BST-1 strength/frequency/duration controls, allow short manual ASIO pulses without global Start Haptics, and optionally synchronize BST-1 ASIO gear pulses with accepted Direct Paddle Gear Bench P-HPR paddle pulses.
+
+Missing Items Addressed:
+
+- Replaced the primary manual ASIO workflow in Devices with `BST-1 ASIO Pulse Control`: strength percent, frequency Hz, duration ms, `Test BST-1 Pulse`, selected ASIO channel, and channel 1 selection.
+- Expanded manual pulse validation to the Dayton BST-1 normal 10-80 Hz control range, 0-100% strength, and bounded 10-1000 ms duration.
+- Added a bounded manual ASIO pulse session that can open/start ASIO, render safety-processed pulse buffers through the existing Stage 10 mixer/safety/limiter path, submit them to the selected ASIO channel, then stop again without setting global haptics running.
+- Added an internal True ASIO status line and detailed diagnostics for output mode, selected driver/channel, ASIO armed/running/callback state, callback counts, submitted/dropped frames, last error, manual pulse peak, limiter activity, and whether the last pulse used ASIO or was blocked.
+- Added an off-by-default `BST-1 Paddle Gear Pulse` subsection with strength, frequency, sync/custom duration, and selected-channel targeting.
+- Routed enabled BST-1 paddle gear pulses from the same accepted Paddle Gear Bench `Pressed` event used by P-HPR, in parallel with the existing P-HPR bench route, without waiting for telemetry gear confirmation or global Start Haptics.
+- Added generation bookkeeping for BST-1 manual/paddle pulses so a completed older run cannot clear a newer active pulse.
+- Added `local-validation-results/bst1-asio-gear-flight-recorder.jsonl` for accepted, blocked, completed, and failed BST-1 manual/bench pulse records.
+- Added fake-ASIO runtime tests for Null blocking, unarmed blocking, invalid channel blocking, no global Start Haptics requirement, mixer/safety/limiter output, requested/clamped strength/frequency/duration, channel 1 routing, and flight-recorder records.
+
+Notes:
+
+- Channel 1 is documented as the locally validated BST-1 output channel.
+- Manual BST-1 pulse and enabled Paddle Gear Bench BST-1 pulse use ASIO only; Windows Sound Settings visibility is not proof of ASIO usage.
+- Live telemetry-driven effects still require normal haptics/telemetry gates where applicable.
+- BST-1 paddle gear pulse is off by default for safety and remains a short-duration bench/local validation path.
+- P-HPR command bytes, HID report shape, paddle mapping, direct runtime command format, F1 25 parser, UDP forwarding, and recording/replay raw bytes were not changed.
+- No automated test requires M-Audio, Fosi, Dayton BST-1, ASIO driver installation, Simagic hardware, F1 25, or live telemetry.
+
+Verification:
+
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj` passed with 31 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj /p:BaseOutputPath=artifacts\app-test-bin\` passed with 61 passing tests.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- Standard app-output `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` remained blocked by a stale exited `HapticDrive.Asio.App` process, PID 10912, holding old app-output DLLs under `src\HapticDrive.Asio.App\bin\Debug\net8.0-windows`.
+- Alternate-output `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore /p:BaseOutputPath=artifacts\stage18i-build-bin\` passed with 0 warnings and 0 errors.
+- Full serialized alternate-output `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1 /p:BaseOutputPath=artifacts\stage18i-build-bin\` passed with 576 passing tests.
 - `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- ASIO/BST-1 manual pulse no longer requires Start Haptics, but it still requires ASIO Output, M-Audio/M-Track driver selection, ASIO arm, valid selected channel, clear emergency mute, clear normal mute, and the existing mixer/safety/limiter path.
+- BST-1 paddle gear pulse uses accepted Paddle Gear Bench `Pressed` events only and remains disabled unless the user enables it.
+- Live-driving telemetry effects remain gated by haptics/telemetry freshness.
+- Null output remains the startup/default safe target.
+- No generated local validation logs were committed.
 
 ## Stage 18g - Rapid Paddle Gear-Pulse Retriggering
 

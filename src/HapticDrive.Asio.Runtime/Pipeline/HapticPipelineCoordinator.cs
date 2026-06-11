@@ -20,6 +20,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly AudioSampleBuffer _outputBuffer;
     private readonly HapticPipelineOptions _options;
+    private readonly string _manualAsioHardwareSessionId = Guid.NewGuid().ToString("N");
     private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
     private readonly long[] _packetIdCounts = new long[16];
     private readonly DateTimeOffset?[] _packetIdLastObservedAtUtc = new DateTimeOffset?[16];
@@ -43,7 +44,16 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private string? _lastManualAsioHardwareTestError;
     private ManualAsioHardwareTestRequest? _lastManualAsioHardwareTestRequest;
     private ManualAsioHardwareTestRun? _manualAsioHardwareTestRun;
+    private IManualAsioHardwareTestFlightRecorder? _manualAsioHardwareFlightRecorder;
     private long _manualAsioHardwareTestRenderedFrameCount;
+    private long _manualAsioHardwareTestPulseGeneration;
+    private long _manualAsioHardwareTestStaleStopIgnoredCount;
+    private bool _lastManualAsioHardwareTestUsedAsio;
+    private bool _lastManualAsioHardwareTestBlocked;
+    private bool _lastManualAsioHardwareTestLimiterApplied;
+    private float _lastManualAsioHardwareTestPeak;
+    private long _lastManualAsioHardwareSubmittedFrames;
+    private long _lastManualAsioHardwareDroppedFrames;
     private bool _disposed;
     private bool _isRunning;
     private bool _outputOpened;
@@ -104,6 +114,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     public HapticEffectEngine EffectEngine { get; }
 
     public HapticDriveProfile CurrentProfile => _currentProfile;
+
+    public void SetManualAsioHardwareTestFlightRecorder(IManualAsioHardwareTestFlightRecorder? flightRecorder)
+    {
+        _manualAsioHardwareFlightRecorder = flightRecorder;
+    }
 
     public async ValueTask<HapticPipelineOperationResult> StartAsync(CancellationToken cancellationToken = default)
     {
@@ -235,27 +250,73 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     public ManualAsioHardwareTestResult StartManualAsioHardwareTest(
         ManualAsioHardwareTestRequest request)
     {
+        return StartManualAsioHardwareTestAsync(request).AsTask().GetAwaiter().GetResult();
+    }
+
+    public async ValueTask<ManualAsioHardwareTestResult> StartManualAsioHardwareTestAsync(
+        ManualAsioHardwareTestRequest request,
+        CancellationToken cancellationToken = default)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var normalized = request.Normalize();
         if (!normalized.IsSupportedFrequency)
         {
             return StoreBlockedManualAsioHardwareTest(
-                $"Manual ASIO Hardware Test supports only 40 Hz or 50 Hz sine signals; requested {normalized.FrequencyHz:0.#} Hz.");
+                $"Manual BST-1 pulse frequency must be between {ManualAsioHardwareTestRequest.MinimumFrequencyHz:0.#} Hz and {ManualAsioHardwareTestRequest.MaximumFrequencyHz:0.#} Hz.");
         }
 
         if (normalized.Duration <= TimeSpan.Zero || normalized.Duration > ManualAsioHardwareTestRequest.MaximumDuration)
         {
             return StoreBlockedManualAsioHardwareTest(
-                "Manual ASIO Hardware Test duration must be greater than zero and no more than 1 second.");
+                "Manual BST-1 pulse duration must be greater than zero and no more than 1 second.");
         }
 
         var outputStatus = OutputDevice.GetStatus();
         var blockedReason = GetManualAsioHardwareTestBlockedReason(outputStatus);
         if (blockedReason is not null)
         {
-            return StoreBlockedManualAsioHardwareTest(blockedReason);
+            return StoreBlockedManualAsioHardwareTest(blockedReason, normalized, outputStatus);
+        }
+
+        var wasPipelineRunning = _isRunning;
+        var wasOutputStarted = outputStatus.State == AudioOutputDeviceState.Started;
+        var wasOutputOpened = _outputOpened
+            || outputStatus.State is AudioOutputDeviceState.Open or AudioOutputDeviceState.Started or AudioOutputDeviceState.Stopped;
+
+        if (!wasOutputOpened)
+        {
+            var openResult = await OutputDevice.OpenAsync(Configuration, cancellationToken).ConfigureAwait(false);
+            if (!openResult.Succeeded)
+            {
+                return StoreBlockedManualAsioHardwareTest(openResult.Message, normalized, OutputDevice.GetStatus());
+            }
+
+            _outputOpened = true;
+            outputStatus = OutputDevice.GetStatus();
+            blockedReason = GetManualAsioHardwareTestBlockedReason(outputStatus);
+            if (blockedReason is not null)
+            {
+                return StoreBlockedManualAsioHardwareTest(blockedReason, normalized, outputStatus);
+            }
+        }
+
+        if (outputStatus.State != AudioOutputDeviceState.Started)
+        {
+            var startResult = await OutputDevice.StartAsync(cancellationToken).ConfigureAwait(false);
+            if (!startResult.Succeeded)
+            {
+                return StoreBlockedManualAsioHardwareTest(startResult.Message, normalized, OutputDevice.GetStatus());
+            }
+
+            outputStatus = OutputDevice.GetStatus();
+        }
+
+        if (outputStatus.Kind != AudioOutputDeviceKind.Asio)
+        {
+            return StoreBlockedManualAsioHardwareTest("Blocked: selected output is Null.", normalized, outputStatus);
         }
 
         var frameCount = Math.Max(1L, (long)Math.Ceiling(normalized.Duration.TotalSeconds * Configuration.SampleRate));
@@ -263,11 +324,14 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             AudioTestSignalKind.SineTone,
             normalized.Amplitude,
             normalized.FrequencyHz);
+        var generation = Interlocked.Increment(ref _manualAsioHardwareTestPulseGeneration);
         var run = new ManualAsioHardwareTestRun(
             AudioTestSignalGeneratorFactory.Create(signal),
             AudioSampleBuffer.Allocate(Format),
             normalized,
-            frameCount);
+            frameCount,
+            generation,
+            DateTimeOffset.UtcNow);
 
         lock (_manualAsioHardwareTestGate)
         {
@@ -276,10 +340,64 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             _lastManualAsioHardwareTestBlockedReason = null;
             _lastManualAsioHardwareTestError = null;
             _manualAsioHardwareTestRenderedFrameCount = 0;
+            _lastManualAsioHardwareTestUsedAsio = true;
+            _lastManualAsioHardwareTestBlocked = false;
+            _lastManualAsioHardwareTestLimiterApplied = false;
+            _lastManualAsioHardwareTestPeak = 0f;
+            _lastManualAsioHardwareSubmittedFrames = 0;
+            _lastManualAsioHardwareDroppedFrames = 0;
+        }
+
+        RecordManualAsioHardwareFlight("pulse-accepted", normalized, outputStatus, generation, startTimestamp: run.StartedAtUtc);
+
+        if (!_isRunning || !_options.UseOutputOwnedRendering)
+        {
+            try
+            {
+                await RenderManualAsioHardwarePulseAsync(run, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                lock (_manualAsioHardwareTestGate)
+                {
+                    if (ReferenceEquals(_manualAsioHardwareTestRun, run))
+                    {
+                        _manualAsioHardwareTestRun = null;
+                    }
+
+                    _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
+                }
+
+                RecordManualAsioHardwareFlight(
+                    "pulse-failed",
+                    normalized,
+                    OutputDevice.GetStatus(),
+                    generation,
+                    exception: ex,
+                    startTimestamp: run.StartedAtUtc,
+                    stopTimestamp: DateTimeOffset.UtcNow);
+                return ManualAsioHardwareTestResult.Blocked(
+                    $"Manual BST-1 pulse failed safely: {ex.Message}",
+                    GetManualAsioHardwareTestSnapshot());
+            }
+            finally
+            {
+                if (!wasPipelineRunning && !wasOutputStarted)
+                {
+                    var stopResult = await OutputDevice.StopAsync(cancellationToken).ConfigureAwait(false);
+                    if (!stopResult.Succeeded)
+                    {
+                        lock (_manualAsioHardwareTestGate)
+                        {
+                            _lastManualAsioHardwareTestError = stopResult.Message;
+                        }
+                    }
+                }
+            }
         }
 
         return ManualAsioHardwareTestResult.Success(
-            $"Manual ASIO Hardware Test armed for {normalized.SignalName}, {normalized.Duration.TotalMilliseconds:0} ms.",
+            $"Manual BST-1 pulse sent through ASIO channel {outputStatus.SelectedOutputChannel}; {normalized.SignalName}, {normalized.StrengthPercent:0}% strength, {normalized.Duration.TotalMilliseconds:0} ms.",
             GetManualAsioHardwareTestSnapshot());
     }
 
@@ -314,22 +432,46 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
         return new ManualAsioHardwareTestSnapshot(
             IsActive: activeRun is not null,
-            TestMode: outputStatus.Kind == AudioOutputDeviceKind.Asio ? "ASIO Hardware" : "Null",
+            TestMode: outputStatus.Kind == AudioOutputDeviceKind.Asio ? "ASIO Hardware" : outputStatus.Kind.ToString(),
+            OutputMode: outputStatus.Kind.ToString(),
             SelectedAsioDriver: outputStatus.DeviceName ?? outputStatus.DisplayName,
             SelectedOutputChannel: outputStatus.SelectedOutputChannel,
             AsioRunning: outputStatus.Kind == AudioOutputDeviceKind.Asio
                 && outputStatus.State == AudioOutputDeviceState.Started,
             AsioArmed: outputStatus.IsHardwareArmed,
+            AsioCallbackActive: outputStatus.Kind == AudioOutputDeviceKind.Asio
+                && (outputStatus.IsStreaming
+                    || outputStatus.RenderCallbackCount > 0
+                    || outputStatus.BackendCallbackCount > 0),
             HapticsRunning: _isRunning,
             EmergencyMute: _emergencyMuted,
             NormalMute: _normalMuted,
-            OutputPeakLevel: _lastAudioSnapshot?.OutputPeakLevel ?? 0f,
+            OutputPeakLevel: Math.Max(_lastAudioSnapshot?.OutputPeakLevel ?? 0f, _lastManualAsioHardwareTestPeak),
             FramesSubmitted: outputStatus.SubmittedBufferCount * Math.Max(0, outputStatus.BufferSize),
             FramesRendered: renderedFrames,
             RenderCallbackCount: outputStatus.RenderCallbackCount,
+            SubmittedFrameCount: Math.Max(
+                outputStatus.SubmittedBufferCount * Math.Max(0, outputStatus.BufferSize),
+                Interlocked.Read(ref _lastManualAsioHardwareSubmittedFrames)),
+            DroppedFrameCount: Math.Max(
+                outputStatus.DroppedBufferCount * Math.Max(0, outputStatus.BufferSize),
+                Interlocked.Read(ref _lastManualAsioHardwareDroppedFrames)),
+            BackendCallbackCount: outputStatus.BackendCallbackCount,
+            LastPulseUsedAsio: _lastManualAsioHardwareTestUsedAsio,
+            LastPulseBlocked: _lastManualAsioHardwareTestBlocked,
+            LimiterApplied: _lastManualAsioHardwareTestLimiterApplied,
+            PulseGenerationId: Interlocked.Read(ref _manualAsioHardwareTestPulseGeneration),
+            StaleStopIgnoredCount: Interlocked.Read(ref _manualAsioHardwareTestStaleStopIgnoredCount),
             BlockedReason: blockedReason,
             LastTestSignal: lastRequest?.SignalName,
             LastTestDuration: lastRequest?.Duration,
+            LastStrengthPercent: lastRequest?.StrengthPercent,
+            LastFrequencyHz: lastRequest?.FrequencyHz,
+            LastDurationMs: lastRequest?.DurationMilliseconds,
+            LastSource: lastRequest?.Source,
+            LastDurationMode: lastRequest?.DurationMode,
+            ManualPulsePeak: _lastManualAsioHardwareTestPeak,
+            FlightRecorderPath: _manualAsioHardwareFlightRecorder?.LogPath ?? "disabled",
             LastError: lastError ?? outputStatus.LastError);
     }
 
@@ -800,21 +942,97 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 _manualAsioHardwareTestRenderedFrameCount += framesThisBuffer;
                 mixerInputs.Add(new AudioMixerInput(
                     activeRun.SignalBuffer,
-                    name: $"Manual ASIO Hardware Test {activeRun.Request.SignalName}"));
+                    name: $"BST-1 ASIO Pulse {activeRun.Request.SignalName}"));
 
                 if (activeRun.FramesRemaining <= 0)
                 {
-                    _manualAsioHardwareTestRun = null;
+                    if (ReferenceEquals(_manualAsioHardwareTestRun, activeRun))
+                    {
+                        _manualAsioHardwareTestRun = null;
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref _manualAsioHardwareTestStaleStopIgnoredCount);
+                    }
                 }
 
                 return framesThisBuffer > 0;
             }
             catch (Exception ex)
             {
-                _manualAsioHardwareTestRun = null;
+                if (ReferenceEquals(_manualAsioHardwareTestRun, activeRun))
+                {
+                    _manualAsioHardwareTestRun = null;
+                }
+
                 _lastManualAsioHardwareTestError = $"Manual ASIO Hardware Test failed safely: {ex.Message}";
                 return false;
             }
+        }
+    }
+
+    private async ValueTask RenderManualAsioHardwarePulseAsync(
+        ManualAsioHardwareTestRun run,
+        CancellationToken cancellationToken)
+    {
+        await _renderGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var buffersRemaining = (int)Math.Ceiling((double)run.TotalFrameCount / Configuration.BufferSize) + 1;
+            while (buffersRemaining-- > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var renderResult = RenderIntoBuffer(_outputBuffer, DateTimeOffset.UtcNow);
+                if (!renderResult.Succeeded)
+                {
+                    throw new InvalidOperationException(renderResult.Message);
+                }
+
+                var audioSnapshot = _lastAudioSnapshot;
+                if (audioSnapshot is not null)
+                {
+                    _lastManualAsioHardwareTestPeak = Math.Max(
+                        _lastManualAsioHardwareTestPeak,
+                        audioSnapshot.OutputPeakLevel);
+                    _lastManualAsioHardwareTestLimiterApplied =
+                        _lastManualAsioHardwareTestLimiterApplied
+                        || audioSnapshot.LimitedSampleCount > 0
+                        || audioSnapshot.ClippedSampleCount > 0;
+                }
+
+                var submitResult = await OutputDevice.SubmitBufferAsync(_outputBuffer, cancellationToken).ConfigureAwait(false);
+                if (!submitResult.Succeeded)
+                {
+                    Interlocked.Add(ref _lastManualAsioHardwareDroppedFrames, _outputBuffer.FrameCount);
+                    throw new InvalidOperationException(submitResult.Message);
+                }
+
+                Interlocked.Add(ref _lastManualAsioHardwareSubmittedFrames, _outputBuffer.FrameCount);
+
+                lock (_manualAsioHardwareTestGate)
+                {
+                    if (!ReferenceEquals(_manualAsioHardwareTestRun, run))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            RecordManualAsioHardwareFlight(
+                "pulse-completed",
+                run.Request,
+                OutputDevice.GetStatus(),
+                run.GenerationId,
+                generatedSampleCount: run.TotalFrameCount,
+                outputPeak: _lastManualAsioHardwareTestPeak,
+                limiterApplied: _lastManualAsioHardwareTestLimiterApplied,
+                startTimestamp: run.StartedAtUtc,
+                stopDueTimestamp: run.StopDueAtUtc,
+                stopTimestamp: DateTimeOffset.UtcNow);
+        }
+        finally
+        {
+            _renderGate.Release();
         }
     }
 
@@ -829,17 +1047,38 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         }
     }
 
-    private ManualAsioHardwareTestResult StoreBlockedManualAsioHardwareTest(string reason)
+    private ManualAsioHardwareTestResult StoreBlockedManualAsioHardwareTest(
+        string reason,
+        ManualAsioHardwareTestRequest? request = null,
+        AudioOutputStatus? outputStatus = null)
     {
+        var normalized = request?.Normalize();
+        if (normalized is not null)
+        {
+            _lastManualAsioHardwareTestRequest = normalized;
+        }
+
         lock (_manualAsioHardwareTestGate)
         {
             _manualAsioHardwareTestRun = null;
             _lastManualAsioHardwareTestBlockedReason = reason;
             _lastManualAsioHardwareTestError = null;
+            _lastManualAsioHardwareTestUsedAsio = outputStatus?.Kind == AudioOutputDeviceKind.Asio;
+            _lastManualAsioHardwareTestBlocked = true;
+        }
+
+        if (normalized is not null)
+        {
+            RecordManualAsioHardwareFlight(
+                "pulse-blocked",
+                normalized,
+                outputStatus ?? OutputDevice.GetStatus(),
+                Interlocked.Read(ref _manualAsioHardwareTestPulseGeneration),
+                blockedReason: reason);
         }
 
         return ManualAsioHardwareTestResult.Blocked(
-            $"Manual ASIO Hardware Test blocked: {reason}",
+            $"Manual BST-1 pulse blocked: {reason}",
             GetManualAsioHardwareTestSnapshot());
     }
 
@@ -850,19 +1089,16 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             return "Output mode must be ASIO Output.";
         }
 
-        if (!IsMTrackAsioDriver(outputStatus.DeviceName))
+        var driverName = outputStatus.DeviceName ?? Configuration.RequestedDeviceName;
+        if (!IsMTrackAsioDriver(driverName))
         {
-            return $"M-Audio / M-Track ASIO driver must be selected; current driver is {outputStatus.DeviceName ?? "none"}.";
+            return $"M-Audio / M-Track ASIO driver must be selected; current driver is {driverName ?? "none"}.";
         }
 
-        if (!outputStatus.IsHardwareArmed)
+        var isHardwareArmed = outputStatus.IsHardwareArmed || Configuration.IsHardwareArmed;
+        if (!isHardwareArmed)
         {
             return "ASIO must be explicitly armed.";
-        }
-
-        if (!_isRunning || outputStatus.State != AudioOutputDeviceState.Started)
-        {
-            return "Haptics and ASIO output must be running.";
         }
 
         if (_emergencyMuted)
@@ -875,23 +1111,74 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             return "Normal mute is active.";
         }
 
-        if (outputStatus.SelectedOutputChannel is null)
+        var selectedOutputChannel = outputStatus.SelectedOutputChannel ?? Configuration.SelectedOutputChannel;
+        if (selectedOutputChannel is null)
         {
             return "Selected ASIO output channel is missing.";
         }
 
-        if (outputStatus.SelectedOutputChannel < 0)
+        if (selectedOutputChannel < 0)
         {
             return "Selected ASIO output channel must be zero or greater.";
         }
 
         if (outputStatus.DeviceOutputChannelCount is { } channelCount
-            && outputStatus.SelectedOutputChannel >= channelCount)
+            && selectedOutputChannel >= channelCount)
         {
-            return $"Selected ASIO output channel {outputStatus.SelectedOutputChannel} is outside the reported {channelCount} output channel(s).";
+            return $"Selected ASIO output channel {selectedOutputChannel} is outside the reported {channelCount} output channel(s).";
         }
 
         return null;
+    }
+
+    private void RecordManualAsioHardwareFlight(
+        string eventName,
+        ManualAsioHardwareTestRequest request,
+        AudioOutputStatus outputStatus,
+        long pulseGenerationId,
+        long generatedSampleCount = 0,
+        float outputPeak = 0f,
+        bool limiterApplied = false,
+        string? blockedReason = null,
+        Exception? exception = null,
+        DateTimeOffset? startTimestamp = null,
+        DateTimeOffset? stopDueTimestamp = null,
+        DateTimeOffset? stopTimestamp = null)
+    {
+        var recorder = _manualAsioHardwareFlightRecorder;
+        if (recorder is null)
+        {
+            return;
+        }
+
+        var record = ManualAsioHardwareTestFlightRecord.From(
+            _manualAsioHardwareSessionId,
+            eventName,
+            request,
+            outputStatus,
+            pulseGenerationId) with
+        {
+            GeneratedSampleCount = generatedSampleCount,
+            SubmittedFrameCount = Math.Max(
+                outputStatus.SubmittedBufferCount * Math.Max(0, outputStatus.BufferSize),
+                Interlocked.Read(ref _lastManualAsioHardwareSubmittedFrames)),
+            DroppedFrameCount = Math.Max(
+                outputStatus.DroppedBufferCount * Math.Max(0, outputStatus.BufferSize),
+                Interlocked.Read(ref _lastManualAsioHardwareDroppedFrames)),
+            OutputPeak = outputPeak,
+            LimiterApplied = limiterApplied,
+            BlockedReason = blockedReason,
+            StartTimestamp = startTimestamp,
+            StopDueTimestamp = stopDueTimestamp,
+            StopTimestamp = stopTimestamp,
+            StaleStopIgnored = Interlocked.Read(ref _manualAsioHardwareTestStaleStopIgnoredCount) > 0,
+            ExceptionType = exception?.GetType().FullName,
+            ExceptionMessage = exception?.Message,
+            SanitizedErrorCategory = exception is null
+                ? blockedReason is null ? null : "Blocked"
+                : exception.GetType().Name
+        };
+        recorder.Record(record);
     }
 
     private static bool IsMTrackAsioDriver(string? driverName)
@@ -912,12 +1199,18 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             IAudioTestSignalGenerator generator,
             AudioSampleBuffer signalBuffer,
             ManualAsioHardwareTestRequest request,
-            long framesRemaining)
+            long framesRemaining,
+            long generationId,
+            DateTimeOffset startedAtUtc)
         {
             Generator = generator;
             SignalBuffer = signalBuffer;
             Request = request;
             FramesRemaining = framesRemaining;
+            TotalFrameCount = framesRemaining;
+            GenerationId = generationId;
+            StartedAtUtc = startedAtUtc;
+            StopDueAtUtc = startedAtUtc + request.Duration;
             Generator.Reset();
         }
 
@@ -928,5 +1221,13 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         public ManualAsioHardwareTestRequest Request { get; }
 
         public long FramesRemaining { get; set; }
+
+        public long TotalFrameCount { get; }
+
+        public long GenerationId { get; }
+
+        public DateTimeOffset StartedAtUtc { get; }
+
+        public DateTimeOffset StopDueAtUtc { get; }
     }
 }

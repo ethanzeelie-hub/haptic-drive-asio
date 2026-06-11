@@ -1,5 +1,24 @@
 # Haptic Drive ASIO Troubleshooting
 
+## No BST-1 ASIO Pulse
+
+Use Devices `Bass Shaker / ASIO` and check in this order:
+
+1. Output mode is `ASIO Output`.
+2. The selected driver is the M-Audio / M-Track ASIO driver.
+3. Selected channel is `1`, the locally validated BST-1 output channel.
+4. `Arm ASIO` is checked.
+5. Emergency Mute is clear and normal mute is off.
+6. Frequency is in the Dayton BST-1 normal control range, `10-80 Hz`.
+7. Strength is above `0%` and duration is a short bounded pulse.
+8. The in-app True ASIO line says `YES`, or explains the internal reason it is not ready.
+
+Manual `Test BST-1 Pulse` uses ASIO and does not require Start Haptics. Live telemetry-driven effects still require the normal haptics and telemetry gates. Windows Sound Settings visibility does not prove ASIO usage; confirm ASIO by the app's selected driver, armed state, running state, callback diagnostics, submitted frames, and last error fields.
+
+BST-1 Paddle Gear Bench pulses are off by default. Enable `BST-1 paddle gear pulse` only for local bench validation. Accepted mapped `Pressed` paddle events can fire the BST-1 pulse alongside the existing P-HPR bench pulse; release, held, repeat, unknown, unmapped, and suppressed events should not trigger it.
+
+BST-1 ASIO pulse records are written to `local-validation-results/bst1-asio-gear-flight-recorder.jsonl`. This file is local validation output and should not be committed.
+
 ## No P-HPR Vibration
 
 Check the path in this order:

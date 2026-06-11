@@ -57,6 +57,7 @@
 - Stage 18e: P-HPR direct runtime bench crash recovery complete.
 - Stage 18f: Direct Paddle Bench UI thread crash hotfix complete.
 - Stage 18g: Rapid paddle gear-pulse retriggering complete.
+- Stage 18i: BST-1 ASIO manual controls and synchronized paddle gear pulse output complete.
 
 ## Planned Stages
 
@@ -85,6 +86,7 @@
 23. Stage 18e: P-HPR direct runtime bench crash recovery. Complete.
 24. Stage 18f: Direct Paddle Bench UI thread crash hotfix. Complete.
 25. Stage 18g: Rapid paddle gear-pulse retriggering. Complete.
+26. Stage 18i: BST-1 ASIO manual controls and synchronized paddle gear pulse output. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -142,7 +144,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.
-- Stage 18e extracts the Direct Paddle Gear Bench route into an explicit `PHprDirectRuntimeCoordinator` state machine with one shared blue-button pulse service instance, serialized direct commands, stop-only startup cleanup, an unclean-shutdown marker, an immediate-flush local flight recorder, stop-all/clear-device-state recovery, shared-path proof diagnostics, and software latency snapshots. Stage 18f hotfixes WPF cross-thread status updates from the background paddle callback after a successful direct start write by self-marshaling status refreshes, awaiting the final UI post, and flight-recording/stop-all recovering paddle-path exceptions. Stage 18g adds Direct Bench latest-press-wins retriggering with per-module generation-guarded scheduled stops, stale observer/drop diagnostics, and 5 ms default per-button paddle debounce. It still sends no startup active/start reports and does not alter confirmed P-HPR bytes, normal telemetry `DrivingArmed` routing, F1 25 parsing, UDP forwarding, recording/replay raw-byte preservation, or ASIO/BST-1 routing.
+- Stage 18e extracts the Direct Paddle Gear Bench route into an explicit `PHprDirectRuntimeCoordinator` state machine with one shared blue-button pulse service instance, serialized direct commands, stop-only startup cleanup, an unclean-shutdown marker, an immediate-flush local flight recorder, stop-all/clear-device-state recovery, shared-path proof diagnostics, and software latency snapshots. Stage 18f hotfixes WPF cross-thread status updates from the background paddle callback after a successful direct start write by self-marshaling status refreshes, awaiting the final UI post, and flight-recording/stop-all recovering paddle-path exceptions. Stage 18g adds Direct Bench latest-press-wins retriggering with per-module generation-guarded scheduled stops, stale observer/drop diagnostics, and 5 ms default per-button paddle debounce. Stage 18i adds BST-1 ASIO strength/frequency/duration controls, manual short ASIO pulses without Start Haptics, internal True ASIO diagnostics, an ignored BST-1 ASIO JSONL flight recorder, and off-by-default BST-1 Paddle Gear Bench pulses synchronized from the same accepted `Pressed` bench events as P-HPR. It still sends no startup active/start reports and does not alter confirmed P-HPR bytes, P-HPR paddle mappings, normal telemetry `DrivingArmed` routing, F1 25 parsing, UDP forwarding, or recording/replay raw-byte preservation.
 - No Simagic P-HPR implementation in V1.
 - Stage 2A adds Simagic Phase 2 documentation and safety gates only; it does not implement P-HPR output.
 - Stage 2B adds contracts and mock-only P-HPR scaffolding only; it does not implement real input discovery, protocol control, or device writes.
