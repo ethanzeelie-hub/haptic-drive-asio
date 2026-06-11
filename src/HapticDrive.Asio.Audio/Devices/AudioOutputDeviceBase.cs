@@ -5,17 +5,19 @@ namespace HapticDrive.Asio.Audio.Devices;
 
 public abstract class AudioOutputDeviceBase : IAudioOutputDevice
 {
+    private const long UnsetTimeSpanTicks = long.MinValue;
+
     private AudioOutputConfiguration _configuration = AudioOutputConfiguration.Default;
     private CancellationTokenSource? _streamingCancellation;
     private Task? _streamingTask;
     private long _renderCallbackCount;
     private long _renderDroppedBufferCount;
     private long _underrunCount;
-    private long _lastRenderDurationTicks;
-    private long _maximumRenderDurationTicks;
-    private long _lastCallbackJitterTicks;
-    private long _maximumCallbackJitterTicks;
-    private long _lastTelemetryAgeTicks;
+    private long _lastRenderDurationTicks = UnsetTimeSpanTicks;
+    private long _maximumRenderDurationTicks = UnsetTimeSpanTicks;
+    private long _lastCallbackJitterTicks = UnsetTimeSpanTicks;
+    private long _maximumCallbackJitterTicks = UnsetTimeSpanTicks;
+    private long _lastTelemetryAgeTicks = UnsetTimeSpanTicks;
     private int _isStreaming;
 
     protected AudioOutputDeviceBase(AudioOutputDeviceKind kind, string displayName)
@@ -362,7 +364,7 @@ public abstract class AudioOutputDeviceBase : IAudioOutputDevice
             UpdateMaximumTicks(ref _maximumCallbackJitterTicks, absoluteJitterTicks);
         }
 
-        Interlocked.Exchange(ref _lastTelemetryAgeTicks, telemetryAge?.Ticks ?? 0);
+        Interlocked.Exchange(ref _lastTelemetryAgeTicks, telemetryAge?.Ticks ?? UnsetTimeSpanTicks);
     }
 
     private static void WaitUntil(long targetTimestamp, CancellationToken cancellationToken)
@@ -392,7 +394,7 @@ public abstract class AudioOutputDeviceBase : IAudioOutputDevice
         do
         {
             current = Interlocked.Read(ref target);
-            if (candidate <= current)
+            if (current != UnsetTimeSpanTicks && candidate <= current)
             {
                 return;
             }
@@ -403,6 +405,6 @@ public abstract class AudioOutputDeviceBase : IAudioOutputDevice
     private static TimeSpan? ReadOptionalTimeSpan(ref long ticks)
     {
         var value = Interlocked.Read(ref ticks);
-        return value == 0 ? null : TimeSpan.FromTicks(value);
+        return value == UnsetTimeSpanTicks ? null : TimeSpan.FromTicks(value);
     }
 }

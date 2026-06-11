@@ -161,6 +161,8 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.True(snapshot.FramesRendered > 0);
         Assert.False(snapshot.HapticsRunning);
         Assert.True(snapshot.LastPulseUsedAsio);
+        Assert.True(snapshot.LastManualPulseUsedAsio);
+        Assert.False(snapshot.LastGearPulseUsedAsio);
     }
 
     [Fact]
@@ -184,6 +186,28 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.Equal(45, snapshot.LastDurationMs);
         Assert.Equal(1, snapshot.SelectedOutputChannel);
         Assert.True(snapshot.SubmittedFrameCount > 0);
+    }
+
+    [Fact]
+    public async Task ManualAsioHardwareTest_PaddleGearSourceRecordsLastGearPulseUsedAsio()
+    {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
+        await using var coordinator = new HapticPipelineCoordinator(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
+            options: HapticPipelineOptions.ManualRendering);
+
+        var start = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            0.5f,
+            Source: "paddle gear bench"));
+        var snapshot = coordinator.GetManualAsioHardwareTestSnapshot();
+
+        Assert.True(start.Succeeded, start.Message);
+        Assert.True(snapshot.LastPulseUsedAsio);
+        Assert.False(snapshot.LastManualPulseUsedAsio);
+        Assert.True(snapshot.LastGearPulseUsedAsio);
     }
 
     [Fact]

@@ -229,6 +229,10 @@ public partial class MainWindow : Window
     private string _lastPhprPedalsPulseMessage = "No normal P-HPR test pulse has been sent.";
     private string _lastBst1PaddleGearPulseMessage = "BST-1 paddle gear pulse is disabled.";
     private bool _bst1PaddleGearPulseEnabled;
+    private bool _localGearTestModeEnabled;
+    private bool _localGearTestAutoStartListener = true;
+    private string _localGearTestStatusMessage = "Local gear test disabled.";
+    private int _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.DefaultGearDurationMs;
     private float _manualBst1StrengthPercent = 50f;
     private float _manualBst1FrequencyHz = 50f;
     private int _manualBst1DurationMs = 45;
@@ -259,6 +263,9 @@ public partial class MainWindow : Window
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
         _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
         _realPhprOptions = CreateRealPhprOutputOptions(appSettings.RealPhprGearPulseRouting);
+        _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.ResolveSharedDuration(
+            _realPhprOptions.BrakeGearPulse,
+            _realPhprOptions.ThrottleGearPulse);
         _realRoadVibrationOptions = CreateRealRoadVibrationRouterOptions(appSettings.RealPhprRoadVibrationRouting);
         _realSlipLockOptions = CreateRealSlipLockRouterOptions(appSettings.RealPhprSlipLockRouting);
         _shiftIntentProcessor = new ShiftIntentProcessor(
@@ -557,18 +564,23 @@ public partial class MainWindow : Window
 
     private async void StartPaddleInputListenerButton_Click(object sender, RoutedEventArgs e)
     {
+        await StartPaddleInputListenerForWorkflowAsync("manual listener");
+    }
+
+    private async Task<bool> StartPaddleInputListenerForWorkflowAsync(string workflowName)
+    {
         if (!TryBuildPaddleMappingFromControls(out var mapping, out var message))
         {
             PaddleInputStatusText.Text = message;
             FooterStatusText.Text = message;
-            return;
+            return false;
         }
 
         if (PaddleInputDeviceComboBox.SelectedItem is not PaddleDeviceListItem deviceItem)
         {
             PaddleInputStatusText.Text = "Select a Windows game-controller input device before starting the read-only paddle listener.";
             FooterStatusText.Text = "Paddle input listener was not started; no input device is selected.";
-            return;
+            return false;
         }
 
         if (!PaddleInputDeviceSelector.HasUsableButtons(deviceItem.Device))
@@ -576,7 +588,7 @@ public partial class MainWindow : Window
             var blocked = $"Selected Windows game-controller reports {PaddleInputDeviceSelector.GetUsableButtonCount(deviceItem.Device):N0} usable buttons. Select the 32-button VID_3670/PID_0905 wheel input device before starting the listener.";
             PaddleInputStatusText.Text = blocked;
             FooterStatusText.Text = $"Paddle input listener was not started; {blocked}";
-            return;
+            return false;
         }
 
         _paddleMapping = mapping with
@@ -587,14 +599,19 @@ public partial class MainWindow : Window
         SaveAppSettings();
         await _paddleInputSource.StartAsync(deviceItem.Selection, _paddleMapping);
         UpdatePaddleInputStatus();
+        UpdateLocalGearTestStatus();
         UpdateDiagnosticsStatus();
-        FooterStatusText.Text = "Read-only paddle input listener started. Mapped presses update diagnostics only.";
+        FooterStatusText.Text = workflowName == "local gear test"
+            ? "Read-only paddle listener started for Local Gear Test Mode. Start Haptics and F1 telemetry were not started."
+            : "Read-only paddle input listener started. Mapped presses update diagnostics only.";
+        return true;
     }
 
     private async void StopPaddleInputListenerButton_Click(object sender, RoutedEventArgs e)
     {
         await _paddleInputSource.StopAsync();
         UpdatePaddleInputStatus();
+        UpdateLocalGearTestStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = "Read-only paddle input listener stopped.";
     }
@@ -673,6 +690,49 @@ public partial class MainWindow : Window
         UpdatePaddleGearBenchStatus();
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = "Paddle Gear Bench Test counters cleared.";
+    }
+
+    private async void LocalGearTestModeCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingPaddleGearBenchUi)
+        {
+            return;
+        }
+
+        _localGearTestModeEnabled = LocalGearTestModeCheckBox.IsChecked == true;
+        _localGearTestAutoStartListener = LocalGearTestAutoStartListenerCheckBox.IsChecked == true;
+        _updatingPaddleGearBenchUi = true;
+        PaddleGearBenchEnabledCheckBox.IsChecked = _localGearTestModeEnabled;
+        PaddleGearBenchArmCheckBox.IsChecked = _localGearTestModeEnabled;
+        _updatingPaddleGearBenchUi = false;
+        ApplyPaddleGearBenchOptionsFromControls(
+            _localGearTestModeEnabled
+                ? "Local Gear Test Mode enabled. Start Haptics and F1 telemetry are not required."
+                : "Local Gear Test Mode disabled.");
+
+        if (_localGearTestModeEnabled && _localGearTestAutoStartListener)
+        {
+            var readiness = EvaluateLocalGearTestReadiness();
+            if (readiness.CanStartListener)
+            {
+                await StartPaddleInputListenerForWorkflowAsync("local gear test");
+            }
+        }
+
+        UpdateLocalGearTestStatus();
+    }
+
+    private async void StartGearTestListenerButton_Click(object sender, RoutedEventArgs e)
+    {
+        _localGearTestModeEnabled = true;
+        _updatingPaddleGearBenchUi = true;
+        LocalGearTestModeCheckBox.IsChecked = true;
+        PaddleGearBenchEnabledCheckBox.IsChecked = true;
+        PaddleGearBenchArmCheckBox.IsChecked = true;
+        _updatingPaddleGearBenchUi = false;
+        ApplyPaddleGearBenchOptionsFromControls("Local Gear Test Mode enabled from Start Gear Test Listener.");
+        await StartPaddleInputListenerForWorkflowAsync("local gear test");
+        UpdateLocalGearTestStatus();
     }
 
     private void MockGearPulseControl_Changed(object sender, RoutedEventArgs e)
@@ -1137,6 +1197,42 @@ public partial class MainWindow : Window
         _updatingPaddleGearBenchUi = false;
         UpdatePaddleGearBenchStatus();
         FooterStatusText.Text = "P-HPR bench disabled after previous unclean shutdown. Press P-HPR Stop All / Clear Device State before retesting.";
+    }
+
+    private void UpdateLocalGearTestStatus()
+    {
+        var readiness = EvaluateLocalGearTestReadiness();
+        _localGearTestStatusMessage = readiness.Message;
+        LocalGearTestStatusText.Text =
+            $"{readiness.Message} Auto-start listener {_localGearTestAutoStartListener}; Start Haptics required: NO; F1 telemetry required: NO; live telemetry effects started: NO.";
+        StartGearTestListenerButton.IsEnabled = readiness.CanStartListener;
+        StartGearTestListenerButton.ToolTip = readiness.CanStartListener
+            ? "Start the read-only paddle listener for Local Gear Test Mode without Start Haptics or F1 telemetry."
+            : readiness.Message;
+    }
+
+    private LocalGearTestReadiness EvaluateLocalGearTestReadiness()
+    {
+        ConfigurePhprDirectRuntime();
+        var manualAsio = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
+        var paddle = _paddleInputSource.GetPaddleSnapshot();
+        var runtime = _phprDirectRuntime.GetSnapshot();
+        var selectionBlocker = BuildPaddleInputSelectionBlocker();
+        var bst1Ready = manualAsio.OutputMode == AudioOutputDeviceKind.Asio.ToString()
+            && manualAsio.AsioArmed
+            && manualAsio.SelectedOutputChannel is >= 0
+            && !manualAsio.EmergencyMute
+            && !manualAsio.NormalMute;
+        return LocalGearTestReadiness.Evaluate(
+            _localGearTestModeEnabled,
+            _localGearTestAutoStartListener,
+            paddle,
+            selectionBlocker,
+            _paddleMapping.LeftPaddleButtonId is not null,
+            _paddleMapping.RightPaddleButtonId is not null,
+            runtime.DirectReady,
+            _bst1PaddleGearPulseEnabled,
+            bst1Ready);
     }
 
     private void ApplyMockGearPulseOptionsFromControls(string footerMessage)
@@ -1808,6 +1904,7 @@ public partial class MainWindow : Window
         var sourceSettings = target == PHprGearPulseTarget.Throttle
             ? _realPhprOptions.ThrottleGearPulse
             : _realPhprOptions.BrakeGearPulse;
+        var sharedDurationMs = Bst1GearPulseDurationSync.NormalizeGearDuration(_sharedPhprGearPulseDurationMs);
         options = new PaddleGearBenchTestOptions
         {
             IsEnabled = PaddleGearBenchEnabledCheckBox.IsChecked == true,
@@ -1818,7 +1915,7 @@ public partial class MainWindow : Window
             {
                 Strength01 = sourceSettings.Strength01,
                 FrequencyHz = sourceSettings.FrequencyHz,
-                DurationMs = sourceSettings.DurationMs
+                DurationMs = sharedDurationMs
             }
         }.Normalize();
         message = "Paddle Gear Bench Test options ready.";
@@ -1898,12 +1995,13 @@ public partial class MainWindow : Window
             ? selectedTransport
             : PHprHidReportTransport.OutputReport;
 
-        if (!TryBuildNormalPhprGearPulseSettings(
+        if (!TryApplySharedPhprGearPulseDurationFromControls(out var sharedDurationMs, out message)
+            || !TryBuildNormalPhprGearPulseSettings(
                 "Brake",
                 NormalPhprBrakeEnabledCheckBox,
                 NormalPhprBrakeStrengthTextBox,
                 NormalPhprBrakeFrequencyTextBox,
-                NormalPhprBrakeDurationTextBox,
+                sharedDurationMs,
                 out var brake,
                 out message)
             || !TryBuildNormalPhprGearPulseSettings(
@@ -1911,7 +2009,7 @@ public partial class MainWindow : Window
                 NormalPhprThrottleEnabledCheckBox,
                 NormalPhprThrottleStrengthTextBox,
                 NormalPhprThrottleFrequencyTextBox,
-                NormalPhprThrottleDurationTextBox,
+                sharedDurationMs,
                 out var throttle,
                 out message))
         {
@@ -2657,7 +2755,10 @@ public partial class MainWindow : Window
         PaddleGearBenchStrengthTextBox.Text = PhprUiValueConverter.FormatPercent(snapshot.Options.Profile.Strength01);
         PaddleGearBenchFrequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(snapshot.Options.Profile.FrequencyHz);
         PaddleGearBenchDurationTextBox.Text = snapshot.Options.Profile.DurationMs.ToString(CultureInfo.InvariantCulture);
+        LocalGearTestModeCheckBox.IsChecked = _localGearTestModeEnabled;
+        LocalGearTestAutoStartListenerCheckBox.IsChecked = _localGearTestAutoStartListener;
         _updatingPaddleGearBenchUi = false;
+        UpdateLocalGearTestStatus();
         UpdatePaddleGearBenchStatus();
     }
 
@@ -2810,17 +2911,21 @@ public partial class MainWindow : Window
     {
         var mode = GetEffectivePhprPedalsMode();
         var options = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.ResolveSharedDuration(
+            options.BrakeGearPulse,
+            options.ThrottleGearPulse);
         _updatingPhprPedalsUi = true;
         PhprPedalsMasterEnableCheckBox.IsChecked = mode != PhprPedalsMode.Disabled;
         PhprPedalsModeComboBox.SelectedItem = _phprPedalsModeOptions.First(option => option.Mode == mode);
+        SyncSharedPhprGearPulseDurationControls(_sharedPhprGearPulseDurationMs);
         ApplyRealGearPulseSettingsToControls(
-            options.BrakeGearPulse,
+            Bst1GearPulseDurationSync.WithSharedDuration(options.BrakeGearPulse, _sharedPhprGearPulseDurationMs),
             NormalPhprBrakeEnabledCheckBox,
             NormalPhprBrakeStrengthTextBox,
             NormalPhprBrakeFrequencyTextBox,
             NormalPhprBrakeDurationTextBox);
         ApplyRealGearPulseSettingsToControls(
-            options.ThrottleGearPulse,
+            Bst1GearPulseDurationSync.WithSharedDuration(options.ThrottleGearPulse, _sharedPhprGearPulseDurationMs),
             NormalPhprThrottleEnabledCheckBox,
             NormalPhprThrottleStrengthTextBox,
             NormalPhprThrottleFrequencyTextBox,
@@ -2831,20 +2936,21 @@ public partial class MainWindow : Window
 
     private bool ApplyPhprPedalsNormalOptionsFromControls(string footerMessage)
     {
-        if (!TryBuildNormalPhprGearPulseSettings(
+        if (!TryApplySharedPhprGearPulseDurationFromControls(out var sharedDurationMs, out var message)
+            || !TryBuildNormalPhprGearPulseSettings(
                 "Brake",
                 NormalPhprBrakeEnabledCheckBox,
                 NormalPhprBrakeStrengthTextBox,
                 NormalPhprBrakeFrequencyTextBox,
-                NormalPhprBrakeDurationTextBox,
+                sharedDurationMs,
                 out var brake,
-                out var message)
+                out message)
             || !TryBuildNormalPhprGearPulseSettings(
                 "Throttle",
                 NormalPhprThrottleEnabledCheckBox,
                 NormalPhprThrottleStrengthTextBox,
                 NormalPhprThrottleFrequencyTextBox,
-                NormalPhprThrottleDurationTextBox,
+                sharedDurationMs,
                 out var throttle,
                 out message))
         {
@@ -2904,12 +3010,49 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private bool TryApplySharedPhprGearPulseDurationFromControls(out int durationMs, out string message)
+    {
+        if (!PhprUiValueConverter.TryParseDurationMs(
+                NormalPhprGearDurationTextBox.Text,
+                "P-HPR gear pulse",
+                out durationMs,
+                out message))
+        {
+            return false;
+        }
+
+        durationMs = Bst1GearPulseDurationSync.NormalizeGearDuration(durationMs);
+        _sharedPhprGearPulseDurationMs = durationMs;
+        SyncSharedPhprGearPulseDurationControls(durationMs);
+        message = "Shared P-HPR gear pulse duration ready.";
+        return true;
+    }
+
+    private void SyncSharedPhprGearPulseDurationControls(int durationMs)
+    {
+        var text = Bst1GearPulseDurationSync.NormalizeGearDuration(durationMs).ToString(CultureInfo.InvariantCulture);
+        NormalPhprGearDurationTextBox.Text = text;
+        NormalPhprBrakeDurationTextBox.Text = text;
+        NormalPhprThrottleDurationTextBox.Text = text;
+        PaddleGearBenchDurationTextBox.Text = text;
+        if (_bst1PaddleGearSyncDuration)
+        {
+            Bst1PaddleGearDurationTextBox.Text = text;
+        }
+
+        if (Bst1PaddleGearEffectiveDurationText is not null)
+        {
+            Bst1PaddleGearEffectiveDurationText.Text =
+                $"Effective duration: {GetEffectiveBst1PaddleGearDurationMs()} ms ({(_bst1PaddleGearSyncDuration ? "sync" : "custom")}); P-HPR gear {_sharedPhprGearPulseDurationMs} ms; custom BST-1 {_bst1PaddleGearCustomDurationMs} ms.";
+        }
+    }
+
     private static bool TryBuildNormalPhprGearPulseSettings(
         string label,
         CheckBox enabledCheckBox,
         TextBox strengthTextBox,
         TextBox frequencyTextBox,
-        TextBox durationTextBox,
+        int durationMs,
         out PHprRealGearPulseSettings settings,
         out string message)
     {
@@ -2923,11 +3066,6 @@ public partial class MainWindow : Window
                 frequencyTextBox.Text,
                 $"{label} P-HPR",
                 out var frequency,
-                out message)
-            || !PhprUiValueConverter.TryParseDurationMs(
-                durationTextBox.Text,
-                $"{label} P-HPR",
-                out var duration,
                 out message))
         {
             return false;
@@ -2938,7 +3076,7 @@ public partial class MainWindow : Window
             IsEnabled = enabledCheckBox.IsChecked == true,
             Strength01 = strength,
             FrequencyHz = frequency,
-            DurationMs = duration
+            DurationMs = durationMs
         }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
         message = $"{label} P-HPR pulse ready.";
         return true;
@@ -4045,9 +4183,9 @@ public partial class MainWindow : Window
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
         TrueAsioStatusText.Text = BuildTrueAsioStatusText(snapshot);
         ManualAsioHardwareStatusText.Text =
-            $"BST-1 ASIO: mode {snapshot.OutputMode}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; armed {snapshot.AsioArmed}; ASIO running {snapshot.AsioRunning}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; peak {snapshot.ManualPulsePeak:0.000}.";
+            $"BST-1 ASIO: selected {snapshot.OutputMode == AudioOutputDeviceKind.Asio.ToString()}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; armed {snapshot.AsioArmed}; stream running {snapshot.AsioRunning}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; peak {snapshot.ManualPulsePeak:0.000}.";
         ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason is null
-            ? $"Last pulse {snapshot.LastSource ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs:0} ms")} ({snapshot.LastDurationMode ?? "manual"}); submitted {snapshot.SubmittedFrameCount:N0} frame(s); rendered {snapshot.FramesRendered:N0}; callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; dropped {snapshot.DroppedFrameCount:N0}; limiter {snapshot.LimiterApplied}; used ASIO {snapshot.LastPulseUsedAsio}; last error {snapshot.LastError ?? "none"}; flight recorder {snapshot.FlightRecorderPath}; {_lastBst1PaddleGearPulseMessage}"
+            ? $"Last pulse {snapshot.LastSource ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs:0} ms")} ({snapshot.LastDurationMode ?? "manual"}); submitted {snapshot.SubmittedFrameCount:N0} frame(s); rendered {snapshot.FramesRendered:N0}; callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; dropped {snapshot.DroppedFrameCount:N0}; limiter {snapshot.LimiterApplied}; last manual ASIO {snapshot.LastManualPulseUsedAsio}; last gear ASIO {snapshot.LastGearPulseUsedAsio}; last error {snapshot.LastError ?? "none"}; flight recorder {snapshot.FlightRecorderPath}; BST-1 duration mode {(_bst1PaddleGearSyncDuration ? "Sync" : "Custom")}; effective BST-1 duration {GetEffectiveBst1PaddleGearDurationMs()} ms; P-HPR gear duration {_sharedPhprGearPulseDurationMs} ms; custom BST-1 duration {_bst1PaddleGearCustomDurationMs} ms; {_lastBst1PaddleGearPulseMessage}"
             : $"Blocked: {snapshot.BlockedReason}";
     }
 
@@ -4061,8 +4199,13 @@ public partial class MainWindow : Window
         Bst1PaddleGearStrengthTextBox.Text = _bst1PaddleGearStrengthPercent.ToString("0", CultureInfo.InvariantCulture);
         Bst1PaddleGearFrequencyTextBox.Text = _bst1PaddleGearFrequencyHz.ToString("0.#", CultureInfo.InvariantCulture);
         Bst1PaddleGearSyncDurationCheckBox.IsChecked = _bst1PaddleGearSyncDuration;
-        Bst1PaddleGearDurationTextBox.Text = _bst1PaddleGearCustomDurationMs.ToString(CultureInfo.InvariantCulture);
+        Bst1PaddleGearDurationTextBox.Text = (_bst1PaddleGearSyncDuration
+                ? _sharedPhprGearPulseDurationMs
+                : _bst1PaddleGearCustomDurationMs)
+            .ToString(CultureInfo.InvariantCulture);
         Bst1PaddleGearDurationTextBox.IsEnabled = !_bst1PaddleGearSyncDuration;
+        Bst1PaddleGearEffectiveDurationText.Text =
+            $"Effective duration: {GetEffectiveBst1PaddleGearDurationMs()} ms ({(_bst1PaddleGearSyncDuration ? "sync" : "custom")}); P-HPR gear {_sharedPhprGearPulseDurationMs} ms; custom BST-1 {_bst1PaddleGearCustomDurationMs} ms.";
         _updatingBst1PulseUi = false;
     }
 
@@ -4114,7 +4257,11 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (!TryParseBst1Duration(Bst1PaddleGearDurationTextBox.Text, out var durationMs, out message))
+        var syncDuration = Bst1PaddleGearSyncDurationCheckBox.IsChecked == true;
+        var durationText = syncDuration
+            ? _bst1PaddleGearCustomDurationMs.ToString(CultureInfo.InvariantCulture)
+            : Bst1PaddleGearDurationTextBox.Text;
+        if (!TryParseBst1Duration(durationText, out var durationMs, out message))
         {
             ManualAsioHardwareStatusText.Text = message;
             FooterStatusText.Text = message;
@@ -4124,7 +4271,7 @@ public partial class MainWindow : Window
         _bst1PaddleGearPulseEnabled = Bst1PaddleGearPulseEnabledCheckBox.IsChecked == true;
         _bst1PaddleGearStrengthPercent = strengthPercent;
         _bst1PaddleGearFrequencyHz = frequencyHz;
-        _bst1PaddleGearSyncDuration = Bst1PaddleGearSyncDurationCheckBox.IsChecked == true;
+        _bst1PaddleGearSyncDuration = syncDuration;
         _bst1PaddleGearCustomDurationMs = durationMs;
         _lastBst1PaddleGearPulseMessage = _bst1PaddleGearPulseEnabled
             ? "BST-1 paddle gear pulse enabled for accepted bench Pressed events."
@@ -4187,32 +4334,7 @@ public partial class MainWindow : Window
 
     private static string BuildTrueAsioStatusText(ManualAsioHardwareTestSnapshot snapshot)
     {
-        if (snapshot.OutputMode == AudioOutputDeviceKind.Null.ToString())
-        {
-            return "True ASIO: NO - Null Output";
-        }
-
-        if (snapshot.OutputMode == AudioOutputDeviceKind.WasapiDebug.ToString())
-        {
-            return "True ASIO: NO - WASAPI/debug";
-        }
-
-        if (!snapshot.AsioArmed)
-        {
-            return "True ASIO: NO - ASIO not armed";
-        }
-
-        if (!snapshot.AsioRunning)
-        {
-            return "True ASIO: NO - ASIO not running";
-        }
-
-        if (!snapshot.AsioCallbackActive)
-        {
-            return "True ASIO: NO - callback inactive";
-        }
-
-        return "True ASIO: YES";
+        return Bst1AsioStatusFormatter.Format(snapshot);
     }
 
     private static SolidColorBrush BrushFrom(string color)
@@ -4279,6 +4401,7 @@ public partial class MainWindow : Window
         UpdatePaddleInputStatus();
         UpdateShiftIntentStatus();
         UpdatePaddleGearBenchStatus();
+        UpdateLocalGearTestStatus();
         UpdateMockGearPulseStatus();
         UpdateMockPedalEffectsStatus();
         UpdatePhprPedalsStatus();
@@ -5002,7 +5125,7 @@ public partial class MainWindow : Window
     private string BuildManualAsioHardwareTestDiagnosticsText()
     {
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
-        return $"mode {snapshot.OutputMode}; true ASIO {BuildTrueAsioStatusText(snapshot)}; active {snapshot.IsActive}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; ASIO running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; emergency {snapshot.EmergencyMute}; normal mute {snapshot.NormalMute}; peak {snapshot.ManualPulsePeak:0.000}; submitted {snapshot.SubmittedFrameCount:N0} frame(s); dropped {snapshot.DroppedFrameCount:N0}; rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; limiter {snapshot.LimiterApplied}; blocked {snapshot.BlockedReason ?? "none"}; used ASIO {snapshot.LastPulseUsedAsio}; last source {snapshot.LastSource ?? "none"}; last signal {snapshot.LastTestSignal ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs.Value:0} ms")}; duration mode {snapshot.LastDurationMode ?? "none"}; flight recorder {snapshot.FlightRecorderPath}; error {snapshot.LastError ?? "none"}.";
+        return $"mode {snapshot.OutputMode}; ASIO status {BuildTrueAsioStatusText(snapshot)}; active {snapshot.IsActive}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; ASIO running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; emergency {snapshot.EmergencyMute}; normal mute {snapshot.NormalMute}; peak {snapshot.ManualPulsePeak:0.000}; submitted {snapshot.SubmittedFrameCount:N0} frame(s); dropped {snapshot.DroppedFrameCount:N0}; rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; limiter {snapshot.LimiterApplied}; blocked {snapshot.BlockedReason ?? "none"}; last pulse used ASIO {snapshot.LastPulseUsedAsio}; last manual used ASIO {snapshot.LastManualPulseUsedAsio}; last gear used ASIO {snapshot.LastGearPulseUsedAsio}; last source {snapshot.LastSource ?? "none"}; last signal {snapshot.LastTestSignal ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs.Value:0} ms")}; duration mode {snapshot.LastDurationMode ?? "none"}; BST-1 duration mode {(_bst1PaddleGearSyncDuration ? "Sync" : "Custom")}; effective BST-1 duration {GetEffectiveBst1PaddleGearDurationMs()} ms; P-HPR gear duration {_sharedPhprGearPulseDurationMs} ms; custom BST-1 duration {_bst1PaddleGearCustomDurationMs} ms; flight recorder {snapshot.FlightRecorderPath}; error {snapshot.LastError ?? "none"}.";
     }
 
     private string BuildMockGearPulseDiagnosticsText()
@@ -5536,10 +5659,7 @@ public partial class MainWindow : Window
             return "BST-1 paddle pulse skipped: bench event was not accepted.";
         }
 
-        var pHprDuration = GetBst1SyncedPaddleDurationMs(benchResult.Options.Normalize());
-        var durationMs = _bst1PaddleGearSyncDuration
-            ? pHprDuration
-            : _bst1PaddleGearCustomDurationMs;
+        var durationMs = GetEffectiveBst1PaddleGearDurationMs();
         var durationMode = _bst1PaddleGearSyncDuration ? "sync" : "custom";
         var request = new ManualAsioHardwareTestRequest(
             _bst1PaddleGearFrequencyHz,
@@ -5560,22 +5680,12 @@ public partial class MainWindow : Window
             : _lastBst1PaddleGearPulseMessage;
     }
 
-    private int GetBst1SyncedPaddleDurationMs(PaddleGearBenchTestOptions options)
+    private int GetEffectiveBst1PaddleGearDurationMs()
     {
-        var durations = new List<int>();
-        if (options.TargetModule is PHprGearPulseTarget.Brake or PHprGearPulseTarget.Both)
-        {
-            durations.Add(_realPhprOptions.BrakeGearPulse.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits).DurationMs);
-        }
-
-        if (options.TargetModule is PHprGearPulseTarget.Throttle or PHprGearPulseTarget.Both)
-        {
-            durations.Add(_realPhprOptions.ThrottleGearPulse.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits).DurationMs);
-        }
-
-        return durations.Count == 0
-            ? _bst1PaddleGearCustomDurationMs
-            : durations.Max();
+        return Bst1GearPulseDurationSync.ResolveBst1Duration(
+            _bst1PaddleGearSyncDuration,
+            _sharedPhprGearPulseDurationMs,
+            _bst1PaddleGearCustomDurationMs);
     }
 
     private async Task<string> RoutePaddleGearBenchDirectAsync(

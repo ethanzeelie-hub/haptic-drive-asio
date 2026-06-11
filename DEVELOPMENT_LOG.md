@@ -2474,3 +2474,49 @@ Verification:
 - `.\.dotnet\dotnet.exe build --no-restore` passed with 0 warnings and 0 errors.
 - Full `.\.dotnet\dotnet.exe test --no-build` passed with 574 passing tests and 0 skipped tests.
 - `.\.dotnet\dotnet.exe format --verify-no-changes --no-restore` passed.
+
+## Stage 18j - BST-1 Local Gear Test And Duration Sync
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Fix BST-1 manual/local gear pulse gating after Stage 18i, make ASIO status describe ready/armed versus stream-running truthfully, sync P-HPR and BST-1 gear pulse duration, and add a local gear-test workflow that does not depend on Start Haptics or live telemetry.
+
+Missing Items Addressed:
+
+- Kept manual `Test BST-1 Pulse` independent from Start Haptics, live/replay telemetry, UDP, and `DrivingArmed`, while preserving ASIO Output, M-Audio/M-Track driver, channel, arm, mute, emergency, strength, frequency, duration, mixer, safety, and limiter gates.
+- Added a short standalone ASIO drain delay before stopping a temporary manual pulse session so native ASIO has time to consume the submitted bounded pulse.
+- Replaced the confusing single True ASIO line with separate ASIO selected, driver, armed, stream-running, callback-active, last manual pulse used ASIO, last gear pulse used ASIO, channel, blocked reason, last error, and last pulse proof diagnostics.
+- Added shared gear-pulse duration for brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode; BST-1 custom duration remains available only when sync is unchecked.
+- Added Local Gear Test Mode and Start Gear Test Listener controls for mapped-paddle bench validation without Start Haptics, UDP, live F1 telemetry, replay, or `DrivingArmed`.
+- Hardened output timing diagnostics so a valid zero-tick callback jitter reports as a real `TimeSpan.Zero` value instead of being mistaken for an absent status field.
+- Added readiness helpers and tests for BST-1 ASIO status formatting, shared duration normalization, BST-1 sync/custom effective duration, local gear-test readiness, and manual versus gear ASIO proof.
+- Updated user-facing ASIO, quick-start, troubleshooting, roadmap, and known-issues documentation.
+
+Notes:
+
+- Local Gear Test mode does not start continuous ASIO output or live telemetry effects. It only makes the local mapped-paddle bench workflow easier to start.
+- P-HPR Direct output still requires the existing direct-control gates. BST-1 output still requires ASIO Output, selected M-Audio/M-Track driver, valid selected channel, ASIO arm, and clear mute/emergency state.
+- No physical shaker feel, safe gain, physical latency, P-HPR behavior, or final tuning claim is made by this stage.
+- F1 25 parser, UDP forwarding, recording/replay raw-byte preservation, confirmed P-HPR report bytes, P-HPR paddle mappings, and normal telemetry `DrivingArmed` routing are unchanged.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- Standard app-output `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` remained blocked by stale `HapticDrive.Asio.App` PID 24776 holding app-output DLLs under `src\HapticDrive.Asio.App\bin\Debug\net8.0-windows`.
+- Alternate-output `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore /p:BaseOutputPath=artifacts\stage18j-build-bin\` passed with 0 warnings and 0 errors.
+- Focused runtime tests passed: `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj --no-build /p:BaseOutputPath=artifacts\stage18j-build-bin\ --verbosity minimal` with 32 passing tests.
+- Focused app tests passed: `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build /p:BaseOutputPath=artifacts\stage18j-build-bin\ --verbosity minimal` with 69 passing tests.
+- First full serialized alternate-output test run hit the existing audio callback cadence timing diagnostic edge in `HapticDrive.Asio.Audio.Tests.OutputStreamingTests.NullOutput_OutputOwnedStreamingReportsCallbackCadence`.
+- Focused audio rerun passed with 102 passing tests.
+- After hardening zero-tick callback jitter status, `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- Alternate-output rebuild passed with 0 warnings and 0 errors.
+- Full serialized alternate-output `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build /p:BaseOutputPath=artifacts\stage18j-build-bin\ --verbosity minimal -m:1` passed with 585 passing tests and 0 skipped tests.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Manual BST-1 and local gear pulses use the same mixer/safety/limiter path and remain explicit local validation actions.
+- The status text no longer treats a stopped continuous stream as "not true ASIO" when the selected/armed bounded-pulse ASIO path is ready.
+- Automated coverage uses fake ASIO, fake/read-only input, and fake P-HPR paths. No M-Audio, Fosi, Dayton BST-1, Simagic hardware, F1 25, live telemetry, HID report, or physical vibration was required.

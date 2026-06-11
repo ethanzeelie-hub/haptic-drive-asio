@@ -37,7 +37,7 @@ Use this only when the connected BST-1 chain is ready for a short app-driven pul
 6. In `BST-1 ASIO Pulse Control`, start with 50% strength, 50 Hz, and 45-50 ms.
 7. Press `Test BST-1 Pulse`.
 
-Manual BST-1 pulse uses ASIO and does not require Start Haptics. The Null synthetic benchmark remains the automated-test path and does not energize the shaker. Windows Sound Settings visibility does not prove ASIO; use the in-app True ASIO and callback diagnostics.
+Manual BST-1 pulse uses ASIO and does not require Start Haptics, UDP telemetry, live/replay telemetry, or `DrivingArmed`. The Null synthetic benchmark remains the automated-test path and does not energize the shaker. Windows Sound Settings visibility does not prove ASIO; use the in-app ASIO readiness, stream-running, callback, and last-pulse proof diagnostics.
 
 ## BST-1 Paddle Gear Pulse
 
@@ -46,7 +46,7 @@ Use this only for local Paddle Gear Bench validation after manual BST-1 pulse wo
 1. Keep the P-HPR Paddle Gear Bench path working first.
 2. In `Bass Shaker / ASIO`, enable `BST-1 paddle gear pulse`.
 3. Use 50% strength and 50 Hz as a starting software setting.
-4. Keep duration synced to P-HPR first, then switch to custom duration if the Dayton shaker needs different timing.
+4. Keep duration synced to the shared P-HPR gear pulse duration first, then switch to custom duration if the Dayton shaker needs different timing.
 5. Press mapped paddles and confirm accepted bench events plus BST-1 ASIO diagnostics.
 
 BST-1 paddle gear pulse is off by default, uses accepted mapped `Pressed` bench events only, and still targets selected ASIO channel `1`.
@@ -56,12 +56,13 @@ BST-1 paddle gear pulse is off by default, uses accepted mapped `Pressed` bench 
 Use this when mapped paddles need validation without live F1 telemetry.
 
 1. Open Devices.
-2. Enable and arm `Paddle Gear Bench Test`.
-3. Keep output mode `Mock` first.
+2. Enable `Local Gear Test Mode`, or enable and arm `Paddle Gear Bench Test`.
+3. Use `Start Gear Test Listener` if the listener is not already running.
+4. Keep output mode `Mock` first.
 4. Press one mapped paddle and confirm accepted bench gear events plus mock gear routing count increase.
 5. Use `Direct` only after the FeatureReport `0xF1` / 64-byte direct gates, coexistence, emergency stop, approval, road, slip, and lock checks are green.
 
-Bench enable/arm state is not persisted, and normal live-driving shift intent still requires cached `DrivingArmed`.
+Local Gear Test does not require Start Haptics, UDP telemetry, live F1 25, replay, or cached `DrivingArmed`. Bench enable/arm state is not persisted, and normal live-driving shift intent still requires cached `DrivingArmed`.
 
 ## Mock P-HPR First
 
@@ -112,8 +113,9 @@ Add `--execute` only when physically present, SimPro/SimHub coexistence is clear
 
 Use Devices to configure:
 
-- brake gear pulse enabled, strength, frequency, duration,
-- throttle gear pulse enabled, strength, frequency, duration,
+- brake gear pulse enabled, strength, and frequency,
+- throttle gear pulse enabled, strength, and frequency,
+- shared gear pulse duration for brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode,
 - road vibration brake/throttle min/max strength, min/max frequency, duration,
 - wheel slip target, strength range, frequency range, duration,
 - wheel lock target, strength range, frequency range, duration.

@@ -20,6 +20,8 @@ public sealed record ManualAsioHardwareTestSnapshot(
     long DroppedFrameCount,
     long BackendCallbackCount,
     bool LastPulseUsedAsio,
+    bool LastManualPulseUsedAsio,
+    bool LastGearPulseUsedAsio,
     bool LastPulseBlocked,
     bool LimiterApplied,
     long PulseGenerationId,

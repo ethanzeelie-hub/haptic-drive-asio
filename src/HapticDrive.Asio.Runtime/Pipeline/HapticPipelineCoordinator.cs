@@ -49,6 +49,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private long _manualAsioHardwareTestPulseGeneration;
     private long _manualAsioHardwareTestStaleStopIgnoredCount;
     private bool _lastManualAsioHardwareTestUsedAsio;
+    private bool _lastManualBst1PulseUsedAsio;
+    private bool _lastGearBst1PulseUsedAsio;
     private bool _lastManualAsioHardwareTestBlocked;
     private bool _lastManualAsioHardwareTestLimiterApplied;
     private float _lastManualAsioHardwareTestPeak;
@@ -341,6 +343,14 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             _lastManualAsioHardwareTestError = null;
             _manualAsioHardwareTestRenderedFrameCount = 0;
             _lastManualAsioHardwareTestUsedAsio = true;
+            if (IsManualAsioGearPulseSource(normalized.Source))
+            {
+                _lastGearBst1PulseUsedAsio = true;
+            }
+            else
+            {
+                _lastManualBst1PulseUsedAsio = true;
+            }
             _lastManualAsioHardwareTestBlocked = false;
             _lastManualAsioHardwareTestLimiterApplied = false;
             _lastManualAsioHardwareTestPeak = 0f;
@@ -384,6 +394,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             {
                 if (!wasPipelineRunning && !wasOutputStarted)
                 {
+                    await DelayForStandaloneManualAsioDrainAsync(normalized, cancellationToken).ConfigureAwait(false);
                     var stopResult = await OutputDevice.StopAsync(cancellationToken).ConfigureAwait(false);
                     if (!stopResult.Succeeded)
                     {
@@ -458,6 +469,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 Interlocked.Read(ref _lastManualAsioHardwareDroppedFrames)),
             BackendCallbackCount: outputStatus.BackendCallbackCount,
             LastPulseUsedAsio: _lastManualAsioHardwareTestUsedAsio,
+            LastManualPulseUsedAsio: _lastManualBst1PulseUsedAsio,
+            LastGearPulseUsedAsio: _lastGearBst1PulseUsedAsio,
             LastPulseBlocked: _lastManualAsioHardwareTestBlocked,
             LimiterApplied: _lastManualAsioHardwareTestLimiterApplied,
             PulseGenerationId: Interlocked.Read(ref _manualAsioHardwareTestPulseGeneration),
@@ -1179,6 +1192,31 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 : exception.GetType().Name
         };
         recorder.Record(record);
+    }
+
+    private async Task DelayForStandaloneManualAsioDrainAsync(
+        ManualAsioHardwareTestRequest request,
+        CancellationToken cancellationToken)
+    {
+        var bufferDuration = Configuration.SampleRate <= 0 || Configuration.BufferSize <= 0
+            ? TimeSpan.FromMilliseconds(25)
+            : TimeSpan.FromSeconds((double)Configuration.BufferSize / Configuration.SampleRate);
+        var drainDelay = request.Duration + TimeSpan.FromTicks(bufferDuration.Ticks * 2);
+        if (drainDelay > TimeSpan.FromMilliseconds(150))
+        {
+            drainDelay = TimeSpan.FromMilliseconds(150);
+        }
+
+        if (drainDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(drainDelay, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static bool IsManualAsioGearPulseSource(string? source)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains("paddle gear", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsMTrackAsioDriver(string? driverName)

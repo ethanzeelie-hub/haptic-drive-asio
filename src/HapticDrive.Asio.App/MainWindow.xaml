@@ -862,8 +862,11 @@
                                         <TextBox x:Name="Bst1PaddleGearDurationTextBox"
                                                  Width="84"
                                                  Margin="0,0,12,8"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                Style="{StaticResource FieldTextBoxStyle}"
                                                  LostFocus="Bst1PaddleGearPulseControl_LostFocus" />
+                                        <TextBlock x:Name="Bst1PaddleGearEffectiveDurationText"
+                                                   Margin="0,4,0,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}" />
                                     </WrapPanel>
                                     <TextBlock x:Name="ManualAsioHardwareStatusText"
                                                Margin="0,8,0,0"
@@ -924,6 +927,19 @@
                                     <TextBlock x:Name="PhprPedalsLastResultText"
                                                Margin="0,6,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}" />
+                                    <WrapPanel Margin="0,14,0,0">
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Gear pulse duration ms" />
+                                        <TextBox x:Name="NormalPhprGearDurationTextBox"
+                                                 Width="84"
+                                                 Margin="0,0,12,8"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 LostFocus="PhprPedalsControl_LostFocus" />
+                                        <TextBlock Margin="0,4,0,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Shared by brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode." />
+                                    </WrapPanel>
                                     <UniformGrid Columns="2"
                                                  Margin="0,16,0,0">
                                         <Border Margin="0,0,10,0"
@@ -958,11 +974,13 @@
                                                              Style="{StaticResource FieldTextBoxStyle}"
                                                              LostFocus="PhprPedalsControl_LostFocus" />
                                                     <TextBlock Margin="0,4,6,8"
+                                                               Visibility="Collapsed"
                                                                Style="{StaticResource MutedTextBlockStyle}"
                                                                Text="ms" />
                                                     <TextBox x:Name="NormalPhprBrakeDurationTextBox"
                                                              Width="72"
                                                              Margin="0,0,8,8"
+                                                             Visibility="Collapsed"
                                                              Style="{StaticResource FieldTextBoxStyle}"
                                                              LostFocus="PhprPedalsControl_LostFocus" />
                                                 </WrapPanel>
@@ -1007,11 +1025,13 @@
                                                              Style="{StaticResource FieldTextBoxStyle}"
                                                              LostFocus="PhprPedalsControl_LostFocus" />
                                                     <TextBlock Margin="0,4,6,8"
+                                                               Visibility="Collapsed"
                                                                Style="{StaticResource MutedTextBlockStyle}"
                                                                Text="ms" />
                                                     <TextBox x:Name="NormalPhprThrottleDurationTextBox"
                                                              Width="72"
                                                              Margin="0,0,8,8"
+                                                             Visibility="Collapsed"
                                                              Style="{StaticResource FieldTextBoxStyle}"
                                                              LostFocus="PhprPedalsControl_LostFocus" />
                                                 </WrapPanel>
@@ -1159,6 +1179,27 @@
                                     <TextBlock Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
                                                Text="Local validation only. Normal live-driving shift intent still requires recent telemetry outside this bench mode." />
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <CheckBox x:Name="LocalGearTestModeCheckBox"
+                                                  Margin="0,4,12,8"
+                                                  Checked="LocalGearTestModeCheckBox_Changed"
+                                                  Unchecked="LocalGearTestModeCheckBox_Changed"
+                                                  Content="Enable Local Gear Test Mode" />
+                                        <CheckBox x:Name="LocalGearTestAutoStartListenerCheckBox"
+                                                  Margin="0,4,12,8"
+                                                  Checked="LocalGearTestModeCheckBox_Changed"
+                                                  Unchecked="LocalGearTestModeCheckBox_Changed"
+                                                  Content="Auto-start paddle listener for local gear testing" />
+                                        <Button x:Name="StartGearTestListenerButton"
+                                                Width="190"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="StartGearTestListenerButton_Click"
+                                                Content="Start Gear Test Listener" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="LocalGearTestStatusText"
+                                               Margin="0,6,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                     <WrapPanel Margin="0,12,0,0">
                                         <CheckBox x:Name="PaddleGearBenchEnabledCheckBox"
                                                   Margin="0,4,12,8"
