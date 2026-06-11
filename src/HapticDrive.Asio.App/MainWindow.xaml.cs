@@ -1203,14 +1203,21 @@ public partial class MainWindow : Window
     {
         var benchSnapshot = _paddleGearBenchTestController.GetSnapshot();
         var paddleSnapshot = _paddleInputSource.GetPaddleSnapshot();
+        var realOptions = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits) with
+        {
+            GearPulseRetriggerMode = benchSnapshot.IsEnabled
+                ? PHprGearPulseRetriggerMode.RetriggerLatestPressWins
+                : PHprGearPulseRetriggerMode.Conservative
+        };
         _phprDirectRuntime.Configure(new PHprDirectRuntimeEnvironment(
-            _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits),
+            realOptions,
             _phprSoftwareCoexistenceSnapshot.Status,
             _realRoadVibrationOptions.IsEnabled,
             _realSlipLockOptions.IsEnabled,
             benchSnapshot.IsEnabled,
             benchSnapshot.Options.TargetModule,
-            BuildPaddleDeviceSummary(paddleSnapshot)));
+            BuildPaddleDeviceSummary(paddleSnapshot),
+            paddleSnapshot.DebounceSuppressedCount));
     }
 
     private static string BuildPaddleDeviceSummary(WheelPaddleInputSnapshot snapshot)
@@ -4186,7 +4193,7 @@ public partial class MainWindow : Window
             $"Right paddle mapping: {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}; current state {snapshot.RightPaddleState}",
             $"Last changed raw button: {lastRaw}",
             $"Last mapped paddle event: {lastMapped}",
-            $"Paddle press count: {snapshot.PaddlePressCount:N0}",
+            $"Paddle press count: {snapshot.PaddlePressCount:N0}; debounce suppressed {snapshot.DebounceSuppressedCount:N0}",
             $"Debounce: {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms",
             $"Listener error: {error}"
         };
@@ -4276,6 +4283,9 @@ public partial class MainWindow : Window
         var directMessage = string.IsNullOrWhiteSpace(runtime.BlockedReason)
             ? "runtime ready"
             : runtime.BlockedReason;
+        var benchRetriggerMode = options.OutputMode == PaddleGearBenchTestOutputMode.Direct
+            ? PHprGearPulseRetriggerMode.RetriggerLatestPressWins
+            : realDiagnostics.Options.GearPulseRetriggerMode;
 
         PaddleGearBenchStatusText.Text =
             $"Paddle bench: {(options.IsEnabled ? "enabled" : "disabled")}; {(options.IsArmed ? "auto-armed" : "blocked")}; output {options.OutputMode}; target {options.TargetModule}; runtime {runtime.State}; direct {(directReady ? "ready" : $"blocked: {directMessage}")}; active pulse {runtime.HardwareBelievedActive}; pending stops {runtime.PendingStopCount:N0}.";
@@ -4288,7 +4298,8 @@ public partial class MainWindow : Window
             $"Bench accepted/rejected reason: {lastBenchDecision}.",
             $"Runtime path proof: service {runtime.SharedPathProof.SameServiceInstance}; writer {runtime.SharedPathProof.SameWriterInstance}; encoder {runtime.SharedPathProof.SameEncoder}; stop method {runtime.SharedPathProof.SameStopMethod}; pulse id {runtime.PulseId:N0}.",
             $"Bench pulse source: target {options.TargetModule}; route service {(runtime.SharedPathProof.IsProven ? PhprDeviceCardPulseService.RouteName : "blocked")}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}.",
-            $"Direct pulse diagnostics: active pulse {realDiagnostics.ActivePulse}; pending stop count {realOutputSnapshot.PendingScheduledStopCount:N0}; scheduled duration {realDiagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms; accepted latency {FormatMilliseconds(runtime.Latency.PaddleReceivedToBenchAcceptedMs)}; write latency {FormatMilliseconds(runtime.Latency.PaddleReceivedToStartWriteCompletedMs)}; scheduled stop {FormatTimestamp(runtime.Latency.StopDueUtc ?? realDiagnostics.LastScheduledStopDueAtUtc)}; actual stop {FormatTimestamp(runtime.Latency.StopWriteCompletedUtc ?? realDiagnostics.LastStopSentAtUtc)}.",
+            $"Direct pulse diagnostics: active pulse {realDiagnostics.ActivePulse}; pending stop count {realOutputSnapshot.PendingScheduledStopCount:N0}; scheduled duration {realDiagnostics.LastScheduledPulseDurationMs?.ToString(CultureInfo.InvariantCulture) ?? "none"} ms; accepted latency {FormatMilliseconds(runtime.Latency.PaddleReceivedToBenchAcceptedMs)}; write latency {FormatMilliseconds(runtime.Latency.PaddleReceivedToStartWriteCompletedMs)}; inter-press {FormatMilliseconds(runtime.Latency.InterPressIntervalMs)}; scheduled stop {FormatTimestamp(runtime.Latency.StopDueUtc ?? realDiagnostics.LastScheduledStopDueAtUtc)}; actual stop {FormatTimestamp(runtime.Latency.StopWriteCompletedUtc ?? realDiagnostics.LastStopSentAtUtc)}.",
+            $"Retrigger diagnostics: mode {benchRetriggerMode}; generations brake {realDiagnostics.BrakePulseGeneration:N0}, throttle {realDiagnostics.ThrottlePulseGeneration:N0}, latest {realDiagnostics.LastPulseGeneration:N0}; retriggers {realDiagnostics.RetriggerCount:N0}; stale stops ignored {realDiagnostics.StaleStopIgnoredCount:N0}; busy rejected {realDiagnostics.BusyRejectedCount:N0}; stale output dropped {realDiagnostics.StaleOutputDroppedCount:N0}; debounce suppressed {paddleSnapshot.DebounceSuppressedCount:N0}.",
             $"Last start sent: {FormatTimestamp(realDiagnostics.LastStartSentAtUtc)} target {realDiagnostics.LastStartReportTarget?.ToString() ?? "none"}; last stop sent: {FormatTimestamp(realDiagnostics.LastStopSentAtUtc)} target {realDiagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {realDiagnostics.LastStopResultStatus?.ToString() ?? "none"} {realDiagnostics.LastStopResultMessage ?? "none"}.",
             $"Emergency stop: requested {FormatTimestamp(realDiagnostics.LastEmergencyStopRequestedAtUtc)}; result {realDiagnostics.LastEmergencyStopResultStatus?.ToString() ?? "none"} {realDiagnostics.LastEmergencyStopResultMessage ?? "none"}; watchdog stop-all {realDiagnostics.WatchdogStopAllCount:N0} last {FormatTimestamp(realDiagnostics.LastWatchdogStopAllAtUtc)} {realDiagnostics.LastWatchdogStopAllMessage ?? "none"}.",
             $"Last output target: {realDiagnostics.LastTarget?.ToString() ?? "none"}; last report state: {realDiagnostics.LastReportState?.ToString() ?? "none"}; pending stops {realOutputSnapshot.PendingScheduledStopCount:N0}.",
@@ -4674,7 +4685,7 @@ public partial class MainWindow : Window
             ? "none"
             : $"{snapshot.LastPaddleEvent.PaddleSide} button {snapshot.LastPaddleEvent.ButtonId} utc {snapshot.LastPaddleEvent.TimestampUtc:O} ticks {snapshot.LastPaddleEvent.StopwatchTicks}";
 
-        return $"{snapshot.Status}; selected {selected}; method {_paddleMapping.SelectedMethod}; left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)} state {snapshot.LeftPaddleState}; right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)} state {snapshot.RightPaddleState}; last raw {lastRaw}; last mapped {lastMapped}; count {snapshot.PaddlePressCount:N0}; debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms; error {snapshot.LastErrorMessage ?? "none"}; diagnostics only, no haptic output.";
+        return $"{snapshot.Status}; selected {selected}; method {_paddleMapping.SelectedMethod}; left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)} state {snapshot.LeftPaddleState}; right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)} state {snapshot.RightPaddleState}; last raw {lastRaw}; last mapped {lastMapped}; count {snapshot.PaddlePressCount:N0}; debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms; debounce suppressed {snapshot.DebounceSuppressedCount:N0}; error {snapshot.LastErrorMessage ?? "none"}; diagnostics only, no haptic output.";
     }
 
     private string BuildShiftIntentDiagnosticsText()
@@ -4780,7 +4791,7 @@ public partial class MainWindow : Window
             : snapshot.LastResult.Accepted
                 ? $"accepted {snapshot.LastResult.Message}"
                 : $"rejected {snapshot.LastResult.SuppressionReason ?? snapshot.LastResult.Message}";
-        return $"{(snapshot.IsEnabled ? "enabled" : "disabled")}/{(snapshot.IsArmed ? "auto-armed" : "blocked")}; output {snapshot.OutputMode}; target {snapshot.Options.TargetModule}; runtime {runtime.State}; route service {(runtime.SharedPathProof.IsProven ? PhprDeviceCardPulseService.RouteName : "blocked")}; pulse id {runtime.PulseId:N0}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}; left {snapshot.LeftPaddleAcceptedCount:N0}; right {snapshot.RightPaddleAcceptedCount:N0}; source {lastSource}; decision {lastDecision}; active pulse {diagnostics.ActivePulse}; pending stops {diagnostics.Output.PendingScheduledStopCount:N0}; marker {runtime.UncleanShutdownMarkerExists}; last start {FormatTimestamp(diagnostics.LastStartSentAtUtc)} target {diagnostics.LastStartReportTarget?.ToString() ?? "none"}; scheduled stop {FormatTimestamp(runtime.Latency.StopDueUtc ?? diagnostics.LastScheduledStopDueAtUtc)}; last stop {FormatTimestamp(runtime.Latency.StopWriteCompletedUtc ?? diagnostics.LastStopSentAtUtc)} target {diagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {diagnostics.LastStopResultStatus?.ToString() ?? "none"} {diagnostics.LastStopResultMessage ?? "none"}; emergency stop {FormatTimestamp(diagnostics.LastEmergencyStopRequestedAtUtc)} {diagnostics.LastEmergencyStopResultStatus?.ToString() ?? "none"} {diagnostics.LastEmergencyStopResultMessage ?? "none"}; watchdog stop-all {diagnostics.WatchdogStopAllCount:N0} {FormatTimestamp(diagnostics.LastWatchdogStopAllAtUtc)} {diagnostics.LastWatchdogStopAllMessage ?? "none"}; latency paddle-to-write {FormatMilliseconds(runtime.Latency.PaddleReceivedToStartWriteCompletedMs)}; flight recorder {runtime.FlightRecorderPath}; last suppression {snapshot.LastSuppressionReason ?? "none"}; last output {snapshot.LastOutputStatus ?? "none"}; runtime-only enable.";
+        return $"{(snapshot.IsEnabled ? "enabled" : "disabled")}/{(snapshot.IsArmed ? "auto-armed" : "blocked")}; output {snapshot.OutputMode}; target {snapshot.Options.TargetModule}; runtime {runtime.State}; route service {(runtime.SharedPathProof.IsProven ? PhprDeviceCardPulseService.RouteName : "blocked")}; pulse id {runtime.PulseId:N0}; brake {FormatRealPhprPulse(_realPhprOptions.BrakeGearPulse)}; throttle {FormatRealPhprPulse(_realPhprOptions.ThrottleGearPulse)}; accepted {snapshot.AcceptedBenchGearEventCount:N0}; suppressed {snapshot.SuppressedBenchGearEventCount:N0}; left {snapshot.LeftPaddleAcceptedCount:N0}; right {snapshot.RightPaddleAcceptedCount:N0}; source {lastSource}; decision {lastDecision}; active pulse {diagnostics.ActivePulse}; pending stops {diagnostics.Output.PendingScheduledStopCount:N0}; generations brake {diagnostics.BrakePulseGeneration:N0} throttle {diagnostics.ThrottlePulseGeneration:N0}; retrigger {diagnostics.RetriggerCount:N0}; stale stop ignored {diagnostics.StaleStopIgnoredCount:N0}; stale output dropped {diagnostics.StaleOutputDroppedCount:N0}; marker {runtime.UncleanShutdownMarkerExists}; last start {FormatTimestamp(diagnostics.LastStartSentAtUtc)} target {diagnostics.LastStartReportTarget?.ToString() ?? "none"}; scheduled stop {FormatTimestamp(runtime.Latency.StopDueUtc ?? diagnostics.LastScheduledStopDueAtUtc)}; last stop {FormatTimestamp(runtime.Latency.StopWriteCompletedUtc ?? diagnostics.LastStopSentAtUtc)} target {diagnostics.LastStopReportTarget?.ToString() ?? "none"}; stop result {diagnostics.LastStopResultStatus?.ToString() ?? "none"} {diagnostics.LastStopResultMessage ?? "none"}; emergency stop {FormatTimestamp(diagnostics.LastEmergencyStopRequestedAtUtc)} {diagnostics.LastEmergencyStopResultStatus?.ToString() ?? "none"} {diagnostics.LastEmergencyStopResultMessage ?? "none"}; watchdog stop-all {diagnostics.WatchdogStopAllCount:N0} {FormatTimestamp(diagnostics.LastWatchdogStopAllAtUtc)} {diagnostics.LastWatchdogStopAllMessage ?? "none"}; latency paddle-to-write {FormatMilliseconds(runtime.Latency.PaddleReceivedToStartWriteCompletedMs)}; flight recorder {runtime.FlightRecorderPath}; last suppression {snapshot.LastSuppressionReason ?? "none"}; last output {snapshot.LastOutputStatus ?? "none"}; runtime-only enable.";
     }
 
     private string BuildManualAsioHardwareTestDiagnosticsText()

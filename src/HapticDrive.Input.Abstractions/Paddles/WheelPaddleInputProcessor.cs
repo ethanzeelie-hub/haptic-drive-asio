@@ -15,6 +15,7 @@ public sealed class WheelPaddleInputProcessor
     private InputButtonState _lastChangedButtonState = InputButtonState.Unknown;
     private WheelPaddleInputEvent? _lastPaddleEvent;
     private long _paddlePressCount;
+    private long _debounceSuppressedCount;
     private string? _lastErrorMessage;
     private DateTimeOffset _statusChangedAtUtc = DateTimeOffset.UtcNow;
 
@@ -88,19 +89,25 @@ public sealed class WheelPaddleInputProcessor
 
             var side = _mapping.ResolvePaddleSide(buttonId);
             if (side != PaddleSide.Unknown
-                && normalizedState == InputButtonState.Pressed
-                && IsOutsideDebounceWindow(buttonId, eventTimestamp.Utc))
+                && normalizedState == InputButtonState.Pressed)
             {
-                _lastAcceptedPressUtcByButton[buttonId] = eventTimestamp.Utc;
-                _paddlePressCount++;
-                paddleEvent = new WheelPaddleInputEvent(
-                    side,
-                    eventDevice,
-                    buttonId,
-                    eventTimestamp,
-                    _paddlePressCount,
-                    normalizedState);
-                _lastPaddleEvent = paddleEvent;
+                if (!IsOutsideDebounceWindow(buttonId, eventTimestamp.Utc))
+                {
+                    _debounceSuppressedCount++;
+                }
+                else
+                {
+                    _lastAcceptedPressUtcByButton[buttonId] = eventTimestamp.Utc;
+                    _paddlePressCount++;
+                    paddleEvent = new WheelPaddleInputEvent(
+                        side,
+                        eventDevice,
+                        buttonId,
+                        eventTimestamp,
+                        _paddlePressCount,
+                        normalizedState);
+                    _lastPaddleEvent = paddleEvent;
+                }
             }
         }
 
@@ -127,6 +134,7 @@ public sealed class WheelPaddleInputProcessor
                 _lastChangedButtonState,
                 _lastPaddleEvent,
                 _paddlePressCount,
+                _debounceSuppressedCount,
                 _lastErrorMessage,
                 _statusChangedAtUtc);
         }

@@ -98,3 +98,16 @@ In the JSONL recorder, read from the last `start-requested` or `start-write-comp
 Stage 18f marshals Direct Paddle Gear Bench paddle-callback UI updates through the WPF dispatcher. A current crash report should not contain `appdomain-unhandled` for `UpdateRealPhprDirectControlStatus` or the WPF message `The calling thread cannot access this object because a different thread owns it`.
 
 If the marker exists, Direct Bench starts are blocked by design. Use `P-HPR Stop All / Clear Device State`; it sends stop-only reports and clears the marker only after the runtime reports success.
+
+## Rapid Paddle Bench Pulses Feel Late
+
+For Direct Paddle Gear Bench spam-shift validation:
+
+1. Set paddle debounce to 5-10 ms for local testing.
+2. Confirm the bench target is Brake first, then Both.
+3. Confirm duration, frequency, and strength match the Devices brake/throttle pulse cards.
+4. Check diagnostics for `RetriggerLatestPressWins`, retrigger count, stale stop ignored count, stale output dropped count, and debounce suppressed count.
+5. If stale output dropped increases, the app is intentionally refusing to play a late pulse.
+6. If debounce suppressed increases unexpectedly, raise debounce slightly or inspect paddle bounce.
+
+Stage 18g prevents older scheduled stops from cancelling newer retriggered brake/throttle pulses in software. This is not a physical latency or safe-gain claim; final feel must be validated locally on the real P-HPR chain.

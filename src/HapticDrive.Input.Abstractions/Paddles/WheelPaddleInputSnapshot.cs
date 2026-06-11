@@ -12,6 +12,7 @@ public sealed record WheelPaddleInputSnapshot(
     InputButtonState LastChangedButtonState,
     WheelPaddleInputEvent? LastPaddleEvent,
     long PaddlePressCount,
+    long DebounceSuppressedCount,
     string? LastErrorMessage,
     DateTimeOffset StatusChangedAtUtc)
 {
@@ -24,6 +25,7 @@ public sealed record WheelPaddleInputSnapshot(
         null,
         InputButtonState.Unknown,
         null,
+        0,
         0,
         null,
         DateTimeOffset.UtcNow);

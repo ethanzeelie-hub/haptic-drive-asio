@@ -498,3 +498,12 @@
 - The Direct Paddle Gear Bench WPF cross-thread crash is hotfixed in software by marshaling paddle-path status updates to the UI dispatcher and recording/recovering paddle callback exceptions. This does not prove physical P-HPR duration, stop feel, safe gain, physical latency, or real coexistence behavior.
 - If a paddle-path exception occurs after a direct bench pulse may have started, the runtime records it to the local flight recorder and attempts stop-all recovery. The local flight recorder and marker remain local validation artifacts and must not be committed.
 - Blue Test Brake/Throttle Pulse and Direct Paddle Gear Bench still use the same shared direct pulse service and confirmed FeatureReport `0xF1` / 64-byte command format; ASIO/BST-1, F1 25 parsing, UDP forwarding, and recording/replay paths are unchanged.
+
+## Stage 18g
+
+- Direct Paddle Gear Bench now uses latest-press-wins retriggering with per-module generation-guarded scheduled stops, but physical rapid downshift feel and real latency remain unvalidated until Ethan tests the P-HPR hardware locally.
+- Older scheduled stops are ignored in software when their generation no longer matches; this is covered with fake HID writers and fake clocks only.
+- Stale paddle work older than the 80 ms software threshold is dropped and recorded rather than played late. This does not prove the real Windows HID stack or module firmware latency.
+- Paddle debounce defaults to 5 ms and remains per mapped button; Ethan may still need to tune debounce locally if the physical paddles bounce or double-fire.
+- Emergency Stop and Stop All override generations in software, but physical emergency-stop behavior still requires supervised local validation.
+- ASIO/BST-1, F1 25 parser, UDP forwarding, recording/replay raw-byte preservation, SimPro/SimHub coexistence, and confirmed P-HPR report bytes are unchanged by Stage 18g.

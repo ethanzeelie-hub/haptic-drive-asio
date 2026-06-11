@@ -117,6 +117,119 @@ public sealed class PaddleGearBenchDirectPulseTests
     }
 
     [Fact]
+    public async Task DirectBenchRetriggerIgnoresOldStopAndLatestStopSucceeds()
+    {
+        var harness = new DirectBenchHarness();
+        var brake = PHprRealGearPulseSettings.Default with { Strength01 = 0.20d, FrequencyHz = 50d, DurationMs = 40 };
+
+        var first = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Brake,
+            brake,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
+        await WaitForScheduledDelayAsync(harness.Clock, 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(10));
+        var second = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Brake,
+            brake,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc.AddMilliseconds(10));
+        await WaitForScheduledDelayAsync(harness.Clock, 2);
+
+        Assert.True(first.Succeeded, first.CommandResult.Message);
+        Assert.True(second.Succeeded, second.CommandResult.Message);
+        Assert.Equal(2, harness.Writer.Reports.Count(report => report.State == PHprHidReportState.Start));
+        Assert.Equal(2, harness.Device.GetDiagnostics().BrakePulseGeneration);
+        Assert.Equal(1, harness.Device.GetDiagnostics().RetriggerCount);
+
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(30));
+        await WaitForDiagnosticsAsync(harness.Device, diagnostics => diagnostics.StaleStopIgnoredCount == 1);
+        Assert.Equal(2, harness.Writer.Reports.Count);
+        Assert.True(harness.Device.GetDiagnostics().ActivePulse);
+
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(10));
+        await WaitForReportsAsync(harness.Writer, 3);
+        await WaitForNoPendingStopsAsync(harness.Device);
+
+        var diagnostics = harness.Device.GetDiagnostics();
+        Assert.Equal(1, diagnostics.StaleStopIgnoredCount);
+        Assert.Equal(PHprModuleId.Brake, diagnostics.LastStaleStopTarget);
+        Assert.Equal(PHprHidReportState.Stop, harness.Writer.Reports[2].State);
+        Assert.Equal(PHprModuleId.Brake, harness.Writer.Reports[2].TargetModule);
+        Assert.False(diagnostics.ActivePulse);
+    }
+
+    [Fact]
+    public async Task DirectBenchBothTargetRetriggersBrakeAndThrottleIndependently()
+    {
+        var harness = new DirectBenchHarness();
+        var brake = PHprRealGearPulseSettings.Default with { Strength01 = 0.20d, FrequencyHz = 50d, DurationMs = 40 };
+        var throttle = PHprRealGearPulseSettings.Default with { Strength01 = 0.20d, FrequencyHz = 50d, DurationMs = 60 };
+
+        _ = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Brake,
+            brake,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
+        _ = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Throttle,
+            throttle,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
+        await WaitForScheduledDelayAsync(harness.Clock, 2);
+
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(10));
+        _ = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Brake,
+            brake,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc.AddMilliseconds(10));
+        await WaitForScheduledDelayAsync(harness.Clock, 3);
+
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(30));
+        await WaitForDiagnosticsAsync(harness.Device, diagnostics => diagnostics.StaleStopIgnoredCount == 1);
+        Assert.DoesNotContain(harness.Writer.Reports, report => report.State == PHprHidReportState.Stop);
+
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(20));
+        await WaitForReportsAsync(harness.Writer, 5);
+
+        var stops = harness.Writer.Reports.Where(report => report.State == PHprHidReportState.Stop).ToArray();
+        Assert.Contains(stops, report => report.TargetModule == PHprModuleId.Brake);
+        Assert.Contains(stops, report => report.TargetModule == PHprModuleId.Throttle);
+        Assert.Equal(2, harness.Device.GetDiagnostics().BrakePulseGeneration);
+        Assert.Equal(1, harness.Device.GetDiagnostics().ThrottlePulseGeneration);
+    }
+
+    [Fact]
+    public async Task StopAllOverridesGenerationsAndPendingStops()
+    {
+        var harness = new DirectBenchHarness();
+        var brake = PHprRealGearPulseSettings.Default with { Strength01 = 0.20d, FrequencyHz = 50d, DurationMs = 40 };
+
+        _ = await PhprDeviceCardPulseService.SendDirectPulseAsync(
+            harness.Device,
+            PHprModuleId.Brake,
+            brake,
+            PHprSafetyContextForDirectBench(),
+            Shift().TimestampUtc);
+        await WaitForScheduledDelayAsync(harness.Clock, 1);
+
+        var stopAll = await harness.Device.StopAllAsync();
+
+        Assert.True(stopAll.Succeeded, stopAll.Message);
+        Assert.False(harness.Device.GetDiagnostics().ActivePulse);
+        Assert.Equal(0, harness.Device.GetDiagnostics().Output.PendingScheduledStopCount);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(40));
+        Assert.Equal(3, harness.Writer.Reports.Count);
+        Assert.Equal(2, harness.Writer.Reports.Count(report => report.State == PHprHidReportState.Stop));
+    }
+
+    [Fact]
     public void ConstructingDirectBenchOutputDoesNotWriteOnStartup()
     {
         var harness = new DirectBenchHarness();
@@ -213,6 +326,24 @@ public sealed class PaddleGearBenchDirectPulseTests
         }
 
         Assert.Equal(0, device.GetDiagnostics().Output.PendingScheduledStopCount);
+    }
+
+    private static async Task WaitForDiagnosticsAsync(
+        SimagicPhprOutputDevice device,
+        Func<PHprRealOutputDiagnostics, bool> predicate)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (predicate(device.GetDiagnostics()))
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.True(predicate(device.GetDiagnostics()), "Expected diagnostics predicate to become true.");
     }
 
     private sealed class DirectBenchHarness

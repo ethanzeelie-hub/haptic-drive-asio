@@ -153,6 +153,29 @@ public sealed class WheelPaddleInputSourceTests
         Assert.Null(noisy);
         Assert.NotNull(later);
         Assert.Equal(2, processor.GetSnapshot().PaddlePressCount);
+        Assert.Equal(1, processor.GetSnapshot().DebounceSuppressedCount);
+    }
+
+    [Fact]
+    public void Processor_DebounceIsPerMappedPaddleButton()
+    {
+        var clock = new FakeInputEventClock();
+        var processor = CreateProcessor(clock);
+        processor.RefreshSelection(CreateSelection(), InputListenerStatus.Listening);
+        processor.RefreshMapping(CreateMapping() with { DebounceDuration = TimeSpan.FromMilliseconds(20) });
+
+        var right = processor.ProcessButtonState(4, InputButtonState.Pressed);
+        processor.ProcessButtonState(4, InputButtonState.Released);
+        clock.Advance(TimeSpan.FromMilliseconds(5));
+        var left = processor.ProcessButtonState(5, InputButtonState.Pressed);
+        processor.ProcessButtonState(5, InputButtonState.Released);
+        var noisyRight = processor.ProcessButtonState(4, InputButtonState.Pressed);
+
+        Assert.NotNull(right);
+        Assert.NotNull(left);
+        Assert.Null(noisyRight);
+        Assert.Equal(2, processor.GetSnapshot().PaddlePressCount);
+        Assert.Equal(1, processor.GetSnapshot().DebounceSuppressedCount);
     }
 
     [Fact]

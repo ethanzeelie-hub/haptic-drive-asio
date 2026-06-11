@@ -211,6 +211,77 @@ public sealed class PHprDirectRuntimeTests
         Assert.True(uiRefresh.Updated);
     }
 
+    [Fact]
+    public async Task BenchRetriggerStartsWhileRuntimeIsActiveAndOldObserverIsIgnored()
+    {
+        using var harness = new RuntimeHarness();
+        harness.Runtime.Configure(harness.ReadyEnvironment());
+        await harness.Runtime.InitializeStartupCleanupAsync();
+        harness.Writer.Clear();
+
+        var first = await harness.Runtime.RouteBenchAsync(
+            BenchResult(sequence: 1, timestampUtc: harness.RuntimeClock.UtcNow),
+            BenchOptions(),
+            PaddleSnapshot(sequence: 1, timestampUtc: harness.RuntimeClock.UtcNow),
+            module => Card(durationMs: 40),
+            DirectSafetyContext());
+        Assert.Contains("sent", first, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PHprDirectRuntimeState.Active, harness.Runtime.GetSnapshot().State);
+        harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(10));
+        harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(10));
+        var second = await harness.Runtime.RouteBenchAsync(
+            BenchResult(sequence: 2, timestampUtc: harness.RuntimeClock.UtcNow),
+            BenchOptions(),
+            PaddleSnapshot(sequence: 2, timestampUtc: harness.RuntimeClock.UtcNow),
+            module => Card(durationMs: 40),
+            DirectSafetyContext());
+
+        Assert.Contains("sent", second, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, harness.Writer.Reports.Count(report => report.State == PHprHidReportState.Start));
+        Assert.Equal(PHprDirectRuntimeState.Active, harness.Runtime.GetSnapshot().State);
+
+        harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(30));
+        await WaitForDiagnosticsAsync(harness.Output, diagnostics => diagnostics.StaleStopIgnoredCount == 1);
+        harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(280));
+        await WaitForRecorderLineAsync(harness, "direct-paddle-bench-stale-observer-ignored");
+
+        Assert.True(harness.Store.Exists());
+        Assert.Equal(PHprDirectRuntimeState.Active, harness.Runtime.GetSnapshot().State);
+        Assert.DoesNotContain(harness.Writer.Reports, report => report.State == PHprHidReportState.EmergencyStop);
+
+        harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(10));
+        await WaitForReportsAsync(harness.Writer, 3);
+        harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(250));
+        await WaitForMarkerClearedAsync(harness.Store);
+        await WaitForRecorderLineAsync(harness, "direct-paddle-bench-stop-observed");
+
+        Assert.Equal(PHprDirectRuntimeState.Idle, harness.Runtime.GetSnapshot().State);
+        Assert.Contains(harness.RecorderLines(), line => line.Contains("\"InterPressIntervalMs\":10", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BenchDropsStalePaddlePulseInsteadOfPlayingLate()
+    {
+        using var harness = new RuntimeHarness();
+        harness.Runtime.Configure(harness.ReadyEnvironment());
+        await harness.Runtime.InitializeStartupCleanupAsync();
+        harness.Writer.Clear();
+        var stalePaddleUtc = harness.RuntimeClock.UtcNow.AddMilliseconds(-81);
+
+        var message = await harness.Runtime.RouteBenchAsync(
+            BenchResult(sequence: 1, timestampUtc: stalePaddleUtc),
+            BenchOptions(),
+            PaddleSnapshot(sequence: 1, timestampUtc: stalePaddleUtc),
+            module => Card(durationMs: 40),
+            DirectSafetyContext());
+
+        Assert.Contains("stale", message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(harness.Writer.Reports);
+        Assert.Equal(1, harness.Output.GetDiagnostics().StaleOutputDroppedCount);
+        Assert.Contains(harness.RecorderLines(), line => line.Contains("direct-paddle-bench-rejected", StringComparison.Ordinal)
+            && line.Contains("stale", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static PaddleGearBenchTestOptions BenchOptions()
     {
         return new PaddleGearBenchTestOptions
@@ -222,9 +293,12 @@ public sealed class PHprDirectRuntimeTests
         }.Normalize();
     }
 
-    private static PaddleGearBenchTestResult BenchResult(InputButtonState buttonState = InputButtonState.Pressed)
+    private static PaddleGearBenchTestResult BenchResult(
+        InputButtonState buttonState = InputButtonState.Pressed,
+        long sequence = 1,
+        DateTimeOffset? timestampUtc = null)
     {
-        var paddleEvent = PaddleEvent(buttonState);
+        var paddleEvent = PaddleEvent(buttonState, sequence, timestampUtc);
         return PaddleGearBenchTestResult.AcceptedEvent(
             paddleEvent,
             BenchOptions(),
@@ -244,9 +318,9 @@ public sealed class PHprDirectRuntimeTests
             paddleEvent.TimestampUtc.AddMilliseconds(1));
     }
 
-    private static WheelPaddleInputSnapshot PaddleSnapshot()
+    private static WheelPaddleInputSnapshot PaddleSnapshot(long sequence = 1, DateTimeOffset? timestampUtc = null)
     {
-        var paddleEvent = PaddleEvent();
+        var paddleEvent = PaddleEvent(sequence: sequence, timestampUtc: timestampUtc);
         return new WheelPaddleInputSnapshot(
             InputListenerStatus.Listening,
             Selection(),
@@ -257,18 +331,22 @@ public sealed class PHprDirectRuntimeTests
             InputButtonState.Pressed,
             paddleEvent,
             1,
+            0,
             null,
             paddleEvent.TimestampUtc);
     }
 
-    private static WheelPaddleInputEvent PaddleEvent(InputButtonState buttonState = InputButtonState.Pressed)
+    private static WheelPaddleInputEvent PaddleEvent(
+        InputButtonState buttonState = InputButtonState.Pressed,
+        long sequence = 1,
+        DateTimeOffset? timestampUtc = null)
     {
         return new WheelPaddleInputEvent(
             PaddleSide.Right,
             Selection(),
             13,
-            new InputEventTimestamp(new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero), 12345),
-            1,
+            new InputEventTimestamp(timestampUtc ?? new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero), 12345 + sequence),
+            sequence,
             buttonState);
     }
 
@@ -374,6 +452,40 @@ public sealed class PHprDirectRuntimeTests
         Assert.False(store.Exists());
     }
 
+    private static async Task WaitForDiagnosticsAsync(
+        SimagicPhprOutputDevice device,
+        Func<PHprRealOutputDiagnostics, bool> predicate)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (predicate(device.GetDiagnostics()))
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.True(predicate(device.GetDiagnostics()), "Expected diagnostics predicate to become true.");
+    }
+
+    private static async Task WaitForRecorderLineAsync(RuntimeHarness harness, string text)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (harness.RecorderLines().Any(line => line.Contains(text, StringComparison.Ordinal)))
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.Contains(harness.RecorderLines(), line => line.Contains(text, StringComparison.Ordinal));
+    }
+
     private sealed class RuntimeHarness : IDisposable
     {
         private readonly TempDirectory _directory = new();
@@ -431,13 +543,14 @@ public sealed class PHprDirectRuntimeTests
         public PHprDirectRuntimeEnvironment ReadyEnvironment()
         {
             return new PHprDirectRuntimeEnvironment(
-                ReadyOptions(Selector),
+                ReadyOptions(Selector) with { GearPulseRetriggerMode = PHprGearPulseRetriggerMode.RetriggerLatestPressWins },
                 PHprSoftwareConflictStatus.Clear,
                 RoadVibrationEnabled: false,
                 SlipLockEnabled: false,
                 BenchEnabled: true,
                 PHprGearPulseTarget.Brake,
-                "Synthetic GT Neo 32-button device");
+                "Synthetic GT Neo 32-button device",
+                DebounceSuppressedCount: 0);
         }
 
         public string[] RecorderLines()

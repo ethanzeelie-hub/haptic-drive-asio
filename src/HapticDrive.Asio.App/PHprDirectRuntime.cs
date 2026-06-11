@@ -47,7 +47,8 @@ internal sealed record PHprDirectRuntimeEnvironment(
     bool SlipLockEnabled,
     bool BenchEnabled,
     PHprGearPulseTarget BenchTarget,
-    string? SelectedPaddleDeviceSummary)
+    string? SelectedPaddleDeviceSummary,
+    long DebounceSuppressedCount)
 {
     public static PHprDirectRuntimeEnvironment Disabled { get; } = new(
         PHprRealOutputOptions.Disabled,
@@ -56,7 +57,8 @@ internal sealed record PHprDirectRuntimeEnvironment(
         SlipLockEnabled: false,
         BenchEnabled: false,
         PHprGearPulseTarget.Both,
-        SelectedPaddleDeviceSummary: null);
+        SelectedPaddleDeviceSummary: null,
+        DebounceSuppressedCount: 0);
 }
 
 internal sealed record PHprDirectSharedPathProof(
@@ -92,7 +94,8 @@ internal sealed record PHprDirectLatencySnapshot(
     double? PaddleReceivedToBenchAcceptedMs = null,
     double? BenchAcceptedToCommandQueuedMs = null,
     double? CommandQueuedToStartWriteAttemptedMs = null,
-    double? PaddleReceivedToStartWriteCompletedMs = null);
+    double? PaddleReceivedToStartWriteCompletedMs = null,
+    double? InterPressIntervalMs = null);
 
 internal sealed record PHprDirectRuntimeSnapshot(
     PHprDirectRuntimeState State,
@@ -525,6 +528,36 @@ internal sealed record PhprBenchFlightRecorderRecord
     public double? CommandQueuedToStartWriteAttemptedMs { get; init; }
 
     public double? PaddleReceivedToStartWriteCompletedMs { get; init; }
+
+    public double? InterPressIntervalMs { get; init; }
+
+    public long? PulseGenerationId { get; init; }
+
+    public long? BrakeLatestGeneration { get; init; }
+
+    public long? ThrottleLatestGeneration { get; init; }
+
+    public long? StaleStopIgnoredCount { get; init; }
+
+    public long? BusyRejectedCount { get; init; }
+
+    public long? RetriggerCount { get; init; }
+
+    public long? StaleOutputDroppedCount { get; init; }
+
+    public long? DebounceSuppressedCount { get; init; }
+
+    public long? StaleRuntimeObserverIgnoredCount { get; init; }
+
+    public DateTimeOffset? PaddleEventTimestampUtc { get; init; }
+
+    public DateTimeOffset? AcceptedEventTimestampUtc { get; init; }
+
+    public DateTimeOffset? FirstHidStartWriteTimestampUtc { get; init; }
+
+    public DateTimeOffset? BrakeStopDueAtUtc { get; init; }
+
+    public DateTimeOffset? ThrottleStopDueAtUtc { get; init; }
 }
 
 internal sealed class PHprDirectCommandDispatcher : IPHprDirectCommandDispatcher
@@ -634,6 +667,8 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
     private bool _disabledAfterUncleanShutdown;
     private bool _emergencyStopRequested;
     private long _pulseId;
+    private long _staleRuntimeObserverIgnoredCount;
+    private DateTimeOffset? _lastBenchAcceptedPaddleUtc;
     private PHprDirectLatencySnapshot _latency = new();
     private PHprDirectRuntimeErrorCategory? _lastErrorCategory;
     private string? _lastErrorMessage;
@@ -995,11 +1030,17 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         var proof = GetSharedPathProof();
         var settings = modules.Select(settingsFactory).ToArray();
         var maxDuration = settings.Length == 0 ? 0 : settings.Max(setting => setting.DurationMs);
+        var allowRetrigger = source == "direct-paddle-bench";
+        var staleDropThresholdMs = _environment.Options.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits).StalePulseDropThresholdMs;
+        var paddleAgeMs = DurationMs(paddleEvent?.TimestampUtc, commandQueuedUtc);
+        var staleDrop = paddleAgeMs.HasValue && paddleAgeMs.Value > staleDropThresholdMs;
         long pulseId;
         string? rejectReason;
         lock (_gate)
         {
-            rejectReason = GetStartRejectionLocked(proof, settings, maxDuration);
+            rejectReason = staleDrop
+                ? $"paddle pulse is stale ({paddleAgeMs:0.###} ms old; drop threshold {staleDropThresholdMs:N0} ms)"
+                : GetStartRejectionLocked(proof, settings, maxDuration, allowRetrigger);
             if (rejectReason is null)
             {
                 if (!_uncleanShutdownStore.TryCreate(source, out var markerError))
@@ -1019,6 +1060,11 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
 
         if (rejectReason is not null)
         {
+            if (staleDrop)
+            {
+                _output.RecordStaleOutputDropped();
+            }
+
             Record(
                 $"{source}-rejected",
                 paddleEvent,
@@ -1030,8 +1076,14 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
             return new PulseSequenceResult(pulseId, modules.Select(module => RejectedPulse(module, settingsFactory(module), rejectReason)).ToArray());
         }
 
+        var interPressMs = DurationMs(_lastBenchAcceptedPaddleUtc, paddleEvent?.TimestampUtc);
+        if (paddleEvent is not null)
+        {
+            _lastBenchAcceptedPaddleUtc = paddleEvent.TimestampUtc;
+        }
+
         Record(
-            $"{source}-start-requested",
+            allowRetrigger ? $"{source}-retrigger-accepted" : $"{source}-start-requested",
             paddleEvent,
             benchOptions,
             pulseId,
@@ -1091,7 +1143,7 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         lock (_gate)
         {
             _state = PHprDirectRuntimeState.Active;
-            _latency = BuildLatencySnapshot(paddleEvent, benchOptions, commandQueuedUtc, startAttemptedUtc, startCompletedUtc, stopDueUtc);
+            _latency = BuildLatencySnapshot(paddleEvent, benchOptions, commandQueuedUtc, startAttemptedUtc, startCompletedUtc, stopDueUtc, interPressMs);
             Debug.Assert(maxDuration > 0, "Active P-HPR runtime state must have a positive scheduled stop duration.");
             Debug.Assert(_uncleanShutdownStore.Exists(), "Active P-HPR runtime state must have an unclean shutdown marker.");
         }
@@ -1125,6 +1177,17 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
                 .ConfigureAwait(false);
             lock (_gate)
             {
+                if (pulseId != _pulseId)
+                {
+                    _staleRuntimeObserverIgnoredCount++;
+                    Record(
+                        $"{source}-stale-observer-ignored",
+                        pulseId: pulseId,
+                        acceptedRejectedReason: $"ignored stale observer for pulse id {pulseId:N0}; latest pulse id {_pulseId:N0}",
+                        stopAttempted: false);
+                    return;
+                }
+
                 if (_state == PHprDirectRuntimeState.Active)
                 {
                     _state = PHprDirectRuntimeState.Stopping;
@@ -1286,21 +1349,34 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
 
         lock (_gate)
         {
-            return GetStartRejectionLocked(GetSharedPathProof(), [], 1);
+            return GetStartRejectionLocked(
+                GetSharedPathProof(),
+                [],
+                1,
+                allowRetrigger: options.OutputMode == PaddleGearBenchTestOutputMode.Direct);
         }
     }
 
     private string? GetStartRejectionLocked(
         PHprDirectSharedPathProof proof,
         IReadOnlyList<PHprRealGearPulseSettings> settings,
-        int maxDurationMs)
+        int maxDurationMs,
+        bool allowRetrigger = false)
     {
-        if (!IsRuntimeReadyLocked(out var readyBlockedReason))
+        if (allowRetrigger && _state == PHprDirectRuntimeState.Active)
+        {
+            if (!IsRuntimeReadyIgnoringActiveMarkerLocked(out var retriggerBlockedReason))
+            {
+                return retriggerBlockedReason;
+            }
+        }
+        else if (!IsRuntimeReadyLocked(out var readyBlockedReason))
         {
             return readyBlockedReason;
         }
 
-        if (_state != PHprDirectRuntimeState.Idle)
+        if (_state != PHprDirectRuntimeState.Idle
+            && !(allowRetrigger && _state == PHprDirectRuntimeState.Active))
         {
             return $"runtime state is {_state}";
         }
@@ -1310,7 +1386,8 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
             return "Emergency Stop is active";
         }
 
-        if (_uncleanShutdownStore.Exists())
+        if (_uncleanShutdownStore.Exists()
+            && !(allowRetrigger && _state == PHprDirectRuntimeState.Active))
         {
             _state = PHprDirectRuntimeState.Faulted;
             _lastErrorCategory = PHprDirectRuntimeErrorCategory.UncleanStartup;
@@ -1324,8 +1401,9 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         }
 
         var diagnostics = _output.GetDiagnostics();
-        if (diagnostics.ActivePulse || diagnostics.Output.PendingScheduledStopCount > 0)
+        if (!allowRetrigger && (diagnostics.ActivePulse || diagnostics.Output.PendingScheduledStopCount > 0))
         {
+            _output.RecordBusyRejected();
             return $"previous pulse is active or pending stop (active {diagnostics.ActivePulse}; pending stops {diagnostics.Output.PendingScheduledStopCount:N0})";
         }
 
@@ -1343,6 +1421,43 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         }
 
         return null;
+    }
+
+    private bool IsRuntimeReadyIgnoringActiveMarkerLocked(out string blockedReason)
+    {
+        var diagnostics = _output.GetDiagnostics();
+        if (!PaddleGearBenchDirectGate.TryGetReady(
+                _environment.Options,
+                _environment.CoexistenceStatus,
+                diagnostics.Output,
+                _environment.RoadVibrationEnabled,
+                _environment.SlipLockEnabled,
+                out blockedReason))
+        {
+            return false;
+        }
+
+        if (_disabledAfterUncleanShutdown
+            && _state != PHprDirectRuntimeState.Active)
+        {
+            blockedReason = "P-HPR bench disabled after previous unclean shutdown. Press P-HPR Stop All / Clear Device State before retesting.";
+            return false;
+        }
+
+        if (_startupCleanupAttempted && !_startupCleanupSucceeded)
+        {
+            blockedReason = "startup stop-only cleanup has not succeeded";
+            return false;
+        }
+
+        if (!_startupCleanupAttempted)
+        {
+            blockedReason = "startup stop-only cleanup has not run";
+            return false;
+        }
+
+        blockedReason = string.Empty;
+        return true;
     }
 
     private bool IsRuntimeReadyLocked(out string blockedReason)
@@ -1626,7 +1741,22 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
             PaddleReceivedToBenchAcceptedMs = activeLatency.PaddleReceivedToBenchAcceptedMs,
             BenchAcceptedToCommandQueuedMs = activeLatency.BenchAcceptedToCommandQueuedMs,
             CommandQueuedToStartWriteAttemptedMs = activeLatency.CommandQueuedToStartWriteAttemptedMs,
-            PaddleReceivedToStartWriteCompletedMs = activeLatency.PaddleReceivedToStartWriteCompletedMs
+            PaddleReceivedToStartWriteCompletedMs = activeLatency.PaddleReceivedToStartWriteCompletedMs,
+            InterPressIntervalMs = activeLatency.InterPressIntervalMs,
+            PulseGenerationId = diagnostics.LastPulseGeneration,
+            BrakeLatestGeneration = diagnostics.BrakePulseGeneration,
+            ThrottleLatestGeneration = diagnostics.ThrottlePulseGeneration,
+            StaleStopIgnoredCount = diagnostics.StaleStopIgnoredCount,
+            BusyRejectedCount = diagnostics.BusyRejectedCount,
+            RetriggerCount = diagnostics.RetriggerCount,
+            StaleOutputDroppedCount = diagnostics.StaleOutputDroppedCount,
+            DebounceSuppressedCount = _environment.DebounceSuppressedCount,
+            StaleRuntimeObserverIgnoredCount = _staleRuntimeObserverIgnoredCount,
+            PaddleEventTimestampUtc = paddleEvent?.TimestampUtc,
+            AcceptedEventTimestampUtc = activeLatency.BenchAcceptedUtc,
+            FirstHidStartWriteTimestampUtc = diagnostics.LastStartSentAtUtc,
+            BrakeStopDueAtUtc = diagnostics.BrakeStopDueAtUtc,
+            ThrottleStopDueAtUtc = diagnostics.ThrottleStopDueAtUtc
         });
 
         Debug.Assert(!markerExists || state != PHprDirectRuntimeState.Idle, "Idle runtime state cannot keep an unclean shutdown marker.");
@@ -1679,7 +1809,8 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         DateTimeOffset commandQueuedUtc,
         DateTimeOffset startAttemptedUtc,
         DateTimeOffset startCompletedUtc,
-        DateTimeOffset stopDueUtc)
+        DateTimeOffset stopDueUtc,
+        double? interPressMs)
     {
         var paddleReceivedUtc = paddleEvent?.TimestampUtc;
         DateTimeOffset? benchAcceptedUtc = benchOptions is null ? null : commandQueuedUtc;
@@ -1695,7 +1826,8 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
             DurationMs(paddleReceivedUtc, benchAcceptedUtc),
             DurationMs(benchAcceptedUtc, commandQueuedUtc),
             DurationMs(commandQueuedUtc, startAttemptedUtc),
-            DurationMs(paddleReceivedUtc, startCompletedUtc));
+            DurationMs(paddleReceivedUtc, startCompletedUtc),
+            interPressMs);
     }
 
     private static double? DurationMs(DateTimeOffset? start, DateTimeOffset? end)

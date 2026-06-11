@@ -2393,3 +2393,37 @@ Verification:
 - Full sequential `.\.dotnet\dotnet.exe test --no-build --verbosity minimal -m:1` passed with 568 passing tests and 0 skipped tests.
 - `.\.dotnet\dotnet.exe format --verify-no-changes --no-restore` passed.
 - `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+## Stage 18g - Rapid Paddle Gear-Pulse Retriggering
+
+Date: 2026-06-11
+
+Status: Complete.
+
+Goal: Make Direct Paddle Gear Bench usable for rapid spam-shift validation by allowing each accepted paddle Pressed edge to retrigger the selected P-HPR gear pulse immediately, without queued late pulses or older scheduled stops cancelling newer pulses.
+
+Missing Items Addressed:
+
+- Added internal `Conservative` / `RetriggerLatestPressWins` gear-pulse mode and made Direct Paddle Gear Bench use latest-press-wins behavior while preserving conservative manual blue-button pulse behavior.
+- Added per-module brake/throttle pulse generation IDs in the real P-HPR output device; every scheduled stop captures the generation it belongs to and is ignored if a newer generation has started.
+- Changed Direct Bench runtime preflight and start sequencing so an active bench pulse and pending stop do not reject the next accepted paddle press.
+- Added stale runtime observer protection so an old bench observer cannot force Stop All while a newer pulse is active.
+- Added an 80 ms stale-paddle drop threshold for Direct Bench starts so delayed paddle work is recorded and dropped instead of played late.
+- Kept Emergency Stop and Stop All overriding all generations and pending stops immediately.
+- Lowered the default paddle debounce to 5 ms, preserved per-button debounce behavior, and added debounce-suppressed diagnostics.
+- Extended UI diagnostics and `phpr-direct-bench-flight-recorder.jsonl` records with generation IDs, retrigger counts, stale-stop ignores, stale runtime observer ignores, stale-output drops, busy rejects, debounce suppressions, inter-press interval, and paddle-to-write timing fields.
+- Added tests for active-pulse retrigger acceptance, stale stop ignore, latest stop success, stale output drop, per-button debounce, independent brake/throttle generation behavior, and Stop All override.
+
+Notes:
+
+- Only Direct Paddle Gear Bench P-HPR behavior changed. ASIO, BST-1, bass shaker effects, road/slip/lock routing, F1 25 parser, UDP forwarding, recording/replay, SimPro/SimHub coexistence, and confirmed P-HPR report bytes were not changed.
+- Older scheduled stops can no longer cancel newer brake or throttle pulses because they must match the current per-module generation before writing a stop report.
+- Direct Bench still only accepts mapped `Pressed` paddle events from the visible listener path; release/held/repeat/unknown states do not trigger gear haptics.
+- No physical P-HPR spam-shift validation was performed by Codex; physical latency, stop feel, safe gain, and real rapid downshift feel remain Ethan-local validation items.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore` passed.
+- `.\.dotnet\dotnet.exe build --no-restore` passed with 0 warnings and 0 errors.
+- Full `.\.dotnet\dotnet.exe test --no-build` passed with 574 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format --verify-no-changes --no-restore` passed.
