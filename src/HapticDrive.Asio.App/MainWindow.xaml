@@ -793,6 +793,15 @@
                                                  LostFocus="ManualBst1Control_LostFocus" />
                                         <TextBlock Margin="0,4,6,8"
                                                    Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="Output trim %" />
+                                        <TextBox x:Name="Bst1OutputTrimTextBox"
+                                                 Width="84"
+                                                 Margin="0,0,12,8"
+                                                 ToolTip="Calibrates ASIO bass-shaker output level without changing P-HPR strength."
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 LostFocus="ManualBst1Control_LostFocus" />
+                                        <TextBlock Margin="0,4,6,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Frequency Hz" />
                                         <TextBox x:Name="ManualBst1FrequencyTextBox"
                                                  Width="84"

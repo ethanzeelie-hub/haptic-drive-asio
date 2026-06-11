@@ -11,9 +11,10 @@ Use Devices `Bass Shaker / ASIO` and check in this order:
 5. Emergency Mute is clear and normal mute is off.
 6. Frequency is in the Dayton BST-1 normal control range, `10-80 Hz`.
 7. Strength is above `0%` and duration is a short bounded pulse.
-8. The in-app ASIO status shows ASIO selected, M-Audio/M-Track driver selected, ASIO armed, selected channel, and no blocked reason/error. Stream running may be `NO` before a bounded manual pulse starts.
+8. Output trim is set for the BST-1 chain; the default is `200%`, valid range is `25-400%`.
+9. The in-app ASIO status shows `ASIO READY` or `ASIO ACTIVE`. `ASIO READY - stream stopped` is valid before a bounded manual pulse starts.
 
-Manual `Test BST-1 Pulse` uses ASIO and does not require Start Haptics, live/replay telemetry, UDP, or `DrivingArmed`. Live telemetry-driven effects still require the normal haptics and telemetry gates. Windows Sound Settings visibility does not prove ASIO usage; confirm ASIO by the app's selected driver, armed state, running state, callback diagnostics, submitted frames, last manual-pulse ASIO proof, last gear-pulse ASIO proof, and last error fields.
+Manual `Test BST-1 Pulse` uses ASIO and does not require Start Haptics, live/replay telemetry, UDP, or `DrivingArmed`. When Start Haptics is stopped, the app uses a bounded standalone ASIO pulse session and stops afterward. Live telemetry-driven effects still require the normal haptics and telemetry gates. Windows Sound Settings visibility does not prove ASIO usage; use Advanced / Diagnostics for callback diagnostics, submitted frames, last manual-pulse ASIO proof, last gear-pulse ASIO proof, and last error fields.
 
 BST-1 Paddle Gear Bench pulses are off by default. Enable `BST-1 paddle gear pulse` only for local bench validation. Accepted mapped `Pressed` paddle events can fire the BST-1 pulse alongside the existing P-HPR bench pulse; release, held, repeat, unknown, unmapped, and suppressed events should not trigger it. If sync is checked, the BST-1 pulse uses the shared P-HPR gear duration; custom BST-1 duration applies only when sync is unchecked.
 

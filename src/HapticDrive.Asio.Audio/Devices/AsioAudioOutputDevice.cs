@@ -212,10 +212,10 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
 
     private AudioOutputDeviceResult SubmitRoutedBuffer(AudioSampleBuffer buffer)
     {
-        if (State != AudioOutputDeviceState.Started)
+        if (State is not (AudioOutputDeviceState.Open or AudioOutputDeviceState.Started or AudioOutputDeviceState.Stopped))
         {
             return AudioOutputDeviceResult.Failure(
-                "ASIO output must be started before it can consume audio sample buffers.",
+                "ASIO output must be open before it can consume audio sample buffers.",
                 GetStatus());
         }
 

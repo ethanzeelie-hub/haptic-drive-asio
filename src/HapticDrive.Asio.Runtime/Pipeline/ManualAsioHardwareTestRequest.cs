@@ -4,6 +4,7 @@ public sealed record ManualAsioHardwareTestRequest(
     float FrequencyHz,
     TimeSpan Duration,
     float Amplitude = 0.5f,
+    float OutputTrim = 2.0f,
     string Source = "manual test",
     string DurationMode = "manual",
     long? AcceptedPaddleEventSequence = null,
@@ -17,11 +18,19 @@ public sealed record ManualAsioHardwareTestRequest(
 
     public const int MinimumDurationMilliseconds = 10;
 
+    public const float MinimumOutputTrim = 0.25f;
+
+    public const float MaximumOutputTrim = 4.0f;
+
     public static TimeSpan MaximumDuration { get; } = TimeSpan.FromSeconds(1);
 
     public string SignalName => $"{FrequencyHz:0.#} Hz sine";
 
     public float StrengthPercent => Amplitude * 100f;
+
+    public float OutputTrimPercent => OutputTrim * 100f;
+
+    public float EffectivePreLimiterAmplitude => Amplitude * OutputTrim;
 
     public int DurationMilliseconds => (int)Math.Round(Duration.TotalMilliseconds);
 
@@ -42,6 +51,9 @@ public sealed record ManualAsioHardwareTestRequest(
         var amplitude = float.IsFinite(Amplitude)
             ? Math.Clamp(Amplitude, 0f, 1f)
             : 0.5f;
+        var outputTrim = float.IsFinite(OutputTrim)
+            ? Math.Clamp(OutputTrim, MinimumOutputTrim, MaximumOutputTrim)
+            : 2.0f;
         var source = string.IsNullOrWhiteSpace(Source)
             ? "manual test"
             : Source.Trim();
@@ -54,6 +66,7 @@ public sealed record ManualAsioHardwareTestRequest(
             FrequencyHz = frequency,
             Duration = duration,
             Amplitude = amplitude,
+            OutputTrim = outputTrim,
             Source = source,
             DurationMode = durationMode
         };

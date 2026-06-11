@@ -163,6 +163,9 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.True(snapshot.LastPulseUsedAsio);
         Assert.True(snapshot.LastManualPulseUsedAsio);
         Assert.False(snapshot.LastGearPulseUsedAsio);
+        Assert.True(backend.SubmitBeforeStartCount > 0);
+        Assert.Equal(1, backend.StartCount);
+        Assert.Equal(1, backend.StopCount);
     }
 
     [Fact]
@@ -183,9 +186,54 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.True(start.Succeeded, start.Message);
         Assert.Equal(80f, snapshot.LastFrequencyHz);
         Assert.Equal(100f, snapshot.LastStrengthPercent);
+        Assert.Equal(200f, snapshot.LastOutputTrimPercent);
         Assert.Equal(45, snapshot.LastDurationMs);
         Assert.Equal(1, snapshot.SelectedOutputChannel);
         Assert.True(snapshot.SubmittedFrameCount > 0);
+    }
+
+    [Fact]
+    public async Task ManualAsioHardwareTest_OutputTrimScalesBeforeLimiterAndKeepsLimiterActive()
+    {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
+        await using var coordinator = new HapticPipelineCoordinator(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
+            options: HapticPipelineOptions.ManualRendering);
+
+        var start = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            1.0f,
+            OutputTrim: 4.0f));
+        var snapshot = coordinator.GetManualAsioHardwareTestSnapshot();
+
+        Assert.True(start.Succeeded, start.Message);
+        Assert.Equal(100f, snapshot.LastStrengthPercent);
+        Assert.Equal(400f, snapshot.LastOutputTrimPercent);
+        Assert.Equal(4.0f, snapshot.LastEffectivePreLimiterAmplitude);
+        Assert.True(snapshot.LimiterApplied);
+        Assert.True(snapshot.LastEffectivePostLimiterAmplitude is > 0f and <= 0.75f);
+    }
+
+    [Fact]
+    public async Task ManualAsioHardwareTest_BlockedUnarmedDoesNotEmitPartialOutput()
+    {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
+        await using var coordinator = new HapticPipelineCoordinator(
+            ArmedConfiguration(channel: 1) with { IsHardwareArmed = false },
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
+            options: HapticPipelineOptions.ManualRendering);
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45)));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, backend.StartCount);
+        Assert.Equal(0, backend.SubmitCount);
+        Assert.Equal(0, backend.SubmitBeforeStartCount);
+        Assert.Null(backend.LastSubmittedSamples);
     }
 
     [Fact]
@@ -299,7 +347,13 @@ public sealed class HapticPipelineAsioReadinessTests
 
         public bool IsRunning { get; private set; }
 
+        public int StartCount { get; private set; }
+
         public int StopCount { get; private set; }
+
+        public int SubmitCount { get; private set; }
+
+        public int SubmitBeforeStartCount { get; private set; }
 
         public float[]? LastSubmittedSamples { get; private set; }
 
@@ -312,7 +366,7 @@ public sealed class HapticPipelineAsioReadinessTests
                 SampleRate: AudioOutputConfiguration.Default.SampleRate,
                 BufferSize: AudioOutputConfiguration.Default.BufferSize,
                 OutputChannelCount: _outputChannelCount,
-                SubmittedBufferCount: 0,
+                SubmittedBufferCount: SubmitCount,
                 DroppedBufferCount: 0,
                 CallbackCount: 0,
                 UnderrunCount: 0,
@@ -338,6 +392,7 @@ public sealed class HapticPipelineAsioReadinessTests
         public ValueTask<AsioOutputBackendOperationResult> StartAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            StartCount++;
             IsRunning = true;
             return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Started fake ASIO backend."));
         }
@@ -356,6 +411,12 @@ public sealed class HapticPipelineAsioReadinessTests
             int frameCount,
             int outputChannelCount)
         {
+            SubmitCount++;
+            if (!IsRunning)
+            {
+                SubmitBeforeStartCount++;
+            }
+
             LastSubmittedSamples = interleavedSamples.ToArray();
             return AsioOutputBackendOperationResult.Success("Submitted.");
         }

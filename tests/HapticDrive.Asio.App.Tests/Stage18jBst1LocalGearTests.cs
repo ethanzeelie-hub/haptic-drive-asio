@@ -17,15 +17,15 @@ public sealed class Stage18jBst1LocalGearTests
             running: false,
             callbackActive: false));
 
-        Assert.Contains("ASIO ready: YES", text);
-        Assert.Contains("ASIO active: NO - stream stopped", text);
+        Assert.Contains("ASIO READY", text);
+        Assert.Contains("stream stopped", text);
         Assert.DoesNotContain("True ASIO: NO", text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void AsioStatusFormatter_ReportsLastManualAndGearPulseProofSeparately()
     {
-        var text = Bst1AsioStatusFormatter.Format(Snapshot(
+        var text = Bst1AsioStatusFormatter.FormatDetailed(Snapshot(
             lastManualPulseUsedAsio: true,
             lastGearPulseUsedAsio: true,
             lastPulseUsedAsio: true));
@@ -204,6 +204,9 @@ public sealed class Stage18jBst1LocalGearTests
             LastTestSignal: null,
             LastTestDuration: null,
             LastStrengthPercent: null,
+            LastOutputTrimPercent: null,
+            LastEffectivePreLimiterAmplitude: null,
+            LastEffectivePostLimiterAmplitude: null,
             LastFrequencyHz: null,
             LastDurationMs: null,
             LastSource: null,

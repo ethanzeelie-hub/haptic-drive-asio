@@ -7,7 +7,7 @@ cd "C:\Users\ethan\OneDrive\Documents\ASIO Haptic Engine Program"
 .\Run-HapticDrive.cmd
 ```
 
-The app starts with `NullAudioOutputDevice` as the safe default. ASIO and real P-HPR direct control require explicit selection and arming.
+If the M-Audio M-Track Solo and Duo ASIO driver is discoverable, the app starts with ASIO Output, that driver, channel `1`, and Arm ASIO selected, but it does not emit output. If that driver is missing, the app starts with `NullAudioOutputDevice`. Real P-HPR direct control still requires explicit session enable/arm.
 
 ## Confirm F1 25 Telemetry
 
@@ -30,14 +30,14 @@ The app starts with `NullAudioOutputDevice` as the safe default. ASIO and real P
 Use this only when the connected BST-1 chain is ready for a short app-driven pulse.
 
 1. Open Devices.
-2. Select `ASIO Output`.
-3. Select the M-Audio / M-Track ASIO driver.
-4. Select channel `1`, the locally validated BST-1 output channel.
-5. Arm ASIO.
-6. In `BST-1 ASIO Pulse Control`, start with 50% strength, 50 Hz, and 45-50 ms.
+2. Confirm `ASIO Output` is selected.
+3. Confirm the M-Audio / M-Track ASIO driver is selected.
+4. Confirm channel `1`, the locally validated BST-1 output channel.
+5. Confirm Arm ASIO is checked.
+6. In `BST-1 ASIO Pulse Control`, start with 50% strength, 200% output trim, 50 Hz, and 45-50 ms.
 7. Press `Test BST-1 Pulse`.
 
-Manual BST-1 pulse uses ASIO and does not require Start Haptics, UDP telemetry, live/replay telemetry, or `DrivingArmed`. The Null synthetic benchmark remains the automated-test path and does not energize the shaker. Windows Sound Settings visibility does not prove ASIO; use the in-app ASIO readiness, stream-running, callback, and last-pulse proof diagnostics.
+Manual BST-1 pulse uses ASIO and does not require Start Haptics, UDP telemetry, live/replay telemetry, or `DrivingArmed`. `ASIO READY - stream stopped` is valid before the bounded pulse starts; `ASIO ACTIVE` appears only during actual running/callback output. The Null synthetic benchmark remains the automated-test path and does not energize the shaker. Windows Sound Settings visibility does not prove ASIO; use Advanced / Diagnostics for callback and last-pulse proof details.
 
 ## BST-1 Paddle Gear Pulse
 
@@ -45,7 +45,7 @@ Use this only for local Paddle Gear Bench validation after manual BST-1 pulse wo
 
 1. Keep the P-HPR Paddle Gear Bench path working first.
 2. In `Bass Shaker / ASIO`, enable `BST-1 paddle gear pulse`.
-3. Use 50% strength and 50 Hz as a starting software setting.
+3. Use 50% strength, 200% output trim, and 50 Hz as a starting software setting.
 4. Keep duration synced to the shared P-HPR gear pulse duration first, then switch to custom duration if the Dayton shaker needs different timing.
 5. Press mapped paddles and confirm accepted bench events plus BST-1 ASIO diagnostics.
 

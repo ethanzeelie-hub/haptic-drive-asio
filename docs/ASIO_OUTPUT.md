@@ -1,6 +1,6 @@
 # ASIO Output
 
-ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics. Stage 18 adds launch/runtime prerequisite handling, app settings persistence, forwarding/recording/diagnostics polish, and final pre-shaker readiness cleanup. The Stage 18 follow-up adds manual ASIO hardware tests, Stage 18i adds configurable BST-1 10-80 Hz short pulses plus optional accepted-paddle bench synchronization through the selected ASIO channel, and Stage 18j separates ready/armed ASIO status from stream-running status for bounded manual/local gear pulses.
+ASIO is the intended low-latency output path for the real bass shaker chain. Stage 02 adds the abstraction and graceful failure behavior. Stage 10 adds internal sample buffers, mixer processing, safety processing, and null-output sample consumption. Stage 11 adds deterministic test-bench signals. Stage 12 and Stage 13 add VehicleState-driven effect source buffers. Stage 15 adds optional ASIO driver-catalog visibility diagnostics. Stage 16 adds Windows ASIO driver-name discovery, explicit ASIO selection/arming/channel routing, readiness diagnostics, and fake-backend tests. Stage 17 adds native ASIO streaming behind `IAsioOutputBackend`, output-owned render cadence, stale telemetry mute, and render/backend diagnostics. Stage 18 adds launch/runtime prerequisite handling, app settings persistence, forwarding/recording/diagnostics polish, and final pre-shaker readiness cleanup. The Stage 18 follow-up adds manual ASIO hardware tests, Stage 18i adds configurable BST-1 10-80 Hz short pulses plus optional accepted-paddle bench synchronization through the selected ASIO channel, Stage 18j separates ready/armed ASIO status from stream-running status for bounded manual/local gear pulses, and Stage 18k adds validated M-Audio startup defaults, standalone ASIO queue-primed local pulses, compact Ready/Active status, and BST-1-only output trim.
 
 ## Stage 02 Implementation
 
@@ -20,7 +20,8 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - Manual ASIO hardware pulses can energize the BST-1 through the selected ASIO output, but they are still deliberate local validation steps rather than final tuning claims.
 - ASIO failure does not select WASAPI automatically.
 - Windows sound output visibility is not proof of ASIO usage.
-- Persisted ASIO driver/channel settings are convenience selections only; ASIO armed state and auto-start are not persisted.
+- If the M-Audio ASIO driver is discoverable at startup, the app selects ASIO Output, that driver, channel `1`, and Arm ASIO without opening or starting output. If the driver is missing, startup falls back to Null output.
+- Persisted ASIO driver/channel settings are convenience selections only; no output stream auto-start is persisted.
 - Direct executable launch requires .NET 8 Desktop Runtime visibility to the app host. `Run-HapticDrive.cmd` runs the PowerShell launcher, which sets `DOTNET_ROOT` to the repo-local runtime before launching.
 
 ## Target Defaults
@@ -60,13 +61,15 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 ## Manual BST-1 ASIO Pulse
 
 - The Devices page exposes `BST-1 ASIO Pulse Control` separately from the Null synthetic benchmark.
-- The test supports user-controlled 0-100% strength, 10-80 Hz frequency, short millisecond durations, and a maximum continuous request of 1 second in the runtime API.
+- The test supports user-controlled 0-100% strength, BST-1 output trim from 25-400% with default 200%, 10-80 Hz frequency, short millisecond durations, and a maximum continuous request of 1 second in the runtime API.
 - The test is blocked unless Output mode is `ASIO Output`, the selected driver name is M-Audio / M-Track-like, ASIO is explicitly armed, emergency mute is clear, normal mute is off, and the selected output channel is valid.
-- Manual BST-1 pulse testing does not require global Start Haptics; it may open/start a bounded temporary ASIO session, render and submit the short pulse, then stop again.
+- Manual BST-1 pulse testing does not require global Start Haptics; it may open a bounded temporary ASIO session, prime safety-processed pulse buffers, start only for the pulse, then stop again.
 - The signal is injected into `HapticPipelineCoordinator` as an `AudioMixerInput`, then processed by the existing Stage 10 mixer, safety chain, limiter, and selected ASIO output channel routing.
+- Effective BST-1 amplitude is requested strength times output trim, then the existing safety gain and limiter apply. Output trim does not change P-HPR strength.
 - The manual test bypasses stale telemetry only for its own short pulse. Normal VehicleState-driven effects still require fresh telemetry.
 - The active manual test state is runtime-only. It is not persisted and is never started automatically.
 - The app reports ASIO status from internal output state: selected output mode, selected driver/channel, ASIO armed state, stream-running state, callback-active state, submitted/dropped frame counts, callback counts, last manual-pulse ASIO proof, last gear-pulse ASIO proof, and last ASIO error. Windows Sound Settings visibility is not proof of ASIO usage.
+- Normal Devices status uses compact `ASIO READY`, `ASIO ACTIVE`, or `ASIO NOT READY` text. Detailed callback/frame/drop/pulse diagnostics are in Advanced / Diagnostics.
 - `local-validation-results/bst1-asio-gear-flight-recorder.jsonl` records accepted, blocked, completed, and failed BST-1 manual and paddle-bench pulse attempts and is ignored local validation output.
 - Automated tests use fake ASIO backends for this path and do not require M-Audio, Fosi, BST-1, SimHub, SimPro, or live F1 telemetry.
 
@@ -101,9 +104,9 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 ## Stage 16 Manual Readiness
 
 - The app can list ASIO driver names through `WindowsRegistryAsioDriverCatalog` when Windows exposes them.
-- ASIO output must be selected deliberately; the app never auto-switches from Null to ASIO.
+- ASIO output is selected automatically only for the locally validated M-Audio driver when that driver is discoverable at app startup; this does not start or open output.
 - A driver and single output channel must be selected deliberately.
-- ASIO must be armed deliberately before Start Haptics can run it.
+- ASIO must be armed before Start Haptics or a bounded manual/local pulse can run it.
 - Stop Haptics stops ASIO output, and switching away from ASIO must stop the old output path first.
 - Stage 16 mono routing clears all routed channels and writes the safety-processed mono source only to the selected ASIO channel.
 - Diagnostics report selected driver, sample rate, buffer size, output channel count when available, selected output channel, arming state, running state, buffer counters, drops, last error, and M-Audio / M-Track visibility.
@@ -121,4 +124,4 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 - `Run-HapticDrive.cmd` is the preferred launch path during development because it avoids normal PowerShell execution-policy blocks, checks the repo-local .NET 8 Desktop runtime, and starts the WPF executable.
 - App settings persist theme, forwarding destinations, and last ASIO driver/channel selection only.
 - Diagnostics can be copied and include output callback counters, packet-ID counts, forwarding state, recording/replay state, runtime prerequisite status, and ASIO readiness state.
-- ASIO remains explicit: select output mode, select driver, select channel, arm, then Start Haptics.
+- Startup may preselect the validated M-Audio ASIO path when discoverable, but output remains explicit: no stream starts until Start Haptics or a bounded manual/local pulse is requested.

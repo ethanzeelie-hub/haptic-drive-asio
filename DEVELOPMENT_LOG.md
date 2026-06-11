@@ -2520,3 +2520,44 @@ Self-review:
 - Manual BST-1 and local gear pulses use the same mixer/safety/limiter path and remain explicit local validation actions.
 - The status text no longer treats a stopped continuous stream as "not true ASIO" when the selected/armed bounded-pulse ASIO path is ready.
 - Automated coverage uses fake ASIO, fake/read-only input, and fake P-HPR paths. No M-Audio, Fosi, Dayton BST-1, Simagic hardware, F1 25, live telemetry, HID report, or physical vibration was required.
+
+## Stage 18k - BST-1 Standalone ASIO Local Pulse
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Make BST-1 manual and local paddle gear pulses physically independent from Start Haptics, default the app to the locally validated ASIO setup when available without startup output, compact normal ASIO status, and add BST-1-only output trim.
+
+Missing Items Addressed:
+
+- Added startup ASIO default selection: when `M-Audio M-Track Solo and Duo ASIO` is discoverable, the app selects ASIO Output, that driver, channel `1`, and Arm ASIO without opening, starting, or emitting output.
+- Kept safe fallback to Null output when the M-Audio ASIO driver is not discoverable.
+- Changed standalone BST-1 manual/local paddle pulse rendering so a stopped global haptics pipeline opens ASIO, primes safety-processed pulse buffers before playback, starts only for the bounded pulse, paces remaining buffers, drains briefly, and stops again.
+- Preserved the existing global Start Haptics stream path for live telemetry/replay-driven effects.
+- Added BST-1 output trim with default `200%`, valid `25-400%`, and diagnostics for requested strength, trim, effective pre-limiter amplitude, post-limiter peak, and limiter activity.
+- Kept trim BST-1-only; P-HPR strength scaling, P-HPR report bytes, P-HPR mappings, and P-HPR direct protocol were not changed.
+- Replaced normal Devices-page ASIO diagnostic wall with compact `ASIO READY` / `ASIO ACTIVE` / `ASIO NOT READY` status and moved detailed callback/frame/drop/pulse proof diagnostics to Advanced / Diagnostics.
+- Made `Select channel 1` a pure channel selector that does not vibrate.
+- Added fake-backed app/runtime tests for ASIO startup defaults, no startup stream/output, compact versus detailed ASIO status, standalone pulse queue priming without Start Haptics, blocked no-output behavior, output trim scaling, limiter retention, and non-vibrating channel selection.
+
+Notes:
+
+- Manual BST-1 pulse and enabled local BST-1 paddle gear pulse do not require Start Haptics, UDP, replay, F1 telemetry, `VehicleState`, or `DrivingArmed`.
+- Local gear testing remains separate from live telemetry effects; Start Haptics is still for live telemetry/replay-driven haptics.
+- Channel `1` remains the locally validated BST-1 ASIO output channel.
+- No output is emitted on startup, even when the app auto-selects the M-Audio ASIO path.
+- No physical shaker feel, final safe gain, or physical latency claim is made by this stage.
+
+Verification:
+
+- Confirmed no stale `HapticDrive.Asio.App` process was running before normal app-output verification.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 593 passing tests and 0 skipped tests.
+
+Self-review:
+
+- Standalone manual and local paddle BST-1 pulses share the same bounded ASIO session path when global haptics are stopped.
+- Blocked manual pulses do not submit partial ASIO buffers.
+- ASIO startup defaults do not open/start output and do not create continuous output.
+- Output trim is applied only to BST-1 pulse requests before the existing safety chain and limiter.

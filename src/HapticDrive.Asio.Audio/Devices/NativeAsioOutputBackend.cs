@@ -177,9 +177,9 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
         int outputChannelCount)
     {
         var provider = Volatile.Read(ref _waveProvider);
-        if (!_isRunning || provider is null)
+        if (!_isOpen || provider is null)
         {
-            _lastError = "Native ASIO backend is not running.";
+            _lastError = "Native ASIO backend is not open.";
             return AsioOutputBackendOperationResult.Failure(_lastError);
         }
 

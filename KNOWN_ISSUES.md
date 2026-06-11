@@ -526,3 +526,12 @@
 - Local Gear Test mode can start the mapped paddle listener and route local bench pulses without Start Haptics, UDP telemetry, live F1 25, or cached `DrivingArmed`, but it still requires valid paddle mapping plus the relevant P-HPR direct and/or BST-1 ASIO gates.
 - The shared gear-pulse duration now drives brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode. BST-1 custom duration remains available only when sync is unchecked.
 - Automated coverage still uses fake ASIO/P-HPR/input paths and does not require M-Audio, Fosi, Dayton BST-1, Simagic hardware, F1 25, live telemetry, or physical vibration.
+
+## Stage 18k
+
+- When the M-Audio M-Track Solo and Duo ASIO driver is discoverable, startup now selects ASIO Output, that driver, channel `1`, and Arm ASIO, but it does not start the ASIO stream or emit output on launch. If the driver is not discoverable, startup stays on Null output.
+- Manual `Test BST-1 Pulse` and enabled BST-1 local paddle gear pulses use a standalone bounded ASIO pulse session when Start Haptics is stopped. They still require ASIO Output, selected M-Audio/M-Track driver, valid channel, Arm ASIO, clear emergency mute, normal mute off, and the mixer/safety/limiter path.
+- `ASIO READY` means the selected/armed/channel/error gates are ready while the stream may be stopped. `ASIO ACTIVE` is reserved for actual running stream plus callback-active output.
+- BST-1 output trim defaults to `200%` and scales only the ASIO bass-shaker pulse before the existing safety chain/limiter. It does not affect P-HPR strength scaling.
+- `Select channel 1` is now pure channel selection and must not vibrate; `Test BST-1 Pulse` is the normal manual output button.
+- Final safe physical gain, final shaker feel, and physical latency remain Ethan-local validation items; automated coverage uses fake ASIO/P-HPR/input paths only.

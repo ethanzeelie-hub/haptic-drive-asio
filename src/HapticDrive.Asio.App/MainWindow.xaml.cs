@@ -186,6 +186,7 @@ public partial class MainWindow : Window
     private bool _emergencyMuted;
     private bool _lightTheme;
     private bool _updatingOutputUi;
+    private bool _startupAsioDefaultsApplied;
     private AudioOutputDeviceKind _selectedOutputKind = AudioOutputDeviceKind.Null;
     private string? _selectedAsioDriverName;
     private int? _selectedAsioOutputChannel;
@@ -234,6 +235,7 @@ public partial class MainWindow : Window
     private string _localGearTestStatusMessage = "Local gear test disabled.";
     private int _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.DefaultGearDurationMs;
     private float _manualBst1StrengthPercent = 50f;
+    private float _bst1OutputTrimPercent = 200f;
     private float _manualBst1FrequencyHz = 50f;
     private int _manualBst1DurationMs = 45;
     private float _bst1PaddleGearStrengthPercent = 50f;
@@ -355,6 +357,7 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         await RefreshAsioVisibilityDiagnosticsAsync();
+        await ApplyStartupAsioDefaultsAsync();
         RefreshPhprSoftwareCoexistenceStatus(force: true);
         await RefreshInputDeviceDiscoveryAsync(isStartupRefresh: true);
         await RefreshRealPhprCandidateItemsAsync(autoSelectPreferred: true);
@@ -4097,6 +4100,7 @@ public partial class MainWindow : Window
             _manualBst1FrequencyHz,
             TimeSpan.FromMilliseconds(_manualBst1DurationMs),
             _manualBst1StrengthPercent / 100f,
+            _bst1OutputTrimPercent / 100f,
             Source: "manual test",
             DurationMode: "manual"));
     }
@@ -4129,29 +4133,18 @@ public partial class MainWindow : Window
 
     private async void SelectManualAsioHardwareTestChannel(int channel)
     {
-        var wasSelected = _selectedAsioOutputChannel == channel;
-        _selectedAsioOutputChannel = channel;
-        AsioOutputChannelComboBox.SelectedItem = channel;
+        var selection = Bst1AsioChannelSelection.Select(channel, _selectedOutputKind);
+        _selectedAsioOutputChannel = selection.SelectedChannel;
+        AsioOutputChannelComboBox.SelectedItem = selection.SelectedChannel;
         SaveAppSettings();
-        if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
+        if (selection.ShouldRebuildPipeline)
         {
-            if (wasSelected)
-            {
-                await StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
-                    _manualBst1FrequencyHz,
-                    TimeSpan.FromMilliseconds(_manualBst1DurationMs),
-                    _manualBst1StrengthPercent / 100f,
-                    Source: "manual test",
-                    DurationMode: "manual"));
-                return;
-            }
-
-            await RebuildHapticPipelineForOutputSelectionAsync($"Manual ASIO Hardware Test selected channel {channel}; haptics are stopped until started explicitly.");
+            await RebuildHapticPipelineForOutputSelectionAsync(selection.Message);
             return;
         }
 
         UpdateManualAsioHardwareTestStatus();
-        FooterStatusText.Text = $"Manual ASIO Hardware Test selected channel {channel}; switch Output mode to ASIO Output before testing.";
+        FooterStatusText.Text = selection.Message;
     }
 
     private void UpdateTestBenchStatus()
@@ -4183,9 +4176,9 @@ public partial class MainWindow : Window
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
         TrueAsioStatusText.Text = BuildTrueAsioStatusText(snapshot);
         ManualAsioHardwareStatusText.Text =
-            $"BST-1 ASIO: selected {snapshot.OutputMode == AudioOutputDeviceKind.Asio.ToString()}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; armed {snapshot.AsioArmed}; stream running {snapshot.AsioRunning}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; peak {snapshot.ManualPulsePeak:0.000}.";
+            $"BST-1 channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; driver {snapshot.SelectedAsioDriver}; armed {snapshot.AsioArmed}; haptics {(snapshot.HapticsRunning ? "running" : "stopped")}; peak {snapshot.ManualPulsePeak:0.000}.";
         ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason is null
-            ? $"Last pulse {snapshot.LastSource ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs:0} ms")} ({snapshot.LastDurationMode ?? "manual"}); submitted {snapshot.SubmittedFrameCount:N0} frame(s); rendered {snapshot.FramesRendered:N0}; callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; dropped {snapshot.DroppedFrameCount:N0}; limiter {snapshot.LimiterApplied}; last manual ASIO {snapshot.LastManualPulseUsedAsio}; last gear ASIO {snapshot.LastGearPulseUsedAsio}; last error {snapshot.LastError ?? "none"}; flight recorder {snapshot.FlightRecorderPath}; BST-1 duration mode {(_bst1PaddleGearSyncDuration ? "Sync" : "Custom")}; effective BST-1 duration {GetEffectiveBst1PaddleGearDurationMs()} ms; P-HPR gear duration {_sharedPhprGearPulseDurationMs} ms; custom BST-1 duration {_bst1PaddleGearCustomDurationMs} ms; {_lastBst1PaddleGearPulseMessage}"
+            ? $"Last pulse {snapshot.LastSource ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; trim {(snapshot.LastOutputTrimPercent is null ? $"{_bst1OutputTrimPercent:0}%" : $"{snapshot.LastOutputTrimPercent:0}%")}; pre-limit {(snapshot.LastEffectivePreLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePreLimiterAmplitude:0.000}")}; post-limit {(snapshot.LastEffectivePostLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePostLimiterAmplitude:0.000}")}; limiter {snapshot.LimiterApplied}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs:0} ms")} ({snapshot.LastDurationMode ?? "manual"}); {_lastBst1PaddleGearPulseMessage}"
             : $"Blocked: {snapshot.BlockedReason}";
     }
 
@@ -4193,6 +4186,7 @@ public partial class MainWindow : Window
     {
         _updatingBst1PulseUi = true;
         ManualBst1StrengthTextBox.Text = _manualBst1StrengthPercent.ToString("0", CultureInfo.InvariantCulture);
+        Bst1OutputTrimTextBox.Text = _bst1OutputTrimPercent.ToString("0", CultureInfo.InvariantCulture);
         ManualBst1FrequencyTextBox.Text = _manualBst1FrequencyHz.ToString("0.#", CultureInfo.InvariantCulture);
         ManualBst1DurationTextBox.Text = _manualBst1DurationMs.ToString(CultureInfo.InvariantCulture);
         Bst1PaddleGearPulseEnabledCheckBox.IsChecked = _bst1PaddleGearPulseEnabled;
@@ -4218,6 +4212,13 @@ public partial class MainWindow : Window
             return false;
         }
 
+        if (!TryParseBst1OutputTrim(Bst1OutputTrimTextBox.Text, out var outputTrimPercent, out message))
+        {
+            ManualAsioHardwareStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return false;
+        }
+
         if (!TryParseBst1Frequency(ManualBst1FrequencyTextBox.Text, out var frequencyHz, out message))
         {
             ManualAsioHardwareStatusText.Text = message;
@@ -4233,6 +4234,7 @@ public partial class MainWindow : Window
         }
 
         _manualBst1StrengthPercent = strengthPercent;
+        _bst1OutputTrimPercent = outputTrimPercent;
         _manualBst1FrequencyHz = frequencyHz;
         _manualBst1DurationMs = durationMs;
         ApplyBst1PulseSettingsToControls();
@@ -4297,6 +4299,24 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private static bool TryParseBst1OutputTrim(string text, out float value, out string message)
+    {
+        if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            || !float.IsFinite(value))
+        {
+            message = "BST-1 output trim must be a number from 25 to 400%.";
+            value = 200f;
+            return false;
+        }
+
+        value = Math.Clamp(
+            value,
+            ManualAsioHardwareTestRequest.MinimumOutputTrim * 100f,
+            ManualAsioHardwareTestRequest.MaximumOutputTrim * 100f);
+        message = "BST-1 output trim ready.";
+        return true;
+    }
+
     private static bool TryParseBst1Frequency(string text, out float value, out string message)
     {
         if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
@@ -4334,7 +4354,12 @@ public partial class MainWindow : Window
 
     private static string BuildTrueAsioStatusText(ManualAsioHardwareTestSnapshot snapshot)
     {
-        return Bst1AsioStatusFormatter.Format(snapshot);
+        return Bst1AsioStatusFormatter.FormatCompact(snapshot);
+    }
+
+    private static string BuildTrueAsioDiagnosticsText(ManualAsioHardwareTestSnapshot snapshot)
+    {
+        return Bst1AsioStatusFormatter.FormatDetailed(snapshot);
     }
 
     private static SolidColorBrush BrushFrom(string color)
@@ -4388,8 +4413,8 @@ public partial class MainWindow : Window
         CurrentOutputStatusText.Text = $"Current output: {status.DisplayName} ({status.State}); {status.StatusMessage}";
         NullOutputStatusText.Text = "Null output: default automated-test and hardware-absent target; produces no physical sound.";
         WasapiDebugStatusText.Text = "WASAPI debug: manual placeholder only; it is not the ASIO target and is never selected automatically.";
-        AsioStatusText.Text = $"{_asioVisibilitySnapshot.Message} Windows sound output visibility is not proof of ASIO usage; Null output remains default.";
-        AsioReadinessStatusText.Text = $"{_asioReadinessSnapshot.Message} Selected driver {(_selectedAsioDriverName ?? "none")}; selected channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; render callbacks {status.RenderCallbackCount:N0}; backend callbacks {status.BackendCallbackCount:N0}; submitted {status.SubmittedBufferCount:N0}; dropped {status.DroppedBufferCount:N0}; underruns {status.UnderrunCount:N0}; last error {status.LastError ?? "none"}.";
+        AsioStatusText.Text = _asioVisibilitySnapshot.Message;
+        AsioReadinessStatusText.Text = $"{BuildTrueAsioStatusText(_hapticPipeline.GetManualAsioHardwareTestSnapshot())}; driver {(_selectedAsioDriverName ?? "none")}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
         UpdateManualAsioHardwareTestStatus();
         UpdatePhprSoftwareCoexistenceStatus();
@@ -5125,7 +5150,7 @@ public partial class MainWindow : Window
     private string BuildManualAsioHardwareTestDiagnosticsText()
     {
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
-        return $"mode {snapshot.OutputMode}; ASIO status {BuildTrueAsioStatusText(snapshot)}; active {snapshot.IsActive}; driver {snapshot.SelectedAsioDriver}; channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; ASIO running {snapshot.AsioRunning}; armed {snapshot.AsioArmed}; callback active {snapshot.AsioCallbackActive}; haptics {snapshot.HapticsRunning}; emergency {snapshot.EmergencyMute}; normal mute {snapshot.NormalMute}; peak {snapshot.ManualPulsePeak:0.000}; submitted {snapshot.SubmittedFrameCount:N0} frame(s); dropped {snapshot.DroppedFrameCount:N0}; rendered {snapshot.FramesRendered:N0} manual frame(s); callbacks {snapshot.RenderCallbackCount:N0}/{snapshot.BackendCallbackCount:N0}; limiter {snapshot.LimiterApplied}; blocked {snapshot.BlockedReason ?? "none"}; last pulse used ASIO {snapshot.LastPulseUsedAsio}; last manual used ASIO {snapshot.LastManualPulseUsedAsio}; last gear used ASIO {snapshot.LastGearPulseUsedAsio}; last source {snapshot.LastSource ?? "none"}; last signal {snapshot.LastTestSignal ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs.Value:0} ms")}; duration mode {snapshot.LastDurationMode ?? "none"}; BST-1 duration mode {(_bst1PaddleGearSyncDuration ? "Sync" : "Custom")}; effective BST-1 duration {GetEffectiveBst1PaddleGearDurationMs()} ms; P-HPR gear duration {_sharedPhprGearPulseDurationMs} ms; custom BST-1 duration {_bst1PaddleGearCustomDurationMs} ms; flight recorder {snapshot.FlightRecorderPath}; error {snapshot.LastError ?? "none"}.";
+        return $"mode {snapshot.OutputMode}; ASIO status {BuildTrueAsioDiagnosticsText(snapshot)}; active {snapshot.IsActive}; haptics {snapshot.HapticsRunning}; emergency {snapshot.EmergencyMute}; normal mute {snapshot.NormalMute}; last source {snapshot.LastSource ?? "none"}; last signal {snapshot.LastTestSignal ?? "none"}; frequency {(snapshot.LastFrequencyHz is null ? "none" : $"{snapshot.LastFrequencyHz:0.#} Hz")}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs.Value:0} ms")}; duration mode {snapshot.LastDurationMode ?? "none"}; BST-1 duration mode {(_bst1PaddleGearSyncDuration ? "Sync" : "Custom")}; effective BST-1 duration {GetEffectiveBst1PaddleGearDurationMs()} ms; P-HPR gear duration {_sharedPhprGearPulseDurationMs} ms; custom BST-1 duration {_bst1PaddleGearCustomDurationMs} ms; flight recorder {snapshot.FlightRecorderPath}.";
     }
 
     private string BuildMockGearPulseDiagnosticsText()
@@ -5302,6 +5327,28 @@ public partial class MainWindow : Window
         await RefreshAsioReadinessDiagnosticsAsync();
         UpdateDeviceStatus();
         UpdateDiagnosticsStatus();
+    }
+
+    private async Task ApplyStartupAsioDefaultsAsync()
+    {
+        if (_startupAsioDefaultsApplied)
+        {
+            return;
+        }
+
+        _startupAsioDefaultsApplied = true;
+        var selection = Bst1AsioStartupDefaults.Resolve(_asioVisibilitySnapshot.DriverNames);
+        _selectedOutputKind = selection.OutputKind;
+        _selectedAsioDriverName = selection.DriverName;
+        _selectedAsioOutputChannel = selection.OutputChannel;
+        _asioArmed = selection.Armed;
+
+        _updatingOutputUi = true;
+        OutputModeComboBox.SelectedItem = _outputModeOptions.Single(option => option.Kind == _selectedOutputKind);
+        UpdateAsioDriverSelectionItems();
+        _updatingOutputUi = false;
+
+        await RebuildHapticPipelineForOutputSelectionAsync(selection.Message);
     }
 
     private async Task RefreshAsioReadinessDiagnosticsAsync()
@@ -5665,6 +5712,7 @@ public partial class MainWindow : Window
             _bst1PaddleGearFrequencyHz,
             TimeSpan.FromMilliseconds(durationMs),
             _bst1PaddleGearStrengthPercent / 100f,
+            _bst1OutputTrimPercent / 100f,
             Source: "paddle gear bench",
             DurationMode: durationMode,
             AcceptedPaddleEventSequence: benchResult.PaddleEvent.SequenceNumber,

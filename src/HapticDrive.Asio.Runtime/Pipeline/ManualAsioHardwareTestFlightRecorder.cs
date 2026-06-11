@@ -123,6 +123,10 @@ public sealed record ManualAsioHardwareTestFlightRecord
 
     public float RequestedStrengthPercent { get; init; }
 
+    public float OutputTrimPercent { get; init; }
+
+    public float EffectivePreLimiterAmplitude { get; init; }
+
     public float RequestedFrequencyHz { get; init; }
 
     public int RequestedDurationMs { get; init; }
@@ -185,6 +189,8 @@ public sealed record ManualAsioHardwareTestFlightRecord
                 || outputStatus.RenderCallbackCount > 0
                 || outputStatus.BackendCallbackCount > 0,
             RequestedStrengthPercent = request.StrengthPercent,
+            OutputTrimPercent = request.OutputTrimPercent,
+            EffectivePreLimiterAmplitude = request.EffectivePreLimiterAmplitude,
             RequestedFrequencyHz = request.FrequencyHz,
             RequestedDurationMs = request.DurationMilliseconds,
             DurationMode = request.DurationMode,
