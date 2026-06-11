@@ -77,7 +77,7 @@ Bench mode is disabled and unarmed by default, is not persisted, and still requi
 
 Start with output mode `Mock`. Mock bench routing increments mock gear routing diagnostics only; it does not send HID reports and does not route to ASIO.
 
-Use output mode `Direct` only after the normal direct P-HPR gates are green: selected device, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled. The initial direct bench defaults are brake only, 10%, 50 Hz, 50 ms, one paddle press, no loop.
+Use output mode `Direct` only after the normal direct P-HPR gates are green: selected device, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled. Direct Bench uses the same Devices brake/throttle gear-pulse settings as the blue Test Brake/Throttle buttons, defaults target to Both, suppresses release/retrigger events during an active pulse, and records local recovery diagnostics under `local-validation-results/`.
 
 ## UDP Forwarding
 
@@ -197,6 +197,8 @@ P-HPR emergency stop attempts brake and throttle stop reports when a real device
 Clearing emergency stop only clears the latch. It does not enable or arm direct control.
 
 Use emergency stop immediately if the wrong pedal vibrates, both pedals vibrate unexpectedly, output feels too strong, vibration continues after stop, or the device disconnects.
+
+`P-HPR Stop All / Clear Device State` is the Direct Bench recovery button. It sends stop-only brake/throttle reports through the same direct output path and clears the Direct Bench unclean-shutdown marker only after the runtime reports success. It does not start vibration, enable direct control, or prove physical stop response without local observation.
 
 ## SimPro / SimHub Warnings
 

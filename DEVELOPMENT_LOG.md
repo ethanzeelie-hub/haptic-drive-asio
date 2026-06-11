@@ -2320,3 +2320,44 @@ Self-review:
 - The ASIO/BST-1 audio path, F1 25 parser, UDP forwarding, recording/replay raw-packet preservation, and confirmed P-HPR report bytes were not changed.
 - Direct P-HPR remains a separate HID FeatureReport actuator path and is not routed through `IAudioOutputDevice`.
 - Automated coverage uses fake HID writers, fake stop clocks, fake/read-only input paths, fake ASIO backends, and Null output. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.
+
+## Stage 18e - P-HPR Direct Runtime Bench Crash Recovery
+
+Date: 2026-06-11
+
+Status: Complete.
+
+Goal: Finish the Direct Paddle Gear Bench crash/runaway repair by extracting the direct route into a deterministic runtime owner, adding fail-closed recovery artifacts, and making stop-only cleanup and manual recovery visible without changing ASIO/BST-1, F1 25 telemetry parsing, UDP forwarding, recording/replay, or confirmed P-HPR report bytes.
+
+Missing Items Addressed:
+
+- Added `PHprDirectRuntimeCoordinator` with explicit runtime states, serialized command dispatch, startup stop-only cleanup, unhandled-exception stop-all recovery, and fail-closed bench start gates.
+- Added `IPHprDirectPulseService`, `IPHprDirectCommandDispatcher`, `IPHprBenchFlightRecorder`, and `IPHprBenchUncleanShutdownStore` seams so the route can be unit-tested without real hardware.
+- Converted `PhprDeviceCardPulseService` into the shared direct pulse service used by both the Devices-tab blue Test Brake/Throttle buttons and Direct Paddle Gear Bench, with instance IDs exposed for diagnostics.
+- Added a local immediate-flush JSONL flight recorder and unclean-shutdown marker under `local-validation-results/`; the marker blocks Direct Bench starts until stop-only recovery succeeds.
+- Added `SimagicPhprOutputDevice.StopAllAsync` and serialized HID report writes so stop-all recovery cannot interleave with start writes.
+- Added `P-HPR Stop All / Clear Device State`, wired P-HPR emergency stop and clear paths through the runtime, and surfaced runtime state, shared-path proof, marker, recorder, stop-all, watchdog, and software latency diagnostics in the bench UI.
+- Added tests covering startup stop-only cleanup, repeatable stop-only recovery, marker create/clear behavior, unclean-startup blocking, shared-path proof blocking, and recorder redaction/error-category output.
+
+Notes:
+
+- Startup cleanup sends stop-only reports only when a selected output is already configured; it never sends active/start/vibration reports.
+- Direct Bench still requires the visible mapped paddle listener path, FeatureReport `0xF1`, 64-byte report shape, successful open-check, clear coexistence, clear emergency stop, disabled road/slip/lock routes, positive Devices-sourced pulse settings, and a proven shared pulse service instance.
+- The new recovery artifacts are local validation files and must not be committed.
+- No physical P-HPR stop feel, sustained-vibration safety, safe gain, physical latency, road/slip/lock feel, or real coexistence claim is made by this stage.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build --verbosity minimal` passed with 51 passing tests.
+- Focused `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj --no-build --verbosity minimal` passed with 132 passing tests.
+- Full sequential `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build --verbosity minimal -m:1` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- The ASIO/BST-1 audio path, F1 25 parser, UDP forwarding, recording/replay raw-packet preservation, normal telemetry `DrivingArmed` route, and confirmed P-HPR report bytes were not changed.
+- Direct P-HPR remains a separate HID FeatureReport actuator path and is not routed through `IAudioOutputDevice`.
+- Automated coverage uses fake HID writers, fake runtime clocks, fake/read-only input paths, fake ASIO backends, and Null output. No real ASIO hardware, M-Audio, Fosi, BST-1, Simagic hardware, SimPro, SimHub, F1 25, live telemetry, HID output report, HID feature report, or vibration command was required by automated verification.

@@ -83,3 +83,16 @@ Emergency stop latches safety state.
 2. Disable direct control if behavior is unclear.
 3. Use Clear Emergency Stop only after the situation is safe.
 4. Re-arm direct control manually if another real test is needed.
+
+## Direct Bench Recovery Logs
+
+For Direct Paddle Gear Bench crashes or possible runaway output, collect these local files before changing settings:
+
+1. `local-validation-results/phpr-direct-bench-flight-recorder.jsonl`
+2. `local-validation-results/phpr-direct-bench-unclean-shutdown.marker`
+3. Windows Event Viewer `Application` entries for `HapticDrive.Asio.App.exe`.
+4. The Devices diagnostics text around runtime state, marker state, route service, selected output summary, last stop result, watchdog stop-all, and latency fields.
+
+In the JSONL recorder, read from the last `start-requested` or `start-write-completed` forward. Check whether a matching `scheduled-stop-completed`, `manual-stop-all-completed`, `startup-cleanup-completed`, or `unhandled-exception-stop-all-completed` appears, whether `manualStopAllWriteSucceeded` is true, and whether `errorCategory` is populated.
+
+If the marker exists, Direct Bench starts are blocked by design. Use `P-HPR Stop All / Clear Device State`; it sends stop-only reports and clears the marker only after the runtime reports success.

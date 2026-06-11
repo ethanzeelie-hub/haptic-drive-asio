@@ -855,6 +855,11 @@
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Click="ClearPhprPedalsEmergencyStopButton_Click"
                                                 Content="Clear Emergency Stop" />
+                                        <Button Width="230"
+                                                Margin="0,0,8,8"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="PhprPedalsStopAllClearDeviceStateButton_Click"
+                                                Content="P-HPR Stop All / Clear Device State" />
                                     </WrapPanel>
                                     <TextBlock x:Name="PhprPedalsStatusText"
                                                Margin="0,8,0,0"

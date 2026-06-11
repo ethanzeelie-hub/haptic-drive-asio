@@ -484,3 +484,11 @@
 - Direct timed pulses now have a `DurationMs + 100 ms` watchdog that forces stop-all if the target remains active, and emergency stop attempts brake and throttle stop reports independently with retries. These safeguards improve software safety but do not prove physical emergency-stop behavior until Ethan validates the actual hardware chain.
 - Sanitized local crash-state logs are written on unhandled app/task failures under local app data; they avoid private HID paths and are not intended for repository commits.
 - The ASIO/BST-1 audio path is unchanged by Stage 18d.
+
+## Stage 18e
+
+- Direct Paddle Gear Bench output is now owned by a runtime state machine with stop-only startup cleanup, a local unclean-shutdown marker, serialized direct commands, and a local JSONL flight recorder. These software contracts reduce crash/runaway risk but still do not prove physical stop feel, sustained-vibration safety, safe gain, physical latency, or real coexistence behavior.
+- If the unclean marker exists, Direct Bench starts are blocked until `P-HPR Stop All / Clear Device State` succeeds. This recovery path sends stop-only reports and must not be treated as proof that the physical modules responded unless Ethan confirms it locally.
+- The flight recorder and marker are local validation artifacts under `local-validation-results/`; they should not be committed, and private HID paths remain redacted from recorder entries.
+- Startup cleanup may send stop-only brake/throttle reports when a selected direct device is already configured, but it never sends active/start/vibration reports.
+- The F1 25 parser, UDP forwarding, recording/replay raw-byte preservation, confirmed P-HPR report bytes, normal telemetry `DrivingArmed` routing, and ASIO/BST-1 audio path are unchanged by Stage 18e.

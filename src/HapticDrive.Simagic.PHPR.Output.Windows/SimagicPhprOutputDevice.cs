@@ -1,6 +1,7 @@
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+using System.Runtime.CompilerServices;
 
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
@@ -16,6 +17,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
     private readonly object _gate = new();
     private readonly IPhprHidReportWriter _writer;
+    private readonly SemaphoreSlim _writeSerialization = new(1, 1);
     private readonly IPHprDirectStopClock _stopClock;
     private readonly SimHubF1EcRealReportEncoder _encoder = new();
     private readonly IPHprSafetyLimiter _limiter;
@@ -87,7 +89,17 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             IsMockOutput = false,
             RequiresRealDeviceWrites = true
         };
+        WriterInstanceId = CreateInstanceId("writer", _writer);
+        EncoderInstanceId = CreateInstanceId("encoder", _encoder);
     }
+
+    public string InstanceId { get; } = $"output-{Guid.NewGuid():N}";
+
+    public string WriterInstanceId { get; }
+
+    public string EncoderInstanceId { get; }
+
+    public string StopMethodId { get; } = "SimagicPhprOutputDevice.ScheduleStop+StopAll";
 
     public void Configure(PHprRealOutputOptions options)
     {
@@ -366,6 +378,75 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         }
     }
 
+    public async ValueTask<PHprHidWriteResult> StopAllAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        List<CancellationTokenSource> pendingStops;
+        PHprRealOutputOptions options;
+        lock (_gate)
+        {
+            pendingStops = _pendingStops.ToList();
+            _pendingStops.Clear();
+            options = _options;
+        }
+
+        foreach (var pendingStop in pendingStops)
+        {
+            pendingStop.Cancel();
+        }
+
+        if (!options.Selector.IsSelected)
+        {
+            var notSelected = PHprHidWriteResult.Failure(
+                "P-HPR stop-all could not run because no direct device is selected.",
+                status: PHprHidWriteStatus.NotSelected);
+            lock (_gate)
+            {
+                _lastStopResultStatus = notSelected.Status;
+                _lastStopResultMessage = notSelected.Message;
+                _lastMessage = notSelected.Message;
+                _lastStatus = PHprCommandStatus.RejectedInvalidCommand;
+                ApplyOperationResultLocked(notSelected, PHprHidOperationKind.Stop);
+            }
+
+            return notSelected;
+        }
+
+        var result = await WriteStopAllReportsWithRetryAsync(
+            options,
+            PHprHidOperationKind.Stop,
+            emergencyStop: false,
+            maxAttempts: 1,
+            cancellationToken).ConfigureAwait(false);
+
+        lock (_gate)
+        {
+            _lastStopSentAtUtc = result.CompletedAtUtc;
+            _lastStopReportTarget = PHprModuleId.Both;
+            _lastStopResultStatus = result.Status;
+            _lastStopResultMessage = result.Message;
+            _lastStatus = result.Succeeded
+                ? PHprCommandStatus.Accepted
+                : PHprCommandStatus.RejectedInvalidCommand;
+            _lastMessage = result.Succeeded
+                ? "P-HPR stop-all / clear device state wrote brake and throttle stop reports."
+                : $"P-HPR stop-all / clear device state failed: {result.Message}";
+            if (result.Succeeded)
+            {
+                _activePulseModules.Clear();
+                _emergencyStopActive = false;
+                _limiter.ClearEmergencyStop();
+                _lastError = null;
+            }
+            else
+            {
+                _lastError = result.ErrorMessage ?? result.Message;
+            }
+        }
+
+        return result;
+    }
+
     public async ValueTask DisposeAsync()
     {
         bool shouldRequestStop;
@@ -593,6 +674,24 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         PHprHidOperationKind operationKind,
         CancellationToken cancellationToken)
     {
+        await _writeSerialization.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await WriteReportsCoreAsync(reports, options, operationKind, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeSerialization.Release();
+        }
+    }
+
+    private async ValueTask<PHprHidWriteResult> WriteReportsCoreAsync(
+        IReadOnlyList<PHprHidReport> reports,
+        PHprRealOutputOptions options,
+        PHprHidOperationKind operationKind,
+        CancellationToken cancellationToken)
+    {
         if (reports.Count == 0)
         {
             return PHprHidWriteResult.Success(0, "No P-HPR HID reports were generated.");
@@ -691,16 +790,26 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         int maxAttempts,
         CancellationToken cancellationToken)
     {
-        var brake = await WriteReportsAsync(
-            _encoder.EncodeStop(PHprModuleId.Brake, options.Selector.ReportId, emergencyStop),
-            options,
-            operationKind,
-            cancellationToken).ConfigureAwait(false);
-        var throttle = await WriteReportsAsync(
-            _encoder.EncodeStop(PHprModuleId.Throttle, options.Selector.ReportId, emergencyStop),
-            options,
-            operationKind,
-            cancellationToken).ConfigureAwait(false);
+        await _writeSerialization.WaitAsync(cancellationToken).ConfigureAwait(false);
+        PHprHidWriteResult brake;
+        PHprHidWriteResult throttle;
+        try
+        {
+            brake = await WriteReportsCoreAsync(
+                _encoder.EncodeStop(PHprModuleId.Brake, options.Selector.ReportId, emergencyStop),
+                options,
+                operationKind,
+                cancellationToken).ConfigureAwait(false);
+            throttle = await WriteReportsCoreAsync(
+                _encoder.EncodeStop(PHprModuleId.Throttle, options.Selector.ReportId, emergencyStop),
+                options,
+                operationKind,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeSerialization.Release();
+        }
 
         if (brake.Succeeded && throttle.Succeeded)
         {
@@ -1039,6 +1148,11 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             && left.ReportId == right.ReportId
             && left.ReportLength == right.ReportLength
             && left.Transport == right.Transport;
+    }
+
+    private static string CreateInstanceId(string prefix, object instance)
+    {
+        return $"{prefix}-{RuntimeHelpers.GetHashCode(instance):X8}";
     }
 
     private static bool IsStopCommand(PHprCommand command)
