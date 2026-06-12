@@ -599,3 +599,10 @@
 - Advanced still contains direct candidate/report internals, validation harnesses, mock routers, low-level P-HPR min/max ranges, command-duration fields, target overrides, and raw diagnostics. Full Advanced cleanup remains staged for 18p-E.
 - Road texture is shown as continuous/synthetic and has no normal pulse duration in Effects, but final mixed BST-1/P-HPR road feel, priority balance, safe gain, physical latency, and frequency tuning still require Ethan-local hardware validation.
 - Stage 18p-D changed UI structure and settings-control placement only; it does not prove physical P-HPR slip/lock/road behavior or BST-1 shaker feel.
+
+## Stage 18p-E
+
+- Devices now keeps the hardware setup/readiness/manual-test surface, while Local Gear Test and Paddle Gear Bench internals are behind the Advanced diagnostics gate.
+- Advanced / Diagnostics still lives inside the large `MainWindow.xaml` file; later component extraction may be useful if the page grows further.
+- The moved bench controls still use the existing runtime-only safety gates and handlers. This stage does not persist direct arming, add unattended hardware writes, or validate physical P-HPR behavior.
+- Physical shaker feel, safe gain, physical latency, final BST-1 tuning, and final P-HPR feel remain Ethan-local validation items.

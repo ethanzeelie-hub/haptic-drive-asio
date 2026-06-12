@@ -281,3 +281,15 @@ Stage 18p-D implemented the hybrid Effects page layout from this report:
 - Devices keeps hardware discovery/readiness, ASIO manual BST-1 pulse testing, P-HPR mode/readiness/Stop All, manual brake/throttle pulse tests, and wheel/paddle listener/mapping.
 - No haptic runtime behavior, parser layouts, ASIO backend behavior, P-HPR HID/report bytes, Direct Paddle Gear Bench runtime, command-rate limiter logic, replay/delete behavior, or physical-output behavior changed.
 - Devices cleanup and Advanced diagnostics cleanup remain staged for 18p-E; Routing / Mixer polish remains staged for 18p-F.
+
+## Stage 18p-E Update
+
+Stage 18p-E implemented the Devices / Advanced cleanup from this report:
+
+- Devices now keeps the operational hardware surface: ASIO output mode/driver/channel/arm/readiness, manual BST-1 pulse testing, P-HPR enable/mode/readiness/emergency recovery/Stop All, manual brake/throttle pulse tests, and wheel/paddle input refresh/listener/mapping/debounce/status.
+- Detailed Local Gear Test and Paddle Gear Bench validation controls moved out of Devices and into Advanced Diagnostics.
+- Advanced Diagnostics now owns the bench validation surface next to real direct-control candidate/report/open-check/dry-run controls, controlled validation harness, mock gear routing, mock pedal effects routing, and low-level P-HPR diagnostic ranges.
+- The moved controls kept their existing names and handlers so settings hydration, runtime status updates, listener start logic, bench counters, and shared duration synchronization continue to use the existing code paths.
+- Source-XAML tests now guard the Devices boundary and Advanced ownership of bench/direct/mock/low-level diagnostic controls.
+- No haptic runtime behavior, parser layouts, ASIO backend behavior, P-HPR HID/report bytes, Direct Paddle Gear Bench routing behavior, command-rate limiter logic, replay/delete behavior, or physical-output behavior changed.
+- Routing / Mixer polish and final visual review remain staged for 18p-F.

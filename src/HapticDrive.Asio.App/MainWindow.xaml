@@ -1341,102 +1341,8 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                     <TextBlock Margin="0,18,0,0"
-                                               Style="{StaticResource SectionHeadingTextBlockStyle}"
-                                               Text="Paddle Gear Bench Test" />
-                                    <TextBlock Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
-                                               Text="Local validation only. Normal live-driving shift intent still requires recent telemetry outside this bench mode." />
-                                    <WrapPanel Margin="0,12,0,0">
-                                        <CheckBox x:Name="LocalGearTestModeCheckBox"
-                                                  Margin="0,4,12,8"
-                                                  Checked="LocalGearTestModeCheckBox_Changed"
-                                                  Unchecked="LocalGearTestModeCheckBox_Changed"
-                                                  Content="Enable Local Gear Test Mode" />
-                                        <CheckBox x:Name="LocalGearTestAutoStartListenerCheckBox"
-                                                  Margin="0,4,12,8"
-                                                  Checked="LocalGearTestModeCheckBox_Changed"
-                                                  Unchecked="LocalGearTestModeCheckBox_Changed"
-                                                  Content="Auto-start paddle listener for local gear testing" />
-                                        <Button x:Name="StartGearTestListenerButton"
-                                                Width="190"
-                                                Margin="0,0,8,8"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Click="StartGearTestListenerButton_Click"
-                                                Content="Start Gear Test Listener" />
-                                    </WrapPanel>
-                                    <TextBlock x:Name="LocalGearTestStatusText"
-                                               Margin="0,6,0,0"
-                                               Style="{StaticResource MutedTextBlockStyle}" />
-                                    <WrapPanel Margin="0,12,0,0">
-                                        <CheckBox x:Name="PaddleGearBenchEnabledCheckBox"
-                                                  Margin="0,4,12,8"
-                                                  Checked="PaddleGearBenchControl_Changed"
-                                                  Unchecked="PaddleGearBenchControl_Changed"
-                                                  Content="Enable Paddle Gear Bench Test" />
-                                        <CheckBox x:Name="PaddleGearBenchArmCheckBox"
-                                                  Margin="0,4,12,8"
-                                                  Visibility="Collapsed"
-                                                  Checked="PaddleGearBenchControl_Changed"
-                                                  Unchecked="PaddleGearBenchControl_Changed"
-                                                  Content="Arm Bench Test" />
-                                        <ComboBox x:Name="PaddleGearBenchOutputModeComboBox"
-                                                  Width="120"
-                                                  Margin="0,0,8,8"
-                                                  Visibility="Collapsed"
-                                                  SelectionChanged="PaddleGearBenchControl_Changed" />
-                                        <ComboBox x:Name="PaddleGearBenchTargetComboBox"
-                                                  Width="130"
-                                                  Margin="0,0,8,8"
-                                                  SelectionChanged="PaddleGearBenchControl_Changed" />
-                                        <TextBlock Margin="0,4,6,8"
-                                                   Visibility="Collapsed"
-                                                   Style="{StaticResource MutedTextBlockStyle}"
-                                                   Text="Strength %" />
-                                        <TextBox x:Name="PaddleGearBenchStrengthTextBox"
-                                                 Width="72"
-                                                 Margin="0,0,8,8"
-                                                 Visibility="Collapsed"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 LostFocus="PaddleGearBenchControl_LostFocus" />
-                                        <TextBlock Margin="0,4,6,8"
-                                                   Visibility="Collapsed"
-                                                   Style="{StaticResource MutedTextBlockStyle}"
-                                                   Text="Hz" />
-                                        <TextBox x:Name="PaddleGearBenchFrequencyTextBox"
-                                                 Width="72"
-                                                 Margin="0,0,8,8"
-                                                 Visibility="Collapsed"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 LostFocus="PaddleGearBenchControl_LostFocus" />
-                                        <TextBlock Margin="0,4,6,8"
-                                                   Visibility="Collapsed"
-                                                   Style="{StaticResource MutedTextBlockStyle}"
-                                                   Text="Duration ms" />
-                                        <TextBox x:Name="PaddleGearBenchDurationTextBox"
-                                                 Width="72"
-                                                 Margin="0,0,8,8"
-                                                 Visibility="Collapsed"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 LostFocus="PaddleGearBenchControl_LostFocus" />
-                                        <Button Width="170"
-                                                Margin="0,0,8,8"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Click="ClearPaddleGearBenchCountersButton_Click"
-                                                Content="Clear bench counters" />
-                                    </WrapPanel>
-                                    <TextBlock x:Name="PaddleGearBenchStatusText"
-                                               Margin="0,8,0,0"
-                                               Style="{StaticResource MutedTextBlockStyle}" />
-                                    <ItemsControl x:Name="PaddleGearBenchItemsControl"
-                                                  Margin="0,10,0,0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Margin="0,0,0,8"
-                                                           Style="{StaticResource MutedTextBlockStyle}"
-                                                           Text="{Binding}" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                               Text="Detailed Local Gear Test and Paddle Gear Bench validation controls are under Advanced Diagnostics. Devices keeps wheel input setup, mapping, and readiness status." />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1875,6 +1781,107 @@
                                        Foreground="{DynamicResource AppMutedTextBrush}"
                                        TextWrapping="Wrap" />
                             <ItemsControl x:Name="RealPhprDirectItemsControl"
+                                          Margin="0,10,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,0,0,8"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   Text="{Binding}"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,18,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="Paddle Gear Bench Test" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Local validation only. Normal live-driving shift intent still requires recent telemetry outside this bench mode."
+                                       TextWrapping="Wrap" />
+                            <WrapPanel Margin="0,12,0,0">
+                                <CheckBox x:Name="LocalGearTestModeCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="LocalGearTestModeCheckBox_Changed"
+                                          Unchecked="LocalGearTestModeCheckBox_Changed"
+                                          Content="Enable Local Gear Test Mode" />
+                                <CheckBox x:Name="LocalGearTestAutoStartListenerCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="LocalGearTestModeCheckBox_Changed"
+                                          Unchecked="LocalGearTestModeCheckBox_Changed"
+                                          Content="Auto-start paddle listener for local gear testing" />
+                                <Button x:Name="StartGearTestListenerButton"
+                                        Width="190"
+                                        Margin="0,0,8,8"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="StartGearTestListenerButton_Click"
+                                        Content="Start Gear Test Listener" />
+                            </WrapPanel>
+                            <TextBlock x:Name="LocalGearTestStatusText"
+                                       Margin="0,6,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                            <WrapPanel Margin="0,12,0,0">
+                                <CheckBox x:Name="PaddleGearBenchEnabledCheckBox"
+                                          Margin="0,4,12,8"
+                                          Checked="PaddleGearBenchControl_Changed"
+                                          Unchecked="PaddleGearBenchControl_Changed"
+                                          Content="Enable Paddle Gear Bench Test" />
+                                <CheckBox x:Name="PaddleGearBenchArmCheckBox"
+                                          Margin="0,4,12,8"
+                                          Visibility="Collapsed"
+                                          Checked="PaddleGearBenchControl_Changed"
+                                          Unchecked="PaddleGearBenchControl_Changed"
+                                          Content="Arm Bench Test" />
+                                <ComboBox x:Name="PaddleGearBenchOutputModeComboBox"
+                                          Width="120"
+                                          Margin="0,0,8,8"
+                                          Visibility="Collapsed"
+                                          SelectionChanged="PaddleGearBenchControl_Changed" />
+                                <ComboBox x:Name="PaddleGearBenchTargetComboBox"
+                                          Width="130"
+                                          Margin="0,0,8,8"
+                                          SelectionChanged="PaddleGearBenchControl_Changed" />
+                                <TextBlock Margin="0,4,6,8"
+                                           Visibility="Collapsed"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Strength %" />
+                                <TextBox x:Name="PaddleGearBenchStrengthTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         Visibility="Collapsed"
+                                         Style="{StaticResource FieldTextBoxStyle}"
+                                         LostFocus="PaddleGearBenchControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           Visibility="Collapsed"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Hz" />
+                                <TextBox x:Name="PaddleGearBenchFrequencyTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         Visibility="Collapsed"
+                                         Style="{StaticResource FieldTextBoxStyle}"
+                                         LostFocus="PaddleGearBenchControl_LostFocus" />
+                                <TextBlock Margin="0,4,6,8"
+                                           Visibility="Collapsed"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Duration ms" />
+                                <TextBox x:Name="PaddleGearBenchDurationTextBox"
+                                         Width="72"
+                                         Margin="0,0,8,8"
+                                         Visibility="Collapsed"
+                                         Style="{StaticResource FieldTextBoxStyle}"
+                                         LostFocus="PaddleGearBenchControl_LostFocus" />
+                                <Button Width="170"
+                                        Margin="0,0,8,8"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="ClearPaddleGearBenchCountersButton_Click"
+                                        Content="Clear bench counters" />
+                            </WrapPanel>
+                            <TextBlock x:Name="PaddleGearBenchStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
+                            <ItemsControl x:Name="PaddleGearBenchItemsControl"
                                           Margin="0,10,0,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>

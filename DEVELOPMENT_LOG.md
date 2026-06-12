@@ -2864,3 +2864,35 @@ Self-review:
 - Existing runtime handlers remained wired to the same control names; no new settings model was introduced.
 - ASIO runtime code, P-HPR HID/report/protocol code, F1 25 parser offsets, gear pulse runtime logic, replay/delete behavior, and command-rate limiter logic were not changed.
 - Devices cleanup and Advanced diagnostics cleanup remain staged for 18p-E.
+
+## Stage 18p-E - Devices And Advanced Cleanup
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Keep Devices focused on hardware setup, readiness, and manual tests while moving detailed local bench validation internals into Advanced / Diagnostics without changing runtime behavior or persisted safety gates.
+
+Changes:
+
+- Removed the Local Gear Test / Paddle Gear Bench validation internals from the Devices wheel/paddle hardware card.
+- Added Devices copy pointing detailed Local Gear Test and Paddle Gear Bench validation to Advanced Diagnostics while retaining wheel input setup, mapping, and readiness status.
+- Moved the existing Local Gear Test and Paddle Gear Bench controls into the Advanced diagnostics content gate near the real direct-control runtime context.
+- Preserved the same `x:Name` controls and handlers for local gear test mode, auto-start listener, start listener, bench enable/target/status, and clear bench counters.
+- Added source-XAML tests that enforce Devices hardware/readiness/manual-test boundaries and Advanced ownership of bench, direct-control, mock-routing, and low-level P-HPR diagnostic controls.
+
+Verification:
+
+- Confirmed no stale `HapticDrive.Asio.App` process was running before verification.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 642 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18p-E stayed within UI grouping and source-XAML coverage.
+- Existing runtime handlers remain wired to the same named controls; no new settings model was introduced.
+- ASIO runtime code, P-HPR HID/report/protocol code, F1 25 parser offsets, gear pulse runtime logic, replay/delete behavior, and command-rate limiter logic were not changed.
+- Routing / Mixer polish and final visual review remain staged for 18p-F.

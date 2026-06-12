@@ -116,6 +116,82 @@ public sealed class AppThemeResourceTests
         Assert.DoesNotContain(effectsNames, name => name.Contains("RoadTextureDuration", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void DevicesPageKeepsHardwareReadinessAndManualTestControls()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var devicesPanel = FindElementByXName(mainWindowXaml, "DevicesPanel");
+        var devicesText = GetTextValues(devicesPanel);
+        var devicesNames = GetXNameValues(devicesPanel);
+
+        Assert.Contains("OutputModeComboBox", devicesNames);
+        Assert.Contains("AsioDriverComboBox", devicesNames);
+        Assert.Contains("AsioOutputChannelComboBox", devicesNames);
+        Assert.Contains("AsioArmCheckBox", devicesNames);
+        Assert.Contains("ManualBst1StrengthTextBox", devicesNames);
+        Assert.Contains("ManualBst1FrequencyTextBox", devicesNames);
+        Assert.Contains("ManualBst1DurationTextBox", devicesNames);
+
+        Assert.Contains("PhprPedalsMasterEnableCheckBox", devicesNames);
+        Assert.Contains("PhprPedalsModeComboBox", devicesNames);
+        Assert.Contains("TestPhprBrakePulseButton", devicesNames);
+        Assert.Contains("TestPhprThrottlePulseButton", devicesNames);
+
+        Assert.Contains("PaddleInputDeviceComboBox", devicesNames);
+        Assert.Contains("StartPaddleInputListenerButton", devicesNames);
+        Assert.Contains("LeftPaddleButtonTextBox", devicesNames);
+        Assert.Contains("RightPaddleButtonTextBox", devicesNames);
+        Assert.Contains("PaddleDebounceTextBox", devicesNames);
+
+        Assert.Contains(
+            devicesText,
+            text => text.Contains("Detailed Local Gear Test and Paddle Gear Bench validation controls are under Advanced Diagnostics", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DevicesPageDoesNotContainAdvancedValidationOrLowLevelControls()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var devicesNames = GetXNameValues(FindElementByXName(mainWindowXaml, "DevicesPanel"));
+
+        Assert.DoesNotContain("LocalGearTestModeCheckBox", devicesNames);
+        Assert.DoesNotContain("StartGearTestListenerButton", devicesNames);
+        Assert.DoesNotContain("PaddleGearBenchEnabledCheckBox", devicesNames);
+        Assert.DoesNotContain("PaddleGearBenchTargetComboBox", devicesNames);
+        Assert.DoesNotContain("RealPhprCandidateComboBox", devicesNames);
+        Assert.DoesNotContain("RealRoadBrakeMinStrengthTextBox", devicesNames);
+        Assert.DoesNotContain("RealSlipTargetComboBox", devicesNames);
+        Assert.DoesNotContain("MockGearPulseEnabledCheckBox", devicesNames);
+        Assert.DoesNotContain("MockPedalEffectsEnabledCheckBox", devicesNames);
+    }
+
+    [Fact]
+    public void AdvancedDiagnosticsContainsBenchDirectMockAndLowLevelDiagnostics()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var advancedPanel = FindElementByXName(mainWindowXaml, "AdvancedPhprDiagnosticsPanel");
+        var advancedText = GetTextValues(advancedPanel);
+        var advancedNames = GetXNameValues(advancedPanel);
+
+        Assert.Contains("Paddle Gear Bench Test", advancedText);
+        Assert.Contains("LocalGearTestModeCheckBox", advancedNames);
+        Assert.Contains("LocalGearTestAutoStartListenerCheckBox", advancedNames);
+        Assert.Contains("StartGearTestListenerButton", advancedNames);
+        Assert.Contains("PaddleGearBenchEnabledCheckBox", advancedNames);
+        Assert.Contains("PaddleGearBenchTargetComboBox", advancedNames);
+        Assert.Contains("PaddleGearBenchStatusText", advancedNames);
+
+        Assert.Contains("RealPhprCandidateComboBox", advancedNames);
+        Assert.Contains("RealPhprReportIdTextBox", advancedNames);
+        Assert.Contains("RealRoadBrakeMinStrengthTextBox", advancedNames);
+        Assert.Contains("RealRoadThrottleMinStrengthTextBox", advancedNames);
+        Assert.Contains("RealSlipTargetComboBox", advancedNames);
+        Assert.Contains("RealLockTargetComboBox", advancedNames);
+
+        Assert.Contains("MockGearPulseEnabledCheckBox", advancedNames);
+        Assert.Contains("MockPedalEffectsEnabledCheckBox", advancedNames);
+    }
+
     private static XDocument LoadSourceXaml(params string[] pathSegments)
     {
         var sourcePath = FindRepositoryRoot();
