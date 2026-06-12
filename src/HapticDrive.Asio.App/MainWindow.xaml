@@ -2584,6 +2584,15 @@
                                         Click="CopyDiagnosticsButton_Click"
                                         Content="Copy Report" />
                             </WrapPanel>
+                            <CheckBox x:Name="RoadTextureFlightRecorderCheckBox"
+                                      Margin="0,14,0,0"
+                                      Checked="RoadTextureFlightRecorderCheckBox_Changed"
+                                      Content="Record road texture flight recorder"
+                                      Unchecked="RoadTextureFlightRecorderCheckBox_Changed" />
+                            <TextBlock x:Name="RoadTextureFlightRecorderStatusText"
+                                       Margin="0,8,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap" />
                             <TextBlock x:Name="DiagnosticsSummaryText"
                                        Margin="0,14,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}" />

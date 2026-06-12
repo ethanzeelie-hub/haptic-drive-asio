@@ -2932,3 +2932,36 @@ Self-review:
 - ASIO runtime code, P-HPR HID/report/protocol code, F1 25 parser offsets, gear/road runtime logic, replay/delete behavior, and command-rate limiter logic were not changed.
 - Emergency controls remain visible in the top bar and Devices/Advanced surfaces; no direct-control safety state is persisted.
 - Future work can focus on Ethan-local physical road-texture validation and tuning rather than further Stage 18p UI restructuring.
+
+## Stage 18q-B - Road Texture Diagnostics And Flight Recorder
+
+Date: 2026-06-13
+
+Status: Complete.
+
+Goal: Add diagnostics and an optional local flight recorder that can prove whether BST-1 road texture is present, estimate where it is lost in the mixer/safety chain, and explain P-HPR road routing/suppression behavior without changing road feel tuning, P-HPR road cadence, gear priority, ASIO behavior, parser layouts, or P-HPR HID/report bytes.
+
+Changes:
+
+- Added road texture diagnostic fields for speed scale, suspension acceleration contribution, wheel vertical-force contribution, and vertical-G contribution to the shared `RoadTextureSignal`.
+- Added P-HPR road routing counters for route attempts, stale telemetry suppressions, gear-ducking suppressions, command-rate suppressions, first/last attempt timestamps, last routed-command timestamp, and last ignored reason.
+- Added an app-side road texture diagnostic snapshot that emits compact report lines for road signal inputs, BST-1 road contribution estimates, P-HPR routing/suppression counters, and recorder state.
+- Added an off-by-default road texture flight recorder toggle in Advanced / Diagnostics. When enabled, it writes local JSONL records to `local-validation-results/road-texture-flight-recorder.jsonl` and rotates locally at 1 MB.
+- Updated the road texture, manual hardware, and Simagic P-HPR road vibration guides to document the Stage 18q-B evidence workflow and its diagnostics-only boundary.
+- Added fake-backed tests for smooth tarmac diagnostic signal fields, P-HPR road suppression counters, diagnostic report text, recorder JSONL output, and local ignored validation output.
+
+Verification:
+
+- Confirmed no stale `HapticDrive.Asio.App` process was running before verification.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 654 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18q-B is instrumentation only. It does not tune BST-1 road feel, change P-HPR road cadence, alter gear priority, or modify runtime safety gates.
+- BST-1 road diagnostics are software estimates from the shared road signal and safety-chain state; physical shaker feel, safe gain, latency, and final tuning remain Ethan-local validation items.
+- P-HPR route diagnostics expose why road commands are or are not routed, but they do not fix the earlier physical sparse 3-5 second gaps or occasional thumps.
+- The flight recorder is disabled by default, writes only under `local-validation-results`, and does not touch the audio callback path.

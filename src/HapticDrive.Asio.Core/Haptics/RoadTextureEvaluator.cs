@@ -142,6 +142,7 @@ public sealed class RoadTextureEvaluator
             context.HapticsRunning,
             context.DrivingArmed || context.AllowWhenDrivingNotArmed,
             telemetry.SpeedKph,
+            speedScale,
             telemetry.SurfaceTypeIds,
             motion.SuspensionAcceleration,
             motion.WheelVertForce,
@@ -152,6 +153,9 @@ public sealed class RoadTextureEvaluator
             rawIntensity,
             smoothed,
             outputIntensity,
+            motion.SuspensionAccelerationContribution,
+            motion.WheelVertForceContribution,
+            motion.VerticalGContribution,
             motion.RoughnessMetric,
             surface.FrequencyHintHz,
             surface.Bst1FrequencyHz,
@@ -287,6 +291,9 @@ public sealed class RoadTextureEvaluator
         return new MotionEvaluation(
             suspensionAcceleration,
             wheelVertForce,
+            suspensionRoughness,
+            verticalForceRoughness,
+            verticalGRoughness,
             Clamp(Math.Max(Math.Max(suspensionRoughness, verticalForceRoughness), verticalGRoughness), 0f, 1f));
     }
 
@@ -444,5 +451,8 @@ public sealed class RoadTextureEvaluator
     private sealed record MotionEvaluation(
         VehicleWheelData<float> SuspensionAcceleration,
         VehicleWheelData<float> WheelVertForce,
+        float SuspensionAccelerationContribution,
+        float WheelVertForceContribution,
+        float VerticalGContribution,
         float RoughnessMetric);
 }

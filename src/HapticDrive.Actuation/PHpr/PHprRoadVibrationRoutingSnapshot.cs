@@ -6,11 +6,15 @@ namespace HapticDrive.Actuation.PHpr;
 
 public sealed record PHprRoadVibrationRoutingSnapshot(
     PHprRoadVibrationRouterOptions Options,
+    long RouteAttemptCount,
     long EvaluationCount,
     long IgnoredEvaluationCount,
     long RouteCount,
     long SafetyRejectedCount,
     long IntervalSuppressedCount,
+    long StaleTelemetrySuppressedCount,
+    long GearDuckingSuppressedCount,
+    long CommandRateSuppressedCount,
     bool LastActive,
     double LastIntensity01,
     RoadTextureSignal LastSignal,
@@ -18,4 +22,8 @@ public sealed record PHprRoadVibrationRoutingSnapshot(
     PHprCommandResult? LastOutputResult,
     PHprRoadVibrationRoutingResult? LastResult,
     PHprOutputSnapshot? OutputSnapshot,
+    DateTimeOffset? FirstRouteAttemptAtUtc,
+    DateTimeOffset? LastRouteAttemptAtUtc,
+    DateTimeOffset? LastCommandRoutedAtUtc,
+    string? LastIgnoredReason,
     string? LastError);

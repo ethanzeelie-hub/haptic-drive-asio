@@ -613,3 +613,11 @@
 - The Stage 18p UI restructure is visually consistent enough to move on from UI reshuffling; future work should focus on Ethan-local physical road-texture validation/tuning and final hardware feel.
 - `MainWindow.xaml` and `MainWindow.xaml.cs` remain large monolithic files. Future component extraction can be considered after hardware validation pressure is lower.
 - Physical shaker feel, safe gain, physical latency, final BST-1 tuning, road texture balance, and final P-HPR feel remain Ethan-local validation items.
+
+## Stage 18q-B
+
+- Road texture now has richer live/replay diagnostics and an optional local JSONL flight recorder, but this stage intentionally does not tune road feel, change P-HPR road cadence, or alter gear priority.
+- The BST-1 road proof fields estimate road contribution from the shared road signal, mixer gain, safety output gain, and limiter state. The existing output peak remains total output, not road-only physical proof.
+- P-HPR road diagnostics now distinguish route attempts, routed commands, stale telemetry, gear ducking, interval/safety/rate suppressions, higher-priority effects, and in-flight drops, but they do not prove physical P-HPR cadence or feel.
+- `local-validation-results/road-texture-flight-recorder.jsonl` is local/ignored validation evidence and must not be committed.
+- Earlier Ethan-local physical findings remain open: P-HPR road enabled produced sparse 3-5 second gaps and occasional thumps, while the exported diagnostics were captured with P-HPR road off.

@@ -131,6 +131,23 @@ Fresh app startup may open the selected ASIO driver for readiness/capability hyd
 
 The disabled `Minimize to tray on close` placeholder is removed until a real tray mode exists. Closing the window should dispose ASIO, local pulse, paddle listener, UDP listener, timers, and related resources, write shutdown diagnostics, and terminate the WPF process.
 
+## Stage 18q-B Road Texture Evidence Capture
+
+Stage 18q-B is diagnostics-only. It does not fix weak BST-1 road gain and does not change the current P-HPR road pulse/cadence model.
+
+Before the next physical road validation run:
+
+- Open Advanced / Diagnostics.
+- Check `Record road texture flight recorder`.
+- Confirm the displayed path is `local-validation-results/road-texture-flight-recorder.jsonl`.
+- Start the same replay or live telemetry scenario being physically evaluated.
+- Capture a normal diagnostics export after the run.
+- Keep the JSONL file local unless a sanitized copy is intentionally attached for review.
+
+The road recorder is disabled by default and writes from the diagnostics/status path, not from the ASIO callback. It records the shared road signal, BST-1 pre/post gain proof, P-HPR road route cadence and suppression counters, haptics running state, emergency mute/stop state, replay source, telemetry age, and stale/historical last-road markers.
+
+Use the new evidence to decide later whether the BST-1 issue is evaluator scaling, renderer gain, mixer/safety gain, or hardware gain staging, and whether the P-HPR issue is route cadence, gate suppression, command drop, or pulse semantics. Gear pulse priority remains protected and must be revalidated before any future tuning stage is accepted.
+
 ## Stage 18 Final Pre-Shaker Checklist
 
 Before app-driven BST-1 validation, the safe software package should be checked through:

@@ -26,6 +26,8 @@ public sealed class PHprRoadVibrationRouterTests
 
         Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredDisabled, result.Status);
         Assert.Empty(inner.CommandHistory);
+        Assert.Equal(1, router.GetSnapshot().RouteAttemptCount);
+        Assert.Contains("disabled", router.GetSnapshot().LastIgnoredReason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -42,6 +44,9 @@ public sealed class PHprRoadVibrationRouterTests
 
         Assert.True(result.WasRouted, result.Message);
         Assert.Equal(2, inner.CommandHistory.Count);
+        Assert.Equal(1, router.GetSnapshot().RouteAttemptCount);
+        Assert.Equal(2, router.GetSnapshot().RouteCount);
+        Assert.NotNull(router.GetSnapshot().LastCommandRoutedAtUtc);
         Assert.Contains(inner.CommandHistory, command => command.TargetModule == PHprModuleId.Brake && command.Source == PHprCommandSource.RoadTexture);
         Assert.Contains(inner.CommandHistory, command => command.TargetModule == PHprModuleId.Throttle && command.Source == PHprCommandSource.RoadTexture);
         Assert.Contains(inner.FrameHistory, frame => frame.TargetModule == PHprModuleId.Brake && frame.State == PHprMockProtocolState.Start);
@@ -90,6 +95,7 @@ public sealed class PHprRoadVibrationRouterTests
 
         Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredGearDucking, result.Status);
         Assert.Empty(inner.CommandHistory);
+        Assert.Equal(1, router.GetSnapshot().GearDuckingSuppressedCount);
     }
 
     [Theory]
@@ -113,6 +119,10 @@ public sealed class PHprRoadVibrationRouterTests
         Assert.Null(output.SafetySnapshot.LastViolation);
         Assert.Empty(inner.CommandHistory);
         Assert.Equal(0, router.GetSnapshot().SafetyRejectedCount);
+        if (expected == PHprSafetyViolationCode.TelemetryStale)
+        {
+            Assert.Equal(1, router.GetSnapshot().StaleTelemetrySuppressedCount);
+        }
     }
 
     [Fact]
@@ -135,6 +145,31 @@ public sealed class PHprRoadVibrationRouterTests
         Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredMinimumInterval, second.Status);
         Assert.Equal(2, inner.CommandHistory.Count);
         Assert.Equal(2, router.GetSnapshot().IntervalSuppressedCount);
+        Assert.Equal(2, router.GetSnapshot().RouteAttemptCount);
+    }
+
+    [Fact]
+    public async Task SafetyRejectionCountsCommandRateSuppression()
+    {
+        var limits = PHprSafetyLimits.Default with
+        {
+            MaxCommandsPerSecond = 1,
+            AllowRealDeviceWrites = false
+        };
+        await using var inner = new MockPhprOutputDevice(limits);
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprRoadVibrationRouter(
+            output,
+            PHprRoadVibrationRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var result = await router.RouteAsync(CreateRoadVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var snapshot = router.GetSnapshot();
+
+        Assert.Equal(PHprRoadVibrationRoutingStatus.Routed, result.Status);
+        Assert.Equal(1, snapshot.RouteCount);
+        Assert.Equal(1, snapshot.SafetyRejectedCount);
+        Assert.Equal(1, snapshot.CommandRateSuppressedCount);
     }
 
     [Fact]

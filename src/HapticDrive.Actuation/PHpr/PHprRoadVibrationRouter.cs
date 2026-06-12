@@ -17,17 +17,25 @@ public sealed class PHprRoadVibrationRouter
     private DateTimeOffset? _lastBrakeAttemptAtUtc;
     private DateTimeOffset? _lastThrottleAttemptAtUtc;
     private DateTimeOffset? _lastGearPulseAtUtc;
+    private DateTimeOffset? _firstRouteAttemptAtUtc;
+    private DateTimeOffset? _lastRouteAttemptAtUtc;
+    private DateTimeOffset? _lastCommandRoutedAtUtc;
+    private long _routeAttemptCount;
     private long _evaluationCount;
     private long _ignoredEvaluationCount;
     private long _routeCount;
     private long _safetyRejectedCount;
     private long _intervalSuppressedCount;
+    private long _staleTelemetrySuppressedCount;
+    private long _gearDuckingSuppressedCount;
+    private long _commandRateSuppressedCount;
     private bool _lastActive;
     private double _lastIntensity01;
     private RoadTextureSignal _lastSignal = RoadTextureSignal.Inactive(DateTimeOffset.UtcNow, "not evaluated");
     private PHprCommand? _lastCommand;
     private PHprCommandResult? _lastOutputResult;
     private PHprRoadVibrationRoutingResult? _lastResult;
+    private string? _lastIgnoredReason;
     private string? _lastError;
 
     public PHprRoadVibrationRouter(
@@ -62,11 +70,15 @@ public sealed class PHprRoadVibrationRouter
         {
             return new PHprRoadVibrationRoutingSnapshot(
                 _options,
+                _routeAttemptCount,
                 _evaluationCount,
                 _ignoredEvaluationCount,
                 _routeCount,
                 _safetyRejectedCount,
                 _intervalSuppressedCount,
+                _staleTelemetrySuppressedCount,
+                _gearDuckingSuppressedCount,
+                _commandRateSuppressedCount,
                 _lastActive,
                 _lastIntensity01,
                 _lastSignal,
@@ -74,6 +86,10 @@ public sealed class PHprRoadVibrationRouter
                 _lastOutputResult,
                 _lastResult,
                 _output.GetSnapshot(),
+                _firstRouteAttemptAtUtc,
+                _lastRouteAttemptAtUtc,
+                _lastCommandRoutedAtUtc,
+                _lastIgnoredReason,
                 _lastError);
         }
     }
@@ -88,10 +104,12 @@ public sealed class PHprRoadVibrationRouter
 
         if (pipelineSnapshot is null)
         {
+            var now = nowUtc ?? DateTimeOffset.UtcNow;
+            StoreRouteAttempt(now);
             return ValueTask.FromResult(StoreIgnored(
                 PHprRoadVibrationRoutingStatus.IgnoredMissingVehicleState,
                 "No HapticPipelineSnapshot was supplied; no P-HPR road-vibration command was sent.",
-                nowUtc ?? DateTimeOffset.UtcNow));
+                now));
         }
 
         var context = safetyContext ?? BuildContext(pipelineSnapshot);
@@ -115,6 +133,7 @@ public sealed class PHprRoadVibrationRouter
         var now = nowUtc ?? DateTimeOffset.UtcNow;
         if (!options.IsEnabled)
         {
+            StoreRouteAttempt(now);
             return StoreIgnored(
                 PHprRoadVibrationRoutingStatus.IgnoredDisabled,
                 "P-HPR road vibration routing is disabled; no command was sent.",
@@ -123,6 +142,7 @@ public sealed class PHprRoadVibrationRouter
 
         if (vehicleState is null)
         {
+            StoreRouteAttempt(now);
             return StoreIgnored(
                 PHprRoadVibrationRoutingStatus.IgnoredMissingVehicleState,
                 "No VehicleState was supplied; no P-HPR road-vibration command was sent.",
@@ -164,6 +184,7 @@ public sealed class PHprRoadVibrationRouter
         }
 
         var now = nowUtc ?? DateTimeOffset.UtcNow;
+        StoreRouteAttempt(now);
         if (!options.IsEnabled)
         {
             return StoreIgnored(
@@ -192,6 +213,7 @@ public sealed class PHprRoadVibrationRouter
 
             if (safetyContext?.TelemetryStale == true)
             {
+                IncrementStaleTelemetrySuppressed();
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
                     "P-HPR road vibration was dropped because telemetry is stale.",
@@ -201,6 +223,11 @@ public sealed class PHprRoadVibrationRouter
             StoreEvaluation(signal);
             if (!signal.IsActive)
             {
+                if (IsTelemetryStaleSuppression(signal))
+                {
+                    IncrementStaleTelemetrySuppressed();
+                }
+
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
                     $"No active road vibration was detected; no P-HPR road command was sent. Reason: {signal.SuppressedReason ?? "inactive signal"}.",
@@ -210,6 +237,7 @@ public sealed class PHprRoadVibrationRouter
 
             if (signal.GearDuckingActive)
             {
+                IncrementGearDuckingSuppressed();
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredGearDucking,
                     "P-HPR road vibration was suppressed because a higher-priority gear pulse is inside the ducking window.",
@@ -377,6 +405,16 @@ public sealed class PHprRoadVibrationRouter
         }
     }
 
+    private void StoreRouteAttempt(DateTimeOffset nowUtc)
+    {
+        lock (_gate)
+        {
+            _routeAttemptCount++;
+            _firstRouteAttemptAtUtc ??= nowUtc;
+            _lastRouteAttemptAtUtc = nowUtc;
+        }
+    }
+
     private void StoreCommandResult(
         PHprModuleId module,
         PHprCommandResult outputResult,
@@ -398,10 +436,15 @@ public sealed class PHprRoadVibrationRouter
             if (outputResult.Succeeded)
             {
                 _routeCount++;
+                _lastCommandRoutedAtUtc = nowUtc;
             }
             else
             {
                 _safetyRejectedCount++;
+                if (IsCommandRateSuppression(outputResult))
+                {
+                    _commandRateSuppressedCount++;
+                }
             }
         }
     }
@@ -411,6 +454,7 @@ public sealed class PHprRoadVibrationRouter
         lock (_gate)
         {
             _lastResult = result;
+            _lastIgnoredReason = null;
             _lastError = null;
         }
     }
@@ -433,6 +477,7 @@ public sealed class PHprRoadVibrationRouter
         {
             _ignoredEvaluationCount++;
             _lastResult = result;
+            _lastIgnoredReason = message;
             _lastError = null;
         }
 
@@ -445,6 +490,7 @@ public sealed class PHprRoadVibrationRouter
         {
             _ignoredEvaluationCount++;
             _lastResult = result;
+            _lastIgnoredReason = result.Message;
             _lastError = string.IsNullOrWhiteSpace(errorMessage)
                 ? "Unknown P-HPR road-vibration routing error."
                 : errorMessage.Trim();
@@ -457,6 +503,34 @@ public sealed class PHprRoadVibrationRouter
         {
             _intervalSuppressedCount++;
         }
+    }
+
+    private void IncrementGearDuckingSuppressed()
+    {
+        lock (_gate)
+        {
+            _gearDuckingSuppressedCount++;
+        }
+    }
+
+    private void IncrementStaleTelemetrySuppressed()
+    {
+        lock (_gate)
+        {
+            _staleTelemetrySuppressedCount++;
+        }
+    }
+
+    private static bool IsCommandRateSuppression(PHprCommandResult result)
+    {
+        return result.Status == PHprCommandStatus.RejectedSafetyLimit
+            && result.Message.Contains("command rate", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTelemetryStaleSuppression(RoadTextureSignal signal)
+    {
+        return !signal.TelemetryFresh
+            || (signal.SuppressedReason?.Contains("stale", StringComparison.OrdinalIgnoreCase) ?? false);
     }
 
     private static double ScaleFrequency(

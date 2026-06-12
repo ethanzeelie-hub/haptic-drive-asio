@@ -66,6 +66,16 @@ Real road vibration can write only when:
 
 The route is evaluated from the existing telemetry/status update path, not the audio callback. When a `HapticPipelineSnapshot` is available, the router consumes `snapshot.Effects.RoadTexture.Signal` so BST-1 and P-HPR road use the same underlying road decision.
 
+Stage 18q-B adds diagnostics for this path but does not change the path. Current real P-HPR road commands still use the existing pulse-style duration and route cadence. The Advanced / Diagnostics road section reports route attempts, routed commands, ignored/suppressed reasons, interval suppression, safety rejection, stale telemetry suppression, gear-ducking suppression, command-rate suppression, last command target/strength/frequency/duration/intensity, last stop reason, and stale/historical last-road state.
+
+For physical road validation, explicitly enable `Record road texture flight recorder` in Advanced / Diagnostics before running replay or live telemetry. The recorder writes local JSONL to:
+
+```text
+local-validation-results/road-texture-flight-recorder.jsonl
+```
+
+Use that file with the diagnostics export to prove whether sparse P-HPR road feel came from cadence, route gates, safety suppression, stale/historical state, or the current pulse model. Do not treat Stage 18q-B as a cadence fix.
+
 ## Persistence
 
 The app persists safe real road-vibration preferences:

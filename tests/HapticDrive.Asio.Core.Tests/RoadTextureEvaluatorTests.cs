@@ -58,6 +58,23 @@ public sealed class RoadTextureEvaluatorTests
     }
 
     [Fact]
+    public void SmoothTarmacAboveSpeedGateProducesSmallNonZeroDiagnosticSignal()
+    {
+        var evaluator = new RoadTextureEvaluator();
+
+        var signal = evaluator.Evaluate(State(speedKph: 120, surfaceType: 0), Context());
+
+        Assert.True(signal.IsActive);
+        Assert.InRange(signal.RawIntensity, 0f, 0.05f);
+        Assert.InRange(signal.SmoothedIntensity, 0f, 0.05f);
+        Assert.InRange(signal.OutputIntensity, 0f, 0.05f);
+        Assert.InRange(signal.SpeedScale, 0f, 1f);
+        Assert.Equal(0f, signal.SuspensionAccelerationContribution);
+        Assert.Equal(0f, signal.WheelVertForceContribution);
+        Assert.Equal(0f, signal.VerticalGContribution);
+    }
+
+    [Fact]
     public void HigherSpeedIncreasesSignalWithinCap()
     {
         var evaluator = new RoadTextureEvaluator();
@@ -98,6 +115,7 @@ public sealed class RoadTextureEvaluatorTests
 
         Assert.Equal(0f, calm.RoughnessMetric);
         Assert.True(rough.RoughnessMetric > calm.RoughnessMetric);
+        Assert.True(rough.SuspensionAccelerationContribution > calm.SuspensionAccelerationContribution);
         Assert.True(rough.RawIntensity > calm.RawIntensity);
     }
 
@@ -119,6 +137,7 @@ public sealed class RoadTextureEvaluatorTests
 
         Assert.Equal(0f, calm.RoughnessMetric);
         Assert.True(rough.RoughnessMetric > calm.RoughnessMetric);
+        Assert.True(rough.WheelVertForceContribution > calm.WheelVertForceContribution);
     }
 
     [Fact]

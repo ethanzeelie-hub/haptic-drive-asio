@@ -230,6 +230,10 @@ public partial class MainWindow : Window
     private bool _routingMockPedalEffects;
     private bool _routingRealRoadVibration;
     private bool _routingRealSlipLock;
+    private long _realRoadHigherPrioritySuppressedCount;
+    private long _realRoadInFlightSuppressedCount;
+    private readonly string _roadTextureFlightRecorderSessionId = Guid.NewGuid().ToString("N");
+    private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
     private string _lastPhprPedalsPulseMessage = "No normal P-HPR test pulse has been sent.";
@@ -4073,6 +4077,22 @@ public partial class MainWindow : Window
         FooterStatusText.Text = "Diagnostics refreshed.";
     }
 
+    private void RoadTextureFlightRecorderCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (RoadTextureFlightRecorderCheckBox.IsChecked == true)
+        {
+            _roadTextureFlightRecorder = new FileRoadTextureFlightRecorder(GetLocalValidationResultsDirectory());
+            FooterStatusText.Text = $"Road texture flight recorder enabled: {_roadTextureFlightRecorder.LogPath}";
+        }
+        else
+        {
+            _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
+            FooterStatusText.Text = "Road texture flight recorder disabled.";
+        }
+
+        UpdateDiagnosticsStatus();
+    }
+
     private void CopyDiagnosticsButton_Click(object sender, RoutedEventArgs e)
     {
         UpdateDiagnosticsStatus();
@@ -5050,6 +5070,14 @@ public partial class MainWindow : Window
         var parserFailed = pipelineSnapshot.ParserFailureCount;
         var vehicleUpdates = pipelineSnapshot.VehicleStateUpdateCount;
         var packetDiagnostics = BuildPacketDiagnosticsText(pipelineSnapshot.PacketDiagnostics);
+        var roadDiagnostics = BuildRoadTextureDiagnosticsSnapshot(
+            pipelineSnapshot,
+            audioDiagnostics,
+            _roadTextureFlightRecorder.IsEnabled,
+            _roadTextureFlightRecorder.LogPath);
+        RoadTextureFlightRecorderStatusText.Text =
+            $"Road recorder: {(roadDiagnostics.FlightRecorderActive ? "active" : "disabled")}; path {roadDiagnostics.FlightRecorderPath}; last fallback {_roadTextureFlightRecorder.LastFallbackStatus ?? "none"}.";
+        var roadDiagnosticLines = roadDiagnostics.ToDiagnosticsLines();
 
         DiagnosticsSummaryText.Text = $"UDP {receiverSnapshot.PacketCount:N0} packet(s), parser {parserSuccess:N0} valid / {parserFailed:N0} failed, effects {audioDiagnostics.ActiveEffectCount}, output peak {audioDiagnostics.OutputPeakLevel:0.000}, callbacks {outputStatus.RenderCallbackCount:N0}.";
         DiagnosticsItemsControl.ItemsSource = new[]
@@ -5065,6 +5093,10 @@ public partial class MainWindow : Window
             $"Replay: {(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
             $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
             $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
+            roadDiagnosticLines[0],
+            roadDiagnosticLines[1],
+            roadDiagnosticLines[2],
+            roadDiagnosticLines[3],
             $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
             $"Output: {outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
             $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
@@ -5117,6 +5149,46 @@ public partial class MainWindow : Window
         return observed.Length == 0
             ? "no packet IDs observed yet"
             : string.Join("; ", observed);
+    }
+
+    private RoadTextureDiagnosticSnapshot BuildRoadTextureDiagnosticsSnapshot(
+        HapticPipelineSnapshot pipelineSnapshot,
+        AudioRuntimeDiagnosticsSnapshot audioDiagnostics,
+        bool flightRecorderActive,
+        string flightRecorderPath)
+    {
+        return RoadTextureDiagnosticSnapshot.Create(
+            pipelineSnapshot,
+            audioDiagnostics,
+            _currentProfile,
+            _realRoadVibrationOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits),
+            _realRoadVibrationRouter.GetSnapshot(),
+            _realPhprOutput.GetDiagnostics(),
+            Interlocked.Read(ref _realRoadHigherPrioritySuppressedCount),
+            Interlocked.Read(ref _realRoadInFlightSuppressedCount),
+            flightRecorderActive,
+            flightRecorderPath);
+    }
+
+    private void RecordRoadTextureFlightRecorder(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        var recorder = _roadTextureFlightRecorder;
+        if (!recorder.IsEnabled)
+        {
+            return;
+        }
+
+        var audioDiagnostics = AudioRuntimeDiagnosticsSnapshot.Create(
+            pipelineSnapshot.Output,
+            pipelineSnapshot.Effects,
+            pipelineSnapshot.Audio,
+            _testBench.GetSnapshot());
+        var roadDiagnostics = BuildRoadTextureDiagnosticsSnapshot(
+            pipelineSnapshot,
+            audioDiagnostics,
+            recorder.IsEnabled,
+            recorder.LogPath);
+        recorder.Record(RoadTextureFlightRecord.From(_roadTextureFlightRecorderSessionId, roadDiagnostics));
     }
 
     private string BuildInputDiscoveryDiagnosticsText()
@@ -5528,6 +5600,7 @@ public partial class MainWindow : Window
         await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
         var slipLockResult = await RouteRealSlipLockFromSnapshotAsync(pipelineSnapshot);
         await RouteRealRoadVibrationFromSnapshotAsync(pipelineSnapshot, slipLockResult?.WasRouted == true);
+        RecordRoadTextureFlightRecorder(pipelineSnapshot);
         UpdateTelemetryStatus();
         UpdateHapticsStateText();
         UpdateMixerStatus();
@@ -5691,11 +5764,17 @@ public partial class MainWindow : Window
     {
         if (_routingRealRoadVibration)
         {
+            Interlocked.Increment(ref _realRoadInFlightSuppressedCount);
             return;
         }
 
-        if (higherPriorityPedalEffectRouted
-            || !_realRoadVibrationRouter.GetSnapshot().Options.IsEnabled
+        if (higherPriorityPedalEffectRouted)
+        {
+            Interlocked.Increment(ref _realRoadHigherPrioritySuppressedCount);
+            return;
+        }
+
+        if (!_realRoadVibrationRouter.GetSnapshot().Options.IsEnabled
             || !_realPhprOptions.DirectControlEnabled
             || _realPhprOptions.CandidateIsRawInputOnly
             || !_realPhprOptions.CandidateHasOpenableHidPath

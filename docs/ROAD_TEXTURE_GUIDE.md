@@ -32,3 +32,30 @@ The P-HPR path remains separate from `IAudioOutputDevice`; the shared signal is 
 Accepted local gear pulses notify the road evaluator/router with the accepted pulse timestamp. During the short ducking window, the shared signal marks gear ducking active. BST-1 renders the ducked road intensity, and P-HPR road suppresses road commands so the gear pulse remains dominant.
 
 This is software arbitration only. Final mixed-output priority, safe gain, physical latency, road feel, and frequency tuning still require Ethan-local hardware validation.
+
+## Stage 18q-B Diagnostics
+
+Stage 18q-B adds road diagnostics and a local flight recorder only. It does not tune BST-1 road gain, raise UI gain caps, change P-HPR road cadence, redesign P-HPR road into a continuous model, or change gear pulse logic.
+
+Advanced / Diagnostics now reports the shared road signal with telemetry freshness, cached driving state, speed scale, surface IDs/class/name/mix, roughness contribution components, raw intensity, smoothed intensity, output intensity, BST-1/P-HPR frequency hints, gear-ducking state, ducking gain, and suppression reason.
+
+The same diagnostics report includes BST-1 road proof:
+
+- road enabled state and road gain;
+- road peak/RMS before the mixer;
+- estimated road peak/RMS after mixer and safety gain when limiter/clipping are idle;
+- total mixer peak and total output peak;
+- safety output gain, conservative ceiling, limiter state, limited samples, and clipped samples;
+- a clear note that total output peak is total output, not road-only output.
+
+P-HPR road diagnostics now expose route attempts, attempts per second, routed commands, routed commands per second, ignored reason, interval suppression, safety rejection, stale telemetry suppression, gear-ducking suppression, higher-priority suppression, in-flight suppression, command-rate suppression, last command target/strength/frequency/duration/intensity, last stop reason/age, and whether a previous "last road routed" result is stale/historical while road is currently disabled.
+
+When explicitly enabled from Advanced / Diagnostics, the local road flight recorder writes JSONL to:
+
+```text
+local-validation-results/road-texture-flight-recorder.jsonl
+```
+
+The recorder is disabled by default, writes from the low-frequency diagnostics path rather than the ASIO callback, includes a session ID, wall-clock timestamp, monotonic timestamp, replay/source and telemetry freshness, haptics/emergency state, road signal fields, BST-1 proof fields, and P-HPR route/command fields. Files under `local-validation-results/` are local validation evidence and must not be committed.
+
+Known physical findings remain open after Stage 18q-B: BST-1 road is active but too weak at current caps, and P-HPR road still uses sparse pulse-style commands. The next physical road validation should enable the road flight recorder before replay testing and attach the resulting JSONL with the diagnostics export.
