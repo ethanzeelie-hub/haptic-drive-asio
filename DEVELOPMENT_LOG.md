@@ -2658,3 +2658,39 @@ Self-review:
 - A pulse cannot be marked `completed-full` unless the expected frame count has rendered.
 - Closing with tray minimize unchecked is not cancelled by tray logic.
 - No generated `local-validation-results` logs are committed.
+
+## Stage 18n-B - Persistent BST-1 Local ASIO Engine And Retrigger Limiter
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Move local/manual BST-1 ASIO pulses onto a persistent output-owned callback path, prove completion from pulse-owned frame and post-limiter energy counters, and restore rapid Direct Paddle Gear Bench retrigger behavior without opening an ordinary limiter rejection runaway path.
+
+Changes:
+
+- Local/manual BST-1 ASIO pulses now lazy-start the same output-owned render callback used by live haptics and keep that callback warm for stopped-haptics local pulses instead of using the old standalone submit/stop loop.
+- Pulse completion now requires pulse-owned generated frames, consumed frames, and non-zero post-limiter peak/RMS energy for non-zero requests. Global callback progress alone cannot mark a pulse complete.
+- BST-1 pulse flight records now include pulse source ID, renderer instance ID, transport path, haptics-running-at-start state, pulse-owned pre/post limiter frame and energy proofs, global callback delta, live gear suppression, dropped/superseded local pulse counts, and latest-press-wins replacement status.
+- Haptics-on and haptics-off local BST-1 paddle pulses use the same generator, mixer, safety, limiter, output trim, and selected-channel routing; only the transport label differs between `local-persistent-callback` and `live-haptics-callback`.
+- Direct Paddle Gear Bench uses a 40 starts/s direct-control limiter profile so ten 5 ms-spaced left/downshift pulses targeting both P-HPR modules are accepted in fake tests without command-rate rejection.
+- Direct P-HPR start rejection recovery now differentiates ordinary no-write limiter rejections from partial-write unsafe failures. Stop All is reserved for partial/unsafe starts instead of firing on every start rejection.
+- Removed the disabled `Minimize to tray on close` footer checkbox from the WPF shell until a real tray mode exists.
+
+Verification:
+
+- Stopped stale `HapticDrive.Asio.App` process before the first successful build because the existing executable lock blocked output replacement.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused rebuilt runtime ASIO readiness tests passed with 30 passing tests.
+- Focused rebuilt app `PHprDirectRuntimeTests` passed with 11 passing tests.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 610 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- No startup output is emitted; the local BST-1 pulse stream starts only on an explicit manual/local pulse or normal Start Haptics.
+- Physical shaker feel, safe gain, physical latency, and final frequency tuning remain Ethan-local validation items.
+- P-HPR fake/direct tests still use fake HID writers and fake clocks; this stage does not claim physical P-HPR stop feel or latency.
+- Confirmed P-HPR report bytes, F1 25 parsing, UDP forwarding, recording/replay raw-byte preservation, and normal telemetry `DrivingArmed` gates were not changed.
+- No generated `local-validation-results` logs are committed.

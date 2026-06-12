@@ -538,6 +538,68 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.DoesNotContain(jsonl, line => line.Contains("\"EventName\":\"pulse-truncated\"", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task LocalBst1PaddleGearPulse_UsesPersistentCallbackAndPulseOwnedEnergyProof()
+    {
+        using var directory = new TempDirectory();
+        var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
+        await using var coordinator = new HapticPipelineCoordinator(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
+        coordinator.SetManualAsioHardwareTestFlightRecorder(recorder);
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            0.5f,
+            Source: "paddle gear bench",
+            AcceptedPaddleEventSequence: 100,
+            PaddleSide: "Left",
+            PaddleButtonId: 14));
+
+        var jsonl = File.ReadAllLines(recorder.LogPath);
+        var completedLine = jsonl.Last(line => line.Contains("\"EventName\":\"pulse-completed\"", StringComparison.Ordinal));
+        using var completed = JsonDocument.Parse(completedLine);
+        var root = completed.RootElement;
+        var expectedFrames = (long)Math.Ceiling(0.045d * AudioOutputConfiguration.Default.SampleRate);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal("local-persistent-callback", root.GetProperty("TransportPath").GetString());
+        Assert.StartsWith("paddle-", root.GetProperty("PulseSourceId").GetString(), StringComparison.Ordinal);
+        Assert.Equal("completed-full", root.GetProperty("CompletionReason").GetString());
+        Assert.Equal(expectedFrames, root.GetProperty("PulseOwnedFramesGenerated").GetInt64());
+        Assert.Equal(expectedFrames, root.GetProperty("PulseOwnedFramesConsumed").GetInt64());
+        Assert.True(root.GetProperty("PulseOwnedPeakPostLimiter").GetSingle() > 0f);
+        Assert.True(root.GetProperty("PulseOwnedRmsPostLimiter").GetSingle() > 0f);
+        Assert.False(root.GetProperty("CompletedFromGlobalCallbackOnly").GetBoolean());
+        Assert.True(root.GetProperty("GlobalCallbackFramesDelta").GetInt64() > 0);
+        Assert.False(root.GetProperty("HapticsRunningAtPulseStart").GetBoolean());
+        Assert.Equal(1, backend.StartCount);
+        Assert.Equal(0, backend.StopCount);
+        Assert.Equal(0, backend.SubmitBeforeStartCount);
+        Assert.True(backend.MaxQueuedBufferCount <= 3);
+    }
+
+    [Fact]
+    public async Task LocalBst1Pulse_OutputProofIsEquivalentWithHapticsStoppedOrRunning()
+    {
+        var stoppedProof = await RunPersistentCallbackPulseAsync(startHaptics: false);
+        var runningProof = await RunPersistentCallbackPulseAsync(startHaptics: true);
+        var expectedFrames = (long)Math.Ceiling(0.045d * AudioOutputConfiguration.Default.SampleRate);
+
+        Assert.Equal(expectedFrames, stoppedProof.FramesConsumed);
+        Assert.Equal(expectedFrames, runningProof.FramesConsumed);
+        Assert.InRange(Math.Abs(stoppedProof.PeakPostLimiter - runningProof.PeakPostLimiter), 0f, 0.0001f);
+        Assert.InRange(Math.Abs(stoppedProof.RmsPostLimiter - runningProof.RmsPostLimiter), 0f, 0.0001f);
+        Assert.False(stoppedProof.HapticsRunningAtPulseStart);
+        Assert.True(runningProof.HapticsRunningAtPulseStart);
+        Assert.Equal("local-persistent-callback", stoppedProof.TransportPath);
+        Assert.Equal("live-haptics-callback", runningProof.TransportPath);
+        Assert.False(stoppedProof.CompletedFromGlobalCallbackOnly);
+        Assert.False(runningProof.CompletedFromGlobalCallbackOnly);
+    }
+
     private static AudioOutputConfiguration ArmedConfiguration(int channel = 0)
     {
         return AudioOutputConfiguration.Default with
@@ -547,6 +609,54 @@ public sealed class HapticPipelineAsioReadinessTests
             IsHardwareArmed = true
         };
     }
+
+    private static async Task<LocalPulseProof> RunPersistentCallbackPulseAsync(bool startHaptics)
+    {
+        using var directory = new TempDirectory();
+        var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
+        await using var coordinator = new HapticPipelineCoordinator(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
+        coordinator.SetManualAsioHardwareTestFlightRecorder(recorder);
+
+        if (startHaptics)
+        {
+            var start = await coordinator.StartAsync();
+            Assert.True(start.Succeeded, start.Message);
+        }
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            0.5f,
+            Source: "paddle gear bench",
+            AcceptedPaddleEventSequence: startHaptics ? 202 : 201,
+            PaddleSide: "Right",
+            PaddleButtonId: 13));
+        Assert.True(result.Succeeded, result.Message);
+
+        var completedLine = File.ReadLines(recorder.LogPath)
+            .Last(line => line.Contains("\"EventName\":\"pulse-completed\"", StringComparison.Ordinal));
+        using var completed = JsonDocument.Parse(completedLine);
+        var root = completed.RootElement;
+
+        return new LocalPulseProof(
+            root.GetProperty("PulseOwnedFramesConsumed").GetInt64(),
+            root.GetProperty("PulseOwnedPeakPostLimiter").GetSingle(),
+            root.GetProperty("PulseOwnedRmsPostLimiter").GetSingle(),
+            root.GetProperty("HapticsRunningAtPulseStart").GetBoolean(),
+            root.GetProperty("TransportPath").GetString() ?? string.Empty,
+            root.GetProperty("CompletedFromGlobalCallbackOnly").GetBoolean());
+    }
+
+    private sealed record LocalPulseProof(
+        long FramesConsumed,
+        float PeakPostLimiter,
+        float RmsPostLimiter,
+        bool HapticsRunningAtPulseStart,
+        string TransportPath,
+        bool CompletedFromGlobalCallbackOnly);
 
     private sealed class FakeAsioDriverCatalog : IAsioDriverCatalog
     {

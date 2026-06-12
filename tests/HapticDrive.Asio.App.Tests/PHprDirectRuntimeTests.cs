@@ -260,6 +260,44 @@ public sealed class PHprDirectRuntimeTests
     }
 
     [Fact]
+    public async Task DirectPaddleBench_AllowsTenRapidLeftBothModuleGearPulsesWithoutRateRejection()
+    {
+        using var harness = new RuntimeHarness();
+        harness.Runtime.Configure(harness.ReadyEnvironment(PHprGearPulseTarget.Both));
+        await harness.Runtime.InitializeStartupCleanupAsync();
+        harness.Writer.Clear();
+
+        for (var sequence = 1; sequence <= 10; sequence++)
+        {
+            var timestamp = harness.RuntimeClock.UtcNow;
+            var message = await harness.Runtime.RouteBenchAsync(
+                BenchResult(PaddleSide.Left, PHprGearPulseTarget.Both, sequence: sequence, timestampUtc: timestamp),
+                BenchOptions(PHprGearPulseTarget.Both),
+                PaddleSnapshot(PaddleSide.Left, sequence, timestamp),
+                module => Card(durationMs: 45),
+                DirectSafetyContext());
+
+            Assert.Contains("sent", message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("command rate", message, StringComparison.OrdinalIgnoreCase);
+            harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(5));
+            harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(5));
+        }
+
+        var startReports = harness.Writer.Reports
+            .Where(report => report.State == PHprHidReportState.Start)
+            .ToArray();
+        var log = string.Join(Environment.NewLine, harness.RecorderLines());
+
+        Assert.Equal(20, startReports.Length);
+        Assert.Contains(startReports, report => report.TargetModule == PHprModuleId.Brake);
+        Assert.Contains(startReports, report => report.TargetModule == PHprModuleId.Throttle);
+        Assert.DoesNotContain(harness.Writer.Reports, report => report.State == PHprHidReportState.EmergencyStop);
+        Assert.DoesNotContain(log, "command rate exceeded", StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(log, "direct-paddle-bench-fail-closed-stop-all", StringComparison.Ordinal);
+        Assert.Contains("DirectPaddleGearBench:40 starts/s direct-control profile", log, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BenchDropsStalePaddlePulseInsteadOfPlayingLate()
     {
         using var harness = new RuntimeHarness();
@@ -282,34 +320,36 @@ public sealed class PHprDirectRuntimeTests
             && line.Contains("stale", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static PaddleGearBenchTestOptions BenchOptions()
+    private static PaddleGearBenchTestOptions BenchOptions(PHprGearPulseTarget target = PHprGearPulseTarget.Brake)
     {
         return new PaddleGearBenchTestOptions
         {
             IsEnabled = true,
             IsArmed = true,
             OutputMode = PaddleGearBenchTestOutputMode.Direct,
-            TargetModule = PHprGearPulseTarget.Brake
+            TargetModule = target
         }.Normalize();
     }
 
     private static PaddleGearBenchTestResult BenchResult(
+        PaddleSide side = PaddleSide.Right,
+        PHprGearPulseTarget target = PHprGearPulseTarget.Brake,
         InputButtonState buttonState = InputButtonState.Pressed,
         long sequence = 1,
         DateTimeOffset? timestampUtc = null)
     {
-        var paddleEvent = PaddleEvent(buttonState, sequence, timestampUtc);
+        var paddleEvent = PaddleEvent(side, buttonState, sequence, timestampUtc);
         return PaddleGearBenchTestResult.AcceptedEvent(
             paddleEvent,
-            BenchOptions(),
+            BenchOptions(target),
             ShiftIntentEvent.CreatePaddlePress(
-                PaddleSide.Right,
+                side,
                 HapticDrive.Input.Abstractions.Driving.DrivingArmedState.Armed("test"),
                 paddleEvent.TimestampUtc,
                 paddleEvent.SequenceNumber,
                 paddleEvent.SourceDevice?.DeviceId,
                 lastTelemetryGear: null,
-                ShiftIntentDirection.Upshift,
+                side == PaddleSide.Left ? ShiftIntentDirection.Downshift : ShiftIntentDirection.Upshift,
                 ShiftIntentSource.Test,
                 ShiftIntentMode.InstantPaddleOnly,
                 paddleEvent.StopwatchTicks,
@@ -318,16 +358,22 @@ public sealed class PHprDirectRuntimeTests
             paddleEvent.TimestampUtc.AddMilliseconds(1));
     }
 
-    private static WheelPaddleInputSnapshot PaddleSnapshot(long sequence = 1, DateTimeOffset? timestampUtc = null)
+    private static WheelPaddleInputSnapshot PaddleSnapshot(
+        PaddleSide side = PaddleSide.Right,
+        long sequence = 1,
+        DateTimeOffset? timestampUtc = null)
     {
-        var paddleEvent = PaddleEvent(sequence: sequence, timestampUtc: timestampUtc);
+        var paddleEvent = PaddleEvent(side, sequence: sequence, timestampUtc: timestampUtc);
+        var leftState = side == PaddleSide.Left ? InputButtonState.Pressed : InputButtonState.Released;
+        var rightState = side == PaddleSide.Right ? InputButtonState.Pressed : InputButtonState.Released;
+        var buttonId = side == PaddleSide.Left ? 14 : 13;
         return new WheelPaddleInputSnapshot(
             InputListenerStatus.Listening,
             Selection(),
             new WheelPaddleMapping { LeftPaddleButtonId = 14, RightPaddleButtonId = 13 },
-            InputButtonState.Released,
-            InputButtonState.Pressed,
-            13,
+            leftState,
+            rightState,
+            buttonId,
             InputButtonState.Pressed,
             paddleEvent,
             1,
@@ -337,14 +383,15 @@ public sealed class PHprDirectRuntimeTests
     }
 
     private static WheelPaddleInputEvent PaddleEvent(
+        PaddleSide side = PaddleSide.Right,
         InputButtonState buttonState = InputButtonState.Pressed,
         long sequence = 1,
         DateTimeOffset? timestampUtc = null)
     {
         return new WheelPaddleInputEvent(
-            PaddleSide.Right,
+            side,
             Selection(),
-            13,
+            side == PaddleSide.Left ? 14 : 13,
             new InputEventTimestamp(timestampUtc ?? new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero), 12345 + sequence),
             sequence,
             buttonState);
@@ -540,7 +587,7 @@ public sealed class PHprDirectRuntimeTests
 
         public PHprDirectRuntimeCoordinator Runtime { get; }
 
-        public PHprDirectRuntimeEnvironment ReadyEnvironment()
+        public PHprDirectRuntimeEnvironment ReadyEnvironment(PHprGearPulseTarget target = PHprGearPulseTarget.Brake)
         {
             return new PHprDirectRuntimeEnvironment(
                 ReadyOptions(Selector) with { GearPulseRetriggerMode = PHprGearPulseRetriggerMode.RetriggerLatestPressWins },
@@ -548,7 +595,7 @@ public sealed class PHprDirectRuntimeTests
                 RoadVibrationEnabled: false,
                 SlipLockEnabled: false,
                 BenchEnabled: true,
-                PHprGearPulseTarget.Brake,
+                target,
                 "Synthetic GT Neo 32-button device",
                 DebounceSuppressedCount: 0);
         }

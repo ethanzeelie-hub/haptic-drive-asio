@@ -553,3 +553,12 @@
 - If `Minimize to tray on close` remains unchecked, the window close path must not be cancelled for tray behavior. Close performs bounded cleanup, writes shutdown diagnostics, and then lets WPF close normally.
 - `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl` and rotated `.jsonl.1` files are local validation evidence only and must not be committed.
 - Physical shaker feel, safe gain, physical latency, and final frequency tuning still require Ethan-local validation on the real M-Audio/Fosi/Dayton chain.
+
+## Stage 18n-B
+
+- Local/manual BST-1 pulses now use a persistent output-owned callback path when Start Haptics is stopped, but this is still software/fake-backed proof until Ethan validates the real M-Audio/Fosi/Dayton chain.
+- Pulse-owned generated/consumed frame counts plus post-limiter peak/RMS energy are required before a non-zero BST-1 pulse can be recorded as `completed-full`; global callback movement alone is not a physical-output guarantee.
+- Haptics-on and haptics-off local BST-1 pulse equivalence is covered by fake ASIO callback tests. Physical latency, final safe gain, and shaker feel remain unvalidated.
+- Direct Paddle Gear Bench has enough direct-control limiter headroom for ten 5 ms-spaced left/downshift fake pulses targeting both P-HPR modules. Real P-HPR rapid retrigger feel, stop behavior, and emergency-stop behavior still require supervised local validation.
+- Ordinary Direct Bench start rejections should not trigger Stop All unless a partial unsafe write may have occurred. If a real partial write is suspected, fail-closed Stop All remains the expected recovery path.
+- The disabled tray checkbox placeholder was removed; there is still no implemented minimize-to-tray mode.

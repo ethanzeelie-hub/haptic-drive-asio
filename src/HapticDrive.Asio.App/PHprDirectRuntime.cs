@@ -453,6 +453,26 @@ internal sealed record PhprBenchFlightRecorderRecord
 
     public string? AcceptedRejectedReason { get; init; }
 
+    public string? LimiterProfile { get; init; }
+
+    public string? PerModuleStartAllowed { get; init; }
+
+    public string? PerModuleStartRejected { get; init; }
+
+    public string? PerModuleStopAllowed { get; init; }
+
+    public string? PerModuleStopRejected { get; init; }
+
+    public long? OrdinaryStartRateRejectionCount { get; init; }
+
+    public string? FailClosedStopAllReason { get; init; }
+
+    public bool? PartialWriteActive { get; init; }
+
+    public bool? StopAllFromUnsafeState { get; init; }
+
+    public bool? StopAllFromOrdinaryLimiterRejection { get; init; }
+
     public string? PulseState { get; init; }
 
     public int? PendingStopCount { get; init; }
@@ -1125,7 +1145,25 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         var startCompletedUtc = _clock.UtcNow;
         if (!accepted)
         {
-            await FailClosedStopAllAfterStartFailureAsync(source, cancellationToken).ConfigureAwait(false);
+            var partialWriteActive = results.Any(result => result.Succeeded);
+            if (partialWriteActive)
+            {
+                await FailClosedStopAllAfterStartFailureAsync(
+                    source,
+                    cancellationToken,
+                    "partial start write succeeded before later module rejection").ConfigureAwait(false);
+            }
+            else
+            {
+                _uncleanShutdownStore.TryClear(out _);
+                lock (_gate)
+                {
+                    _state = IsRuntimeReadyLocked(out _) ? PHprDirectRuntimeState.Idle : PHprDirectRuntimeState.Disabled;
+                    _lastErrorCategory = PHprDirectRuntimeErrorCategory.StartWrite;
+                    _lastErrorMessage = string.Join(" ", results.Select(result => result.CommandResult.Message));
+                }
+            }
+
             Record(
                 $"{source}-start-rejected",
                 paddleEvent,
@@ -1135,6 +1173,7 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
                 startWriteAttempted: true,
                 startWriteSucceeded: false,
                 startWriteFailed: true,
+                stopAttempted: partialWriteActive,
                 errorCategory: PHprDirectRuntimeErrorCategory.StartWrite);
             return new PulseSequenceResult(pulseId, results);
         }
@@ -1281,7 +1320,10 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         }
     }
 
-    private async ValueTask FailClosedStopAllAfterStartFailureAsync(string source, CancellationToken cancellationToken)
+    private async ValueTask FailClosedStopAllAfterStartFailureAsync(
+        string source,
+        CancellationToken cancellationToken,
+        string reason = "start failure may have left hardware active")
     {
         lock (_gate)
         {
@@ -1303,7 +1345,7 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
 
         Record(
             $"{source}-fail-closed-stop-all",
-            acceptedRejectedReason: stopAll.Message,
+            acceptedRejectedReason: $"{reason}; {stopAll.Message}",
             stopAttempted: true,
             stopWriteSucceeded: stopAll.Succeeded,
             stopWriteFailed: !stopAll.Succeeded,
@@ -1707,6 +1749,30 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
             MappedSide = paddleEvent?.PaddleSide.ToString(),
             MappedButton = paddleEvent?.ButtonId,
             AcceptedRejectedReason = acceptedRejectedReason,
+            LimiterProfile = eventName.StartsWith("direct-paddle-bench", StringComparison.Ordinal)
+                ? $"DirectPaddleGearBench:{SimagicPhprOutputDevice.DirectControlSafetyLimits.MaxCommandsPerSecond:N0} starts/s direct-control profile"
+                : "DirectControlDefault",
+            PerModuleStartAllowed = startWriteSucceeded == true
+                ? "all requested module starts accepted"
+                : null,
+            PerModuleStartRejected = startWriteFailed == true
+                ? acceptedRejectedReason
+                : null,
+            PerModuleStopAllowed = stopWriteSucceeded == true
+                ? "stop reports allowed"
+                : null,
+            PerModuleStopRejected = stopWriteFailed == true
+                ? acceptedRejectedReason
+                : null,
+            OrdinaryStartRateRejectionCount = acceptedRejectedReason?.Contains("command rate exceeded", StringComparison.OrdinalIgnoreCase) == true
+                ? 1
+                : 0,
+            FailClosedStopAllReason = eventName.Contains("fail-closed-stop-all", StringComparison.Ordinal)
+                ? acceptedRejectedReason
+                : null,
+            PartialWriteActive = eventName.Contains("fail-closed-stop-all", StringComparison.Ordinal),
+            StopAllFromUnsafeState = eventName.Contains("fail-closed-stop-all", StringComparison.Ordinal),
+            StopAllFromOrdinaryLimiterRejection = false,
             PulseState = state.ToString(),
             PendingStopCount = diagnostics.Output.PendingScheduledStopCount,
             StartRequested = startRequested,

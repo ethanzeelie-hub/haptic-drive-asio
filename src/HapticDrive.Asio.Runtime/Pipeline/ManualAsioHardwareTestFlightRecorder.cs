@@ -113,6 +113,14 @@ public sealed record ManualAsioHardwareTestFlightRecord
 
     public long PulseId { get; init; }
 
+    public string? PulseSourceId { get; init; }
+
+    public string? RendererInstanceId { get; init; }
+
+    public string? TransportPath { get; init; }
+
+    public bool HapticsRunningAtPulseStart { get; init; }
+
     public string? AsioDriverName { get; init; }
 
     public string OutputMode { get; init; } = string.Empty;
@@ -169,6 +177,10 @@ public sealed record ManualAsioHardwareTestFlightRecord
 
     public long GeneratedSampleCount { get; init; }
 
+    public long PulseOwnedFramesGenerated { get; init; }
+
+    public long PulseOwnedFramesConsumed { get; init; }
+
     public long SubmittedFrameCount { get; init; }
 
     public long RenderedCallbackCount { get; init; }
@@ -176,6 +188,14 @@ public sealed record ManualAsioHardwareTestFlightRecord
     public long DroppedFrameCount { get; init; }
 
     public float OutputPeak { get; init; }
+
+    public float PulseOwnedPeakPreLimiter { get; init; }
+
+    public float PulseOwnedRmsPreLimiter { get; init; }
+
+    public float PulseOwnedPeakPostLimiter { get; init; }
+
+    public float PulseOwnedRmsPostLimiter { get; init; }
 
     public float EffectivePostLimiterPeak { get; init; }
 
@@ -204,6 +224,20 @@ public sealed record ManualAsioHardwareTestFlightRecord
     public long AcceptedFrameCount { get; init; }
 
     public long RenderedFrameCount { get; init; }
+
+    public long GlobalCallbackFramesDelta { get; init; }
+
+    public bool CompletedFromGlobalCallbackOnly { get; init; }
+
+    public bool DuplicateLocalGearSuppressed { get; init; }
+
+    public bool LiveGearEffectSuppressed { get; init; }
+
+    public int ActiveLocalPulseCount { get; init; }
+
+    public long DroppedLocalPulseCount { get; init; }
+
+    public bool ReplacedByLatestPressWins { get; init; }
 
     public string? CompletionReason { get; init; }
 
