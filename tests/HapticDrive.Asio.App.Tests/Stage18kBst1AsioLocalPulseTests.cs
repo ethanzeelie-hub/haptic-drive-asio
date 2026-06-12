@@ -86,11 +86,25 @@ public sealed class Stage18kBst1AsioLocalPulseTests
         Assert.Contains("selected channel 1", selection.Message);
     }
 
+    [Fact]
+    public void LastPulseCompactStatus_ReportsSuccessOrQueueFullWithoutVerboseDiagnostics()
+    {
+        var success = Bst1AsioStatusFormatter.FormatLastPulseCompact(Snapshot(lastPulseUsedAsio: true));
+        var queueFull = Bst1AsioStatusFormatter.FormatLastPulseCompact(Snapshot(
+            blocked: true,
+            blockedReason: "Native ASIO backend queue is full; buffer dropped."));
+
+        Assert.Equal("Last BST-1 pulse: succeeded", success);
+        Assert.Equal("Last BST-1 pulse blocked: queue full", queueFull);
+    }
+
     private static ManualAsioHardwareTestSnapshot Snapshot(
         bool running = false,
         bool callbackActive = false,
         bool lastPulseUsedAsio = false,
         bool lastManualPulseUsedAsio = false,
+        bool blocked = false,
+        string? blockedReason = null,
         float? outputTrimPercent = null,
         float? effectivePreLimiterAmplitude = null,
         float? effectivePostLimiterAmplitude = null)
@@ -117,11 +131,11 @@ public sealed class Stage18kBst1AsioLocalPulseTests
             LastPulseUsedAsio: lastPulseUsedAsio,
             LastManualPulseUsedAsio: lastManualPulseUsedAsio,
             LastGearPulseUsedAsio: false,
-            LastPulseBlocked: false,
+            LastPulseBlocked: blocked,
             LimiterApplied: false,
             PulseGenerationId: 1,
             StaleStopIgnoredCount: 0,
-            BlockedReason: null,
+            BlockedReason: blockedReason,
             LastTestSignal: "50 Hz sine",
             LastTestDuration: TimeSpan.FromMilliseconds(45),
             LastStrengthPercent: 50f,

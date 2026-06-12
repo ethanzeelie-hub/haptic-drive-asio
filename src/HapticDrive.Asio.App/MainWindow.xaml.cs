@@ -25,10 +25,12 @@ using HapticDrive.Simagic.PHPR.Abstractions.Readiness;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 using HapticDrive.Simagic.PHPR.Abstractions.Validation;
 using HapticDrive.Simagic.PHPR.Output.Windows;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -187,6 +189,8 @@ public partial class MainWindow : Window
     private bool _lightTheme;
     private bool _updatingOutputUi;
     private bool _startupAsioDefaultsApplied;
+    private bool _shutdownCleanupStarted;
+    private bool _shutdownCleanupCompleted;
     private AudioOutputDeviceKind _selectedOutputKind = AudioOutputDeviceKind.Null;
     private string? _selectedAsioDriverName;
     private int? _selectedAsioOutputChannel;
@@ -4178,8 +4182,8 @@ public partial class MainWindow : Window
         ManualAsioHardwareStatusText.Text =
             $"BST-1 channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; driver {snapshot.SelectedAsioDriver}; armed {snapshot.AsioArmed}; haptics {(snapshot.HapticsRunning ? "running" : "stopped")}; peak {snapshot.ManualPulsePeak:0.000}.";
         ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason is null
-            ? $"Last pulse {snapshot.LastSource ?? "none"}; strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; trim {(snapshot.LastOutputTrimPercent is null ? $"{_bst1OutputTrimPercent:0}%" : $"{snapshot.LastOutputTrimPercent:0}%")}; pre-limit {(snapshot.LastEffectivePreLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePreLimiterAmplitude:0.000}")}; post-limit {(snapshot.LastEffectivePostLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePostLimiterAmplitude:0.000}")}; limiter {snapshot.LimiterApplied}; duration {(snapshot.LastDurationMs is null ? "none" : $"{snapshot.LastDurationMs:0} ms")} ({snapshot.LastDurationMode ?? "manual"}); {_lastBst1PaddleGearPulseMessage}"
-            : $"Blocked: {snapshot.BlockedReason}";
+            ? $"{Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot)}; {_lastBst1PaddleGearPulseMessage}"
+            : Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot);
     }
 
     private void ApplyBst1PulseSettingsToControls()
@@ -6327,18 +6331,213 @@ public partial class MainWindow : Window
         return null;
     }
 
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (!_shutdownCleanupCompleted)
+        {
+            e.Cancel = true;
+            if (!_shutdownCleanupStarted)
+            {
+                _shutdownCleanupStarted = true;
+                IsEnabled = false;
+                FooterStatusText.Text = "Shutting down ASIO and listener resources...";
+                _ = ShutdownThenCloseAsync();
+            }
+
+            return;
+        }
+
+        base.OnClosing(e);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        base.OnClosed(e);
+        Application.Current.Shutdown();
+    }
+
+    private async Task ShutdownThenCloseAsync()
+    {
+        try
+        {
+            await RunShutdownCleanupAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            RecordShutdownDiagnostic(
+                "shutdown-cleanup-failed",
+                DateTimeOffset.UtcNow,
+                minimizeToTrayEnabled: false,
+                asioDisposed: false,
+                standalonePulseDisposed: false,
+                paddleListenerDisposed: false,
+                udpListenerDisposed: false,
+                timersDisposed: false,
+                pendingTaskCount: _activeReplayTask is { IsCompleted: false } ? 1 : 0,
+                [$"shutdown:{ex.GetType().Name}:{ex.Message}"]);
+        }
+        finally
+        {
+            _shutdownCleanupCompleted = true;
+            Close();
+        }
+    }
+
+    private async Task RunShutdownCleanupAsync()
+    {
+        var shutdownStartedAtUtc = DateTimeOffset.UtcNow;
+        var minimizeToTrayEnabled = false;
+        var asioDisposed = false;
+        var standalonePulseDisposed = false;
+        var paddleListenerDisposed = false;
+        var udpListenerDisposed = false;
+        var timersDisposed = false;
+        var shutdownExceptions = new List<string>();
+
+        RecordShutdownDiagnostic(
+            "shutdown-requested",
+            shutdownStartedAtUtc,
+            minimizeToTrayEnabled,
+            asioDisposed,
+            standalonePulseDisposed,
+            paddleListenerDisposed,
+            udpListenerDisposed,
+            timersDisposed,
+            pendingTaskCount: _activeReplayTask is { IsCompleted: false } ? 1 : 0,
+            shutdownExceptions);
+
         Dispatcher.UnhandledException -= MainWindow_DispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException -= CurrentDomain_UnhandledException;
         TaskScheduler.UnobservedTaskException -= TaskScheduler_UnobservedTaskException;
+        _paddleInputSource.RawButtonChanged -= PaddleInputSource_InputChanged;
+        _paddleInputSource.PaddleInputReceived -= PaddleInputSource_InputChanged;
+        _paddleInputSource.PaddleInputReceived -= PaddleInputSource_PaddleInputReceived;
+        _telemetryReceiver.PacketReceived -= TelemetryReceiver_PacketReceived;
+        _telemetryStatusTimer.Tick -= TelemetryStatusTimer_Tick;
         _telemetryStatusTimer.Stop();
-        _testBench.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _paddleInputSource.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _telemetryReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _realPhprOutput.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _hapticPipeline.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        base.OnClosed(e);
+        timersDisposed = true;
+
+        _hapticPipeline.StopManualAsioHardwareTest("App shutdown stopped standalone BST-1 pulse session.");
+        standalonePulseDisposed = true;
+
+        try
+        {
+            await _testBench.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            shutdownExceptions.Add($"testBench:{ex.GetType().Name}:{ex.Message}");
+        }
+
+        try
+        {
+            await _paddleInputSource.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+            paddleListenerDisposed = true;
+        }
+        catch (Exception ex)
+        {
+            shutdownExceptions.Add($"paddleListener:{ex.GetType().Name}:{ex.Message}");
+        }
+
+        try
+        {
+            await _telemetryReceiver.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+            udpListenerDisposed = true;
+        }
+        catch (Exception ex)
+        {
+            shutdownExceptions.Add($"udpListener:{ex.GetType().Name}:{ex.Message}");
+        }
+
+        try
+        {
+            await _realPhprOutput.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            shutdownExceptions.Add($"phprOutput:{ex.GetType().Name}:{ex.Message}");
+        }
+
+        try
+        {
+            await _hapticPipeline.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(true);
+            asioDisposed = true;
+        }
+        catch (Exception ex)
+        {
+            shutdownExceptions.Add($"hapticPipeline:{ex.GetType().Name}:{ex.Message}");
+        }
+
+        RecordShutdownDiagnostic(
+            "shutdown-completed",
+            shutdownStartedAtUtc,
+            minimizeToTrayEnabled,
+            asioDisposed,
+            standalonePulseDisposed,
+            paddleListenerDisposed,
+            udpListenerDisposed,
+            timersDisposed,
+            pendingTaskCount: _activeReplayTask is { IsCompleted: false } ? 1 : 0,
+            shutdownExceptions);
+    }
+
+    private void RecordShutdownDiagnostic(
+        string eventName,
+        DateTimeOffset shutdownStartedAtUtc,
+        bool minimizeToTrayEnabled,
+        bool asioDisposed,
+        bool standalonePulseDisposed,
+        bool paddleListenerDisposed,
+        bool udpListenerDisposed,
+        bool timersDisposed,
+        int pendingTaskCount,
+        IReadOnlyCollection<string> shutdownExceptions)
+    {
+        try
+        {
+            var directory = GetLocalValidationResultsDirectory();
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, "bst1-asio-pulse-flight-recorder.jsonl");
+            var record = new
+            {
+                sessionId = "app-shutdown",
+                pulseId = 0,
+                eventName,
+                wallClockUtc = DateTimeOffset.UtcNow,
+                elapsedMs = (DateTimeOffset.UtcNow - shutdownStartedAtUtc).TotalMilliseconds,
+                threadId = Environment.CurrentManagedThreadId,
+                source = "shutdown",
+                outputMode = _selectedOutputKind.ToString(),
+                asioDriver = _selectedAsioDriverName,
+                selectedChannel = _selectedAsioOutputChannel,
+                asioArmed = _asioArmed,
+                shutdownRequested = true,
+                minimizeToTrayEnabled,
+                asioDisposed,
+                standalonePulseSessionDisposed = standalonePulseDisposed,
+                paddleListenerDisposed,
+                udpListenerDisposed,
+                timersDisposed,
+                pendingTaskCount,
+                shutdownExceptions
+            };
+            var json = JsonSerializer.Serialize(record);
+            using var stream = new FileStream(
+                path,
+                FileMode.Append,
+                FileAccess.Write,
+                FileShare.Read,
+                bufferSize: 4096,
+                FileOptions.WriteThrough);
+            using var writer = new StreamWriter(stream);
+            writer.WriteLine(json);
+            writer.Flush();
+            stream.Flush(flushToDisk: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            _settingsError = $"Shutdown diagnostic write failed: {ex.Message}";
+        }
     }
 
     private sealed record ShellPageDefinition(

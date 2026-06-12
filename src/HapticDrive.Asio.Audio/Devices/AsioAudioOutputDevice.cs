@@ -52,7 +52,9 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
             BackendCallbackCount = backendSnapshot.CallbackCount,
             UnderrunCount = baseStatus.UnderrunCount + backendSnapshot.UnderrunCount,
             LastCallbackJitter = backendSnapshot.LastCallbackJitter ?? baseStatus.LastCallbackJitter,
-            MaximumCallbackJitter = backendSnapshot.MaximumCallbackJitter ?? baseStatus.MaximumCallbackJitter
+            MaximumCallbackJitter = backendSnapshot.MaximumCallbackJitter ?? baseStatus.MaximumCallbackJitter,
+            QueuedBufferCount = backendSnapshot.QueuedBufferCount,
+            QueueCapacityBuffers = backendSnapshot.QueueCapacityBuffers
         };
     }
 

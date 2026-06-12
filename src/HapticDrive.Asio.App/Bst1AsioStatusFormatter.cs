@@ -66,6 +66,24 @@ internal static class Bst1AsioStatusFormatter
         return $"{readyText}; {activeText}; ASIO selected: {selectedText}; ASIO driver: {snapshot.SelectedAsioDriver}; ASIO armed: {armedText}; ASIO stream running: {runningText}; ASIO callback active: {callbackText}; rendered callbacks: {snapshot.RenderCallbackCount:N0}; submitted frames: {snapshot.SubmittedFrameCount:N0}; dropped frames: {snapshot.DroppedFrameCount:N0}; Last manual pulse used ASIO: {lastManualText}; Last gear pulse used ASIO: {lastGearText}; Selected channel: {channelText}; Last ASIO blocked reason: {snapshot.BlockedReason ?? "none"}; Last ASIO error: {snapshot.LastError ?? "none"}; requested strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; output trim {(snapshot.LastOutputTrimPercent is null ? "none" : $"{snapshot.LastOutputTrimPercent:0}%")}; effective pre-limiter amplitude {(snapshot.LastEffectivePreLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePreLimiterAmplitude:0.000}")}; effective post-limiter amplitude {(snapshot.LastEffectivePostLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePostLimiterAmplitude:0.000}")}; limiter applied {snapshot.LimiterApplied}; {lastPulseText}.";
     }
 
+    public static string FormatLastPulseCompact(ManualAsioHardwareTestSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        if (snapshot.LastPulseBlocked)
+        {
+            var reason = snapshot.BlockedReason ?? snapshot.LastError ?? "blocked";
+            return $"Last BST-1 pulse blocked: {CompactBlockReason(reason)}";
+        }
+
+        if (snapshot.LastPulseUsedAsio)
+        {
+            return "Last BST-1 pulse: succeeded";
+        }
+
+        return "Last BST-1 pulse: none";
+    }
+
     private static string GetBlockedReason(ManualAsioHardwareTestSnapshot snapshot, bool asioSelected)
     {
         if (!asioSelected)
@@ -101,6 +119,32 @@ internal static class Bst1AsioStatusFormatter
         }
 
         return snapshot.BlockedReason ?? "not ready";
+    }
+
+    private static string CompactBlockReason(string reason)
+    {
+        if (reason.Contains("queue", StringComparison.OrdinalIgnoreCase)
+            && reason.Contains("full", StringComparison.OrdinalIgnoreCase))
+        {
+            return "queue full";
+        }
+
+        if (reason.Contains("callback", StringComparison.OrdinalIgnoreCase))
+        {
+            return "callback inactive";
+        }
+
+        if (reason.Contains("armed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ASIO not armed";
+        }
+
+        if (reason.Contains("driver", StringComparison.OrdinalIgnoreCase))
+        {
+            return "driver not ready";
+        }
+
+        return reason;
     }
 
     private static string FormatYesNo(bool value)

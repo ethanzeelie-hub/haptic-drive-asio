@@ -39,4 +39,6 @@ public sealed record ManualAsioHardwareTestSnapshot(
     string? LastDurationMode,
     float ManualPulsePeak,
     string FlightRecorderPath,
-    string? LastError);
+    string? LastError,
+    int QueueCapacityBuffers = 0,
+    int QueuedBufferCount = 0);

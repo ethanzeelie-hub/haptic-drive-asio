@@ -28,7 +28,7 @@ public sealed class FileManualAsioHardwareTestFlightRecorder : IManualAsioHardwa
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         Directory.CreateDirectory(directory);
-        LogPath = Path.Combine(directory, "bst1-asio-gear-flight-recorder.jsonl");
+        LogPath = Path.Combine(directory, "bst1-asio-pulse-flight-recorder.jsonl");
     }
 
     public string LogPath { get; }
@@ -99,6 +99,8 @@ public sealed record ManualAsioHardwareTestFlightRecord
 
     public double? ElapsedMs { get; init; }
 
+    public int ThreadId { get; init; } = Environment.CurrentManagedThreadId;
+
     public string Source { get; init; } = "manual test";
 
     public long? AcceptedPaddleEventSequence { get; init; }
@@ -108,6 +110,8 @@ public sealed record ManualAsioHardwareTestFlightRecord
     public int? PaddleButtonId { get; init; }
 
     public long? AcceptedGearPulseId { get; init; }
+
+    public long PulseId { get; init; }
 
     public string? AsioDriverName { get; init; }
 
@@ -120,6 +124,36 @@ public sealed record ManualAsioHardwareTestFlightRecord
     public bool AsioRunning { get; init; }
 
     public bool AsioCallbackActive { get; init; }
+
+    public bool AsioStreamStartRequested { get; init; }
+
+    public int SampleRate { get; init; }
+
+    public int BufferSizeFrames { get; init; }
+
+    public int QueueCapacityBuffers { get; init; }
+
+    public int QueueCountBeforeSubmit { get; init; }
+
+    public int QueueCountAfterSubmit { get; init; }
+
+    public int BuffersRequiredForPulse { get; init; }
+
+    public int BuffersSubmitted { get; init; }
+
+    public int BuffersAccepted { get; init; }
+
+    public int BuffersDropped { get; init; }
+
+    public string? FirstDropReason { get; init; }
+
+    public long CallbackCountBeforePulse { get; init; }
+
+    public long CallbackCountAfterPulse { get; init; }
+
+    public long RenderedFrameCountBeforePulse { get; init; }
+
+    public long RenderedFrameCountAfterPulse { get; init; }
 
     public float RequestedStrengthPercent { get; init; }
 
@@ -143,15 +177,27 @@ public sealed record ManualAsioHardwareTestFlightRecord
 
     public float OutputPeak { get; init; }
 
+    public float EffectivePostLimiterPeak { get; init; }
+
     public bool LimiterApplied { get; init; }
 
     public string? BlockedReason { get; init; }
 
     public DateTimeOffset? StartTimestamp { get; init; }
 
+    public DateTimeOffset? PulseStartTimestamp { get; init; }
+
+    public DateTimeOffset? CallbackActiveTimestamp { get; init; }
+
+    public DateTimeOffset? FirstBufferConsumedTimestamp { get; init; }
+
+    public DateTimeOffset? LastBufferConsumedTimestamp { get; init; }
+
     public DateTimeOffset? StopDueTimestamp { get; init; }
 
     public DateTimeOffset? StopTimestamp { get; init; }
+
+    public bool PulseCompleted { get; init; }
 
     public bool StaleStopIgnored { get; init; }
 
@@ -160,6 +206,8 @@ public sealed record ManualAsioHardwareTestFlightRecord
     public string? ExceptionType { get; init; }
 
     public string? ExceptionMessage { get; init; }
+
+    public string? ExceptionStackTrace { get; init; }
 
     public string? SanitizedErrorCategory { get; init; }
 
@@ -179,6 +227,7 @@ public sealed record ManualAsioHardwareTestFlightRecord
             PaddleSide = request.PaddleSide,
             PaddleButtonId = request.PaddleButtonId,
             AcceptedGearPulseId = request.AcceptedGearPulseId,
+            PulseId = pulseGenerationId,
             AsioDriverName = outputStatus.DeviceName,
             OutputMode = outputStatus.Kind.ToString(),
             SelectedChannel = outputStatus.SelectedOutputChannel,
@@ -188,6 +237,17 @@ public sealed record ManualAsioHardwareTestFlightRecord
             AsioCallbackActive = outputStatus.IsStreaming
                 || outputStatus.RenderCallbackCount > 0
                 || outputStatus.BackendCallbackCount > 0,
+            AsioStreamStartRequested = outputStatus.State == AudioOutputDeviceState.Started,
+            SampleRate = outputStatus.SampleRate,
+            BufferSizeFrames = outputStatus.BufferSize,
+            QueueCapacityBuffers = outputStatus.QueueCapacityBuffers,
+            QueueCountBeforeSubmit = outputStatus.QueuedBufferCount,
+            QueueCountAfterSubmit = outputStatus.QueuedBufferCount,
+            BuffersRequiredForPulse = outputStatus.BufferSize <= 0
+                ? 0
+                : (int)Math.Ceiling(request.Duration.TotalSeconds * outputStatus.SampleRate / outputStatus.BufferSize),
+            CallbackCountBeforePulse = outputStatus.RenderCallbackCount + outputStatus.BackendCallbackCount,
+            CallbackCountAfterPulse = outputStatus.RenderCallbackCount + outputStatus.BackendCallbackCount,
             RequestedStrengthPercent = request.StrengthPercent,
             OutputTrimPercent = request.OutputTrimPercent,
             EffectivePreLimiterAmplitude = request.EffectivePreLimiterAmplitude,

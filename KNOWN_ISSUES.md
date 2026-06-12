@@ -535,3 +535,10 @@
 - BST-1 output trim defaults to `200%` and scales only the ASIO bass-shaker pulse before the existing safety chain/limiter. It does not affect P-HPR strength scaling.
 - `Select channel 1` is now pure channel selection and must not vibrate; `Test BST-1 Pulse` is the normal manual output button.
 - Final safe physical gain, final shaker feel, and physical latency remain Ethan-local validation items; automated coverage uses fake ASIO/P-HPR/input paths only.
+
+## Stage 18l
+
+- The software queue-full/drop failure in the standalone BST-1 pulse path is fixed in fake-backed tests by waiting for ASIO callback activity and queue room before submitting pulse buffers.
+- `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl` is local/ignored validation output and must not be committed.
+- Normal close now disposes ASIO/listener/timer resources and writes shutdown diagnostics unless a future tray-minimize implementation intentionally intercepts close.
+- Physical shaker feel, safe gain, physical latency, and final frequency tuning still require Ethan-local validation on the real M-Audio/Fosi/Dayton chain.

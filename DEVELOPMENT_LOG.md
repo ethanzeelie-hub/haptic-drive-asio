@@ -2561,3 +2561,46 @@ Self-review:
 - Blocked manual pulses do not submit partial ASIO buffers.
 - ASIO startup defaults do not open/start output and do not create continuous output.
 - Output trim is applied only to BST-1 pulse requests before the existing safety chain and limiter.
+
+## Stage 18l - BST-1 ASIO Pulse Queue And Shutdown Fix
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Diagnose and fix the standalone/manual BST-1 ASIO queue-full/drop failure, route local paddle BST-1 pulses through the same fixed path, expand local ASIO pulse diagnostics, and make app close dispose background ASIO/listener resources.
+
+Missing Items Addressed:
+
+- Diagnosed the Stage 18k standalone path as pre-submitting a full pulse into the native ASIO backend's bounded 3-buffer queue. At the default 48 kHz / 480-frame shape, one buffer is about 10 ms, so 100 ms requires about 10 buffers and 300 ms requires about 30 buffers.
+- Removed the pre-start/priming standalone pulse submit. The standalone path now starts ASIO, waits for callback activity, then renders and submits only when the native queue reports room.
+- Kept manual `Test BST-1 Pulse` and enabled local BST-1 paddle gear pulse independent from Start Haptics, UDP, replay, F1 telemetry, `VehicleState`, and `DrivingArmed`.
+- Added queue capacity/count, callback counts, accepted/dropped buffer counts, limiter peak, timestamps, and exception stack details to the local JSONL recorder at `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl`.
+- Added shutdown diagnostics to that same recorder and moved window close cleanup to an async close path that stops timers/listeners/manual pulse state and disposes test bench, paddle listener, UDP receiver, P-HPR output, and the haptic pipeline/ASIO output.
+- Kept normal Devices UI compact with `Last BST-1 pulse: succeeded` or `Last BST-1 pulse blocked: queue full`; detailed queue/callback information remains in Advanced / Diagnostics and the local recorder.
+- Added fake-backed tests for callback-before-render, bounded queue behavior, 100 ms and 300 ms full-frame rendering, queue-full logging without partial submit, failed-start no-output behavior, and paddle gear source use of the fixed standalone path.
+
+Notes:
+
+- P-HPR HID protocol, P-HPR direct runtime behavior, road vibration, wheel slip, wheel lock, kerbs, live telemetry effects, telemetry parser code, WASAPI output, and SimHub integration were not changed.
+- The native ASIO queue remains intentionally bounded. The fix is lifecycle/pacing: wait for callback-active and queue room before submitting normal short BST-1 pulse buffers.
+- Closing the app now records shutdown-requested and shutdown-completed diagnostics. The disabled minimize-to-tray placeholder remains disabled; normal close is expected to terminate the app after cleanup.
+- No final shaker feel, safe physical gain, physical latency, or tuning claim is made by this stage.
+
+Verification:
+
+- Confirmed no stale `HapticDrive.Asio.App` process was running before normal app-output verification.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 599 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- No output is emitted on startup; startup still only selects/arms the discoverable M-Audio/channel-1 defaults.
+- Manual BST-1 pulse no longer pre-fills the native ASIO queue in fake-backed tests and blocks without partial submit when ASIO cannot start or callback/queue gates do not pass.
+- Local paddle BST-1 pulse continues to use the same standalone ASIO path and does not depend on Start Haptics, telemetry, `VehicleState`, or `DrivingArmed`.
+- Output trim still scales the BST-1 request before the safety chain, and the limiter remains active.
+- P-HPR behavior, report protocol, direct runtime routing, road/slip/lock routes, parser code, UDP forwarding, and WASAPI output were not changed.
+- No generated `local-validation-results` logs are committed.

@@ -60,6 +60,7 @@
 - Stage 18i: BST-1 ASIO manual controls and synchronized paddle gear pulse output complete.
 - Stage 18j: BST-1 local gear test and shared duration sync complete.
 - Stage 18k: BST-1 standalone ASIO local pulse, startup defaults, compact status, and output trim complete.
+- Stage 18l: BST-1 standalone ASIO pulse queue/drop and app shutdown cleanup complete.
 
 ## Planned Stages
 
@@ -91,6 +92,7 @@
 26. Stage 18i: BST-1 ASIO manual controls and synchronized paddle gear pulse output. Complete.
 27. Stage 18j: BST-1 local gear test and shared duration sync. Complete.
 28. Stage 18k: BST-1 standalone ASIO local pulse, startup defaults, compact status, and output trim. Complete.
+29. Stage 18l: BST-1 standalone ASIO pulse queue/drop and app shutdown cleanup. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
