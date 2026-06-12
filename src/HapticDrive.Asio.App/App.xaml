@@ -3,101 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#0B0F14" />
-        <SolidColorBrush x:Key="AppSurfaceBrush" Color="#111820" />
-        <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="#17212B" />
-        <SolidColorBrush x:Key="AppBorderBrush" Color="#263241" />
-        <SolidColorBrush x:Key="AppTextBrush" Color="#E8EEF6" />
-        <SolidColorBrush x:Key="AppMutedTextBrush" Color="#99A8B8" />
-        <SolidColorBrush x:Key="AppAccentBrush" Color="#3BAFDA" />
-        <SolidColorBrush x:Key="AppDangerBrush" Color="#E5534B" />
-        <SolidColorBrush x:Key="AppSuccessBrush" Color="#39B980" />
-        <SolidColorBrush x:Key="AppWarningBrush" Color="#E0A642" />
-
-        <Style x:Key="CardBorderStyle" TargetType="Border">
-            <Setter Property="Margin" Value="0,0,0,18" />
-            <Setter Property="Padding" Value="22" />
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-        </Style>
-
-        <Style x:Key="SectionHeadingTextBlockStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-
-        <Style x:Key="MutedTextBlockStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource AppMutedTextBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-
-        <Style x:Key="StatusBadgeTextBlockStyle" TargetType="TextBlock">
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
-        </Style>
-
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="Padding" Value="16,6" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-
-        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="Padding" Value="16,6" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-
-        <Style x:Key="DangerButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="Padding" Value="16,6" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="Background" Value="{DynamicResource AppDangerBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppDangerBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-
-        <Style x:Key="FieldTextBoxStyle" TargetType="TextBox">
-            <Setter Property="MinHeight" Value="30" />
-            <Setter Property="Padding" Value="8,4" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-
-        <Style TargetType="Button">
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="Padding" Value="16,6" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{DynamicResource AppMutedTextBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/Theme.xaml" />
+                <ResourceDictionary Source="Resources/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -2795,3 +2795,39 @@ Self-review:
 - Delete Selected cannot remove arbitrary files outside the recordings folder and cannot delete the active recording output.
 - F1 25 parser offsets, ASIO backend behavior, P-HPR HID/report behavior, gear-pulse logic, and road-effect logic were not changed.
 - No generated `local-validation-results` logs are committed.
+
+## Stage 18p-C - App Shell, Dark Theme, Sidebar, And Cards
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Implement the first visual product shell pass with a maintainable WPF dark theme, sidebar navigation, top status/action bar, and card-based visual system without restructuring Effects, Devices, Advanced, or haptic runtime logic.
+
+Changes:
+
+- Extracted the app visual system from inline `App.xaml` resources into `src/HapticDrive.Asio.App/Resources/Theme.xaml` and `src/HapticDrive.Asio.App/Resources/Styles.xaml`.
+- Kept `App.xaml` as the merged resource entry point for theme and style dictionaries.
+- Added dark-first WPF theme tokens for app chrome, sidebar, top bar, cards, inputs, red accent states, danger states, status colors, radii, and card padding.
+- Added reusable styles for cards, metric cards, top status badges, primary/secondary/top-bar/danger buttons, inputs, sidebar navigation, headings, muted text, and status badges.
+- Restyled `MainWindow.xaml` in place with the new sidebar brand/navigation, top status/action bar, shared dashboard metric cards, shared panel cards, and footer chrome while preserving named controls and event handlers.
+- Updated `MainWindow.xaml.cs` theme palette handling so the existing light/dark toggle updates the new resource tokens and the top bar reflects the selected page context.
+- Added app resource tests covering `App.xaml` dictionary merger and the theme/style keys required by the shell.
+- Updated the product UI architecture report, roadmap, and known issues for the completed 18p-C shell/theme stage.
+
+Verification:
+
+- Focused app tests passed with 86 passing tests.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 637 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18p-C is intentionally a visual shell/style foundation, not the 18p-D Effects restructure or the 18p-E Devices/Advanced cleanup.
+- Haptic runtime behavior, ASIO backend behavior, P-HPR HID/report bytes, parser layouts, recording/replay scheduling, gear routing, and road/slip/lock routing were not changed.
+- The current pages remain large in-place XAML panels; later stages should split normal controls into smaller cards/components where that reduces UI complexity.
+- Physical shaker feel, safe gain, physical latency, final frequency tuning, and physical P-HPR behavior remain Ethan-local validation items.
+- No generated `local-validation-results` logs are committed.

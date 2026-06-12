@@ -11,15 +11,16 @@
         MinWidth="980"
         Background="{DynamicResource AppBackgroundBrush}"
         Foreground="{DynamicResource AppTextBrush}">
-    <Grid>
+    <Grid Background="{DynamicResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="78" />
+            <RowDefinition Height="68" />
             <RowDefinition Height="*" />
             <RowDefinition Height="36" />
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0"
-                Background="{DynamicResource AppSurfaceBrush}"
+                Grid.ColumnSpan="2"
+                Background="{DynamicResource AppTopBarBrush}"
                 BorderBrush="{DynamicResource AppBorderBrush}"
                 BorderThickness="0,0,0,1">
             <Grid Margin="24,0">
@@ -28,42 +29,48 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock FontSize="24"
-                               FontWeight="Bold"
-                               Text="Haptic Drive ASIO" />
-                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                               Text="Stage 18 final pre-shaker readiness package" />
+                <StackPanel VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource PageKickerTextBlockStyle}"
+                               VerticalAlignment="Center"
+                               Text="READY" />
+                    <Border Width="1"
+                            Height="18"
+                            Margin="14,0"
+                            Background="{DynamicResource AppBorderBrush}" />
+                    <TextBlock x:Name="TopBarContextText"
+                               VerticalAlignment="Center"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Text="Stage 18 pre-shaker readiness" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <Border Margin="0,0,12,0"
-                            Padding="12,7"
-                            Background="{DynamicResource AppSurfaceAltBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8">
+                            Style="{StaticResource TopStatusBadgeStyle}">
                         <TextBlock x:Name="TelemetryStatusText"
                                    Foreground="{DynamicResource AppMutedTextBrush}"
                                    Text="UDP: starting" />
                     </Border>
                     <Button x:Name="StartStopButton"
                             Margin="0,0,8,0"
+                            Style="{StaticResource PrimaryButtonStyle}"
                             Click="StartStopButton_Click"
                             Content="Start Haptics" />
                     <Button x:Name="StartRecordingButton"
                             Margin="0,0,8,0"
+                            Style="{StaticResource TopBarButtonStyle}"
                             Click="StartRecordingButton_Click"
                             Content="Start Recording" />
                     <Button x:Name="EmergencyMuteButton"
                             Margin="0,0,8,0"
-                            Background="{DynamicResource AppDangerBrush}"
-                            BorderBrush="{DynamicResource AppDangerBrush}"
+                            Style="{StaticResource DangerButtonStyle}"
                             Click="EmergencyMuteButton_Click"
                             Content="Emergency Mute" />
                     <Button x:Name="ThemeButton"
+                            Style="{StaticResource TopBarButtonStyle}"
                             Click="ThemeButton_Click"
                             Content="Theme: Dark" />
                 </StackPanel>
@@ -76,66 +83,70 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Background="{DynamicResource AppSurfaceBrush}"
+            <Border Background="{DynamicResource AppSidebarBrush}"
                     BorderBrush="{DynamicResource AppBorderBrush}"
                     BorderThickness="0,0,1,0">
                 <DockPanel LastChildFill="True">
-                    <TextBlock DockPanel.Dock="Top"
-                               Margin="20,18,20,10"
-                               Foreground="{DynamicResource AppMutedTextBrush}"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Text="WORKSPACE" />
+                    <StackPanel DockPanel.Dock="Top"
+                                Margin="18,18,18,18">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="34"
+                                    Height="34"
+                                    Background="{DynamicResource AppAccentBrush}"
+                                    CornerRadius="{StaticResource AppControlCornerRadius}">
+                                <TextBlock HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Text="H" />
+                            </Border>
+                            <StackPanel Margin="12,0,0,0"
+                                        VerticalAlignment="Center">
+                                <TextBlock FontSize="15"
+                                           FontWeight="Bold"
+                                           Text="Haptic Drive" />
+                                <TextBlock Style="{StaticResource PageKickerTextBlockStyle}"
+                                           Text="ASIO control" />
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Margin="0,22,0,8"
+                                   Style="{StaticResource PageKickerTextBlockStyle}"
+                                   Text="WORKSPACE" />
+                    </StackPanel>
                     <ListBox x:Name="NavigationList"
                              Margin="12,0,12,16"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Foreground="{DynamicResource AppTextBrush}"
+                             ItemContainerStyle="{StaticResource SidebarListBoxItemStyle}"
+                             Style="{StaticResource SidebarListBoxStyle}"
                              SelectionChanged="NavigationList_SelectionChanged">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Padding="12,9"
+                                <TextBlock Padding="12,10"
+                                           FontWeight="SemiBold"
                                            Text="{Binding NavigationLabel}" />
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Margin" Value="0,2" />
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-                                <Style.Triggers>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
-                                        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
                     </ListBox>
                 </DockPanel>
             </Border>
 
             <ScrollViewer Grid.Column="1"
-                          Padding="28"
+                          Padding="28,24,28,28"
                           VerticalScrollBarVisibility="Auto">
                 <StackPanel>
+                    <TextBlock Style="{StaticResource PageKickerTextBlockStyle}"
+                               Text="CONTROL PANEL" />
                     <TextBlock x:Name="PageTitleText"
+                               Margin="0,4,0,0"
                                FontSize="30"
                                FontWeight="Bold" />
                     <TextBlock x:Name="PageSummaryText"
-                               Margin="0,8,0,24"
+                               Margin="0,8,0,22"
                                FontSize="15"
                                Foreground="{DynamicResource AppMutedTextBrush}" />
 
                     <UniformGrid Columns="4"
                                  Margin="0,0,0,24">
-                        <Border Margin="0,0,12,0"
-                                Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Output Mode" />
@@ -150,12 +161,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,0,12,0"
-                                Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Haptics" />
@@ -169,12 +175,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,0,12,0"
-                                Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="UDP Listener" />
@@ -189,11 +190,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Packets" />
@@ -208,12 +205,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,12,12,0"
-                                Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Forwarding" />
@@ -228,12 +220,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,12,12,0"
-                                Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="F1 25 Parser" />
@@ -248,12 +235,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,12,12,0"
-                                Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="VehicleState" />
@@ -268,12 +250,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,12,0,0"
-                                Padding="18"
-                                Background="{DynamicResource AppSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <Border Style="{StaticResource MetricCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                            Text="Recording" />
@@ -290,12 +267,7 @@
                     </UniformGrid>
 
                     <Border x:Name="EffectsPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -574,12 +546,7 @@
                     </Border>
 
                     <Border x:Name="TestBenchPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -652,12 +619,7 @@
                     </Border>
 
                     <Border x:Name="MixerPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -1285,12 +1247,7 @@
                     </Border>
 
                     <Border x:Name="AdvancedPhprDiagnosticsPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
@@ -2167,12 +2124,7 @@
                     </Border>
 
                     <Border x:Name="RecordingsPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -2252,12 +2204,7 @@
                     </Border>
 
                     <Border x:Name="ForwardingPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -2329,12 +2276,7 @@
                     </Border>
 
                     <Border x:Name="ProfilesPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -2379,12 +2321,7 @@
                     </Border>
 
                     <Border x:Name="SettingsPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -2413,12 +2350,7 @@
                     </Border>
 
                     <Border x:Name="DiagnosticsPanel"
-                            Margin="0,0,0,24"
-                            Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
+                            Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock FontSize="18"
@@ -2451,11 +2383,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Padding="22"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8">
+                    <Border Style="{StaticResource CardBorderStyle}">
                         <StackPanel>
                             <TextBlock x:Name="PageStatusText"
                                        FontSize="18"
@@ -2488,7 +2416,7 @@
         </Grid>
 
         <Border Grid.Row="2"
-                Background="{DynamicResource AppSurfaceBrush}"
+                Background="{DynamicResource AppChromeBrush}"
                 BorderBrush="{DynamicResource AppBorderBrush}"
                 BorderThickness="0,1,0,0">
             <Grid Margin="18,0">

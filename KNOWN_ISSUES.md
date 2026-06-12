@@ -584,3 +584,10 @@
 - Delete Selected is guarded to `.hdrec` files inside the recordings folder and blocks the active recording output, but it is still a direct deliberate delete action rather than a two-step confirmation dialog.
 - Recording files still do not include route snapshots, profile snapshots, trimming metadata, or effect-setting snapshots.
 - The broader dark/sidebar/card product UI redesign remains staged for 18p-C onward.
+
+## Stage 18p-C
+
+- The dark/sidebar/card shell is now implemented as a shared WPF theme/style layer, but the Effects, Devices, Routing / Mixer, and Advanced pages are still structurally the same large in-place XAML panels.
+- The new visual system is dark-first with red accents. Light theme remains supported by the existing toggle, but final visual polish and contrast review remain staged for 18p-F.
+- Stage 18p-C intentionally does not move normal P-HPR road/slip/lock controls out of Advanced or restructure Effects into the final hybrid hardware/effect layout; those remain 18p-D/18p-E work.
+- Physical shaker feel, safe gain, physical latency, and P-HPR physical behavior remain Ethan-local validation items; this stage changed WPF presentation resources only.

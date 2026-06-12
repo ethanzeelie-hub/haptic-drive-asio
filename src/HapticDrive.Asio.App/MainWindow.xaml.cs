@@ -416,6 +416,7 @@ public partial class MainWindow : Window
         {
             PageTitleText.Text = page.Title;
             PageSummaryText.Text = page.Summary;
+            TopBarContextText.Text = $"{page.NavigationLabel} / safe control";
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
             EffectsPanel.Visibility = page.NavigationLabel == "Effects"
@@ -3697,18 +3698,81 @@ public partial class MainWindow : Window
     {
         _lightTheme = lightTheme;
         var palette = lightTheme
-            ? new ThemePalette("#F5F7FA", "#FFFFFF", "#E9EEF4", "#CBD5E1", "#17212B", "#5F6C7B", "#187CA8", "#C23B35", "#1D8A60")
-            : new ThemePalette("#0B0F14", "#111820", "#17212B", "#263241", "#E8EEF6", "#99A8B8", "#3BAFDA", "#E5534B", "#39B980");
+            ? new ThemePalette(
+                "#F3F5F8",
+                "#FFFFFF",
+                "#F8FAFC",
+                "#FFFFFF",
+                "#FFFFFF",
+                "#E9EEF4",
+                "#DFE6F0",
+                "#CBD5E1",
+                "#94A3B8",
+                "#17212B",
+                "#5F6C7B",
+                "#D92543",
+                "#EF4660",
+                "#A6162D",
+                "#F8DDE3",
+                "#C23B35",
+                "#E5534B",
+                "#9B2C27",
+                "#1D8A60",
+                "#C27A12",
+                "#187CA8",
+                "#FFFFFF",
+                "#E9EEF4",
+                "#FFFFFF")
+            : new ThemePalette(
+                "#08090D",
+                "#0D0F14",
+                "#0A0B0F",
+                "#0F1218",
+                "#121722",
+                "#1A202C",
+                "#202838",
+                "#2A3342",
+                "#394456",
+                "#F4F7FB",
+                "#9AA7B7",
+                "#E9364F",
+                "#FF5368",
+                "#BC2038",
+                "#3A121B",
+                "#F04438",
+                "#FF5F55",
+                "#B42318",
+                "#35C987",
+                "#F2B84B",
+                "#4EA8F7",
+                "#10151E",
+                "#232D3D",
+                "#090B10");
 
         Resources["AppBackgroundBrush"] = BrushFrom(palette.Background);
+        Resources["AppChromeBrush"] = BrushFrom(palette.Chrome);
+        Resources["AppSidebarBrush"] = BrushFrom(palette.Sidebar);
+        Resources["AppTopBarBrush"] = BrushFrom(palette.TopBar);
         Resources["AppSurfaceBrush"] = BrushFrom(palette.Surface);
         Resources["AppSurfaceAltBrush"] = BrushFrom(palette.SurfaceAlt);
+        Resources["AppSurfaceRaisedBrush"] = BrushFrom(palette.SurfaceRaised);
         Resources["AppBorderBrush"] = BrushFrom(palette.Border);
+        Resources["AppBorderStrongBrush"] = BrushFrom(palette.BorderStrong);
         Resources["AppTextBrush"] = BrushFrom(palette.Text);
         Resources["AppMutedTextBrush"] = BrushFrom(palette.MutedText);
         Resources["AppAccentBrush"] = BrushFrom(palette.Accent);
+        Resources["AppAccentHoverBrush"] = BrushFrom(palette.AccentHover);
+        Resources["AppAccentPressedBrush"] = BrushFrom(palette.AccentPressed);
+        Resources["AppAccentSoftBrush"] = BrushFrom(palette.AccentSoft);
         Resources["AppDangerBrush"] = BrushFrom(palette.Danger);
+        Resources["AppDangerHoverBrush"] = BrushFrom(palette.DangerHover);
+        Resources["AppDangerPressedBrush"] = BrushFrom(palette.DangerPressed);
         Resources["AppSuccessBrush"] = BrushFrom(palette.Success);
+        Resources["AppWarningBrush"] = BrushFrom(palette.Warning);
+        Resources["AppInfoBrush"] = BrushFrom(palette.Info);
+        Resources["AppInputBrush"] = BrushFrom(palette.Input);
+        Resources["AppInputFocusBrush"] = BrushFrom(palette.InputFocus);
+        Resources["AppOverlayBrush"] = BrushFrom(palette.Overlay);
         ThemeButton.Content = lightTheme ? "Theme: Light" : "Theme: Dark";
 
         _updatingSettingsUi = true;
@@ -6616,12 +6680,27 @@ public partial class MainWindow : Window
 
     private sealed record ThemePalette(
         string Background,
+        string Chrome,
+        string Sidebar,
+        string TopBar,
         string Surface,
         string SurfaceAlt,
+        string SurfaceRaised,
         string Border,
+        string BorderStrong,
         string Text,
         string MutedText,
         string Accent,
+        string AccentHover,
+        string AccentPressed,
+        string AccentSoft,
         string Danger,
-        string Success);
+        string DangerHover,
+        string DangerPressed,
+        string Success,
+        string Warning,
+        string Info,
+        string Input,
+        string InputFocus,
+        string Overlay);
 }

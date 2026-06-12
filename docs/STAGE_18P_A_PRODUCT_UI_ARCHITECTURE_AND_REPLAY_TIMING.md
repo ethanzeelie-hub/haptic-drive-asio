@@ -256,3 +256,13 @@ Stage 18p-B implemented the replay/delete follow-up from this report:
 - The replay service default remains fast when options are omitted so deterministic service callers keep their existing behavior; the WPF UI no longer relies on that default.
 - Delete Selected recording was added with recordings-folder, `.hdrec`, active-recording, missing-file, and locked/unauthorized-file safeguards.
 - The broader dark/sidebar/card product UI rewrite remains staged for 18p-C onward.
+
+## Stage 18p-C Update
+
+Stage 18p-C implemented the shell/theme/card foundation from this report:
+
+- `App.xaml` now merges `Resources/Theme.xaml` and `Resources/Styles.xaml` instead of keeping the visual system inline.
+- The default WPF shell is dark-first with red accent tokens, sidebar navigation, top status/action controls, shared card borders, and reusable button/input/navigation styles.
+- `MainWindow.xaml` was visually restyled in place so current named controls, event handlers, page visibility, settings/profile binding, replay controls, and diagnostics update paths remain stable.
+- `MainWindow.xaml.cs` only updates theme palette resource values and the top-bar page context; no haptic runtime behavior, parser layout, ASIO backend, P-HPR HID/report bytes, effect math, routing logic, recording format, or replay scheduler behavior changed.
+- The final Effects hybrid hardware/effect layout, Devices cleanup, Advanced diagnostics cleanup, Routing / Mixer polish, and final contrast/spacing pass remain staged for 18p-D through 18p-F.
