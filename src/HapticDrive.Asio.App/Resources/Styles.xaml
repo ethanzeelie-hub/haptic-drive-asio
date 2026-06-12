@@ -95,6 +95,10 @@
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Background" Value="{DynamicResource AppInputFocusBrush}" />
             </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource AppInfoBrush}" />
+                <Setter Property="Background" Value="{DynamicResource AppInputFocusBrush}" />
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -146,6 +150,15 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CaretBrush" Value="{DynamicResource AppTextBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AppInputFocusBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AppInfoBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.52" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="TextBox" BasedOn="{StaticResource FieldTextBoxStyle}" />
@@ -156,6 +169,14 @@
         <Setter Property="Background" Value="{DynamicResource AppInputBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource AppInfoBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.52" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="ListBox">
@@ -203,6 +224,14 @@
     <Style TargetType="CheckBox">
         <Setter Property="Foreground" Value="{DynamicResource AppMutedTextBrush}" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.52" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="Slider">

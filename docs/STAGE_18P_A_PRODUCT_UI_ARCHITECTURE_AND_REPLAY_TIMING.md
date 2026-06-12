@@ -293,3 +293,19 @@ Stage 18p-E implemented the Devices / Advanced cleanup from this report:
 - Source-XAML tests now guard the Devices boundary and Advanced ownership of bench/direct/mock/low-level diagnostic controls.
 - No haptic runtime behavior, parser layouts, ASIO backend behavior, P-HPR HID/report bytes, Direct Paddle Gear Bench routing behavior, command-rate limiter logic, replay/delete behavior, or physical-output behavior changed.
 - Routing / Mixer polish and final visual review remain staged for 18p-F.
+
+## Stage 18p-F Update
+
+Stage 18p-F implemented the Routing / Mixer polish and final Stage 18p visual review from this report:
+
+- Routing / Mixer now presents the software mixer and safety chain as the primary controls: master gain, normal mute, emergency mute status, safety output gain, conservative output ceiling, limiter enabled, output peak, and limiter activity.
+- Routing / Mixer now includes compact route summaries for BST-1 / ASIO, Brake P-HPR, and Throttle P-HPR using existing output, ASIO, P-HPR, and effect state only.
+- Active effects are summarized in one compact line covering source count, engine, gear, road, kerb, impact, slip/lock, and output peak.
+- Priority and ducking are surfaced as product-level copy: emergency controls override all output, gear pulses sit above road texture, road ducks around accepted gear pulses, slip/lock route above road where existing runtime supports it, road commands must not starve gear commands, and telemetry-stale road output is suppressed.
+- Shared WPF styles received a small final accessibility polish for visible keyboard focus and disabled states.
+- Effects remains the normal per-hardware effect tuning page.
+- Devices remains hardware readiness and manual-test focused.
+- Advanced remains diagnostics, validation, mock routing, and direct-control focused.
+- Source-XAML tests now guard Routing / Mixer mixer/safety controls, output route summaries, active-effects summary, and priority/ducking copy.
+- No haptic runtime behavior, parser layouts, ASIO backend behavior, P-HPR HID/report bytes, Direct Paddle Gear Bench routing behavior, gear/road priority logic, command-rate limiter logic, replay/delete behavior, or physical-output behavior changed.
+- Future work can focus on physical road-texture validation and tuning rather than further Stage 18p UI restructuring.

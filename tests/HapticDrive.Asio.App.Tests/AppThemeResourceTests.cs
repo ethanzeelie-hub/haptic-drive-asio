@@ -192,6 +192,55 @@ public sealed class AppThemeResourceTests
         Assert.Contains("MockPedalEffectsEnabledCheckBox", advancedNames);
     }
 
+    [Fact]
+    public void RoutingMixerPageContainsMixerSafetyControlsAndSummaries()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var mixerPanel = FindElementByXName(mainWindowXaml, "MixerPanel");
+        var mixerText = GetTextValues(mixerPanel);
+        var mixerNames = GetXNameValues(mixerPanel);
+
+        Assert.Contains("MasterGainSlider", mixerNames);
+        Assert.Contains("MixerMuteCheckBox", mixerNames);
+        Assert.Contains("SafetyOutputGainSlider", mixerNames);
+        Assert.Contains("SafetyOutputCeilingSlider", mixerNames);
+        Assert.Contains("LimiterEnabledCheckBox", mixerNames);
+        Assert.Contains("MixerOutputPeakStatusText", mixerNames);
+        Assert.Contains("MixerLimiterActivityStatusText", mixerNames);
+        Assert.Contains("MixerEmergencyMuteStatusText", mixerNames);
+
+        Assert.Contains("Routing / Mixer", mixerText);
+        Assert.Contains("Mixer And Safety", mixerText);
+        Assert.Contains("Output Routing Summary", mixerText);
+        Assert.Contains("Active Effects", mixerText);
+        Assert.Contains("Priority And Ducking", mixerText);
+    }
+
+    [Fact]
+    public void RoutingMixerPageContainsOutputRouteAndPrioritySummaries()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var mixerPanel = FindElementByXName(mainWindowXaml, "MixerPanel");
+        var mixerText = GetTextValues(mixerPanel);
+        var mixerNames = GetXNameValues(mixerPanel);
+
+        Assert.Contains("Bst1RoutingSummaryText", mixerNames);
+        Assert.Contains("Bst1EffectsSummaryText", mixerNames);
+        Assert.Contains("BrakePhprRoutingSummaryText", mixerNames);
+        Assert.Contains("BrakePhprEffectsSummaryText", mixerNames);
+        Assert.Contains("ThrottlePhprRoutingSummaryText", mixerNames);
+        Assert.Contains("ThrottlePhprEffectsSummaryText", mixerNames);
+        Assert.Contains("PriorityDuckingSummaryText", mixerNames);
+        Assert.Contains("ActiveEffectsSummaryText", mixerNames);
+
+        Assert.Contains("BST-1 / ASIO", mixerText);
+        Assert.Contains("Brake P-HPR", mixerText);
+        Assert.Contains("Throttle P-HPR", mixerText);
+        Assert.Contains(
+            mixerText,
+            text => text.Contains("Normal effect tuning stays on Effects", StringComparison.Ordinal));
+    }
+
     private static XDocument LoadSourceXaml(params string[] pathSegments)
     {
         var sourcePath = FindRepositoryRoot();

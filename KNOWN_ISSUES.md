@@ -606,3 +606,10 @@
 - Advanced / Diagnostics still lives inside the large `MainWindow.xaml` file; later component extraction may be useful if the page grows further.
 - The moved bench controls still use the existing runtime-only safety gates and handlers. This stage does not persist direct arming, add unattended hardware writes, or validate physical P-HPR behavior.
 - Physical shaker feel, safe gain, physical latency, final BST-1 tuning, and final P-HPR feel remain Ethan-local validation items.
+
+## Stage 18p-F
+
+- Routing / Mixer now summarizes output routing, software gain/mute/limiter state, priority, ducking, and active effects, but it does not add new routing logic or physical calibration.
+- The Stage 18p UI restructure is visually consistent enough to move on from UI reshuffling; future work should focus on Ethan-local physical road-texture validation/tuning and final hardware feel.
+- `MainWindow.xaml` and `MainWindow.xaml.cs` remain large monolithic files. Future component extraction can be considered after hardware validation pressure is lower.
+- Physical shaker feel, safe gain, physical latency, final BST-1 tuning, road texture balance, and final P-HPR feel remain Ethan-local validation items.

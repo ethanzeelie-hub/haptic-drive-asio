@@ -4474,16 +4474,55 @@ public partial class MainWindow : Window
     private void UpdateMixerStatus()
     {
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+        var effectSnapshot = pipelineSnapshot.Effects;
+        var audioDiagnostics = AudioRuntimeDiagnosticsSnapshot.Create(
+            pipelineSnapshot.Output,
+            effectSnapshot,
+            pipelineSnapshot.Audio,
+            _testBench.GetSnapshot());
         var mixer = _currentProfile.ToMixerSettings(_emergencyMuted);
         var safety = _currentProfile.ToSafetyOptions(_emergencyMuted);
         MasterGainValueText.Text = $"{mixer.MasterGain:P0}";
         SafetyOutputGainValueText.Text = $"{safety.OutputGain:P0}";
         SafetyOutputCeilingValueText.Text = $"{safety.OutputGainCeiling:0.00}";
+        MixerEmergencyMuteStatusText.Text = $"Emergency mute: {FormatOnOff(_emergencyMuted)}; normal mute: {FormatOnOff(pipelineSnapshot.IsMuted)}.";
+        MixerOutputPeakStatusText.Text = $"Output peak: {audioDiagnostics.OutputPeakLevel:0.000}; mixer peak {audioDiagnostics.MixerPeakLevel:0.000}.";
+        MixerLimiterActivityStatusText.Text =
+            $"Limiter: {(safety.LimiterEnabled ? "enabled" : "disabled")}; limited samples {audioDiagnostics.LimitedSampleCount:N0}; clipped samples {audioDiagnostics.ClippedSampleCount:N0}.";
+
+        var outputStatus = pipelineSnapshot.Output;
+        var manualAsio = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
+        var selectedOutputMode = OutputModeComboBox.SelectedItem is OutputModeOption selectedMode
+            ? selectedMode.Label
+            : outputStatus.DisplayName;
+        Bst1RoutingSummaryText.Text =
+            $"Output mode {selectedOutputMode}; selected driver {_selectedAsioDriverName ?? "none"}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; readiness {BuildTrueAsioStatusText(manualAsio)}.";
+        Bst1EffectsSummaryText.Text =
+            $"Effects: gear {FormatEnabledActive(_bst1PaddleGearPulseEnabled, effectSnapshot.GearShift.IsActive)}; road {FormatEnabledActive(effectSnapshot.RoadTexture.IsEnabled, effectSnapshot.RoadTexture.IsActive)}; engine {FormatEnabledActive(effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive)}; kerb {FormatEnabledActive(effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive)}; impact {FormatEnabledActive(effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive)}; slip/lock {FormatEnabledActive(effectSnapshot.Slip.IsEnabled, effectSnapshot.Slip.IsActive)}.";
+
+        ConfigurePhprDirectRuntime();
+        var directRuntime = _phprDirectRuntime.GetSnapshot();
+        var realOutput = _realPhprOutput.GetDiagnostics();
+        var directReadiness = directRuntime.DirectReady
+            ? "direct ready"
+            : $"direct blocked: {(string.IsNullOrWhiteSpace(directRuntime.BlockedReason) ? "safety gate" : directRuntime.BlockedReason)}";
+        BrakePhprRoutingSummaryText.Text =
+            $"Mode {PhprPedalsModeComboBox.SelectedItem}; P-HPR {FormatEnabled(_realPhprOptions.DirectControlEnabled)}; {directReadiness}; connection {realOutput.Connection.State}; writes {realOutput.ReportWriteCount:N0}.";
+        BrakePhprEffectsSummaryText.Text =
+            $"Effects: gear {FormatEnabledActive(_realPhprOptions.BrakeGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled, _lastRealRoadVibrationRoutingResult?.WasRouted == true)}; lock {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled, _lastRealSlipLockRoutingResult?.WasRouted == true)}.";
+        ThrottlePhprRoutingSummaryText.Text =
+            $"Mode {PhprPedalsModeComboBox.SelectedItem}; P-HPR {FormatEnabled(_realPhprOptions.DirectControlEnabled)}; {directReadiness}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realOutput.Output.IsEmergencyStopActive)}.";
+        ThrottlePhprEffectsSummaryText.Text =
+            $"Effects: gear {FormatEnabledActive(_realPhprOptions.ThrottleGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled, _lastRealRoadVibrationRoutingResult?.WasRouted == true)}; slip {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled, _lastRealSlipLockRoutingResult?.WasRouted == true)}.";
+
+        ActiveEffectsSummaryText.Text =
+            $"{effectSnapshot.ActiveEffectCount:N0} active source(s); engine {FormatActiveIdle(effectSnapshot.Engine.IsActive)}; gear {FormatActiveIdle(effectSnapshot.GearShift.IsActive)}; road {FormatActiveIdle(effectSnapshot.RoadTexture.IsActive)}; kerb {FormatActiveIdle(effectSnapshot.Kerb.IsActive)}; impact {FormatActiveIdle(effectSnapshot.Impact.IsActive)}; slip/lock {FormatActiveIdle(effectSnapshot.Slip.IsActive)}; output peak {audioDiagnostics.OutputPeakLevel:0.000}.";
+        PriorityDuckingSummaryText.Text =
+            "Emergency Stop and Emergency Mute override all output. Gear pulses have priority above road texture; road texture ducks around accepted gear pulses. Slip/lock routes above road where the existing runtime supports it, and road commands must not starve gear commands. Telemetry-stale road output is suppressed.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Routing / Mixer" })
         {
-            var peak = pipelineSnapshot.Audio?.OutputPeakLevel ?? 0f;
-            PageStatusText.Text = $"Master {mixer.MasterGain:P0}; mute {(pipelineSnapshot.IsMuted ? "on" : "off")}; emergency mute {(_emergencyMuted ? "on" : "off")}; output peak {peak:0.000}.";
+            PageStatusText.Text = $"Master {mixer.MasterGain:P0}; mute {FormatOnOff(pipelineSnapshot.IsMuted)}; emergency mute {FormatOnOff(_emergencyMuted)}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; active effects {effectSnapshot.ActiveEffectCount:N0}.";
         }
     }
 
@@ -5275,6 +5314,28 @@ public partial class MainWindow : Window
     private static string FormatButtonMapping(int? buttonId)
     {
         return buttonId is null ? "unmapped" : $"button {buttonId}";
+    }
+
+    private static string FormatEnabled(bool enabled)
+    {
+        return enabled ? "enabled" : "disabled";
+    }
+
+    private static string FormatOnOff(bool value)
+    {
+        return value ? "on" : "off";
+    }
+
+    private static string FormatActiveIdle(bool active)
+    {
+        return active ? "active" : "idle";
+    }
+
+    private static string FormatEnabledActive(bool enabled, bool active)
+    {
+        return enabled
+            ? active ? "enabled/active" : "enabled/idle"
+            : "disabled";
     }
 
     private static IReadOnlyList<PHprModuleId> ExpandBenchTarget(PHprGearPulseTarget target)

@@ -2896,3 +2896,39 @@ Self-review:
 - Existing runtime handlers remain wired to the same named controls; no new settings model was introduced.
 - ASIO runtime code, P-HPR HID/report/protocol code, F1 25 parser offsets, gear pulse runtime logic, replay/delete behavior, and command-rate limiter logic were not changed.
 - Routing / Mixer polish and final visual review remain staged for 18p-F.
+
+## Stage 18p-F - Routing / Mixer Final UI Polish
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Polish Routing / Mixer as the output route, gain, limiter, mute, priority, ducking, and active-effects summary page while completing the Stage 18p product UI pass.
+
+Changes:
+
+- Reworked Routing / Mixer from a single mixer form into a focused page with mixer/safety controls, output route summaries, active-effects summary, and priority/ducking summary.
+- Kept master gain, normal mute, safety output gain, conservative output ceiling, and limiter controls on their existing names and `TuningControl_Changed` handlers.
+- Added read-only summaries for output peak, limiter activity, emergency mute, BST-1 / ASIO routing, Brake P-HPR routing, Throttle P-HPR routing, active effects, and product-level priority/ducking behavior using existing state only.
+- Added a small shared style polish for visible keyboard focus and disabled states on common controls.
+- Added source-XAML tests for the Routing / Mixer mixer/safety controls, route summary sections, active-effects summary, and priority/ducking summary.
+- Updated the 18p report, roadmap, and known issues for the completed final Stage 18p UI pass.
+
+Verification:
+
+- Confirmed no stale `HapticDrive.Asio.App` process was running before verification.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 644 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Routing / Mixer is now output-routing, software gain, safety, priority, and summary focused.
+- Effects remains the normal per-hardware effect tuning page.
+- Devices remains hardware readiness and manual-test focused.
+- Advanced remains diagnostics, validation, mock routing, and direct-control focused.
+- ASIO runtime code, P-HPR HID/report/protocol code, F1 25 parser offsets, gear/road runtime logic, replay/delete behavior, and command-rate limiter logic were not changed.
+- Emergency controls remain visible in the top bar and Devices/Advanced surfaces; no direct-control safety state is persisted.
+- Future work can focus on Ethan-local physical road-texture validation and tuning rather than further Stage 18p UI restructuring.

@@ -955,54 +955,126 @@
                             Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
                         <StackPanel>
-                            <TextBlock FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Text="Mixer And Safety" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                           Text="Routing / Mixer" />
+                                <TextBlock Grid.Column="1"
+                                           Style="{StaticResource StatusBadgeTextBlockStyle}"
+                                           Text="Safety chain" />
+                            </Grid>
                             <TextBlock Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="These controls feed the Stage 10 mixer and safety chain. They are normalized software levels, not physical shaker calibration." />
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="Output routing, software gain, limiter, mute, priority, ducking, and active-effect summary. Normal effect tuning stays on Effects." />
+
+                            <TextBlock Margin="0,18,0,0"
+                                       Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                       Text="Mixer And Safety" />
                             <UniformGrid Columns="2"
-                                         Margin="0,18,0,0">
+                                         Margin="0,12,0,0">
                                 <StackPanel Margin="0,0,24,0">
-                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                    <TextBlock Style="{StaticResource MutedTextBlockStyle}"
                                                Text="Master gain" />
                                     <Slider x:Name="MasterGainSlider"
                                             Maximum="1"
                                             Minimum="0"
                                             ValueChanged="TuningControl_Changed" />
                                     <TextBlock x:Name="MasterGainValueText"
-                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                     <CheckBox x:Name="MixerMuteCheckBox"
                                               Margin="0,12,0,0"
                                               Checked="TuningControl_Changed"
                                               Content="Normal mute"
                                               Unchecked="TuningControl_Changed" />
+                                    <TextBlock x:Name="MixerEmergencyMuteStatusText"
+                                               Margin="0,10,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                    <TextBlock Style="{StaticResource MutedTextBlockStyle}"
                                                Text="Safety output gain" />
                                     <Slider x:Name="SafetyOutputGainSlider"
                                             Maximum="0.5"
                                             Minimum="0"
                                             ValueChanged="TuningControl_Changed" />
                                     <TextBlock x:Name="SafetyOutputGainValueText"
-                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                     <TextBlock Margin="0,8,0,0"
-                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Style="{StaticResource MutedTextBlockStyle}"
                                                Text="Conservative output ceiling" />
                                     <Slider x:Name="SafetyOutputCeilingSlider"
                                             Maximum="0.75"
                                             Minimum="0.05"
                                             ValueChanged="TuningControl_Changed" />
                                     <TextBlock x:Name="SafetyOutputCeilingValueText"
-                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                     <CheckBox x:Name="LimiterEnabledCheckBox"
                                               Margin="0,12,0,0"
                                               Checked="TuningControl_Changed"
                                               Content="Limiter enabled"
                                               Unchecked="TuningControl_Changed" />
+                                    <TextBlock x:Name="MixerOutputPeakStatusText"
+                                               Margin="0,10,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="MixerLimiterActivityStatusText"
+                                               Margin="0,6,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                 </StackPanel>
                             </UniformGrid>
+
+                            <TextBlock Margin="0,22,0,0"
+                                       Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                       Text="Output Routing Summary" />
+                            <UniformGrid Columns="3"
+                                         Margin="0,12,0,0">
+                                <StackPanel Margin="0,0,18,0">
+                                    <TextBlock FontWeight="SemiBold"
+                                               Text="BST-1 / ASIO" />
+                                    <TextBlock x:Name="Bst1RoutingSummaryText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="Bst1EffectsSummaryText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,18,0">
+                                    <TextBlock FontWeight="SemiBold"
+                                               Text="Brake P-HPR" />
+                                    <TextBlock x:Name="BrakePhprRoutingSummaryText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="BrakePhprEffectsSummaryText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold"
+                                               Text="Throttle P-HPR" />
+                                    <TextBlock x:Name="ThrottlePhprRoutingSummaryText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="ThrottlePhprEffectsSummaryText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <TextBlock Margin="0,22,0,0"
+                                       Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                       Text="Active Effects" />
+                            <TextBlock x:Name="ActiveEffectsSummaryText"
+                                       Margin="0,8,0,0"
+                                       Style="{StaticResource MutedTextBlockStyle}" />
+
+                            <TextBlock Margin="0,22,0,0"
+                                       Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                       Text="Priority And Ducking" />
+                            <TextBlock x:Name="PriorityDuckingSummaryText"
+                                       Margin="0,8,0,0"
+                                       Style="{StaticResource MutedTextBlockStyle}" />
                         </StackPanel>
                     </Border>
 
