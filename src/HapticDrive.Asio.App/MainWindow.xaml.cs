@@ -1401,6 +1401,7 @@ public partial class MainWindow : Window
         _hapticPipeline = CreatePipelineForSelectedOutput();
         _hapticPipeline.ApplyProfile(_currentProfile);
         await previousPipeline.DisposeAsync();
+        var hydrationMessage = await HydrateSelectedOutputReadinessAsync();
 
         await RefreshAsioReadinessDiagnosticsAsync();
         RefreshDrivingArmedAndShiftIntentTelemetry();
@@ -1410,7 +1411,9 @@ public partial class MainWindow : Window
         UpdateManualAsioHardwareTestStatus();
         UpdateDeviceStatus();
         UpdateDiagnosticsStatus();
-        FooterStatusText.Text = footerMessage;
+        FooterStatusText.Text = hydrationMessage is null
+            ? footerMessage
+            : $"{footerMessage} {hydrationMessage}";
     }
 
     private HapticPipelineCoordinator CreatePipelineForSelectedOutput()
@@ -1424,6 +1427,19 @@ public partial class MainWindow : Window
         pipeline.SetManualAsioHardwareTestFlightRecorder(
             new FileManualAsioHardwareTestFlightRecorder(GetLocalValidationResultsDirectory()));
         return pipeline;
+    }
+
+    private async Task<string?> HydrateSelectedOutputReadinessAsync()
+    {
+        if (_selectedOutputKind != AudioOutputDeviceKind.Asio)
+        {
+            return null;
+        }
+
+        var result = await _hapticPipeline.HydrateOutputReadinessAsync();
+        return result.Succeeded
+            ? "ASIO readiness hydrated without starting output."
+            : $"ASIO readiness hydration failed: {result.Message}";
     }
 
     private IAudioOutputDevice CreateSelectedOutputDevice()
@@ -6333,18 +6349,20 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_shutdownCleanupCompleted)
+        var minimizeToTrayEnabled = IsMinimizeToTrayOnCloseEnabled();
+        if (minimizeToTrayEnabled)
         {
             e.Cancel = true;
-            if (!_shutdownCleanupStarted)
-            {
-                _shutdownCleanupStarted = true;
-                IsEnabled = false;
-                FooterStatusText.Text = "Shutting down ASIO and listener resources...";
-                _ = ShutdownThenCloseAsync();
-            }
-
             return;
+        }
+
+        if (!_shutdownCleanupCompleted && !_shutdownCleanupStarted)
+        {
+            _shutdownCleanupStarted = true;
+            IsEnabled = false;
+            FooterStatusText.Text = "Shutting down ASIO and listener resources...";
+            RunShutdownCleanupBlocking();
+            _shutdownCleanupCompleted = true;
         }
 
         base.OnClosing(e);
@@ -6381,6 +6399,33 @@ public partial class MainWindow : Window
             _shutdownCleanupCompleted = true;
             Close();
         }
+    }
+
+    private void RunShutdownCleanupBlocking()
+    {
+        try
+        {
+            RunShutdownCleanupAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            RecordShutdownDiagnostic(
+                "shutdown-cleanup-failed",
+                DateTimeOffset.UtcNow,
+                minimizeToTrayEnabled: false,
+                asioDisposed: false,
+                standalonePulseDisposed: false,
+                paddleListenerDisposed: false,
+                udpListenerDisposed: false,
+                timersDisposed: false,
+                pendingTaskCount: _activeReplayTask is { IsCompleted: false } ? 1 : 0,
+                [$"shutdown:{ex.GetType().Name}:{ex.Message}"]);
+        }
+    }
+
+    private static bool IsMinimizeToTrayOnCloseEnabled()
+    {
+        return false;
     }
 
     private async Task RunShutdownCleanupAsync()
@@ -6422,7 +6467,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await _testBench.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+            await _testBench.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -6431,7 +6476,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await _paddleInputSource.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+            await _paddleInputSource.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
             paddleListenerDisposed = true;
         }
         catch (Exception ex)
@@ -6441,7 +6486,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await _telemetryReceiver.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+            await _telemetryReceiver.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
             udpListenerDisposed = true;
         }
         catch (Exception ex)
@@ -6451,7 +6496,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await _realPhprOutput.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+            await _realPhprOutput.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -6460,7 +6505,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await _hapticPipeline.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(true);
+            await _hapticPipeline.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
             asioDisposed = true;
         }
         catch (Exception ex)

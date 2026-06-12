@@ -2604,3 +2604,57 @@ Self-review:
 - Output trim still scales the BST-1 request before the safety chain, and the limiter remains active.
 - P-HPR behavior, report protocol, direct runtime routing, road/slip/lock routes, parser code, UDP forwarding, and WASAPI output were not changed.
 - No generated `local-validation-results` logs are committed.
+
+## Stage 18m - BST-1 ASIO State And Pulse Consistency
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Use the attached local BST-1 ASIO pulse flight-recorder evidence to fix stale ASIO state hydration, false pulse completion records, haptics-on/off local pulse mismatch, and close behavior when tray minimize is unchecked.
+
+Evidence Reviewed:
+
+- `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl`
+- `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl.1`
+- These files remain local validation evidence only and were not committed.
+
+Evidence Summary:
+
+- Full 150 ms completions: pulse IDs `94-103` and `126-128`, each reaching 57 accepted/submitted buffers and 7,200 rendered frames at 48 kHz.
+- Early/truncated completions: pulse IDs `105-107` and `109-124`, where records marked `pulse-completed` after only 19-24 accepted/submitted 128-frame buffers while still claiming 7,200 rendered/generated frames.
+- Queue-full failures: pulse IDs `104`, `108`, and `125`, each failed with `ASIO output dropped a buffer: Native ASIO backend queue is full; buffer dropped.`
+- Pulse completion was wrong for the early completion group: accepted/submitted buffers were below the 57-buffer requirement for 150 ms at 48 kHz.
+- The evidence showed the same requested frequency/duration/trim values, but haptics-on records were using a competing manual submit path while the running callback also consumed the pulse.
+- ASIO state evidence included stale-looking `AsioCallbackActive=true` while `AsioRunning=false`, caused by historical callback counts being treated as active.
+- Shutdown requested/completed records were present and reported `minimizeToTrayEnabled=false` with ASIO, standalone pulse, paddle listener, UDP listener, and timers disposed; the remaining Task Manager process report still required tightening close behavior and resource shutdown semantics.
+
+Missing Items Addressed:
+
+- Added ASIO readiness hydration that opens the selected ASIO output for capability discovery without starting output or emitting startup buffers.
+- Prevented a fresh pre-open `DeviceOutputChannelCount=0` snapshot from blocking channel `1` as outside zero channels; real open/capability failures now surface their actual error.
+- Split BST-1 local pulse execution by state: stopped haptics use the bounded standalone ASIO submit path, while running output-owned haptics inject into the existing callback and wait for the exact rendered-frame count.
+- Added completion invariants so `pulse-completed` is recorded only when expected frames are rendered and accepted by the relevant path. Truncated pulses record `pulse-truncated` and fail safely instead of being reported as success.
+- Extended the local BST-1 ASIO pulse recorder with expected frame count, accepted frame count, rendered frame count, and completion reason (`completed-full`, `truncated`, or `failed`).
+- Tightened `AsioCallbackActive` diagnostics so historical callback counts do not make a stopped stream look active.
+- Changed close handling so the unchecked tray-minimize path does not cancel the close event; normal close performs bounded cleanup and lets WPF close normally.
+- Kept P-HPR direct output, HID report bytes, road/slip/lock routing, F1 25 parsing, UDP forwarding, WASAPI output, and SimHub integration unchanged.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- Focused runtime ASIO readiness tests passed with 28 passing tests.
+- Focused app tests passed with 76 passing tests.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 607 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- No output is emitted on startup; readiness hydration opens ASIO only to cache capability/state and does not start the stream.
+- Manual `Test BST-1 Pulse` remains a valid first action after app launch when ASIO Output, M-Audio/M-Track driver, channel `1`, arm, and mute gates are ready.
+- Haptics-on and haptics-off local BST-1 paddle gear pulses use the same pulse settings and renderer path, with only the transport path differing between standalone submit and running callback injection.
+- A pulse cannot be marked `completed-full` unless the expected frame count has rendered.
+- Closing with tray minimize unchecked is not cancelled by tray logic.
+- No generated `local-validation-results` logs are committed.

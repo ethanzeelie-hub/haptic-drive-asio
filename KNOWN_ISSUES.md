@@ -542,3 +542,14 @@
 - `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl` is local/ignored validation output and must not be committed.
 - Normal close now disposes ASIO/listener/timer resources and writes shutdown diagnostics unless a future tray-minimize implementation intentionally intercepts close.
 - Physical shaker feel, safe gain, physical latency, and final frequency tuning still require Ethan-local validation on the real M-Audio/Fosi/Dayton chain.
+
+## Stage 18m
+
+- Stage 18m fixes software issues found from local `bst1-asio-pulse-flight-recorder` evidence: early `pulse-completed` records are no longer allowed when expected frames have not actually rendered.
+- Manual and local paddle BST-1 pulses use the same request settings, waveform generator, mixer/safety/limiter path, output trim, and channel routing whether Start Haptics is off or on. When haptics are already running, the pulse completes through the running callback instead of a competing submit loop.
+- ASIO driver/channel capability is hydrated by opening the selected ASIO output for readiness without starting output, so fresh startup can cache the M-Audio output-channel count before `Test BST-1 Pulse`.
+- A pre-open channel-count `0` snapshot no longer blocks channel `1` as "outside 0 channels"; actual capability/open failures surface their real error.
+- `ASIO ACTIVE` and recorder `AsioCallbackActive` now require a currently started ASIO stream, not only historical callback counts.
+- If `Minimize to tray on close` remains unchecked, the window close path must not be cancelled for tray behavior. Close performs bounded cleanup, writes shutdown diagnostics, and then lets WPF close normally.
+- `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl` and rotated `.jsonl.1` files are local validation evidence only and must not be committed.
+- Physical shaker feel, safe gain, physical latency, and final frequency tuning still require Ethan-local validation on the real M-Audio/Fosi/Dayton chain.

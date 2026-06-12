@@ -199,6 +199,14 @@ public sealed record ManualAsioHardwareTestFlightRecord
 
     public bool PulseCompleted { get; init; }
 
+    public long ExpectedFrameCount { get; init; }
+
+    public long AcceptedFrameCount { get; init; }
+
+    public long RenderedFrameCount { get; init; }
+
+    public string? CompletionReason { get; init; }
+
     public bool StaleStopIgnored { get; init; }
 
     public long PulseGenerationId { get; init; }
@@ -234,9 +242,11 @@ public sealed record ManualAsioHardwareTestFlightRecord
             AsioArmed = outputStatus.IsHardwareArmed,
             AsioRunning = outputStatus.Kind == AudioOutputDeviceKind.Asio
                 && outputStatus.State == AudioOutputDeviceState.Started,
-            AsioCallbackActive = outputStatus.IsStreaming
-                || outputStatus.RenderCallbackCount > 0
-                || outputStatus.BackendCallbackCount > 0,
+            AsioCallbackActive = outputStatus.Kind == AudioOutputDeviceKind.Asio
+                && outputStatus.State == AudioOutputDeviceState.Started
+                && (outputStatus.IsStreaming
+                    || outputStatus.RenderCallbackCount > 0
+                    || outputStatus.BackendCallbackCount > 0),
             AsioStreamStartRequested = outputStatus.State == AudioOutputDeviceState.Started,
             SampleRate = outputStatus.SampleRate,
             BufferSizeFrames = outputStatus.BufferSize,
