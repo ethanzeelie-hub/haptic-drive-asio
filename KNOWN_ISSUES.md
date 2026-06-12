@@ -570,3 +570,11 @@
 - P-HPR road routing still uses the existing per-pedal min/max settings and safety limiter. Stage 18o-B does not add a new direct road scalar or automatic physical calibration workflow.
 - Direct Paddle Gear Bench can now coexist with enabled road vibration in software, but emergency stop, Stop All, slip, lock, coexistence, selected output, and safety-limiter gates remain the expected higher-priority controls.
 - Automated coverage does not require M-Audio, Fosi, Dayton BST-1, Simagic hardware, F1 25, live telemetry, or physical vibration.
+
+## Stage 18p-A
+
+- The product UI architecture report is complete, but the modern dark/sidebar/card rewrite is not implemented yet.
+- `MainWindow.xaml` and `MainWindow.xaml.cs` remain large monolithic files. Future visual work should first extract shared `Theme.xaml` / `Styles.xaml` resources, then split stable page areas into smaller controls.
+- Normal replay currently uses fast replay from the WPF UI, so recordings can appear to replay almost instantly even though `.hdrec` files already store relative packet timing. Stage 18p-B should make real-time/time-preserving replay the normal default and keep fast replay as an explicit parser/debug option.
+- The recording library still lacks Delete Selected recording behavior.
+- Normal P-HPR road/slip/lock tuning is still partly buried in Advanced / Diagnostics. Later 18p stages should move normal tuning into Effects while keeping raw HID, validation, and low-level diagnostics advanced-only.

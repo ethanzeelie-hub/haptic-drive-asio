@@ -63,6 +63,8 @@
 - Stage 18l: BST-1 standalone ASIO pulse queue/drop and app shutdown cleanup complete.
 - Stage 18m: BST-1 ASIO state hydration, pulse completion correctness, haptics-on/off pulse consistency, and close cleanup complete.
 - Stage 18n-B: Persistent BST-1 local ASIO engine, pulse-owned completion proof, Direct Bench retrigger limiter, and tray placeholder cleanup complete.
+- Stage 18o-B: Shared road texture signal and gear ducking complete.
+- Stage 18p-A: Product UI architecture and replay timing diagnostic complete.
 
 ## Planned Stages
 
@@ -97,6 +99,13 @@
 29. Stage 18l: BST-1 standalone ASIO pulse queue/drop and app shutdown cleanup. Complete.
 30. Stage 18m: BST-1 ASIO state hydration, pulse completion correctness, haptics-on/off pulse consistency, and close cleanup. Complete.
 31. Stage 18n-B: Persistent BST-1 local ASIO engine, pulse-owned completion proof, Direct Bench retrigger limiter, and tray placeholder cleanup. Complete.
+32. Stage 18o-B: Shared road texture signal and gear ducking. Complete.
+33. Stage 18p-A: Product UI architecture and replay timing diagnostic. Complete.
+34. Stage 18p-B: Telemetry / UDP recording library cleanup, real-time replay timing fix, and delete-selected recording. Planned.
+35. Stage 18p-C: App shell, dark theme, sidebar, and cards. Planned.
+36. Stage 18p-D: Effects page hardware/effect restructure. Planned.
+37. Stage 18p-E: Devices and Advanced cleanup. Planned.
+38. Stage 18p-F: Routing / Mixer polish and final visual pass. Planned.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -152,6 +161,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 18 adds launch/runtime prerequisite handling, persisted app settings, forwarding destination UI, recordings library, selected replay, packet-ID diagnostics, copyable diagnostics reports, and final pre-shaker documentation cleanup.
 - Stage 18 follow-up adds a manual-only ASIO hardware test that injects short 40/50 Hz sine pulses through the selected real ASIO output after output mode, M-Audio / M-Track driver, channel, arming, mute, and channel gates pass. It also keeps the existing deterministic synthetic benchmark on Null output.
 - Stage 18o-B consolidates BST-1 and P-HPR road texture around one shared `RoadTextureSignal`, keeps P-HPR road routing separate from `IAudioOutputDevice`, and gives accepted local gear pulses a short road-ducking priority window without changing F1 25 parsing, UDP forwarding, raw recording/replay preservation, or confirmed P-HPR report bytes.
+- Stage 18p-A inspects the existing WPF shell, settings/profile persistence, and replay path before any broad UI rewrite. It identifies that `.hdrec` recordings already store relative timing and that normal WPF replay currently appears instant because the UI calls `TelemetryReplayOptions.Fast`; planned 18p-B should make real-time replay the default and add delete-selected recording before the staged UI visual work.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

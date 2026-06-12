@@ -2731,3 +2731,31 @@ Self-review:
 - Gear ducking is fake-backed and deterministic in automated tests; real mixed BST-1/P-HPR priority feel still requires Ethan-local validation.
 - Normal telemetry `DrivingArmed` routing remains required for live road vibration unless an explicitly local/manual evaluation context allows otherwise.
 - No generated `local-validation-results` logs are committed.
+
+## Stage 18p-A - Product UI Architecture And Replay Timing Diagnostic
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Inspect the current WPF UI, settings/profile persistence, and recording/replay implementation before any broad product UI rewrite.
+
+Changes:
+
+- Added `docs/STAGE_18P_A_PRODUCT_UI_ARCHITECTURE_AND_REPLAY_TIMING.md`.
+- Documented that the current WPF app can support a modern dark/sidebar/card product UI, but the safe path is to extract shared theme/style resources first and then split large panels into smaller components.
+- Mapped current UI sections to Dashboard, Devices, Effects, Routing / Mixer, Telemetry / UDP, Profiles, and Advanced / Diagnostics targets.
+- Recommended a hybrid Effects layout with BST-1, Brake P-HPR, and Throttle P-HPR hardware sections containing effect cards, plus shared gear-duration and shared road-signal concepts.
+- Reviewed persistence boundaries across `HapticDriveProfile`, `PhprEffectProfile`, and `AppSettings`, including runtime/private states that must not be persisted.
+- Identified the replay timing root cause: `.hdrec` files already store relative packet timing, but the WPF replay path calls `TelemetryReplayOptions.Fast` for normal Replay Latest and Replay Selected actions.
+- Split follow-up work into 18p-B replay/delete cleanup, 18p-C app shell/theme/cards, 18p-D Effects restructure, 18p-E Devices/Advanced cleanup, and 18p-F Routing/Mixer polish.
+
+Verification:
+
+- Report-only stage. No runtime code, parser layouts, ASIO backend, P-HPR HID/report behavior, or haptic effect math was changed.
+
+Self-review:
+
+- Stage 18p-A intentionally does not claim product UI implementation is complete.
+- Physical shaker feel, safe gain, physical latency, P-HPR physical behavior, and final frequency tuning remain local validation items.
+- No generated `local-validation-results` logs are committed.
