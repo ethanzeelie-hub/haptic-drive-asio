@@ -591,3 +591,11 @@
 - The new visual system is dark-first with red accents. Light theme remains supported by the existing toggle, but final visual polish and contrast review remain staged for 18p-F.
 - Stage 18p-C intentionally does not move normal P-HPR road/slip/lock controls out of Advanced or restructure Effects into the final hybrid hardware/effect layout; those remain 18p-D/18p-E work.
 - Physical shaker feel, safe gain, physical latency, and P-HPR physical behavior remain Ethan-local validation items; this stage changed WPF presentation resources only.
+
+## Stage 18p-D
+
+- Effects is now grouped by Shared / Global Effect Settings, BST-1 Seat Shaker, Brake P-HPR, and Throttle P-HPR, but the page still lives in the large `MainWindow.xaml` file until later component splitting is justified.
+- Devices still contains broader hardware readiness, manual tests, paddle listener/mapping, and Direct Paddle Gear Bench controls. Full Devices cleanup remains staged for 18p-E.
+- Advanced still contains direct candidate/report internals, validation harnesses, mock routers, low-level P-HPR min/max ranges, command-duration fields, target overrides, and raw diagnostics. Full Advanced cleanup remains staged for 18p-E.
+- Road texture is shown as continuous/synthetic and has no normal pulse duration in Effects, but final mixed BST-1/P-HPR road feel, priority balance, safe gain, physical latency, and frequency tuning still require Ethan-local hardware validation.
+- Stage 18p-D changed UI structure and settings-control placement only; it does not prove physical P-HPR slip/lock/road behavior or BST-1 shaker feel.

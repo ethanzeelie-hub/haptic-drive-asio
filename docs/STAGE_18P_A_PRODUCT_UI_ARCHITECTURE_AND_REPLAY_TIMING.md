@@ -266,3 +266,18 @@ Stage 18p-C implemented the shell/theme/card foundation from this report:
 - `MainWindow.xaml` was visually restyled in place so current named controls, event handlers, page visibility, settings/profile binding, replay controls, and diagnostics update paths remain stable.
 - `MainWindow.xaml.cs` only updates theme palette resource values and the top-bar page context; no haptic runtime behavior, parser layout, ASIO backend, P-HPR HID/report bytes, effect math, routing logic, recording format, or replay scheduler behavior changed.
 - The final Effects hybrid hardware/effect layout, Devices cleanup, Advanced diagnostics cleanup, Routing / Mixer polish, and final contrast/spacing pass remain staged for 18p-D through 18p-F.
+
+## Stage 18p-D Update
+
+Stage 18p-D implemented the hybrid Effects page layout from this report:
+
+- Effects now starts with Shared / Global Effect Settings, including the shared gear shift master duration used by brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode.
+- Effects are grouped by hardware output: BST-1 Seat Shaker, Brake P-HPR, and Throttle P-HPR.
+- BST-1 cards now cover gear shift, road texture, engine vibration, kerb, impact, and wheel slip / wheel lock while keeping the existing audio effect settings and handlers.
+- Brake P-HPR cards now cover gear shift, road texture, and wheel lock; throttle-only slip controls are not shown in the brake section.
+- Throttle P-HPR cards now cover gear shift, road texture, and wheel slip; brake-only lock controls are not shown in the throttle section.
+- Road texture is presented as continuous/synthetic and linked to the shared `RoadTextureSignal`; normal Effects road cards do not expose a pulse duration.
+- Low-level P-HPR min/max Hz, minimum strength, internal command duration, target overrides, raw direct candidate/report controls, validation harnesses, mock routers, and raw diagnostics remain in Advanced.
+- Devices keeps hardware discovery/readiness, ASIO manual BST-1 pulse testing, P-HPR mode/readiness/Stop All, manual brake/throttle pulse tests, and wheel/paddle listener/mapping.
+- No haptic runtime behavior, parser layouts, ASIO backend behavior, P-HPR HID/report bytes, Direct Paddle Gear Bench runtime, command-rate limiter logic, replay/delete behavior, or physical-output behavior changed.
+- Devices cleanup and Advanced diagnostics cleanup remain staged for 18p-E; Routing / Mixer polish remains staged for 18p-F.

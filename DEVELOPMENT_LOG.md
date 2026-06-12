@@ -2831,3 +2831,36 @@ Self-review:
 - The current pages remain large in-place XAML panels; later stages should split normal controls into smaller cards/components where that reduces UI complexity.
 - Physical shaker feel, safe gain, physical latency, final frequency tuning, and physical P-HPR behavior remain Ethan-local validation items.
 - No generated `local-validation-results` logs are committed.
+
+## Stage 18p-D - Effects Hardware Card Restructure
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Restructure the Effects page into a hardware-first product layout without changing haptic runtime behavior, parser layouts, ASIO backend behavior, P-HPR HID/report bytes, direct bench routing, or command-rate limiter logic.
+
+Changes:
+
+- Rebuilt the Effects page around Shared / Global Effect Settings, BST-1 Seat Shaker, Brake P-HPR, and Throttle P-HPR sections.
+- Moved normal BST-1 paddle gear pulse controls and P-HPR gear controls from Devices into Effects while keeping the same existing `x:Name` controls and handlers.
+- Moved normal P-HPR road, brake lock, and throttle slip enable/strength controls from Advanced into Effects while leaving low-level min strength, min/max Hz, internal command duration, target overrides, raw direct controls, validation harnesses, mock routers, and diagnostics in Advanced.
+- Kept Devices focused on ASIO/P-HPR readiness, emergency recovery, Stop All, wheel/paddle input, and manual BST-1/brake/throttle pulse buttons.
+- Made the Effects copy explicit that gear effects are pulse-like and use shared duration by default, while road texture is continuous/synthetic and has no normal pulse duration.
+- Added source-XAML tests covering the hardware/effect grouping, relocated normal controls, and absence of road pulse-duration controls from the normal Effects cards.
+
+Verification:
+
+- Confirmed no stale `HapticDrive.Asio.App` process was running before verification.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 639 passing tests and 0 skipped tests after fixing one new source-XAML assertion that incorrectly counted distinct text values instead of occurrences.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18p-D stayed within UI structure and settings-control relocation.
+- Existing runtime handlers remained wired to the same control names; no new settings model was introduced.
+- ASIO runtime code, P-HPR HID/report/protocol code, F1 25 parser offsets, gear pulse runtime logic, replay/delete behavior, and command-rate limiter logic were not changed.
+- Devices cleanup and Advanced diagnostics cleanup remain staged for 18p-E.
