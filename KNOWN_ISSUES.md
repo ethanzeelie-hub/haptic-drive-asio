@@ -562,3 +562,11 @@
 - Direct Paddle Gear Bench has enough direct-control limiter headroom for ten 5 ms-spaced left/downshift fake pulses targeting both P-HPR modules. Real P-HPR rapid retrigger feel, stop behavior, and emergency-stop behavior still require supervised local validation.
 - Ordinary Direct Bench start rejections should not trigger Stop All unless a partial unsafe write may have occurred. If a real partial write is suspected, fail-closed Stop All remains the expected recovery path.
 - The disabled tray checkbox placeholder was removed; there is still no implemented minimize-to-tray mode.
+
+## Stage 18o-B
+
+- BST-1 and P-HPR road texture now share one software `RoadTextureSignal`, but final physical road feel, safe gain, physical latency, and frequency tuning still require Ethan-local validation on the real M-Audio/Fosi/Dayton and P-HPR chains.
+- Gear-pulse road ducking is covered by fake-backed tests only. The exact mixed-output feel and priority balance may need local tuning once both hardware paths are validated together.
+- P-HPR road routing still uses the existing per-pedal min/max settings and safety limiter. Stage 18o-B does not add a new direct road scalar or automatic physical calibration workflow.
+- Direct Paddle Gear Bench can now coexist with enabled road vibration in software, but emergency stop, Stop All, slip, lock, coexistence, selected output, and safety-limiter gates remain the expected higher-priority controls.
+- Automated coverage does not require M-Audio, Fosi, Dayton BST-1, Simagic hardware, F1 25, live telemetry, or physical vibration.

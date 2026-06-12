@@ -5589,7 +5589,7 @@ public partial class MainWindow : Window
         try
         {
             var result = await _realRoadVibrationRouter.RouteAsync(
-                pipelineSnapshot.VehicleState,
+                pipelineSnapshot,
                 BuildRealRoadVibrationSafetyContext(pipelineSnapshot));
             _lastRealRoadVibrationRoutingResult = result;
         }
@@ -5620,6 +5620,8 @@ public partial class MainWindow : Window
             string? benchRoutingMessage = null;
             if (result.WasAccepted && result.ShiftIntentEvent is not null)
             {
+                _hapticPipeline.NotifyLocalGearPulseAccepted(result.ShiftIntentEvent.AcceptedAtUtc ?? result.ShiftIntentEvent.TimestampUtc);
+                _realRoadVibrationRouter.NotifyGearPulseAccepted(result.ShiftIntentEvent.AcceptedAtUtc ?? result.ShiftIntentEvent.TimestampUtc);
                 routingResult = await _mockGearPulseRouter.RouteAsync(
                     result.ShiftIntentEvent,
                     BuildMockGearPulseSafetyContext(result.ShiftIntentEvent));

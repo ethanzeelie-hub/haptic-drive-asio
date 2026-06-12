@@ -184,18 +184,14 @@ public sealed class PHprSlipLockRouterTests
     }
 
     [Fact]
-    public void RouterSurfaceDoesNotReferenceAsioAudioPath()
+    public void RouterSurfaceDoesNotExposeAsioAudioOutputPath()
     {
-        var referenced = typeof(PHprSlipLockRouter).Assembly.GetReferencedAssemblies()
-            .Select(name => name.Name)
-            .ToArray();
         var constructorParameterNames = typeof(PHprSlipLockRouter)
             .GetConstructors()
             .SelectMany(constructor => constructor.GetParameters())
             .Select(parameter => parameter.ParameterType.Name)
             .ToArray();
 
-        Assert.DoesNotContain("HapticDrive.Asio.Audio", referenced);
         Assert.DoesNotContain("IAudioOutputDevice", constructorParameterNames);
     }
 

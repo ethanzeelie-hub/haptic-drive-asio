@@ -1,4 +1,5 @@
 using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.MockProtocol;
@@ -47,9 +48,53 @@ public sealed class PHprRoadVibrationRouterTests
         Assert.Contains(inner.FrameHistory, frame => frame.TargetModule == PHprModuleId.Throttle && frame.State == PHprMockProtocolState.Start);
     }
 
+    [Fact]
+    public async Task RoadRoutesFromSharedSignal()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprRoadVibrationRouter(
+            output,
+            PHprRoadVibrationRouterOptions.EnabledDefault with
+            {
+                Brake = PHprRoadVibrationPedalSettings.Default with { DurationMs = 10 },
+                Throttle = PHprRoadVibrationPedalSettings.Default with { DurationMs = 10 }
+            },
+            output.SetSafetyContext);
+        var signal = new RoadTextureEvaluator().Evaluate(
+            CreateRoadVehicleState(),
+            new RoadTextureEvaluationContext(BaseTime, true, true, false, false, null));
+
+        var result = await router.RouteAsync(signal, PHprSafetyContext.DefaultMock, BaseTime);
+
+        Assert.True(result.WasRouted, result.Message);
+        Assert.Equal(signal, router.GetSnapshot().LastSignal);
+        Assert.All(inner.CommandHistory, command => Assert.Equal(PHprCommandSource.RoadTexture, command.Source));
+    }
+
+    [Fact]
+    public async Task GearDuckingSuppressesRoadCommands()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprRoadVibrationRouter(
+            output,
+            PHprRoadVibrationRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+        router.NotifyGearPulseAccepted(BaseTime);
+        var signal = new RoadTextureEvaluator().Evaluate(
+            CreateRoadVehicleState(),
+            new RoadTextureEvaluationContext(BaseTime.AddMilliseconds(30), true, true, false, false, BaseTime));
+
+        var result = await router.RouteAsync(signal, PHprSafetyContext.DefaultMock, BaseTime.AddMilliseconds(30));
+
+        Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredGearDucking, result.Status);
+        Assert.Empty(inner.CommandHistory);
+    }
+
     [Theory]
     [MemberData(nameof(BlockingContexts))]
-    public async Task SafetyContextBlocksRoadStartCommands(PHprSafetyContext context, PHprSafetyViolationCode expected)
+    public async Task SafetyContextDropsRoadBeforeCommands(PHprSafetyContext context, PHprSafetyViolationCode expected)
     {
         await using var inner = new MockPhprOutputDevice();
         await using var output = new SafetyLimitedPhprOutputDevice(inner);
@@ -60,10 +105,14 @@ public sealed class PHprRoadVibrationRouterTests
 
         var result = await router.RouteAsync(CreateRoadVehicleState(), context, BaseTime);
 
-        Assert.Equal(PHprRoadVibrationRoutingStatus.RejectedBySafety, result.Status);
-        Assert.Equal(expected, output.SafetySnapshot.LastViolation?.Code);
+        Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration, result.Status);
+        Assert.Contains(
+            expected == PHprSafetyViolationCode.TelemetryStale ? "stale" : "active road vibration",
+            result.Message,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Null(output.SafetySnapshot.LastViolation);
         Assert.Empty(inner.CommandHistory);
-        Assert.Equal(2, router.GetSnapshot().SafetyRejectedCount);
+        Assert.Equal(0, router.GetSnapshot().SafetyRejectedCount);
     }
 
     [Fact]
@@ -99,18 +148,14 @@ public sealed class PHprRoadVibrationRouterTests
     }
 
     [Fact]
-    public void RouterSurfaceDoesNotReferenceAsioAudioPath()
+    public void RouterSurfaceDoesNotExposeAsioAudioOutputPath()
     {
-        var referenced = typeof(PHprRoadVibrationRouter).Assembly.GetReferencedAssemblies()
-            .Select(name => name.Name)
-            .ToArray();
         var constructorParameterNames = typeof(PHprRoadVibrationRouter)
             .GetConstructors()
             .SelectMany(constructor => constructor.GetParameters())
             .Select(parameter => parameter.ParameterType.Name)
             .ToArray();
 
-        Assert.DoesNotContain("HapticDrive.Asio.Audio", referenced);
         Assert.DoesNotContain("IAudioOutputDevice", constructorParameterNames);
     }
 

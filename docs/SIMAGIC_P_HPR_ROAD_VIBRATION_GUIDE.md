@@ -2,28 +2,30 @@
 
 ## Phase 3C Status
 
-Phase 3C adds production road-vibration routing for the P-HPR path while preserving the existing ASIO/BST-1 road texture effect.
+Phase 3C adds production road-vibration routing for the P-HPR path. Stage 18o-B later consolidates road evaluation so P-HPR road routing and the ASIO/BST-1 road texture effect consume the same shared software `RoadTextureSignal`.
 
 The production road path is:
 
 ```text
 F1 25 telemetry / VehicleState
+-> RoadTextureSignal evaluator
 -> cached DrivingArmed/Menu Safe state
 -> PHprRoadVibrationRouter
 -> PHprSafetyLimiter
 -> mock or gated real P-HPR output
 ```
 
-The ASIO/BST-1 road texture path remains separate:
+The ASIO/BST-1 road texture path uses the same signal but still renders through the audio stack:
 
 ```text
 VehicleState
+-> RoadTextureSignal evaluator
 -> RoadTextureEffect
 -> mixer and audio safety chain
 -> ASIO/BST-1 or Null output
 ```
 
-Neither path blocks the other, and the P-HPR router does not use `IAudioOutputDevice`.
+Neither path blocks the other, P-HPR routing still does not use `IAudioOutputDevice`, and accepted gear pulses briefly duck/suppress road texture for priority.
 
 ## Real Road Settings
 
@@ -62,7 +64,7 @@ Real road vibration can write only when:
 - the safety limiter accepts the command,
 - the deterministic route interval allows another command.
 
-The route is evaluated from the existing telemetry/status update path, not the audio callback.
+The route is evaluated from the existing telemetry/status update path, not the audio callback. When a `HapticPipelineSnapshot` is available, the router consumes `snapshot.Effects.RoadTexture.Signal` so BST-1 and P-HPR road use the same underlying road decision.
 
 ## Persistence
 

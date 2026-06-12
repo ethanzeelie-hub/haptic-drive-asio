@@ -82,12 +82,6 @@ internal static class PaddleGearBenchDirectGate
             return false;
         }
 
-        if (roadVibrationEnabled)
-        {
-            message = "real P-HPR road vibration must be disabled for bench direct gear pulses";
-            return false;
-        }
-
         if (slipLockEnabled)
         {
             message = "real P-HPR slip/lock must be disabled for bench direct gear pulses";

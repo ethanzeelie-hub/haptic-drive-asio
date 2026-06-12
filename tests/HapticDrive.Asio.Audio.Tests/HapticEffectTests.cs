@@ -270,6 +270,39 @@ public sealed class HapticEffectTests
     }
 
     [Fact]
+    public void RoadTextureEffect_ExposesSharedSignal()
+    {
+        var effect = new RoadTextureEffect();
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(speed: 140, surfaceTypeIds: Wheels<byte>(1)));
+        effect.Render(buffer);
+
+        Assert.True(effect.Snapshot.Signal.IsActive);
+        Assert.Equal(effect.Snapshot.CurrentFrequencyHz, effect.Snapshot.Signal.Bst1FrequencyHz);
+        Assert.True(effect.Snapshot.Signal.OutputIntensity > 0f);
+        Assert.True(effect.Snapshot.RmsLevel > 0f);
+    }
+
+    [Fact]
+    public void RoadTextureEffect_GearPulseDucksSharedSignal()
+    {
+        var normalEffect = new RoadTextureEffect();
+        var duckedEffect = new RoadTextureEffect();
+        var normal = AudioSampleBuffer.Allocate(EffectFormat);
+        var ducked = AudioSampleBuffer.Allocate(EffectFormat);
+
+        normalEffect.Update(State(speed: 160, surfaceTypeIds: Wheels<byte>(1)));
+        normalEffect.Render(normal);
+        duckedEffect.NotifyGearPulseAccepted(DateTimeOffset.UtcNow);
+        duckedEffect.Update(State(speed: 160, surfaceTypeIds: Wheels<byte>(1)));
+        duckedEffect.Render(ducked);
+
+        Assert.True(duckedEffect.Snapshot.Signal.GearDuckingActive);
+        Assert.True(Peak(ducked) < Peak(normal));
+    }
+
+    [Fact]
     public void ImpactEffect_DisabledOutputsSilence()
     {
         var effect = new ImpactEffect(ImpactEffectOptions.Default with { IsEnabled = false });

@@ -193,7 +193,7 @@ Road settings are independent for brake and throttle:
 - maximum frequency,
 - duration.
 
-Road routing requires fresh telemetry, haptics running, cached `DrivingArmed` true, clear coexistence, selected real output, clear emergency stop, and safety-limiter acceptance. The ASIO/BST-1 road texture effect remains separate.
+Road routing requires fresh telemetry, haptics running, cached `DrivingArmed` true, clear coexistence, selected real output, clear emergency stop, and safety-limiter acceptance. P-HPR road vibration and ASIO/BST-1 road texture consume the same shared software road signal, but their output paths and safety chains remain separate.
 
 ## Wheel Slip And Wheel Lock
 

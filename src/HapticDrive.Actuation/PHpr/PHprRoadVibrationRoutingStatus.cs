@@ -9,5 +9,6 @@ public enum PHprRoadVibrationRoutingStatus
     IgnoredMinimumInterval = 4,
     Routed = 5,
     RejectedBySafety = 6,
-    Failed = 7
+    Failed = 7,
+    IgnoredGearDucking = 8
 }

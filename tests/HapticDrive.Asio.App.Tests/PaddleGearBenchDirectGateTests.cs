@@ -87,7 +87,7 @@ public sealed class PaddleGearBenchDirectGateTests
     }
 
     [Fact]
-    public void DirectGate_BlocksEmergencyStopRoadAndSlipLock()
+    public void DirectGate_BlocksEmergencyStopAndSlipLockButAllowsRoadCoexistence()
     {
         Assert.False(PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions(),
@@ -98,14 +98,14 @@ public sealed class PaddleGearBenchDirectGateTests
             out var emergencyMessage));
         Assert.Contains("emergency stop", emergencyMessage, StringComparison.OrdinalIgnoreCase);
 
-        Assert.False(PaddleGearBenchDirectGate.TryGetReady(
+        Assert.True(PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions(),
             PHprSoftwareConflictStatus.Clear,
             OutputSnapshot(emergencyStop: false),
             roadVibrationEnabled: true,
             slipLockEnabled: false,
             out var roadMessage));
-        Assert.Contains("road vibration", roadMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("direct bench gear pulse ready", roadMessage);
 
         Assert.False(PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions(),

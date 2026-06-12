@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -8,13 +9,14 @@ namespace HapticDrive.Actuation.PHpr;
 
 public sealed class PHprRoadVibrationRouter
 {
-    private const uint MaximumTelemetryFrameLag = 120;
     private readonly object _gate = new();
     private readonly IPHprOutputDevice _output;
     private readonly Action<PHprSafetyContext>? _applySafetyContext;
+    private readonly RoadTextureEvaluator _evaluator = new();
     private PHprRoadVibrationRouterOptions _options;
     private DateTimeOffset? _lastBrakeAttemptAtUtc;
     private DateTimeOffset? _lastThrottleAttemptAtUtc;
+    private DateTimeOffset? _lastGearPulseAtUtc;
     private long _evaluationCount;
     private long _ignoredEvaluationCount;
     private long _routeCount;
@@ -22,6 +24,7 @@ public sealed class PHprRoadVibrationRouter
     private long _intervalSuppressedCount;
     private bool _lastActive;
     private double _lastIntensity01;
+    private RoadTextureSignal _lastSignal = RoadTextureSignal.Inactive(DateTimeOffset.UtcNow, "not evaluated");
     private PHprCommand? _lastCommand;
     private PHprCommandResult? _lastOutputResult;
     private PHprRoadVibrationRoutingResult? _lastResult;
@@ -45,6 +48,14 @@ public sealed class PHprRoadVibrationRouter
         }
     }
 
+    public void NotifyGearPulseAccepted(DateTimeOffset? timestampUtc = null)
+    {
+        lock (_gate)
+        {
+            _lastGearPulseAtUtc = timestampUtc ?? DateTimeOffset.UtcNow;
+        }
+    }
+
     public PHprRoadVibrationRoutingSnapshot GetSnapshot()
     {
         lock (_gate)
@@ -58,6 +69,7 @@ public sealed class PHprRoadVibrationRouter
                 _intervalSuppressedCount,
                 _lastActive,
                 _lastIntensity01,
+                _lastSignal,
                 _lastCommand,
                 _lastOutputResult,
                 _lastResult,
@@ -83,7 +95,7 @@ public sealed class PHprRoadVibrationRouter
         }
 
         var context = safetyContext ?? BuildContext(pipelineSnapshot);
-        return RouteAsync(pipelineSnapshot.VehicleState, context, nowUtc, cancellationToken);
+        return RouteAsync(pipelineSnapshot.Effects.RoadTexture.Signal, context, nowUtc, cancellationToken);
     }
 
     public async ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
@@ -119,16 +131,93 @@ public sealed class PHprRoadVibrationRouter
 
         try
         {
-            var intensity = EvaluateRoadVibration(vehicleState);
-            StoreEvaluation(intensity);
-            if (intensity <= 0d)
+            var signal = _evaluator.Evaluate(
+                vehicleState,
+                BuildEvaluationContext(safetyContext, now));
+            return await RouteAsync(signal, safetyContext, now, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            var result = new PHprRoadVibrationRoutingResult(
+                PHprRoadVibrationRoutingStatus.Failed,
+                $"P-HPR road-vibration routing failed: {ex.Message}",
+                [],
+                _output.GetSnapshot(),
+                now);
+            StoreFailed(result, ex.Message);
+            return result;
+        }
+    }
+
+    public async ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
+        RoadTextureSignal? signal,
+        PHprSafetyContext? safetyContext = null,
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        PHprRoadVibrationRouterOptions options;
+        lock (_gate)
+        {
+            options = _options;
+        }
+
+        var now = nowUtc ?? DateTimeOffset.UtcNow;
+        if (!options.IsEnabled)
+        {
+            return StoreIgnored(
+                PHprRoadVibrationRoutingStatus.IgnoredDisabled,
+                "P-HPR road vibration routing is disabled; no command was sent.",
+                now);
+        }
+
+        if (signal is null)
+        {
+            return StoreIgnored(
+                PHprRoadVibrationRoutingStatus.IgnoredMissingVehicleState,
+                "No RoadTextureSignal was supplied; no P-HPR road-vibration command was sent.",
+                now);
+        }
+
+        try
+        {
+            if (safetyContext?.HapticsStopped == true)
             {
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
-                    "No active road vibration was detected; no P-HPR road command was sent.",
+                    "P-HPR road vibration was dropped because haptics are stopped.",
                     now);
             }
 
+            if (safetyContext?.TelemetryStale == true)
+            {
+                return StoreIgnored(
+                    PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
+                    "P-HPR road vibration was dropped because telemetry is stale.",
+                    now);
+            }
+
+            StoreEvaluation(signal);
+            if (!signal.IsActive)
+            {
+                return StoreIgnored(
+                    PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
+                    $"No active road vibration was detected; no P-HPR road command was sent. Reason: {signal.SuppressedReason ?? "inactive signal"}.",
+                    now,
+                    signal.OutputIntensity);
+            }
+
+            if (signal.GearDuckingActive)
+            {
+                return StoreIgnored(
+                    PHprRoadVibrationRoutingStatus.IgnoredGearDucking,
+                    "P-HPR road vibration was suppressed because a higher-priority gear pulse is inside the ducking window.",
+                    now,
+                    signal.OutputIntensity);
+            }
+
+            var intensity = signal.OutputIntensity;
             var plans = CreatePlans(options, intensity, now);
             if (plans.Count == 0)
             {
@@ -152,7 +241,7 @@ public sealed class PHprRoadVibrationRouter
                 var command = PHprCommand.Create(
                     plan.TargetModule,
                     plan.Settings.ScaleStrength(intensity),
-                    plan.Settings.ScaleFrequency(intensity),
+                    ScaleFrequency(plan.Settings, signal, intensity),
                     plan.Settings.DurationMs,
                     PHprCommandSource.RoadTexture,
                     options.Priority,
@@ -203,6 +292,26 @@ public sealed class PHprRoadVibrationRouter
             HapticsStopped = !snapshot.IsRunning,
             EmergencyMuteActive = snapshot.EmergencyMute
         };
+    }
+
+    private RoadTextureEvaluationContext BuildEvaluationContext(
+        PHprSafetyContext? safetyContext,
+        DateTimeOffset nowUtc)
+    {
+        DateTimeOffset? lastGearPulseAtUtc;
+        lock (_gate)
+        {
+            lastGearPulseAtUtc = _lastGearPulseAtUtc;
+        }
+
+        var context = safetyContext ?? PHprSafetyContext.DefaultMock;
+        return new RoadTextureEvaluationContext(
+            nowUtc,
+            HapticsRunning: !context.HapticsStopped,
+            DrivingArmed: context.DrivingArmed,
+            AllowWhenDrivingNotArmed: false,
+            TelemetryStale: context.TelemetryStale,
+            lastGearPulseAtUtc);
     }
 
     private List<RoutePlan> CreatePlans(
@@ -257,13 +366,14 @@ public sealed class PHprRoadVibrationRouter
         }
     }
 
-    private void StoreEvaluation(double intensity01)
+    private void StoreEvaluation(RoadTextureSignal signal)
     {
         lock (_gate)
         {
             _evaluationCount++;
-            _lastActive = intensity01 > 0d;
-            _lastIntensity01 = intensity01;
+            _lastActive = signal.IsActive;
+            _lastIntensity01 = signal.OutputIntensity;
+            _lastSignal = signal;
         }
     }
 
@@ -349,114 +459,21 @@ public sealed class PHprRoadVibrationRouter
         }
     }
 
-    private static double EvaluateRoadVibration(VehicleState vehicleState)
+    private static double ScaleFrequency(
+        PHprRoadVibrationPedalSettings settings,
+        RoadTextureSignal signal,
+        double intensity01)
     {
-        if (ShouldMuteForDrivingState(vehicleState)
-            || !IsFresh(vehicleState, vehicleState.Telemetry, MaximumTelemetryFrameLag))
+        if (signal.PHprFrequencyHz <= 0d)
         {
-            return 0d;
+            return settings.ScaleFrequency(intensity01);
         }
 
-        var telemetry = vehicleState.Telemetry!.Value;
-        var speedScale = SpeedScale(telemetry.SpeedKph, 5f, 160f);
-        if (speedScale <= 0f)
-        {
-            return 0d;
-        }
-
-        var surfaceMix = 0f;
-        for (var wheel = 0; wheel < 4; wheel++)
-        {
-            surfaceMix += SurfaceGain(telemetry.SurfaceTypeIds[wheel]);
-        }
-
-        surfaceMix = Clamp(surfaceMix / 4f, 0f, 1f);
-        return Clamp(speedScale * surfaceMix, 0f, 1f);
-    }
-
-    private static bool ShouldMuteForDrivingState(VehicleState vehicleState)
-    {
-        if (vehicleState.Session?.Value.GamePaused is > 0)
-        {
-            return true;
-        }
-
-        if (vehicleState.CarStatus?.Value.NetworkPaused is > 0)
-        {
-            return true;
-        }
-
-        if (vehicleState.Lap?.Value.DriverStatus == 0)
-        {
-            return true;
-        }
-
-        return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
-    }
-
-    private static bool IsFresh<T>(
-        VehicleState vehicleState,
-        VehicleStateSample<T>? sample,
-        uint maximumFrameLag)
-    {
-        if (sample is null)
-        {
-            return false;
-        }
-
-        var currentFrame = vehicleState.Frame.OverallFrameIdentifier;
-        if (currentFrame is null || maximumFrameLag == 0)
-        {
-            return true;
-        }
-
-        var sampleFrame = sample.Stamp.OverallFrameIdentifier;
-        if (sampleFrame > currentFrame.Value)
-        {
-            return true;
-        }
-
-        return currentFrame.Value - sampleFrame <= maximumFrameLag;
-    }
-
-    private static float SurfaceGain(byte surfaceTypeId)
-    {
-        return surfaceTypeId switch
-        {
-            0 => 0.18f,
-            1 => 0.90f,
-            2 => 0.28f,
-            3 => 0.55f,
-            4 => 0.65f,
-            5 => 0.38f,
-            6 => 0.32f,
-            7 => 0.42f,
-            8 => 0.20f,
-            9 => 0.70f,
-            10 => 0.50f,
-            11 => 0.85f,
-            _ => 0.25f
-        };
-    }
-
-    private static float SpeedScale(float speedKph, float minimumSpeedKph, float fullIntensitySpeedKph)
-    {
-        if (!float.IsFinite(speedKph) || speedKph <= minimumSpeedKph)
-        {
-            return 0f;
-        }
-
-        if (fullIntensitySpeedKph <= minimumSpeedKph)
-        {
-            return 1f;
-        }
-
-        return Clamp((speedKph - minimumSpeedKph) / (fullIntensitySpeedKph - minimumSpeedKph), 0f, 1f);
-    }
-
-    private static float Clamp(float value, float minimum, float maximum)
-    {
-        return Math.Clamp(value, minimum, maximum);
+        var normalized = settings.Normalize();
+        return Math.Clamp(
+            signal.PHprFrequencyHz,
+            normalized.MinimumFrequencyHz,
+            normalized.FrequencyHz);
     }
 
     private sealed record RoutePlan(PHprModuleId TargetModule, PHprRoadVibrationPedalSettings Settings);

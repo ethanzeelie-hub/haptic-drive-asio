@@ -245,6 +245,13 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with { IsMuted = isMuted };
     }
 
+    public void NotifyLocalGearPulseAccepted(DateTimeOffset? timestampUtc = null)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EffectEngine.NotifyRoadTextureGearPulseAccepted(timestampUtc);
+        _lastEffectSnapshot = EffectEngine.GetSnapshot();
+    }
+
     public async ValueTask<HapticPipelineOperationResult> SetEmergencyMuteAsync(
         bool emergencyMuted,
         CancellationToken cancellationToken = default)
@@ -367,6 +374,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             if (IsManualAsioGearPulseSource(normalized.Source))
             {
                 _lastGearBst1PulseUsedAsio = true;
+                EffectEngine.NotifyRoadTextureGearPulseAccepted(run.StartedAtUtc);
+                _lastEffectSnapshot = EffectEngine.GetSnapshot();
             }
             else
             {

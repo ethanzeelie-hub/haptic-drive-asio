@@ -117,7 +117,7 @@ When enabled, the app can route road vibration to brake, throttle, or both pedal
 
 Road vibration requires direct control to be enabled and armed for the current session. It is also blocked by stale telemetry, stopped haptics, emergency mute, cached `DrivingArmed` false, SimPro/SimHub conflict, missing selected output, emergency stop, safety-limiter rejection, and the deterministic route interval.
 
-The ASIO/BST-1 road texture effect remains separate and unchanged.
+Stage 18o-B makes P-HPR road vibration and the ASIO/BST-1 road texture effect consume the same shared software road signal. The outputs remain separate: P-HPR still routes through the P-HPR safety limiter and HID output path, while BST-1 still renders through the mixer and audio safety chain. Accepted gear pulses briefly duck/suppress road texture for priority.
 
 ## Wheel Slip And Wheel Lock Routing
 

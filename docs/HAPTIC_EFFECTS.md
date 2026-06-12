@@ -1,6 +1,6 @@
 # Haptic Effects
 
-Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock. Stage 14 adds practical UI tuning and profile persistence for those existing effects. Stage 15 feeds live and replayed telemetry through those same effects, mixer, safety chain, and `NullAudioOutputDevice` in the first playable mock pipeline. Stage 17 moves live rendering into an output-owned path and adds stale telemetry mute before hardware validation.
+Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock. Stage 14 adds practical UI tuning and profile persistence for those existing effects. Stage 15 feeds live and replayed telemetry through those same effects, mixer, safety chain, and `NullAudioOutputDevice` in the first playable mock pipeline. Stage 17 moves live rendering into an output-owned path and adds stale telemetry mute before hardware validation. Stage 18o-B consolidates BST-1 and P-HPR road texture around one shared software road signal.
 
 ## Source Data
 
@@ -71,7 +71,7 @@ This is not crash physics, damage modelling, or final physical impact tuning.
 
 ## Road Texture
 
-Road texture is a low-level continuous deterministic source.
+Road texture is a low-level continuous deterministic source. Stage 18o-B evaluates one shared `RoadTextureSignal` in Core, then lets the BST-1 audio effect and P-HPR road router consume that same signal with output-specific rendering and safety behavior.
 
 Default assumptions:
 
@@ -80,6 +80,9 @@ Default assumptions:
 - Tarmac is intentionally quiet.
 - Rumble strip, gravel, grass, sand, concrete, cobblestone, metal, ridged, and other documented surface IDs have conservative per-surface frequency/noise defaults.
 - Missing surface telemetry produces silence; missing Motion Ex data uses a safe fallback rather than inventing road feel.
+- Suspension acceleration, wheel vertical-force deltas, and vertical G can raise the shared roughness metric when they exceed conservative thresholds.
+- Live road texture is gated by telemetry freshness, haptics running state, and cached `DrivingArmed` unless an explicitly local/manual evaluation context is used.
+- Accepted local gear pulses briefly duck the shared road signal. BST-1 road renders at the ducked intensity, while P-HPR road commands suppress during the gear-priority window.
 - Unknown future surface IDs are preserved in `VehicleState` but do not produce texture by default.
 - Deterministic roughness is seeded from the render cursor and surface ID so fixed VehicleState sequences are repeatable.
 

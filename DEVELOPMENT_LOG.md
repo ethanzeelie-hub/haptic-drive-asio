@@ -2694,3 +2694,40 @@ Self-review:
 - P-HPR fake/direct tests still use fake HID writers and fake clocks; this stage does not claim physical P-HPR stop feel or latency.
 - Confirmed P-HPR report bytes, F1 25 parsing, UDP forwarding, recording/replay raw-byte preservation, and normal telemetry `DrivingArmed` gates were not changed.
 - No generated `local-validation-results` logs are committed.
+
+## Stage 18o-B - Shared Road Texture Signal And Gear Ducking
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Replace the split BST-1 and P-HPR road-vibration heuristics with one shared `RoadTextureSignal`, let both output paths consume that same signal, and keep accepted local gear pulses dominant by briefly ducking/suppressing road texture after a gear event.
+
+Changes:
+
+- Added a shared Core road texture evaluator that derives `RoadTextureSignal` from `VehicleState`, `m_surfaceType[4]`, speed, suspension acceleration, wheel vertical-force deltas, vertical G, haptics-running state, telemetry freshness, `DrivingArmed`, and recent accepted gear-pulse time.
+- Moved the BST-1 road texture effect onto the shared evaluator while preserving deterministic audio rendering, effect snapshots, mixer/safety/limiter routing, and existing road texture profile controls.
+- Reworked P-HPR road vibration routing so live routing consumes `pipelineSnapshot.Effects.RoadTexture.Signal` instead of maintaining a second duplicated road heuristic.
+- Added gear-priority ducking: accepted local BST-1/manual gear pulses and accepted Direct Paddle Gear Bench P-HPR pulses notify the road evaluator/router, causing the shared road signal to duck and P-HPR road commands to suppress during the short priority window.
+- Let Direct Paddle Gear Bench coexist with enabled road vibration while keeping emergency stop, slip, and lock gates in place.
+- Added shared-signal diagnostics on road snapshots so the UI and routing tests can inspect the exact road signal used by both output paths.
+- Kept P-HPR HID report bytes, direct gear-pulse command encoding, emergency stop/Stop All behavior, F1 25 parsing, UDP forwarding, and raw recording/replay preservation unchanged.
+
+Verification:
+
+- Targeted rebuilt Core road texture tests passed.
+- Targeted rebuilt audio effect tests passed with 104 passing tests.
+- Targeted rebuilt actuation tests passed with 90 passing tests.
+- Targeted rebuilt app tests passed with 77 passing tests.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 625 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- The shared signal is a software arbitration and diagnostics contract, not a physical proof of final road feel, safe gain, physical latency, or frequency tuning.
+- Gear ducking is fake-backed and deterministic in automated tests; real mixed BST-1/P-HPR priority feel still requires Ethan-local validation.
+- Normal telemetry `DrivingArmed` routing remains required for live road vibration unless an explicitly local/manual evaluation context allows otherwise.
+- No generated `local-validation-results` logs are committed.

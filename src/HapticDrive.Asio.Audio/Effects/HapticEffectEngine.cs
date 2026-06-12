@@ -105,6 +105,23 @@ public sealed class HapticEffectEngine
         }
     }
 
+    public void NotifyRoadTextureGearPulseAccepted(DateTimeOffset? timestampUtc = null)
+    {
+        lock (_gate)
+        {
+            _roadTextureEffect.NotifyGearPulseAccepted(timestampUtc);
+            _snapshot = CreateSnapshot(
+                _engineEffect.Snapshot,
+                _gearShiftEffect.Snapshot,
+                _kerbEffect.Snapshot,
+                _impactEffect.Snapshot,
+                _roadTextureEffect.Snapshot,
+                _slipEffect.Snapshot,
+                _snapshot.ActiveEffectCount,
+                _snapshot.PeakLevel);
+        }
+    }
+
     public void Update(VehicleState vehicleState)
     {
         ArgumentNullException.ThrowIfNull(vehicleState);
