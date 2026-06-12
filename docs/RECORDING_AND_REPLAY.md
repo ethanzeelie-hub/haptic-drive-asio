@@ -10,7 +10,7 @@ Stage 09 implements raw UDP telemetry recording and deterministic replay.
 - Keep recording independent of F1 25 parser success so unknown or malformed packets can still be captured.
 - Keep replay reusable by the existing `F125PacketParser` and `F125VehicleStateAdapter` path.
 
-Stage 17 feeds replayed packets through the same parser, `VehicleState`, effect, mixer, safety, and output-owned render path as live UDP packets. Stage 18 adds a recordings library UI that lists local `.hdrec` files, reads metadata summaries without loading full payloads, and can replay the selected recording.
+Stage 17 feeds replayed packets through the same parser, `VehicleState`, effect, mixer, safety, and output-owned render path as live UDP packets. Stage 18 adds a recordings library UI that lists local `.hdrec` files, reads metadata summaries without loading full payloads, and can replay the selected recording. Stage 18p-B makes normal UI replay time-preserving by default and keeps fast replay as an explicit debug/parser mode.
 
 Replay still does not implement recording trimming, route snapshots, profile snapshots inside recordings, real WASAPI output, or physical hardware validation.
 
@@ -68,7 +68,7 @@ Replay path:
 -> NullAudioOutputDevice
 ```
 
-Fast replay emits packets immediately for deterministic automated tests. Time-preserving replay can delay between packets according to recorded relative timing and an optional speed multiplier.
+Time-preserving replay delays between packets according to recorded relative timing and an optional speed multiplier. The Telemetry / UDP UI uses time-preserving replay by default for Replay Latest and Replay Selected. Fast replay emits packets immediately for deterministic automated tests and explicit parser/debug work; it is not suitable for physical haptic feel or latency testing.
 
 The runtime snapshot exposes replay active/inactive state, source file path, packets replayed, and status message. Replay packet ordering and raw byte preservation remain unchanged.
 
@@ -77,10 +77,12 @@ The runtime snapshot exposes replay active/inactive state, source file path, pac
 The Recordings page can:
 
 - Start and stop raw UDP recording.
-- Replay the latest local recording.
+- Replay the latest local recording in Real-time mode by default.
 - Refresh the local recordings library.
 - Show file name, packet count, file size, source game, source profile, app version, created time, and modified time for readable `.hdrec` files.
-- Replay the selected recording through the same output-owned haptic pipeline.
+- Replay the selected recording through the same output-owned haptic pipeline in Real-time mode by default.
+- Explicitly switch replay mode to Fast debug for parser diagnostics.
+- Delete the selected recording after guarding that the selected path is an `.hdrec` file inside the recordings folder and is not the active recording output.
 
 The library reads from:
 

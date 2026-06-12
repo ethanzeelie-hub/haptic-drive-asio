@@ -575,6 +575,12 @@
 
 - The product UI architecture report is complete, but the modern dark/sidebar/card rewrite is not implemented yet.
 - `MainWindow.xaml` and `MainWindow.xaml.cs` remain large monolithic files. Future visual work should first extract shared `Theme.xaml` / `Styles.xaml` resources, then split stable page areas into smaller controls.
-- Normal replay currently uses fast replay from the WPF UI, so recordings can appear to replay almost instantly even though `.hdrec` files already store relative packet timing. Stage 18p-B should make real-time/time-preserving replay the normal default and keep fast replay as an explicit parser/debug option.
-- The recording library still lacks Delete Selected recording behavior.
 - Normal P-HPR road/slip/lock tuning is still partly buried in Advanced / Diagnostics. Later 18p stages should move normal tuning into Effects while keeping raw HID, validation, and low-level diagnostics advanced-only.
+
+## Stage 18p-B
+
+- Normal WPF replay is now time-preserving by default, but physical haptic feel and latency still require Ethan-local hardware validation on the real output chain.
+- Fast replay remains available as explicit `Fast debug` mode for parser/diagnostic work and is not suitable for feel or latency testing.
+- Delete Selected is guarded to `.hdrec` files inside the recordings folder and blocks the active recording output, but it is still a direct deliberate delete action rather than a two-step confirmation dialog.
+- Recording files still do not include route snapshots, profile snapshots, trimming metadata, or effect-setting snapshots.
+- The broader dark/sidebar/card product UI redesign remains staged for 18p-C onward.

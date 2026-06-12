@@ -106,6 +106,7 @@ public partial class MainWindow : Window
         new(PhprPedalsMode.Mock, "Mock"),
         new(PhprPedalsMode.Direct, "Direct")
     ];
+    private readonly IReadOnlyList<ReplayTimingModeOption> _replayTimingModeOptions = ReplayTimingModeOption.Defaults;
 
     private readonly IReadOnlyList<ShellPageDefinition> _pages =
     [
@@ -333,6 +334,9 @@ public partial class MainWindow : Window
         RealLockTargetComboBox.ItemsSource = _mockPedalEffectTargetOptions;
         RealPhprReportTransportComboBox.ItemsSource = _realPhprReportTransportOptions;
         RealPhprReportTransportComboBox.SelectedItem = PHprHidReportTransport.OutputReport;
+        ReplayTimingModeComboBox.ItemsSource = _replayTimingModeOptions;
+        ReplayTimingModeComboBox.SelectedItem = ReplayTimingModeOption.RealTime;
+        ReplayTimingModeHelpText.Text = ReplayTimingModeOption.RealTime.HelpText;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
@@ -3507,7 +3511,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var path = FindLatestRecordingPath();
+        var path = RecordingLibraryManager.FindLatestRecordingPath(GetRecordingsDirectory());
         if (path is null)
         {
             _replayError = "No local .hdrec recording is available to replay yet.";
@@ -3517,7 +3521,8 @@ public partial class MainWindow : Window
         }
 
         _replayError = null;
-        FooterStatusText.Text = $"Replaying {Path.GetFileName(path)} through the output-owned haptic pipeline.";
+        var replayMode = GetSelectedReplayTimingMode();
+        FooterStatusText.Text = $"Replaying {Path.GetFileName(path)} in {replayMode.Label} mode through the output-owned haptic pipeline.";
         _activeReplayTask = ReplayRecordingAsync(path);
         UpdateRecordingStatus();
     }
@@ -3543,14 +3548,42 @@ public partial class MainWindow : Window
         }
 
         _replayError = null;
-        FooterStatusText.Text = $"Replaying selected recording {Path.GetFileName(item.Path)}.";
+        var replayMode = GetSelectedReplayTimingMode();
+        FooterStatusText.Text = $"Replaying selected recording {Path.GetFileName(item.Path)} in {replayMode.Label} mode.";
         _activeReplayTask = ReplayRecordingAsync(item.Path);
+        UpdateRecordingStatus();
+    }
+
+    private void ReplayTimingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var replayMode = GetSelectedReplayTimingMode();
+        ReplayTimingModeHelpText.Text = replayMode.HelpText;
         UpdateRecordingStatus();
     }
 
     private async void RefreshRecordingsButton_Click(object sender, RoutedEventArgs e)
     {
         await RefreshRecordingLibraryAsync();
+    }
+
+    private async void DeleteSelectedRecordingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RecordingLibraryListBox.SelectedItem is not RecordingLibraryItem item)
+        {
+            RecordingLibraryStatusText.Text = "Select a recording before deleting.";
+            FooterStatusText.Text = RecordingLibraryStatusText.Text;
+            return;
+        }
+
+        var recordingSnapshot = _hapticPipeline.GetSnapshot().Recording;
+        var result = RecordingLibraryManager.DeleteSelected(
+            GetRecordingsDirectory(),
+            item.Path,
+            recordingSnapshot.IsRecording ? recordingSnapshot.FilePath : null);
+        await RefreshRecordingLibraryAsync();
+        RecordingLibraryStatusText.Text = result.Message;
+        FooterStatusText.Text = result.Message;
+        UpdateRecordingStatus();
     }
 
     private void RecordingLibraryListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3563,11 +3596,12 @@ public partial class MainWindow : Window
 
     private async Task ReplayRecordingAsync(string path)
     {
-        var result = await _hapticPipeline.ReplayFileAsync(path, TelemetryReplayOptions.Fast);
+        var replayMode = GetSelectedReplayTimingMode();
+        var result = await _hapticPipeline.ReplayFileAsync(path, replayMode.Options);
         await Dispatcher.InvokeAsync(() =>
         {
             _replayError = result.Succeeded ? null : result.Message;
-            FooterStatusText.Text = result.Message;
+            FooterStatusText.Text = $"{result.Message} Replay mode: {replayMode.Label}.";
             UpdateTelemetryStatus();
             UpdateRecordingStatus();
             UpdateEffectStatus();
@@ -3579,7 +3613,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            _recordingLibraryItems = await LoadRecordingLibraryItemsAsync();
+            _recordingLibraryItems = await RecordingLibraryManager.LoadAsync(GetRecordingsDirectory());
             RecordingLibraryListBox.ItemsSource = _recordingLibraryItems;
             RecordingLibraryStatusText.Text = _recordingLibraryItems.Count == 0
                 ? $"No .hdrec files found in {GetRecordingsDirectory()}."
@@ -3589,43 +3623,6 @@ public partial class MainWindow : Window
         {
             RecordingLibraryStatusText.Text = $"Recording library could not be refreshed: {ex.Message}";
         }
-    }
-
-    private static async Task<List<RecordingLibraryItem>> LoadRecordingLibraryItemsAsync()
-    {
-        var recordingsDirectory = GetRecordingsDirectory();
-        if (!Directory.Exists(recordingsDirectory))
-        {
-            return [];
-        }
-
-        var items = new List<RecordingLibraryItem>();
-        foreach (var path in Directory
-            .EnumerateFiles(recordingsDirectory, "*.hdrec", SearchOption.TopDirectoryOnly)
-            .OrderByDescending(File.GetLastWriteTimeUtc))
-        {
-            var result = await TelemetryRecordingFile.LoadSummaryAsync(path).ConfigureAwait(false);
-            if (result.Succeeded && result.Summary is not null)
-            {
-                var summary = result.Summary;
-                var sizeText = summary.FileSizeBytes >= 1024 * 1024
-                    ? $"{summary.FileSizeBytes / 1024d / 1024d:0.0} MB"
-                    : $"{summary.FileSizeBytes / 1024d:0.0} KB";
-                var createdLocal = summary.Metadata.CreatedAtUtc.ToLocalTime();
-                items.Add(new RecordingLibraryItem(
-                    path,
-                    $"{Path.GetFileName(path)} - {summary.PacketCount:N0} packet(s) - {sizeText}",
-                    $"Created {createdLocal:g}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}."));
-                continue;
-            }
-
-            items.Add(new RecordingLibraryItem(
-                path,
-                $"{Path.GetFileName(path)} - {result.Status}",
-                result.Message));
-        }
-
-        return items;
     }
 
     private async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
@@ -6235,14 +6232,21 @@ public partial class MainWindow : Window
     private string BuildReplayStatusText()
     {
         var snapshot = _hapticPipeline.GetSnapshot().Replay;
+        var replayMode = GetSelectedReplayTimingMode();
         if (_replayError is not null)
         {
-            return _replayError;
+            return $"{_replayError} Replay mode: {replayMode.Label}.";
         }
 
         return snapshot.IsReplaying
-            ? $"Replay active from {Path.GetFileName(snapshot.SourceFilePath)}; {snapshot.PacketsReplayed:N0} packet(s)."
-            : $"Replay inactive; {snapshot.PacketsReplayed:N0} packet(s) last replayed. {snapshot.StatusMessage}";
+            ? $"Replay active from {Path.GetFileName(snapshot.SourceFilePath)}; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s)."
+            : $"Replay inactive; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s) last replayed. {snapshot.StatusMessage}";
+    }
+
+    private ReplayTimingModeOption GetSelectedReplayTimingMode()
+    {
+        return ReplayTimingModeComboBox.SelectedItem as ReplayTimingModeOption
+            ?? ReplayTimingModeOption.RealTime;
     }
 
     private static string CreateDefaultRecordingPath()
@@ -6253,20 +6257,6 @@ public partial class MainWindow : Window
         return Path.Combine(
             recordingsDirectory,
             $"f1-25-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.hdrec");
-    }
-
-    private static string? FindLatestRecordingPath()
-    {
-        var recordingsDirectory = GetRecordingsDirectory();
-        if (!Directory.Exists(recordingsDirectory))
-        {
-            return null;
-        }
-
-        return Directory
-            .EnumerateFiles(recordingsDirectory, "*.hdrec", SearchOption.TopDirectoryOnly)
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
     }
 
     private static string GetRecordingsDirectory()
@@ -6623,11 +6613,6 @@ public partial class MainWindow : Window
         int Index,
         PHprDirectOutputCandidate Candidate,
         string DisplayText);
-
-    private sealed record RecordingLibraryItem(
-        string Path,
-        string DisplayText,
-        string DetailText);
 
     private sealed record ThemePalette(
         string Background,

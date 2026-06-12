@@ -2759,3 +2759,39 @@ Self-review:
 - Stage 18p-A intentionally does not claim product UI implementation is complete.
 - Physical shaker feel, safe gain, physical latency, P-HPR physical behavior, and final frequency tuning remain local validation items.
 - No generated `local-validation-results` logs are committed.
+
+## Stage 18p-B - Real-Time Replay And Recording Delete
+
+Date: 2026-06-12
+
+Status: Complete.
+
+Goal: Make normal Telemetry / UDP replay preserve recorded packet timing by default, keep fast replay explicit for parser/debug work, and add guarded Delete Selected recording behavior.
+
+Changes:
+
+- Added a Replay mode selector to the Telemetry / UDP recording library with `Real-time` as the default and `Fast debug` as the explicit non-default parser/debug mode.
+- Changed Replay Latest and Replay Selected to pass explicit replay options from the UI; normal replay now uses `TelemetryReplayOptions.TimePreserving`.
+- Kept the `TelemetryReplayService` omitted-options default as fast mode for deterministic service callers and tests; UI calls no longer rely on that default.
+- Added a replay delay scheduler seam so time-preserving replay delay requests can be tested without sleeping.
+- Added guarded recording-library delete support that only deletes `.hdrec` files inside the local recordings folder, blocks active recording output, handles missing files gracefully, and reports locked/unauthorized failures without crashing.
+- Added Delete Selected to the Telemetry / UDP recording library and refreshes the library after delete attempts.
+- Updated recording/replay docs and stage trackers.
+
+Verification:
+
+- Focused recording tests passed with 19 passing tests.
+- Focused app tests passed with 84 passing tests.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 635 passing tests and 0 skipped tests after rerunning one transient app-test timing failure that passed immediately on focused rerun.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Normal Replay Latest and Replay Selected are time-preserving by default.
+- Fast replay remains available only through the explicit `Fast debug` UI mode and is labelled unsuitable for feel/latency testing.
+- Delete Selected cannot remove arbitrary files outside the recordings folder and cannot delete the active recording output.
+- F1 25 parser offsets, ASIO backend behavior, P-HPR HID/report behavior, gear-pulse logic, and road-effect logic were not changed.
+- No generated `local-validation-results` logs are committed.

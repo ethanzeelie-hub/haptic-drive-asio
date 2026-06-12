@@ -245,3 +245,14 @@ UI/model tests:
 ## Stage 18p-A Outcome
 
 Stage 18p-A should stop here as report-only architecture work. The root cause for replay timing is clear enough that 18p-B can be a small implementation stage. The full UI rewrite should wait until after 18p-B and should proceed in the 18p-C through 18p-F sequence above.
+
+## Stage 18p-B Update
+
+Stage 18p-B implemented the replay/delete follow-up from this report:
+
+- Replay Latest and Replay Selected now use explicit UI-selected replay options.
+- `Real-time` replay is the default UI mode and preserves recorded packet timing.
+- `Fast debug` replay remains explicit parser/debug mode and is labelled unsuitable for feel/latency testing.
+- The replay service default remains fast when options are omitted so deterministic service callers keep their existing behavior; the WPF UI no longer relies on that default.
+- Delete Selected recording was added with recordings-folder, `.hdrec`, active-recording, missing-file, and locked/unauthorized-file safeguards.
+- The broader dark/sidebar/card product UI rewrite remains staged for 18p-C onward.

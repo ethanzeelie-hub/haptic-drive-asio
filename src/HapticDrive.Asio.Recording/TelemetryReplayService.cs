@@ -10,6 +10,11 @@ public sealed record TelemetryReplayOptions(bool PreserveTiming, double Speed)
     public static TelemetryReplayOptions TimePreserving { get; } = new(true, 1);
 }
 
+public interface ITelemetryReplayDelayScheduler
+{
+    ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken);
+}
+
 public sealed class TelemetryReplayPacketEventArgs : EventArgs
 {
     public TelemetryReplayPacketEventArgs(UdpTelemetryPacket packet, TelemetryRecordedPacket recordedPacket)
@@ -46,6 +51,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
 {
     private readonly object _gate = new();
     private readonly TimeProvider _timeProvider;
+    private readonly ITelemetryReplayDelayScheduler? _delayScheduler;
     private readonly int _maxPayloadLength;
     private CancellationTokenSource? _activeReplayCts;
     private string? _activeReplaySourceFilePath;
@@ -54,7 +60,8 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
 
     public TelemetryReplayService(
         TimeProvider? timeProvider = null,
-        int maxPayloadLength = TelemetryRecordingFile.DefaultMaxPayloadLength)
+        int maxPayloadLength = TelemetryRecordingFile.DefaultMaxPayloadLength,
+        ITelemetryReplayDelayScheduler? delayScheduler = null)
     {
         if (maxPayloadLength <= 0)
         {
@@ -62,6 +69,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         }
 
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _delayScheduler = delayScheduler;
         _maxPayloadLength = maxPayloadLength;
     }
 
@@ -146,7 +154,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                     var delay = ScaleDelay(recordedPacket.RelativeTime - previousRelativeTime, options.Speed);
                     if (delay > TimeSpan.Zero)
                     {
-                        await Task.Delay(delay, _timeProvider, replayCts.Token).ConfigureAwait(false);
+                        await DelayAsync(delay, replayCts.Token).ConfigureAwait(false);
                     }
                 }
 
@@ -212,6 +220,13 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
 
         var scaledTicks = (long)Math.Max(0, Math.Round(delay.Ticks / speed));
         return TimeSpan.FromTicks(scaledTicks);
+    }
+
+    private ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
+        return _delayScheduler is not null
+            ? _delayScheduler.DelayAsync(delay, cancellationToken)
+            : new ValueTask(Task.Delay(delay, _timeProvider, cancellationToken));
     }
 
     private void SetStatus(TelemetryReplayResult result)

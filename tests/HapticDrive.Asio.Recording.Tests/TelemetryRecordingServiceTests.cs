@@ -242,6 +242,66 @@ public sealed class TelemetryRecordingServiceTests
     }
 
     [Fact]
+    public async Task Replay_TimePreservingRequestsRecordedInterPacketDelaysWithoutSleeping()
+    {
+        var recording = new TelemetryRecording(
+            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 45, 0, TimeSpan.Zero)),
+            [
+                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
+                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(12), [0x02]),
+                new TelemetryRecordedPacket(3, TimeSpan.FromMilliseconds(30), [0x03])
+            ]);
+        var scheduler = new RecordingDelayScheduler();
+        var replay = new TelemetryReplayService(delayScheduler: scheduler);
+        var replayed = new List<long>();
+        replay.PacketReplayed += (_, args) => replayed.Add(args.Packet.SequenceNumber);
+
+        var result = await replay.ReplayAsync(recording, TelemetryReplayOptions.TimePreserving);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal([1, 2, 3], replayed);
+        Assert.Equal(
+            [TimeSpan.FromMilliseconds(12), TimeSpan.FromMilliseconds(18)],
+            scheduler.Delays);
+    }
+
+    [Fact]
+    public async Task Replay_FastModeIntentionallyIgnoresRecordedInterPacketDelays()
+    {
+        var recording = new TelemetryRecording(
+            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 50, 0, TimeSpan.Zero)),
+            [
+                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
+                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(50), [0x02])
+            ]);
+        var scheduler = new RecordingDelayScheduler();
+        var replay = new TelemetryReplayService(delayScheduler: scheduler);
+
+        var result = await replay.ReplayAsync(recording, TelemetryReplayOptions.Fast);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Empty(scheduler.Delays);
+    }
+
+    [Fact]
+    public async Task Replay_DefaultOptionsRemainFastForDeterministicServiceCallers()
+    {
+        var recording = new TelemetryRecording(
+            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 55, 0, TimeSpan.Zero)),
+            [
+                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
+                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(50), [0x02])
+            ]);
+        var scheduler = new RecordingDelayScheduler();
+        var replay = new TelemetryReplayService(delayScheduler: scheduler);
+
+        var result = await replay.ReplayAsync(recording);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Empty(scheduler.Delays);
+    }
+
+    [Fact]
     public async Task Replay_StopCancelsSafely()
     {
         var recording = new TelemetryRecording(
@@ -410,5 +470,17 @@ public sealed class TelemetryRecordingServiceTests
         Span<byte> buffer = stackalloc byte[sizeof(long)];
         BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
         stream.Write(buffer);
+    }
+
+    private sealed class RecordingDelayScheduler : ITelemetryReplayDelayScheduler
+    {
+        public List<TimeSpan> Delays { get; } = [];
+
+        public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Delays.Add(delay);
+            return ValueTask.CompletedTask;
+        }
     }
 }
