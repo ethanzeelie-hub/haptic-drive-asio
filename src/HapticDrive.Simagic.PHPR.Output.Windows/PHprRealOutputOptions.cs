@@ -12,6 +12,8 @@ public sealed record PHprRealOutputOptions
 
     public const int DefaultWriteTimeoutMs = 250;
 
+    public const int DefaultStalePulseDropThresholdMs = 80;
+
     public bool DirectControlEnabled { get; init; }
 
     public bool DirectControlArmed { get; init; }
@@ -46,6 +48,10 @@ public sealed record PHprRealOutputOptions
 
     public int WriteTimeoutMs { get; init; } = DefaultWriteTimeoutMs;
 
+    public int StalePulseDropThresholdMs { get; init; } = DefaultStalePulseDropThresholdMs;
+
+    public PHprGearPulseRetriggerMode GearPulseRetriggerMode { get; init; } = PHprGearPulseRetriggerMode.Conservative;
+
     public PHprHidDeviceSelector Selector { get; init; } = PHprHidDeviceSelector.None;
 
     public PHprRealGearPulseSettings BrakeGearPulse { get; init; } = PHprRealGearPulseSettings.Default;
@@ -69,6 +75,10 @@ public sealed record PHprRealOutputOptions
         return this with
         {
             WriteTimeoutMs = Math.Clamp(WriteTimeoutMs, MinWriteTimeoutMs, MaxWriteTimeoutMs),
+            StalePulseDropThresholdMs = Math.Clamp(StalePulseDropThresholdMs, 0, 1_000),
+            GearPulseRetriggerMode = Enum.IsDefined(GearPulseRetriggerMode)
+                ? GearPulseRetriggerMode
+                : PHprGearPulseRetriggerMode.Conservative,
             Selector = (Selector ?? PHprHidDeviceSelector.None).Normalize(),
             BrakeGearPulse = (BrakeGearPulse ?? PHprRealGearPulseSettings.Default).Normalize(safetyLimits),
             ThrottleGearPulse = (ThrottleGearPulse ?? PHprRealGearPulseSettings.Default).Normalize(safetyLimits)

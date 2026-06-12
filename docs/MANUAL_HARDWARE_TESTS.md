@@ -99,7 +99,7 @@ Required gates:
 - Driver is the M-Audio / M-Track ASIO driver.
 - Output channel 0 or 1 is selected deliberately.
 - ASIO is armed.
-- Start Haptics has been pressed and ASIO is running.
+- Start Haptics is not required for `Test BST-1 Pulse` or the local BST-1 paddle gear pulse path.
 - Emergency mute is clear.
 - Normal mute is off.
 - The selected output channel is within the reported ASIO output-channel count.
@@ -107,13 +107,27 @@ Required gates:
 UI workflow:
 
 - Open Devices.
-- Confirm Bass Shaker / ASIO status shows ASIO Output, the M-Audio / M-Track driver, armed true, running true, and a valid channel.
-- Use `Test channel 0` or `Test channel 1` to select the intended zero-based ASIO channel. If that channel is already selected and haptics are running, the button starts a short 50 Hz pulse.
-- Use `40 Hz` or `50 Hz` to run the selected duration.
-- Use 250 ms first; 500 ms is the next deliberate step. Runtime requests are capped at 1 second.
+- Confirm Bass Shaker / ASIO status shows ASIO Output, the M-Audio / M-Track driver, armed true, and a valid channel. `ASIO READY` is sufficient for the standalone pulse path; `ASIO ACTIVE` means a stream/callback is currently running.
+- Use `Select channel 0` or `Select channel 1` to choose the intended zero-based ASIO channel. Channel selection must not vibrate.
+- Use `Test BST-1 Pulse` to run the selected frequency/strength/duration. Start Haptics, UDP, replay, F1 telemetry, `VehicleState`, and `DrivingArmed` are not required for this local pulse.
+- Use a short duration first; runtime requests are capped at 1 second.
 - `Mono / both` is diagnostic-only in the current single-selected-channel architecture and does not start output.
 
 The manual ASIO test signal is routed through the Stage 10 mixer, safety chain, limiter, and selected ASIO output channel. It is separate from the Null synthetic benchmark, and it never routes to Simagic P-HPR.
+
+Stage 18m diagnostics for standalone/manual and local paddle BST-1 pulses are written locally to:
+
+```text
+local-validation-results/bst1-asio-pulse-flight-recorder.jsonl
+```
+
+Rotated files such as `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl.1` are local validation evidence only and must not be committed.
+
+The recorder includes queue capacity/count, callback activity, expected frame count, accepted frame count, rendered frame count, completion reason, accepted/dropped buffer counts, limiter peak, and shutdown cleanup diagnostics. A pulse may be recorded as `completed-full` only after the expected frame count has rendered. If haptics are already running, local BST-1 pulses use the same renderer/settings but complete through the running ASIO callback; if haptics are stopped, they use the bounded standalone ASIO pulse session.
+
+Fresh app startup may open the selected ASIO driver for readiness/capability hydration without starting output. This is allowed to cache the M-Audio output-channel count for channel validation, but it must not emit startup output.
+
+If `Minimize to tray on close` is unchecked, closing the window should not be cancelled by tray/minimize logic. The app should dispose ASIO, standalone pulse, paddle listener, UDP listener, timers, and related resources, write shutdown diagnostics, and terminate the WPF process.
 
 ## Stage 18 Final Pre-Shaker Checklist
 

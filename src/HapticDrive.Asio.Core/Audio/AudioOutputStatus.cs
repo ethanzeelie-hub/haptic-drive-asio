@@ -26,4 +26,6 @@ public sealed record AudioOutputStatus(
     TimeSpan? LastCallbackJitter = null,
     TimeSpan? MaximumCallbackJitter = null,
     TimeSpan? LastTelemetryAge = null,
-    string? LastError = null);
+    string? LastError = null,
+    int QueuedBufferCount = 0,
+    int QueueCapacityBuffers = 0);

@@ -40,7 +40,8 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
                 providerSnapshot.QueuedBufferCount,
                 providerSnapshot.LastCallbackJitter,
                 providerSnapshot.MaximumCallbackJitter,
-                _lastError);
+                _lastError,
+                providerSnapshot.QueueCapacityBuffers);
         }
     }
 
@@ -177,9 +178,9 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
         int outputChannelCount)
     {
         var provider = Volatile.Read(ref _waveProvider);
-        if (!_isRunning || provider is null)
+        if (!_isOpen || provider is null)
         {
-            _lastError = "Native ASIO backend is not running.";
+            _lastError = "Native ASIO backend is not open.";
             return AsioOutputBackendOperationResult.Failure(_lastError);
         }
 
@@ -340,7 +341,8 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
                     Interlocked.Read(ref _underrunCount),
                     _queuedBufferCount,
                     ReadOptionalTimeSpan(ref _lastCallbackJitterTicks),
-                    ReadOptionalTimeSpan(ref _maximumCallbackJitterTicks));
+                    ReadOptionalTimeSpan(ref _maximumCallbackJitterTicks),
+                    _slots.Length);
             }
         }
 
@@ -427,7 +429,8 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
         long UnderrunCount,
         int QueuedBufferCount,
         TimeSpan? LastCallbackJitter,
-        TimeSpan? MaximumCallbackJitter)
+        TimeSpan? MaximumCallbackJitter,
+        int QueueCapacityBuffers)
     {
         public static QueuedAsioWaveProviderSnapshot Empty { get; } = new(
             SubmittedBufferCount: 0,
@@ -436,6 +439,7 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
             UnderrunCount: 0,
             QueuedBufferCount: 0,
             LastCallbackJitter: null,
-            MaximumCallbackJitter: null);
+            MaximumCallbackJitter: null,
+            QueueCapacityBuffers: 0);
     }
 }

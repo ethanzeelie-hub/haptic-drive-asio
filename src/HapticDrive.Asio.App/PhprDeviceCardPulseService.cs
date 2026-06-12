@@ -5,6 +5,26 @@ using HapticDrive.Simagic.PHPR.Output.Windows;
 
 namespace HapticDrive.Asio.App;
 
+internal interface IPHprDirectPulseService
+{
+    string InstanceId { get; }
+
+    string OutputInstanceId { get; }
+
+    string WriterInstanceId { get; }
+
+    string EncoderInstanceId { get; }
+
+    string StopMethodId { get; }
+
+    ValueTask<PhprDeviceCardPulseResult> SendDirectPulseAsync(
+        PHprModuleId moduleId,
+        PHprRealGearPulseSettings settings,
+        PHprSafetyContext safetyContext,
+        DateTimeOffset? timestampUtc = null,
+        CancellationToken cancellationToken = default);
+}
+
 internal sealed record PhprDeviceCardPulseResult(
     PHprModuleId ModuleId,
     PHprRealGearPulseSettings Settings,
@@ -15,9 +35,42 @@ internal sealed record PhprDeviceCardPulseResult(
     public bool Succeeded => CommandResult.Status == PHprCommandStatus.Accepted;
 }
 
-internal static class PhprDeviceCardPulseService
+internal sealed class PhprDeviceCardPulseService : IPHprDirectPulseService
 {
     public const string RouteName = "DevicesTabTestPulse";
+
+    private readonly SimagicPhprOutputDevice _output;
+
+    public PhprDeviceCardPulseService(SimagicPhprOutputDevice output)
+    {
+        _output = output ?? throw new ArgumentNullException(nameof(output));
+        InstanceId = $"pulse-service-{Guid.NewGuid():N}";
+    }
+
+    public string InstanceId { get; }
+
+    public string OutputInstanceId => _output.InstanceId;
+
+    public string WriterInstanceId => _output.WriterInstanceId;
+
+    public string EncoderInstanceId => _output.EncoderInstanceId;
+
+    public string StopMethodId => _output.StopMethodId;
+
+    public async ValueTask<PhprDeviceCardPulseResult> SendDirectPulseAsync(
+        PHprModuleId moduleId,
+        PHprRealGearPulseSettings settings,
+        PHprSafetyContext safetyContext,
+        DateTimeOffset? timestampUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = (settings ?? PHprRealGearPulseSettings.Default)
+            .Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+        _output.SetSafetyContext(safetyContext);
+        var command = CreateDirectPulseCommand(moduleId, normalized, timestampUtc);
+        var result = await _output.SendAsync(command, cancellationToken).ConfigureAwait(false);
+        return new PhprDeviceCardPulseResult(moduleId, normalized, command, result, RouteName);
+    }
 
     public static async ValueTask<PhprDeviceCardPulseResult> SendDirectPulseAsync(
         SimagicPhprOutputDevice output,
@@ -29,12 +82,13 @@ internal static class PhprDeviceCardPulseService
     {
         ArgumentNullException.ThrowIfNull(output);
 
-        var normalized = (settings ?? PHprRealGearPulseSettings.Default)
-            .Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        output.SetSafetyContext(safetyContext);
-        var command = CreateDirectPulseCommand(moduleId, normalized, timestampUtc);
-        var result = await output.SendAsync(command, cancellationToken).ConfigureAwait(false);
-        return new PhprDeviceCardPulseResult(moduleId, normalized, command, result, RouteName);
+        var service = new PhprDeviceCardPulseService(output);
+        return await service.SendDirectPulseAsync(
+            moduleId,
+            settings,
+            safetyContext,
+            timestampUtc,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public static PHprCommand CreateDirectPulseCommand(

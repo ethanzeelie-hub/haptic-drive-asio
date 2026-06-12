@@ -24,7 +24,8 @@ public sealed class UnavailableAsioOutputBackend : IAsioOutputBackend
             QueuedBufferCount: 0,
             LastCallbackJitter: null,
             MaximumCallbackJitter: null,
-            _lastError);
+            LastError: _lastError,
+            QueueCapacityBuffers: 0);
     }
 
     public ValueTask<AsioOutputBackendOpenResult> OpenAsync(

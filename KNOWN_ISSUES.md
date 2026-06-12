@@ -484,3 +484,72 @@
 - Direct timed pulses now have a `DurationMs + 100 ms` watchdog that forces stop-all if the target remains active, and emergency stop attempts brake and throttle stop reports independently with retries. These safeguards improve software safety but do not prove physical emergency-stop behavior until Ethan validates the actual hardware chain.
 - Sanitized local crash-state logs are written on unhandled app/task failures under local app data; they avoid private HID paths and are not intended for repository commits.
 - The ASIO/BST-1 audio path is unchanged by Stage 18d.
+
+## Stage 18e
+
+- Direct Paddle Gear Bench output is now owned by a runtime state machine with stop-only startup cleanup, a local unclean-shutdown marker, serialized direct commands, and a local JSONL flight recorder. These software contracts reduce crash/runaway risk but still do not prove physical stop feel, sustained-vibration safety, safe gain, physical latency, or real coexistence behavior.
+- If the unclean marker exists, Direct Bench starts are blocked until `P-HPR Stop All / Clear Device State` succeeds. This recovery path sends stop-only reports and must not be treated as proof that the physical modules responded unless Ethan confirms it locally.
+- The flight recorder and marker are local validation artifacts under `local-validation-results/`; they should not be committed, and private HID paths remain redacted from recorder entries.
+- Startup cleanup may send stop-only brake/throttle reports when a selected direct device is already configured, but it never sends active/start/vibration reports.
+- The F1 25 parser, UDP forwarding, recording/replay raw-byte preservation, confirmed P-HPR report bytes, normal telemetry `DrivingArmed` routing, and ASIO/BST-1 audio path are unchanged by Stage 18e.
+
+## Stage 18f
+
+- The Direct Paddle Gear Bench WPF cross-thread crash is hotfixed in software by marshaling paddle-path status updates to the UI dispatcher and recording/recovering paddle callback exceptions. This does not prove physical P-HPR duration, stop feel, safe gain, physical latency, or real coexistence behavior.
+- If a paddle-path exception occurs after a direct bench pulse may have started, the runtime records it to the local flight recorder and attempts stop-all recovery. The local flight recorder and marker remain local validation artifacts and must not be committed.
+- Blue Test Brake/Throttle Pulse and Direct Paddle Gear Bench still use the same shared direct pulse service and confirmed FeatureReport `0xF1` / 64-byte command format; ASIO/BST-1, F1 25 parsing, UDP forwarding, and recording/replay paths are unchanged.
+
+## Stage 18g
+
+- Direct Paddle Gear Bench now uses latest-press-wins retriggering with per-module generation-guarded scheduled stops, but physical rapid downshift feel and real latency remain unvalidated until Ethan tests the P-HPR hardware locally.
+- Older scheduled stops are ignored in software when their generation no longer matches; this is covered with fake HID writers and fake clocks only.
+- Stale paddle work older than the 80 ms software threshold is dropped and recorded rather than played late. This does not prove the real Windows HID stack or module firmware latency.
+- Paddle debounce defaults to 5 ms and remains per mapped button; Ethan may still need to tune debounce locally if the physical paddles bounce or double-fire.
+- Emergency Stop and Stop All override generations in software, but physical emergency-stop behavior still requires supervised local validation.
+- ASIO/BST-1, F1 25 parser, UDP forwarding, recording/replay raw-byte preservation, SimPro/SimHub coexistence, and confirmed P-HPR report bytes are unchanged by Stage 18g.
+
+## Stage 18i
+
+- Channel 1 is the locally validated BST-1 ASIO output channel, but safe gain, final physical feel, and physical latency remain Ethan-local validation items.
+- Manual BST-1 pulse can run as a short ASIO-only local test without Start Haptics, but it still requires ASIO Output, selected M-Audio/M-Track driver, ASIO arm, valid selected channel, clear emergency mute, and normal mute off.
+- Windows Sound Settings visibility does not prove ASIO usage; use the in-app ASIO status and ASIO driver/callback diagnostics.
+- BST-1 Paddle Gear Bench output is disabled by default and only runs from accepted mapped `Pressed` bench events when explicitly enabled.
+- BST-1 gear-pulse duration can sync to P-HPR gear pulse duration or use a custom BST-1 duration because the Dayton shaker may feel different from the P-HPR modules.
+- `local-validation-results/bst1-asio-gear-flight-recorder.jsonl` is local/ignored validation output and must not be committed.
+- Automated coverage uses fake ASIO output and does not require M-Audio, Fosi, Dayton BST-1, ASIO driver installation, Simagic hardware, F1 25, or live telemetry.
+- P-HPR command format, HID report shape, paddle mappings, F1 25 parser, UDP forwarding, and recording/replay raw-byte preservation are unchanged by Stage 18i.
+
+## Stage 18j
+
+- Manual BST-1 pulse and BST-1 local gear-test pulse readiness is now separated from ASIO stream-running status, so an armed selected ASIO path can be ready even while the continuous stream is stopped.
+- Last manual and last gear ASIO proof fields are software diagnostics only. They show that the app accepted and submitted the last bounded pulse through the ASIO path; they do not prove physical shaker feel, safe gain, or latency.
+- Local Gear Test mode can start the mapped paddle listener and route local bench pulses without Start Haptics, UDP telemetry, live F1 25, or cached `DrivingArmed`, but it still requires valid paddle mapping plus the relevant P-HPR direct and/or BST-1 ASIO gates.
+- The shared gear-pulse duration now drives brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode. BST-1 custom duration remains available only when sync is unchecked.
+- Automated coverage still uses fake ASIO/P-HPR/input paths and does not require M-Audio, Fosi, Dayton BST-1, Simagic hardware, F1 25, live telemetry, or physical vibration.
+
+## Stage 18k
+
+- When the M-Audio M-Track Solo and Duo ASIO driver is discoverable, startup now selects ASIO Output, that driver, channel `1`, and Arm ASIO, but it does not start the ASIO stream or emit output on launch. If the driver is not discoverable, startup stays on Null output.
+- Manual `Test BST-1 Pulse` and enabled BST-1 local paddle gear pulses use a standalone bounded ASIO pulse session when Start Haptics is stopped. They still require ASIO Output, selected M-Audio/M-Track driver, valid channel, Arm ASIO, clear emergency mute, normal mute off, and the mixer/safety/limiter path.
+- `ASIO READY` means the selected/armed/channel/error gates are ready while the stream may be stopped. `ASIO ACTIVE` is reserved for actual running stream plus callback-active output.
+- BST-1 output trim defaults to `200%` and scales only the ASIO bass-shaker pulse before the existing safety chain/limiter. It does not affect P-HPR strength scaling.
+- `Select channel 1` is now pure channel selection and must not vibrate; `Test BST-1 Pulse` is the normal manual output button.
+- Final safe physical gain, final shaker feel, and physical latency remain Ethan-local validation items; automated coverage uses fake ASIO/P-HPR/input paths only.
+
+## Stage 18l
+
+- The software queue-full/drop failure in the standalone BST-1 pulse path is fixed in fake-backed tests by waiting for ASIO callback activity and queue room before submitting pulse buffers.
+- `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl` is local/ignored validation output and must not be committed.
+- Normal close now disposes ASIO/listener/timer resources and writes shutdown diagnostics unless a future tray-minimize implementation intentionally intercepts close.
+- Physical shaker feel, safe gain, physical latency, and final frequency tuning still require Ethan-local validation on the real M-Audio/Fosi/Dayton chain.
+
+## Stage 18m
+
+- Stage 18m fixes software issues found from local `bst1-asio-pulse-flight-recorder` evidence: early `pulse-completed` records are no longer allowed when expected frames have not actually rendered.
+- Manual and local paddle BST-1 pulses use the same request settings, waveform generator, mixer/safety/limiter path, output trim, and channel routing whether Start Haptics is off or on. When haptics are already running, the pulse completes through the running callback instead of a competing submit loop.
+- ASIO driver/channel capability is hydrated by opening the selected ASIO output for readiness without starting output, so fresh startup can cache the M-Audio output-channel count before `Test BST-1 Pulse`.
+- A pre-open channel-count `0` snapshot no longer blocks channel `1` as "outside 0 channels"; actual capability/open failures surface their real error.
+- `ASIO ACTIVE` and recorder `AsioCallbackActive` now require a currently started ASIO stream, not only historical callback counts.
+- If `Minimize to tray on close` remains unchecked, the window close path must not be cancelled for tray behavior. Close performs bounded cleanup, writes shutdown diagnostics, and then lets WPF close normally.
+- `local-validation-results/bst1-asio-pulse-flight-recorder.jsonl` and rotated `.jsonl.1` files are local validation evidence only and must not be committed.
+- Physical shaker feel, safe gain, physical latency, and final frequency tuning still require Ethan-local validation on the real M-Audio/Fosi/Dayton chain.

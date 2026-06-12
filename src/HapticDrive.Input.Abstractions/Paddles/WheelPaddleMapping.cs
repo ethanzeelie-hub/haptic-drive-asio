@@ -5,7 +5,7 @@ namespace HapticDrive.Input.Abstractions.Paddles;
 
 public sealed record WheelPaddleMapping
 {
-    public static TimeSpan DefaultDebounceDuration { get; } = TimeSpan.FromMilliseconds(20);
+    public static TimeSpan DefaultDebounceDuration { get; } = TimeSpan.FromMilliseconds(5);
 
     public static WheelPaddleMapping Default { get; } = new();
 

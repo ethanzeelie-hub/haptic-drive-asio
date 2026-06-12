@@ -8,31 +8,48 @@ Use the repo launcher:
 .\Run-HapticDrive.cmd
 ```
 
-The app starts in hardware-absent safe mode. `NullAudioOutputDevice` remains the default output.
+If the M-Audio M-Track Solo and Duo ASIO driver is discoverable, the app starts with ASIO Output, that driver, channel `1`, and Arm ASIO selected, but it does not emit output. If that driver is not discoverable, the app falls back to `NullAudioOutputDevice`.
 
 ## ASIO / BST-1 Path
 
-ASIO output requires explicit output-mode selection, driver selection, output-channel selection, arming, and Start Haptics.
+ASIO output requires the M-Audio/M-Track driver, output channel, arming, clear mutes, and a deliberate output action. Live telemetry effects also require Start Haptics and valid telemetry. Manual BST-1 pulse testing does not require Start Haptics.
 
 The ASIO/BST-1 path is separate from Simagic P-HPR output. ASIO uses the audio effect engine, mixer, audio safety processor, and `IAudioOutputDevice`. P-HPR uses a separate actuator output path and never routes through ASIO.
 
-Physical Dayton BST-1 feel, safe gain, latency, and final frequency tuning remain pending local hardware validation.
+Channel 1 is the locally validated BST-1 ASIO output channel. Physical Dayton BST-1 safe gain, latency, and final feel/tuning remain local validation items.
 
-## Manual ASIO Bass Shaker Test
+Windows Sound Settings visibility does not prove ASIO usage. `ASIO READY` means the selected/armed/channel/error gates are ready while the stream can still be stopped. `ASIO ACTIVE` appears only while the stream and callback are actually active. Detailed callback, submitted/dropped frame, last manual-pulse proof, last gear-pulse proof, and error diagnostics live under Advanced / Diagnostics.
 
-Use Devices `Manual ASIO Bass Shaker Test` only when you deliberately want this app to energize the connected BST-1.
+## Manual BST-1 ASIO Pulse
 
-Before pressing a 40 Hz or 50 Hz button, confirm:
+Use Devices `BST-1 ASIO Pulse Control` only when you deliberately want this app to energize the connected BST-1.
+
+Before pressing `Test BST-1 Pulse`, confirm:
 
 - Output mode is `ASIO Output`,
 - the selected driver is the M-Audio / M-Track ASIO driver,
-- the intended zero-based output channel is selected,
+- channel `1` is selected unless you are deliberately testing another channel,
 - ASIO is armed,
-- haptics are started and ASIO is running,
 - Emergency Mute is clear,
 - normal mute is off.
 
-The pulse runs through the app mixer, safety chain, limiter, and selected ASIO output channel. It is separate from the Null synthetic benchmark, which remains the safe automated-test path.
+Set BST-1 strength from `0-100%`, output trim from `25-400%` (`200%` default), frequency in the Dayton BST-1 normal control range `10-80 Hz`, and duration as a short millisecond pulse. The pulse runs through the app mixer, safety chain, limiter, and selected ASIO output channel. Output trim calibrates ASIO bass-shaker level without changing P-HPR strength. It is separate from the Null synthetic benchmark, which remains the safe automated-test path.
+
+The status text separates ASIO readiness from the continuous stream. `ASIO READY` while the stream is stopped is expected for a stopped app that is still ready to run a bounded manual pulse.
+
+## BST-1 Paddle Gear Pulse
+
+In Devices `Bass Shaker / ASIO`, `BST-1 paddle gear pulse` is off by default. When enabled for local bench validation, each accepted Paddle Gear Bench mapped `Pressed` event can fire a short BST-1 ASIO pulse alongside the P-HPR bench pulse.
+
+Controls:
+
+- strength percent,
+- shared BST-1 output trim,
+- frequency Hz in the `10-80 Hz` normal range,
+- duration synced to the shared P-HPR gear pulse duration or a custom BST-1 duration,
+- selected ASIO channel, with channel `1` locally validated.
+
+This bench path does not wait for F1 telemetry gear-change confirmation and does not require Start Haptics. Live driving effects still use their normal haptics and telemetry gates.
 
 ## F1 25 Telemetry
 
@@ -75,9 +92,11 @@ Use Devices `Paddle Gear Bench Test` for local validation when live F1 telemetry
 
 Bench mode is disabled and unarmed by default, is not persisted, and still requires mapped paddles. A mapped left or right GT Neo paddle can create a local bench shift-intent event without recent telemetry. Normal live-driving shift intent is unchanged and still suppresses paddle events when cached `DrivingArmed` is false.
 
+`Enable Local Gear Test Mode` is the local bench workflow for mapped paddles. It may auto-start the paddle listener and does not require Start Haptics, UDP telemetry, live F1 25, replay, or cached `DrivingArmed`. It still requires valid listener/mapping state, clear emergency stop, P-HPR Direct readiness for P-HPR output, and ASIO Output plus selected M-Audio/M-Track driver, channel, and arm state for BST-1 output.
+
 Start with output mode `Mock`. Mock bench routing increments mock gear routing diagnostics only; it does not send HID reports and does not route to ASIO.
 
-Use output mode `Direct` only after the normal direct P-HPR gates are green: selected device, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled. The initial direct bench defaults are brake only, 10%, 50 Hz, 50 ms, one paddle press, no loop.
+Use output mode `Direct` only after the normal direct P-HPR gates are green: selected device, FeatureReport transport, report ID `0xF1`, 64-byte report length, open-check succeeded, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled. Direct Bench uses the same shared P-HPR gear-pulse duration and brake/throttle pulse settings as the blue Test Brake/Throttle buttons and records local recovery diagnostics under `local-validation-results/`. Stage 18g allows latest-press-wins retriggering with generation-guarded stops for rapid bench shifts; physical stop feel, safe gain, and latency still require local validation.
 
 ## UDP Forwarding
 
@@ -149,14 +168,15 @@ mapped paddle press
 
 It does not wait for F1 25 telemetry gear-change confirmation. Upshift and downshift use the same default pulse.
 
-Brake and throttle gear-pulse settings are independent: enabled, strength, frequency, and duration.
+Brake and throttle gear-pulse settings are independent for enabled state, strength, and frequency. Duration is shared by brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode.
 
 To configure brake or throttle gear pulse, use Devices `P-HPR Real Direct Control`:
 
 - enable or disable the brake pedal pulse,
-- set brake strength, frequency, and duration,
+- set brake strength and frequency,
 - enable or disable the throttle pedal pulse,
-- set throttle strength, frequency, and duration.
+- set throttle strength and frequency,
+- set the shared P-HPR gear pulse duration.
 
 Use low strength and short duration first. Upshift and downshift use the same default pulse.
 
@@ -197,6 +217,8 @@ P-HPR emergency stop attempts brake and throttle stop reports when a real device
 Clearing emergency stop only clears the latch. It does not enable or arm direct control.
 
 Use emergency stop immediately if the wrong pedal vibrates, both pedals vibrate unexpectedly, output feels too strong, vibration continues after stop, or the device disconnects.
+
+`P-HPR Stop All / Clear Device State` is the Direct Bench recovery button. It sends stop-only brake/throttle reports through the same direct output path and clears the Direct Bench unclean-shutdown marker only after the runtime reports success. It does not start vibration, enable direct control, or prove physical stop response without local observation.
 
 ## SimPro / SimHub Warnings
 

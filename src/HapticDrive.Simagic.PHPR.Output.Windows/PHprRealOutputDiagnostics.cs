@@ -29,4 +29,15 @@ public sealed record PHprRealOutputDiagnostics(
     string? LastEmergencyStopResultMessage,
     long WatchdogStopAllCount,
     DateTimeOffset? LastWatchdogStopAllAtUtc,
-    string? LastWatchdogStopAllMessage);
+    string? LastWatchdogStopAllMessage,
+    long BrakePulseGeneration,
+    long ThrottlePulseGeneration,
+    long LastPulseGeneration,
+    long StaleStopIgnoredCount,
+    long RetriggerCount,
+    long BusyRejectedCount,
+    long StaleOutputDroppedCount,
+    DateTimeOffset? BrakeStopDueAtUtc,
+    DateTimeOffset? ThrottleStopDueAtUtc,
+    long LastStaleStopGeneration,
+    PHprModuleId? LastStaleStopTarget);

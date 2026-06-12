@@ -7,7 +7,7 @@ cd "C:\Users\ethan\OneDrive\Documents\ASIO Haptic Engine Program"
 .\Run-HapticDrive.cmd
 ```
 
-The app starts with `NullAudioOutputDevice` as the safe default. ASIO and real P-HPR direct control require explicit selection and arming.
+If the M-Audio M-Track Solo and Duo ASIO driver is discoverable, the app starts with ASIO Output, that driver, channel `1`, and Arm ASIO selected, but it does not emit output. If that driver is missing, the app starts with `NullAudioOutputDevice`. Real P-HPR direct control still requires explicit session enable/arm.
 
 ## Confirm F1 25 Telemetry
 
@@ -25,31 +25,44 @@ The app starts with `NullAudioOutputDevice` as the safe default. ASIO and real P
 5. Map left and right paddles.
 6. Confirm Shift Intent Diagnostics show accepted or suppressed events with the current `DrivingArmed` reason.
 
-## Manual ASIO Bass Shaker Test
+## Manual BST-1 ASIO Pulse
 
 Use this only when the connected BST-1 chain is ready for a short app-driven pulse.
 
 1. Open Devices.
-2. Select `ASIO Output`.
-3. Select the M-Audio / M-Track ASIO driver.
-4. Select channel 0 or 1 deliberately.
-5. Arm ASIO.
-6. Press Start Haptics.
-7. In `Manual ASIO Bass Shaker Test`, start with 250 ms at 40 Hz or 50 Hz.
+2. Confirm `ASIO Output` is selected.
+3. Confirm the M-Audio / M-Track ASIO driver is selected.
+4. Confirm channel `1`, the locally validated BST-1 output channel.
+5. Confirm Arm ASIO is checked.
+6. In `BST-1 ASIO Pulse Control`, start with 50% strength, 200% output trim, 50 Hz, and 45-50 ms.
+7. Press `Test BST-1 Pulse`.
 
-The Null synthetic benchmark remains the automated-test path and does not energize the shaker.
+Manual BST-1 pulse uses ASIO and does not require Start Haptics, UDP telemetry, live/replay telemetry, or `DrivingArmed`. `ASIO READY - stream stopped` is valid before the bounded pulse starts; `ASIO ACTIVE` appears only during actual running/callback output. The Null synthetic benchmark remains the automated-test path and does not energize the shaker. Windows Sound Settings visibility does not prove ASIO; use Advanced / Diagnostics for callback and last-pulse proof details.
+
+## BST-1 Paddle Gear Pulse
+
+Use this only for local Paddle Gear Bench validation after manual BST-1 pulse works.
+
+1. Keep the P-HPR Paddle Gear Bench path working first.
+2. In `Bass Shaker / ASIO`, enable `BST-1 paddle gear pulse`.
+3. Use 50% strength, 200% output trim, and 50 Hz as a starting software setting.
+4. Keep duration synced to the shared P-HPR gear pulse duration first, then switch to custom duration if the Dayton shaker needs different timing.
+5. Press mapped paddles and confirm accepted bench events plus BST-1 ASIO diagnostics.
+
+BST-1 paddle gear pulse is off by default, uses accepted mapped `Pressed` bench events only, and still targets selected ASIO channel `1`.
 
 ## Paddle Gear Bench Test
 
 Use this when mapped paddles need validation without live F1 telemetry.
 
 1. Open Devices.
-2. Enable and arm `Paddle Gear Bench Test`.
-3. Keep output mode `Mock` first.
+2. Enable `Local Gear Test Mode`, or enable and arm `Paddle Gear Bench Test`.
+3. Use `Start Gear Test Listener` if the listener is not already running.
+4. Keep output mode `Mock` first.
 4. Press one mapped paddle and confirm accepted bench gear events plus mock gear routing count increase.
 5. Use `Direct` only after the FeatureReport `0xF1` / 64-byte direct gates, coexistence, emergency stop, approval, road, slip, and lock checks are green.
 
-Bench enable/arm state is not persisted, and normal live-driving shift intent still requires cached `DrivingArmed`.
+Local Gear Test does not require Start Haptics, UDP telemetry, live F1 25, replay, or cached `DrivingArmed`. Bench enable/arm state is not persisted, and normal live-driving shift intent still requires cached `DrivingArmed`.
 
 ## Mock P-HPR First
 
@@ -100,8 +113,9 @@ Add `--execute` only when physically present, SimPro/SimHub coexistence is clear
 
 Use Devices to configure:
 
-- brake gear pulse enabled, strength, frequency, duration,
-- throttle gear pulse enabled, strength, frequency, duration,
+- brake gear pulse enabled, strength, and frequency,
+- throttle gear pulse enabled, strength, and frequency,
+- shared gear pulse duration for brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode,
 - road vibration brake/throttle min/max strength, min/max frequency, duration,
 - wheel slip target, strength range, frequency range, duration,
 - wheel lock target, strength range, frequency range, duration.

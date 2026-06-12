@@ -36,7 +36,8 @@ public sealed record AsioOutputBackendSnapshot(
     int QueuedBufferCount,
     TimeSpan? LastCallbackJitter,
     TimeSpan? MaximumCallbackJitter,
-    string? LastError);
+    string? LastError,
+    int QueueCapacityBuffers = 0);
 
 public sealed record AsioOutputBackendOpenResult(
     bool Succeeded,
