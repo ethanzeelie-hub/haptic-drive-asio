@@ -12,6 +12,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
     public static PHprSafetyLimits DirectControlSafetyLimits { get; } = PHprSafetyLimits.Default with
     {
+        MaxCommandsPerSecond = 40,
         AllowRealDeviceWrites = true
     };
 

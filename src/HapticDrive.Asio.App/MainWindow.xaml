@@ -2473,9 +2473,6 @@
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource AppMutedTextBrush}"
                            Text="Ready - Stage 18 final pre-shaker package" />
-                <CheckBox Grid.Column="1"
-                          Content="Minimize to tray on close"
-                          IsEnabled="False" />
             </Grid>
         </Border>
     </Grid>
