@@ -346,7 +346,7 @@ public static class HapticProfileValidator
                 Clamp(effects.Impact?.VerticalGDeltaThreshold, 0.1f, 5f, defaultProfile.Effects.Impact.VerticalGDeltaThreshold, "impact vertical-G threshold", messages, ref repaired)),
             new RoadTextureTuning(
                 effects.RoadTexture?.IsEnabled ?? defaultProfile.Effects.RoadTexture.IsEnabled,
-                Clamp(effects.RoadTexture?.Gain, 0f, 0.25f, defaultProfile.Effects.RoadTexture.Gain, "road texture gain", messages, ref repaired),
+                Clamp(effects.RoadTexture?.Gain, 0f, 1f, defaultProfile.Effects.RoadTexture.Gain, "BST-1 / ASIO road output gain", messages, ref repaired),
                 Clamp(effects.RoadTexture?.MinimumSpeedKph, 0f, 80f, defaultProfile.Effects.RoadTexture.MinimumSpeedKph, "road texture minimum speed", messages, ref repaired),
                 ClampAtLeast(
                     Clamp(effects.RoadTexture?.FullIntensitySpeedKph, 20f, 300f, defaultProfile.Effects.RoadTexture.FullIntensitySpeedKph, "road texture full-intensity speed", messages, ref repaired),

@@ -415,9 +415,9 @@
                                                   Unchecked="TuningControl_Changed" />
                                         <TextBlock Margin="0,8,0,0"
                                                    Style="{StaticResource MutedTextBlockStyle}"
-                                                   Text="Gain" />
+                                                   Text="BST-1 / ASIO road output gain" />
                                         <Slider x:Name="RoadTextureGainSlider"
-                                                Maximum="0.25"
+                                                Maximum="1"
                                                 Minimum="0"
                                                 ValueChanged="TuningControl_Changed" />
                                         <TextBlock x:Name="RoadTextureGainValueText"

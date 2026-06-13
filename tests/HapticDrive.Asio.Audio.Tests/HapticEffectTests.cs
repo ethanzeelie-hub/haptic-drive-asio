@@ -303,6 +303,24 @@ public sealed class HapticEffectTests
     }
 
     [Fact]
+    public void RoadTextureEffect_Bst1GainScalesOnlyRenderedAudioOutput()
+    {
+        var state = State(speed: 160, surfaceTypeIds: Wheels<byte>(0));
+        var conservativeEffect = new RoadTextureEffect(RoadTextureEffectOptions.Default with { Gain = 0.25f });
+        var tunedEffect = new RoadTextureEffect(RoadTextureEffectOptions.Default with { Gain = 1f });
+        var conservative = AudioSampleBuffer.Allocate(EffectFormat);
+        var tuned = AudioSampleBuffer.Allocate(EffectFormat);
+
+        conservativeEffect.Update(state);
+        tunedEffect.Update(state);
+        conservativeEffect.Render(conservative);
+        tunedEffect.Render(tuned);
+
+        Assert.Equal(conservativeEffect.Snapshot.Signal.OutputIntensity, tunedEffect.Snapshot.Signal.OutputIntensity, precision: 6);
+        Assert.True(Peak(tuned) > Peak(conservative) * 3f);
+    }
+
+    [Fact]
     public void ImpactEffect_DisabledOutputsSilence()
     {
         var effect = new ImpactEffect(ImpactEffectOptions.Default with { IsEnabled = false });
