@@ -285,6 +285,11 @@
                                 <StackPanel>
                                     <TextBlock FontWeight="SemiBold"
                                                Text="Shared / Global Effect Settings" />
+                                    <CheckBox x:Name="SharedRoadSignalEnabledCheckBox"
+                                              Margin="0,10,0,0"
+                                              Checked="TuningControl_Changed"
+                                              Content="Enable road texture signal"
+                                              Unchecked="TuningControl_Changed" />
                                     <WrapPanel Margin="0,12,0,0">
                                         <TextBlock Margin="0,4,6,8"
                                                    Style="{StaticResource MutedTextBlockStyle}"
@@ -298,6 +303,18 @@
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Shared by brake P-HPR, throttle P-HPR, Direct Paddle Gear Bench, and BST-1 sync mode." />
                                     </WrapPanel>
+                                    <TextBlock Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}"
+                                               Text="Road texture minimum speed gate" />
+                                    <Slider x:Name="RoadTextureMinimumSpeedSlider"
+                                            Maximum="80"
+                                            Minimum="0"
+                                            ValueChanged="TuningControl_Changed" />
+                                    <TextBlock x:Name="RoadTextureMinimumSpeedValueText"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
+                                    <TextBlock x:Name="SharedRoadSignalStatusText"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource MutedTextBlockStyle}" />
                                     <TextBlock Margin="0,6,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
                                                Text="Gear effects are pulse-like and use duration. Road texture is a continuous telemetry/synthetic signal; it uses shared road signal tuning and gear-priority ducking instead of a normal pulse duration." />
@@ -408,10 +425,10 @@
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold"
                                                    Text="Road Texture" />
-                                        <CheckBox x:Name="RoadTextureEnabledCheckBox"
+                                        <CheckBox x:Name="Bst1RoadOutputEnabledCheckBox"
                                                   Margin="0,10,0,0"
                                                   Checked="TuningControl_Changed"
-                                                  Content="Road texture enabled"
+                                                  Content="Enable BST-1 road output"
                                                   Unchecked="TuningControl_Changed" />
                                         <TextBlock Margin="0,8,0,0"
                                                    Style="{StaticResource MutedTextBlockStyle}"
@@ -421,15 +438,6 @@
                                                 Minimum="0"
                                                 ValueChanged="TuningControl_Changed" />
                                         <TextBlock x:Name="RoadTextureGainValueText"
-                                                   Style="{StaticResource MutedTextBlockStyle}" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   Style="{StaticResource MutedTextBlockStyle}"
-                                                   Text="Minimum speed gate" />
-                                        <Slider x:Name="RoadTextureMinimumSpeedSlider"
-                                                Maximum="80"
-                                                Minimum="0"
-                                                ValueChanged="TuningControl_Changed" />
-                                        <TextBlock x:Name="RoadTextureMinimumSpeedValueText"
                                                    Style="{StaticResource MutedTextBlockStyle}" />
                                         <TextBlock x:Name="RoadTextureEffectStateText"
                                                    Margin="0,12,0,0"

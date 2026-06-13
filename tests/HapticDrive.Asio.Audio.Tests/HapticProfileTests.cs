@@ -172,6 +172,50 @@ public sealed class HapticProfileTests
     }
 
     [Fact]
+    public void RoadTextureProfile_MissingBst1OutputEnableInheritsOldSharedRoadSetting()
+    {
+        var oldStyleRoad = new RoadTextureTuning(
+            IsEnabled: true,
+            Gain: 0.25f,
+            MinimumSpeedKph: 5f,
+            FullIntensitySpeedKph: 160f);
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with { RoadTexture = oldStyleRoad }
+        };
+
+        var validated = HapticProfileValidator.Validate(profile).Profile;
+
+        Assert.True(validated.Effects.RoadTexture.IsEnabled);
+        Assert.True(validated.Effects.RoadTexture.Bst1OutputEnabled);
+        Assert.True(validated.ToEffectOptions().RoadTexture.IsEnabled);
+        Assert.True(validated.ToEffectOptions().RoadTexture.Bst1OutputEnabled);
+    }
+
+    [Fact]
+    public void RoadTextureProfile_MapsSharedSignalAndBst1OutputIndependently()
+    {
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                RoadTexture = HapticDriveProfile.Default.Effects.RoadTexture with
+                {
+                    IsEnabled = true,
+                    Bst1OutputEnabled = false,
+                    Gain = 0.75f
+                }
+            }
+        };
+
+        var options = profile.ToEffectOptions().RoadTexture;
+
+        Assert.True(options.IsEnabled);
+        Assert.False(options.Bst1OutputEnabled);
+        Assert.Equal(0.75f, options.Gain, precision: 6);
+    }
+
+    [Fact]
     public void ProfileMapsEffectEnabledAndGainIntoEffectOptions()
     {
         var profile = HapticDriveProfile.Default with

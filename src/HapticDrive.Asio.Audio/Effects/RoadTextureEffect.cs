@@ -68,7 +68,7 @@ public sealed class RoadTextureEffect : IHapticEffectSource
         ArgumentNullException.ThrowIfNull(destination);
         destination.Clear();
 
-        if (!Options.IsEnabled || !_signal.IsActive)
+        if (!Options.IsEnabled || !Options.Bst1OutputEnabled || !_signal.IsActive)
         {
             Snapshot = CreateSnapshot(_signal, peakLevel: 0f, rmsLevel: 0f);
             return new HapticEffectRenderResult(Name, Options.IsEnabled, IsActive: false, PeakLevel: 0f);
@@ -110,11 +110,12 @@ public sealed class RoadTextureEffect : IHapticEffectSource
     {
         return new RoadTextureEffectSnapshot(
             Options.IsEnabled,
-            signal.IsActive,
+            Options.Bst1OutputEnabled,
+            Options.Bst1OutputEnabled && signal.IsActive && peakLevel > 0f,
             signal.SurfaceClass == RoadTextureSurfaceClass.None ? null : signal.SurfaceTypeIds.RearLeft,
             signal.SurfaceName,
             signal.Bst1FrequencyHz,
-            signal.OutputIntensity * Options.Gain,
+            Options.Bst1OutputEnabled ? signal.OutputIntensity * Options.Gain : 0f,
             signal.SurfaceMix,
             peakLevel,
             signal,

@@ -88,6 +88,9 @@ public sealed class AppThemeResourceTests
         Assert.Contains("Throttle P-HPR", effectsText);
 
         Assert.Contains("NormalPhprGearDurationTextBox", effectsNames);
+        Assert.Contains("SharedRoadSignalEnabledCheckBox", effectsNames);
+        Assert.Contains("Bst1RoadOutputEnabledCheckBox", effectsNames);
+        Assert.DoesNotContain("RoadTextureEnabledCheckBox", effectsNames);
         Assert.Contains("Bst1PaddleGearPulseEnabledCheckBox", effectsNames);
         Assert.Contains("NormalPhprBrakeEnabledCheckBox", effectsNames);
         Assert.Contains("NormalPhprThrottleEnabledCheckBox", effectsNames);

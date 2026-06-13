@@ -4,6 +4,7 @@ namespace HapticDrive.Asio.Audio.Effects;
 
 public sealed record RoadTextureEffectOptions(
     bool IsEnabled,
+    bool Bst1OutputEnabled,
     float Gain,
     float MinimumSpeedKph,
     float FullIntensitySpeedKph,
@@ -16,6 +17,7 @@ public sealed record RoadTextureEffectOptions(
 {
     public static RoadTextureEffectOptions Default { get; } = new(
         IsEnabled: true,
+        Bst1OutputEnabled: true,
         Gain: 0.05f,
         MinimumSpeedKph: 5f,
         FullIntensitySpeedKph: 160f,
@@ -43,6 +45,7 @@ public sealed record RoadTextureEffectOptions(
 
 public sealed record RoadTextureEffectSnapshot(
     bool IsEnabled,
+    bool Bst1OutputEnabled,
     bool IsActive,
     byte? DominantSurfaceTypeId,
     string DominantSurfaceName,

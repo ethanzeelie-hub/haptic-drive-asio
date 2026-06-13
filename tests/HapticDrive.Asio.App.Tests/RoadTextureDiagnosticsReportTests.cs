@@ -33,12 +33,36 @@ public sealed class RoadTextureDiagnosticsReportTests
 
         var line = snapshot.ToDiagnosticsLines()[0];
 
+        Assert.Contains("sharedRoadSignalEnabled", line);
         Assert.Contains("raw", line);
         Assert.Contains("smoothed", line);
         Assert.Contains("output", line);
         Assert.True(snapshot.RawIntensity > 0f);
         Assert.True(snapshot.SmoothedIntensity > 0f);
         Assert.True(snapshot.OutputIntensity > 0f);
+    }
+
+    [Fact]
+    public void DiagnosticsSeparateSharedRoadSignalFromBst1RoadOutput()
+    {
+        var snapshot = CreateDiagnostics(profile: HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                RoadTexture = HapticDriveProfile.Default.Effects.RoadTexture with
+                {
+                    IsEnabled = true,
+                    Bst1OutputEnabled = false
+                }
+            }
+        });
+
+        var lines = snapshot.ToDiagnosticsLines();
+
+        Assert.True(snapshot.SharedRoadSignalEnabled);
+        Assert.False(snapshot.Bst1RoadEnabled);
+        Assert.Contains("sharedRoadSignalEnabled True", lines[0]);
+        Assert.Contains("bst1RoadOutputEnabled False", lines[1]);
     }
 
     [Fact]
@@ -216,6 +240,7 @@ public sealed class RoadTextureDiagnosticsReportTests
     {
         var road = new RoadTextureEffectSnapshot(
             IsEnabled: true,
+            Bst1OutputEnabled: profile.Effects.RoadTexture.Bst1OutputEnabled ?? profile.Effects.RoadTexture.IsEnabled,
             IsActive: true,
             DominantSurfaceTypeId: signal.SurfaceTypeIds.RearLeft,
             DominantSurfaceName: signal.SurfaceName,

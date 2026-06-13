@@ -3861,7 +3861,8 @@ public partial class MainWindow : Window
                 },
                 RoadTexture = effects.RoadTexture with
                 {
-                    IsEnabled = RoadTextureEnabledCheckBox.IsChecked == true,
+                    IsEnabled = SharedRoadSignalEnabledCheckBox.IsChecked == true,
+                    Bst1OutputEnabled = Bst1RoadOutputEnabledCheckBox.IsChecked == true,
                     Gain = (float)RoadTextureGainSlider.Value,
                     MinimumSpeedKph = (float)RoadTextureMinimumSpeedSlider.Value
                 },
@@ -3917,7 +3918,8 @@ public partial class MainWindow : Window
         ImpactEnabledCheckBox.IsChecked = safeProfile.Effects.Impact.IsEnabled;
         ImpactGainSlider.Value = safeProfile.Effects.Impact.Gain;
         ImpactDurationSlider.Value = safeProfile.Effects.Impact.PulseDurationMilliseconds;
-        RoadTextureEnabledCheckBox.IsChecked = safeProfile.Effects.RoadTexture.IsEnabled;
+        SharedRoadSignalEnabledCheckBox.IsChecked = safeProfile.Effects.RoadTexture.IsEnabled;
+        Bst1RoadOutputEnabledCheckBox.IsChecked = safeProfile.Effects.RoadTexture.Bst1OutputEnabled == true;
         RoadTextureGainSlider.Value = safeProfile.Effects.RoadTexture.Gain;
         RoadTextureMinimumSpeedSlider.Value = safeProfile.Effects.RoadTexture.MinimumSpeedKph;
         SlipEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.IsEnabled;
@@ -4518,7 +4520,7 @@ public partial class MainWindow : Window
         Bst1RoutingSummaryText.Text =
             $"Output mode {selectedOutputMode}; selected driver {_selectedAsioDriverName ?? "none"}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; readiness {BuildTrueAsioStatusText(manualAsio)}.";
         Bst1EffectsSummaryText.Text =
-            $"Effects: gear {FormatEnabledActive(_bst1PaddleGearPulseEnabled, effectSnapshot.GearShift.IsActive)}; road {FormatEnabledActive(effectSnapshot.RoadTexture.IsEnabled, effectSnapshot.RoadTexture.IsActive)}; engine {FormatEnabledActive(effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive)}; kerb {FormatEnabledActive(effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive)}; impact {FormatEnabledActive(effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive)}; slip/lock {FormatEnabledActive(effectSnapshot.Slip.IsEnabled, effectSnapshot.Slip.IsActive)}.";
+            $"Effects: gear {FormatEnabledActive(_bst1PaddleGearPulseEnabled, effectSnapshot.GearShift.IsActive)}; road {FormatEnabledActive(effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive)}; engine {FormatEnabledActive(effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive)}; kerb {FormatEnabledActive(effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive)}; impact {FormatEnabledActive(effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive)}; slip/lock {FormatEnabledActive(effectSnapshot.Slip.IsEnabled, effectSnapshot.Slip.IsActive)}.";
 
         ConfigurePhprDirectRuntime();
         var directRuntime = _phprDirectRuntime.GetSnapshot();
@@ -6377,11 +6379,13 @@ public partial class MainWindow : Window
             : $"Last impact frame {snapshot.Impact.LastImpactFrameIdentifier:N0}; intensity {snapshot.Impact.CurrentIntensity:0.00}; peak {snapshot.Impact.PeakLevel:0.000}.";
         ImpactEffectDefaultsText.Text = $"Tuned gain {options.Impact.Gain:P0}; {options.Impact.PulseFrequencyHz:0} Hz; {options.Impact.PulseDuration.TotalMilliseconds:0} ms; enabled {options.Impact.IsEnabled}.";
 
-        RoadTextureEffectStateText.Text = snapshot.RoadTexture.IsActive ? "Active" : "Idle";
+        var sharedRoadSignalActive = snapshot.RoadTexture.Signal.IsActive;
+        SharedRoadSignalStatusText.Text = $"Shared road signal {(options.RoadTexture.IsEnabled ? "enabled" : "disabled")}; output {snapshot.RoadTexture.Signal.OutputIntensity:0.000}; gear ducking {snapshot.RoadTexture.Signal.GearDuckingActive}.";
+        RoadTextureEffectStateText.Text = snapshot.RoadTexture.IsActive ? "BST-1 active" : "Idle";
         RoadTextureEffectDetailText.Text = snapshot.RoadTexture.DominantSurfaceTypeId is null
             ? "Waiting for speed and surface telemetry."
-            : $"{snapshot.RoadTexture.DominantSurfaceName}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; peak {snapshot.RoadTexture.PeakLevel:0.000}.";
-        RoadTextureEffectDefaultsText.Text = $"BST-1 / ASIO road output gain {options.RoadTexture.Gain:P0}; {options.RoadTexture.MinimumSpeedKph:0}-{options.RoadTexture.FullIntensitySpeedKph:0} km/h; enabled {options.RoadTexture.IsEnabled}.";
+            : $"{snapshot.RoadTexture.DominantSurfaceName}; shared signal {(sharedRoadSignalActive ? "active" : "idle")}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; BST-1 peak {snapshot.RoadTexture.PeakLevel:0.000}.";
+        RoadTextureEffectDefaultsText.Text = $"BST-1 / ASIO road output gain {options.RoadTexture.Gain:P0}; {options.RoadTexture.MinimumSpeedKph:0}-{options.RoadTexture.FullIntensitySpeedKph:0} km/h; shared signal {options.RoadTexture.IsEnabled}; BST-1 output {options.RoadTexture.Bst1OutputEnabled}.";
 
         SlipEffectStateText.Text = snapshot.Slip.IsActive ? "Active" : "Idle";
         SlipEffectDetailText.Text = snapshot.Slip.CurrentSlipIntensity <= 0f && snapshot.Slip.CurrentLockIntensity <= 0f

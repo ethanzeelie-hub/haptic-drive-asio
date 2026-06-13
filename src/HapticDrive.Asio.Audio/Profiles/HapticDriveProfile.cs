@@ -54,6 +54,7 @@ public sealed record HapticDriveProfile(
             RoadTextureEffectOptions.Default with
             {
                 IsEnabled = profile.Effects.RoadTexture.IsEnabled,
+                Bst1OutputEnabled = profile.Effects.RoadTexture.Bst1OutputEnabled ?? profile.Effects.RoadTexture.IsEnabled,
                 Gain = profile.Effects.RoadTexture.Gain,
                 MinimumSpeedKph = profile.Effects.RoadTexture.MinimumSpeedKph,
                 FullIntensitySpeedKph = profile.Effects.RoadTexture.FullIntensitySpeedKph
@@ -129,7 +130,10 @@ public sealed record HapticDriveProfile(
                     effects.RoadTexture.IsEnabled,
                     effects.RoadTexture.Gain,
                     effects.RoadTexture.MinimumSpeedKph,
-                    effects.RoadTexture.FullIntensitySpeedKph),
+                    effects.RoadTexture.FullIntensitySpeedKph)
+                {
+                    Bst1OutputEnabled = effects.RoadTexture.Bst1OutputEnabled
+                },
                 new SlipTuning(
                     effects.Slip.IsEnabled,
                     effects.Slip.Gain,
@@ -178,7 +182,10 @@ public sealed record HapticDriveProfile(
                     effects.RoadTexture.IsEnabled,
                     effects.RoadTexture.Gain,
                     effects.RoadTexture.MinimumSpeedKph,
-                    effects.RoadTexture.FullIntensitySpeedKph),
+                    effects.RoadTexture.FullIntensitySpeedKph)
+                {
+                    Bst1OutputEnabled = effects.RoadTexture.Bst1OutputEnabled
+                },
                 new SlipTuning(
                     effects.Slip.IsEnabled,
                     effects.Slip.Gain,
@@ -235,7 +242,10 @@ public sealed record RoadTextureTuning(
     bool IsEnabled,
     float Gain,
     float MinimumSpeedKph,
-    float FullIntensitySpeedKph);
+    float FullIntensitySpeedKph)
+{
+    public bool? Bst1OutputEnabled { get; init; }
+}
 
 public sealed record SlipTuning(
     bool IsEnabled,
@@ -354,7 +364,13 @@ public static class HapticProfileValidator
                     fallback: defaultProfile.Effects.RoadTexture.FullIntensitySpeedKph,
                     "road texture full-intensity speed",
                     messages,
-                    ref repaired)),
+                    ref repaired))
+            {
+                Bst1OutputEnabled = effects.RoadTexture?.Bst1OutputEnabled
+                    ?? effects.RoadTexture?.IsEnabled
+                    ?? defaultProfile.Effects.RoadTexture.Bst1OutputEnabled
+                    ?? defaultProfile.Effects.RoadTexture.IsEnabled
+            },
             new SlipTuning(
                 effects.Slip?.IsEnabled ?? defaultProfile.Effects.Slip.IsEnabled,
                 Clamp(effects.Slip?.Gain, 0f, 0.3f, defaultProfile.Effects.Slip.Gain, "slip gain", messages, ref repaired),

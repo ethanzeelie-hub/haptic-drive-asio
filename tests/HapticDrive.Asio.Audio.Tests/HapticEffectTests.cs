@@ -321,6 +321,23 @@ public sealed class HapticEffectTests
     }
 
     [Fact]
+    public void RoadTextureEffect_Bst1OutputDisabledKeepsSharedSignalForOtherOutputs()
+    {
+        var effect = new RoadTextureEffect(RoadTextureEffectOptions.Default with { Bst1OutputEnabled = false });
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(speed: 160, surfaceTypeIds: Wheels<byte>(0)));
+        var result = effect.Render(buffer);
+
+        Assert.True(effect.Snapshot.IsEnabled);
+        Assert.False(effect.Snapshot.Bst1OutputEnabled);
+        Assert.True(effect.Snapshot.Signal.IsActive);
+        Assert.False(effect.Snapshot.IsActive);
+        Assert.False(result.IsActive);
+        AssertSilence(buffer);
+    }
+
+    [Fact]
     public void ImpactEffect_DisabledOutputsSilence()
     {
         var effect = new ImpactEffect(ImpactEffectOptions.Default with { IsEnabled = false });
