@@ -44,7 +44,9 @@ The router scales strength and frequency from road intensity between each pedal'
 
 - strength `0.01` to `0.04`,
 - frequency `25 Hz` to `45 Hz`,
-- duration `50 ms`,
+- road update cadence about `100 ms`,
+- road command duration `220 ms` by default and clamped to at least `180 ms`,
+- hold timeout about `350 ms`,
 - priority `10`.
 
 Road priority stays below gear pulse, wheel slip, and wheel lock.
@@ -62,11 +64,11 @@ Real road vibration can write only when:
 - telemetry is fresh,
 - cached `DrivingArmed` is true,
 - the safety limiter accepts the command,
-- the deterministic route interval allows another command.
+- the deterministic route interval allows another road update.
 
-The route is evaluated from the existing telemetry/status update path, not the audio callback. When a `HapticPipelineSnapshot` is available, the router consumes `snapshot.Effects.RoadTexture.Signal` so BST-1 and P-HPR road use the same underlying road decision.
+Stage 18q-E runs real P-HPR road from a background cadence task rather than the 500 ms UI/status timer. The router consumes `snapshot.Effects.RoadTexture.Signal` so BST-1 and P-HPR road use the same underlying road decision, but the shared road signal can stay enabled even when BST-1 road output is disabled.
 
-Stage 18q-B adds diagnostics for this path but does not change the path. Current real P-HPR road commands still use the existing pulse-style duration and route cadence. The Advanced / Diagnostics road section reports route attempts, routed commands, ignored/suppressed reasons, interval suppression, safety rejection, stale telemetry suppression, gear-ducking suppression, command-rate suppression, last command target/strength/frequency/duration/intensity, last stop reason, and stale/historical last-road state.
+The P-HPR road model sends bounded overlapping updates while road remains active, sends explicit stop commands when road becomes inactive/stale/disabled or gear ducking takes priority, and exposes watchdog stops if updates exceed the hold timeout. The Advanced / Diagnostics road section reports route attempts, routed commands, ignored/suppressed reasons, runtime state, cadence, hold timeout, active modules, interval suppression, safety rejection, stale telemetry suppression, gear-ducking suppression, command-rate suppression, last command target/strength/frequency/duration/intensity, last road start/update/stop age, road stop reason, and stale/historical last-road state.
 
 For physical road validation, explicitly enable `Record road texture flight recorder` in Advanced / Diagnostics before running replay or live telemetry. The recorder writes local JSONL to:
 
@@ -74,7 +76,7 @@ For physical road validation, explicitly enable `Record road texture flight reco
 local-validation-results/road-texture-flight-recorder.jsonl
 ```
 
-Use that file with the diagnostics export to prove whether sparse P-HPR road feel came from cadence, route gates, safety suppression, stale/historical state, or the current pulse model. Do not treat Stage 18q-B as a cadence fix.
+Use that file with the diagnostics export to prove whether any remaining sparse P-HPR road feel comes from route gates, safety suppression, stale/historical state, command-rate suppression, output readiness, or physical tuning. Stage 18q-E changes the cadence model, but it is not final physical calibration.
 
 ## Persistence
 

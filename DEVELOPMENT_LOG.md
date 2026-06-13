@@ -2965,3 +2965,35 @@ Self-review:
 - BST-1 road diagnostics are software estimates from the shared road signal and safety-chain state; physical shaker feel, safe gain, latency, and final tuning remain Ethan-local validation items.
 - P-HPR route diagnostics expose why road commands are or are not routed, but they do not fix the earlier physical sparse 3-5 second gaps or occasional thumps.
 - The flight recorder is disabled by default, writes only under `local-validation-results`, and does not touch the audio callback path.
+
+## Stage 18q-C/D/E/F - Road Retune, Output Separation, P-HPR Cadence, And Validation Docs
+
+Date: 2026-06-13
+
+Status: Complete.
+
+Goal: Implement the Stage 18q-C/D/E/F weekly road-texture follow-up from the Stage 18q-A/B evidence: widen BST-1 road tuning headroom, split the shared road signal from per-output road toggles, replace sparse P-HPR road pulses with a bounded continuous cadence model, and document the required local validation order.
+
+Changes:
+
+- Stage 18q-C widened the BST-1 / ASIO road output gain range to 100% while keeping the previous 25% setting as the conservative default/start point and preserving the existing mixer, safety gain, limiter, emergency mute, and selected ASIO output chain.
+- Stage 18q-D separated shared road signal enablement from BST-1, brake P-HPR, and throttle P-HPR road output toggles. P-HPR road can now consume the shared road signal while BST-1 road output is disabled, and diagnostics expose the shared/output split.
+- Stage 18q-E moved real P-HPR road routing off the 500 ms UI/status timer and onto a background 100 ms cadence task with overlapping bounded road commands, default 220 ms duration clamped to at least 180 ms, a 350 ms hold timeout, explicit stop commands, watchdog diagnostics, stale/haptics-stopped/disabled stops, and gear/slip/lock priority preserved.
+- Stage 18q-E added fake-backed router coverage for minimum road duration, bounded cadence, gear-ducking stops, stale telemetry stops, hold-timeout watchdog stops, and low-intensity tactile scaling.
+- Stage 18q-F updated the manual hardware checklist, road texture guide, Simagic P-HPR road guide, roadmap, and known issues for the new tuning/cadence workflow.
+
+Verification:
+
+- Confirmed no stale `HapticDrive.Asio.App` process was running before verification.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 665 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18q-C/D/E/F changes road behavior in software, but they do not prove physical BST-1 or P-HPR road feel, safe gain, physical latency, stop behavior, or final frequency tuning.
+- BST-1 100% road output gain is tuning headroom, not a recommended universal setting.
+- P-HPR road now has a cadence/hold/watchdog model, but Ethan-local validation is still required to prove the sparse 3-5 second gap/thump symptom is resolved physically.
+- Raw UDP preservation, F1 25 packet parsing, confirmed P-HPR HID/report bytes, and ASIO/BST-1 hardware absence behavior remain protected by the existing boundaries.

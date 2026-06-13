@@ -59,3 +59,22 @@ local-validation-results/road-texture-flight-recorder.jsonl
 The recorder is disabled by default, writes from the low-frequency diagnostics path rather than the ASIO callback, includes a session ID, wall-clock timestamp, monotonic timestamp, replay/source and telemetry freshness, haptics/emergency state, road signal fields, BST-1 proof fields, and P-HPR route/command fields. Files under `local-validation-results/` are local validation evidence and must not be committed.
 
 Known physical findings remain open after Stage 18q-B: BST-1 road is active but too weak at current caps, and P-HPR road still uses sparse pulse-style commands. The next physical road validation should enable the road flight recorder before replay testing and attach the resulting JSONL with the diagnostics export.
+
+## Stage 18q-C/D/E/F Road Behavior Changes
+
+Stage 18q-C widens BST-1 / ASIO road output gain to support local hardware tuning. The previous 25% setting remains available and conservative; the new 100% maximum is not a universal safe setting and must be approached gradually through the normal mixer, safety gain, limiter, emergency mute, and selected ASIO output chain.
+
+Stage 18q-D separates the road switches:
+
+- shared road signal enabled;
+- BST-1 road output enabled;
+- brake P-HPR road output enabled;
+- throttle P-HPR road output enabled.
+
+P-HPR road can now run from the shared road signal even when BST-1 road output is disabled. If the shared signal is disabled, no road output should route anywhere.
+
+Stage 18q-E changes P-HPR road from sparse pulse-style routing to a bounded cadence model. The app owns a background road cadence task instead of relying on the 500 ms UI/status timer. P-HPR road uses overlapping road-duration commands, default 100 ms cadence, 350 ms hold timeout, explicit stops on inactive/stale/haptics-stopped/disabled/gear-ducking conditions, and a watchdog stop if updates stop arriving.
+
+P-HPR road remains lower priority than gear, wheel slip, and wheel lock. Gear ducking can stop/suppress road so gear pulses keep command budget and tactile priority. Stop, Stop All, Emergency Stop, emergency mute, command-rate safety, direct-control readiness, coexistence gates, stale telemetry gates, and app shutdown cleanup remain safety boundaries.
+
+The road flight recorder now includes shared/output switch state, P-HPR runtime state, cadence, hold timeout, active modules, last road start/update/stop age, road stop reason, stop command count, watchdog stops, and command-rate suppression counters. Use these fields during local validation; they are not physical proof by themselves.

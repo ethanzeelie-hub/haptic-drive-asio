@@ -148,6 +148,65 @@ The road recorder is disabled by default and writes from the diagnostics/status 
 
 Use the new evidence to decide later whether the BST-1 issue is evaluator scaling, renderer gain, mixer/safety gain, or hardware gain staging, and whether the P-HPR issue is route cadence, gate suppression, command drop, or pulse semantics. Gear pulse priority remains protected and must be revalidated before any future tuning stage is accepted.
 
+## Stage 18q-C/D/E/F Road Texture Validation Checklist
+
+Stage 18q-C/D/E changes road behavior and must be validated locally before treating the new tuning as accepted. Codex verification is software/fake-backed only.
+
+Recommended starting settings:
+
+- Shared road signal enabled.
+- Limiter enabled.
+- Emergency mute off.
+- Master gain and safety output gain set deliberately in Routing / Mixer.
+- BST-1 road output enabled only for BST-1 tests. Start at the previous equivalent 25% BST-1 / ASIO road output gain, then increase in small steps toward 100% only if the shaker remains controlled.
+- P-HPR road output starts low. Use brake/throttle road output scale around 10-15% for the first cadence test, then increase gradually.
+- Keep P-HPR gear disabled until road-only cadence is proven, then enable gear to validate priority.
+
+Run in this exact order:
+
+1. BST-1 road only.
+   - Start real-time replay from `f1-25-20260612-063003.hdrec`.
+   - Enable shared road signal and BST-1 road output.
+   - Disable P-HPR road.
+   - Increase BST-1 / ASIO road output gain gradually from 25%.
+   - Confirm road feels continuous and road-like, not clipped or limiter-driven.
+   - Export diagnostics and keep the road flight recorder JSONL.
+
+2. P-HPR road only.
+   - Enable shared road signal.
+   - Disable BST-1 road output.
+   - Enable real P-HPR road plus brake/throttle road outputs at low scale.
+   - Confirm road is no longer sparse 3-5 second isolated thumps.
+   - Watch diagnostics for runtime `Active`, cadence near 100 ms, duration around 180-220 ms or higher, no command-rate suppression, and clear stop reasons.
+
+3. BST-1 + P-HPR road together.
+   - Enable shared road signal, BST-1 road output, and both P-HPR road outputs.
+   - Keep levels conservative at first.
+   - Confirm the combined feel is road-like and not a thump generator.
+
+4. Paddle gear while road is active.
+   - Enable gear after road-only behavior is proven.
+   - Trigger accepted paddle/local gear pulses.
+   - Confirm gear clearly cuts through road.
+   - Confirm road ducks/stops and resumes after the gear window without starving gear commands.
+
+5. Emergency Stop.
+   - While P-HPR road is active, press Emergency Stop.
+   - Confirm P-HPR output stops and the emergency state is visible.
+   - Confirm no road output resumes until the emergency state is intentionally cleared and normal gates are safe again.
+
+6. Stop Haptics.
+   - Run road briefly.
+   - Press Stop Haptics.
+   - Confirm BST-1 audio road stops and P-HPR road records a stop/idle state.
+
+7. App close.
+   - Run road briefly.
+   - Close the app normally.
+   - Confirm shutdown performs safe cleanup and a later launch does not persist runtime-only direct-control active state, emergency state, haptics running state, or active test state.
+
+Stop immediately and export diagnostics plus `local-validation-results/road-texture-flight-recorder.jsonl` if P-HPR road feels like sparse thumps, sticks on, blocks gear pulses, triggers command-rate suppression, or fails to stop on Emergency Stop / Stop Haptics / app close.
+
 ## Stage 18 Final Pre-Shaker Checklist
 
 Before app-driven BST-1 validation, the safe software package should be checked through:

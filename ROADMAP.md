@@ -71,6 +71,10 @@
 - Stage 18p-E: Devices and Advanced cleanup complete.
 - Stage 18p-F: Routing / Mixer polish and final visual pass complete.
 - Stage 18q-B: Road texture diagnostics and flight recorder complete.
+- Stage 18q-C: BST-1 road scaling retune complete.
+- Stage 18q-D: Shared road signal and output separation complete.
+- Stage 18q-E: P-HPR continuous road cadence model complete.
+- Stage 18q-F: Road validation checklist and documentation complete.
 
 ## Planned Stages
 
@@ -113,6 +117,10 @@
 37. Stage 18p-E: Devices and Advanced cleanup. Complete.
 38. Stage 18p-F: Routing / Mixer polish and final visual pass. Complete.
 39. Stage 18q-B: Road texture diagnostics and flight recorder only. Complete.
+40. Stage 18q-C: BST-1 road scaling retune. Complete.
+41. Stage 18q-D: Shared road signal and output separation. Complete.
+42. Stage 18q-E: P-HPR continuous road cadence model. Complete.
+43. Stage 18q-F: Road validation checklist and documentation. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -175,6 +183,10 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 18p-E keeps Devices focused on ASIO/P-HPR/wheel hardware setup, readiness, emergency recovery, Stop All, and manual pulse checks, while moving Local Gear Test / Paddle Gear Bench validation internals behind the Advanced diagnostics gate alongside real direct-control, validation harness, mock routing, and low-level P-HPR diagnostics. It preserves existing named controls and handlers and does not change haptic runtime behavior, parser layouts, ASIO behavior, P-HPR HID/report bytes, or command-rate limiter logic.
 - Stage 18p-F polishes Routing / Mixer as the output routing, gain, mute, limiter, priority, ducking, and active-effect summary page. Effects remains normal per-hardware tuning, Devices remains hardware readiness/manual testing, and Advanced remains diagnostics/validation. The stage adds presentational summaries from existing state only and does not change haptic runtime behavior, parser layouts, ASIO behavior, P-HPR HID/report bytes, gear/road routing logic, replay/delete behavior, or command-rate limiter logic.
 - Stage 18q-B adds road-texture diagnostics and an off-by-default local JSONL flight recorder so BST-1 road signal, safety-chain estimates, and P-HPR routing/suppression counters can be captured from the same live/replay session. It does not tune road feel, alter F1 25 parsing, change ASIO output behavior, modify P-HPR HID/report bytes, redesign P-HPR road cadence, change gear priority, or claim physical validation.
+- Stage 18q-C widens BST-1 / ASIO road output gain from the previous conservative 25% ceiling to 100% for local tuning while preserving the mixer, safety gain, limiter, emergency mute, and selected ASIO output chain. The default remains conservative and the stage does not claim a universal safe physical gain.
+- Stage 18q-D separates the shared road signal enable from per-output road toggles. P-HPR road can consume the shared road signal even when BST-1 road output is disabled, while disabling the shared signal still suppresses road output everywhere.
+- Stage 18q-E changes P-HPR road from sparse UI-timer pulse routing to a background bounded-cadence model with overlapping road commands, explicit stop commands, hold-timeout watchdog diagnostics, stale/haptics-stopped/disabled/gear-ducking stops, and gear/slip/lock priority preserved.
+- Stage 18q-F updates the road validation guides, manual hardware checklist, roadmap, known issues, and development log for the Stage 18q-C/D/E behavior changes without claiming physical validation.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

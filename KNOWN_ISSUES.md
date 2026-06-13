@@ -621,3 +621,11 @@
 - P-HPR road diagnostics now distinguish route attempts, routed commands, stale telemetry, gear ducking, interval/safety/rate suppressions, higher-priority effects, and in-flight drops, but they do not prove physical P-HPR cadence or feel.
 - `local-validation-results/road-texture-flight-recorder.jsonl` is local/ignored validation evidence and must not be committed.
 - Earlier Ethan-local physical findings remain open: P-HPR road enabled produced sparse 3-5 second gaps and occasional thumps, while the exported diagnostics were captured with P-HPR road off.
+
+## Stage 18q-C/D/E/F
+
+- BST-1 / ASIO road output gain can now be raised to 100% for local tuning, but the previous 25% setting remains the conservative starting point. The new maximum is not a universal safe physical gain.
+- Shared road signal enablement is now separate from BST-1, brake P-HPR, and throttle P-HPR output toggles. If the shared signal is off, road output should be suppressed everywhere even when output-specific road toggles are enabled.
+- P-HPR road now uses a bounded continuous cadence model with overlapping duration, explicit stops, and hold-timeout watchdog diagnostics, but physical cadence feel, safe strength, stop behavior, and mixed road/gear priority still require Ethan-local validation.
+- If P-HPR road still feels like sparse thumps, sticks on, blocks gear pulses, triggers command-rate suppression, or fails to stop on Emergency Stop / Stop Haptics / app close, stop the run and keep the diagnostics export plus `local-validation-results/road-texture-flight-recorder.jsonl`.
+- Stage 18q-F documentation gives the local validation order, but the project still must not claim final road feel, physical latency, safe gain, or frequency tuning from software/fake-backed tests alone.
