@@ -4,6 +4,8 @@ namespace HapticDrive.Actuation.PHpr;
 
 public sealed record PHprRoadVibrationPedalSettings
 {
+    public const int MinimumRoadDurationMs = 180;
+
     public static PHprRoadVibrationPedalSettings Default { get; } = new();
 
     public bool IsEnabled { get; init; } = true;
@@ -16,7 +18,7 @@ public sealed record PHprRoadVibrationPedalSettings
 
     public double FrequencyHz { get; init; } = 45d;
 
-    public int DurationMs { get; init; } = 50;
+    public int DurationMs { get; init; } = 220;
 
     public PHprRoadVibrationPedalSettings Normalize(PHprSafetyLimits? limits = null)
     {
@@ -33,13 +35,13 @@ public sealed record PHprRoadVibrationPedalSettings
             Strength01 = Math.Max(minimumStrength, strength),
             MinimumFrequencyHz = Math.Min(minimumFrequency, frequency),
             FrequencyHz = Math.Max(minimumFrequency, frequency),
-            DurationMs = Math.Clamp(DurationMs, 10, safeLimits.MaxDurationMs)
+            DurationMs = Math.Clamp(DurationMs, MinimumRoadDurationMs, safeLimits.MaxDurationMs)
         };
     }
 
     public double ScaleStrength(double intensity01)
     {
-        return Lerp(MinimumStrength01, Strength01, intensity01);
+        return Lerp(MinimumStrength01, Strength01, TactileRoadScale(intensity01));
     }
 
     public double ScaleFrequency(double intensity01)
@@ -51,6 +53,16 @@ public sealed record PHprRoadVibrationPedalSettings
     {
         var amount = double.IsFinite(intensity01) ? Math.Clamp(intensity01, 0d, 1d) : 0d;
         return minimum + ((maximum - minimum) * amount);
+    }
+
+    private static double TactileRoadScale(double intensity01)
+    {
+        if (!double.IsFinite(intensity01) || intensity01 <= 0d)
+        {
+            return 0d;
+        }
+
+        return Math.Sqrt(Math.Clamp(intensity01, 0d, 1d));
     }
 
     private static double SanitizeFinite(double value, double fallback, double minimum, double maximum)

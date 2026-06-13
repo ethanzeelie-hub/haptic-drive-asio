@@ -4,6 +4,7 @@ using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+using System.Globalization;
 
 namespace HapticDrive.Actuation.PHpr;
 
@@ -29,12 +30,21 @@ public sealed class PHprRoadVibrationRouter
     private long _staleTelemetrySuppressedCount;
     private long _gearDuckingSuppressedCount;
     private long _commandRateSuppressedCount;
+    private long _roadStopCommandCount;
+    private long _watchdogStopCount;
     private bool _lastActive;
     private double _lastIntensity01;
+    private bool _brakeRoadActive;
+    private bool _throttleRoadActive;
+    private DateTimeOffset? _lastRoadStartAtUtc;
+    private DateTimeOffset? _lastRoadUpdateAtUtc;
+    private DateTimeOffset? _lastRoadStopAtUtc;
     private RoadTextureSignal _lastSignal = RoadTextureSignal.Inactive(DateTimeOffset.UtcNow, "not evaluated");
     private PHprCommand? _lastCommand;
     private PHprCommandResult? _lastOutputResult;
     private PHprRoadVibrationRoutingResult? _lastResult;
+    private string _runtimeState = "Idle";
+    private string _lastRoadStopReason = "none";
     private string? _lastIgnoredReason;
     private string? _lastError;
 
@@ -89,9 +99,30 @@ public sealed class PHprRoadVibrationRouter
                 _firstRouteAttemptAtUtc,
                 _lastRouteAttemptAtUtc,
                 _lastCommandRoutedAtUtc,
+                _runtimeState,
+                FormatActiveModulesLocked(),
+                _lastRoadStartAtUtc,
+                _lastRoadUpdateAtUtc,
+                _lastRoadStopAtUtc,
+                _lastRoadStopReason,
+                _roadStopCommandCount,
+                _watchdogStopCount,
                 _lastIgnoredReason,
                 _lastError);
         }
+    }
+
+    public ValueTask StopAsync(
+        string reason,
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        var now = nowUtc ?? DateTimeOffset.UtcNow;
+        return StopActiveRoadAsync(
+            string.IsNullOrWhiteSpace(reason) ? "P-HPR road stop requested." : reason.Trim(),
+            now,
+            countAsWatchdog: false,
+            cancellationToken);
     }
 
     public ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
@@ -134,6 +165,11 @@ public sealed class PHprRoadVibrationRouter
         if (!options.IsEnabled)
         {
             StoreRouteAttempt(now);
+            await StopActiveRoadAsync(
+                "P-HPR road vibration routing was disabled.",
+                now,
+                countAsWatchdog: false,
+                cancellationToken).ConfigureAwait(false);
             return StoreIgnored(
                 PHprRoadVibrationRoutingStatus.IgnoredDisabled,
                 "P-HPR road vibration routing is disabled; no command was sent.",
@@ -187,6 +223,11 @@ public sealed class PHprRoadVibrationRouter
         StoreRouteAttempt(now);
         if (!options.IsEnabled)
         {
+            await StopActiveRoadAsync(
+                "P-HPR road vibration routing was disabled.",
+                now,
+                countAsWatchdog: false,
+                cancellationToken).ConfigureAwait(false);
             return StoreIgnored(
                 PHprRoadVibrationRoutingStatus.IgnoredDisabled,
                 "P-HPR road vibration routing is disabled; no command was sent.",
@@ -205,6 +246,11 @@ public sealed class PHprRoadVibrationRouter
         {
             if (safetyContext?.HapticsStopped == true)
             {
+                await StopActiveRoadAsync(
+                    "P-HPR road stopped because haptics are stopped.",
+                    now,
+                    countAsWatchdog: false,
+                    cancellationToken).ConfigureAwait(false);
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
                     "P-HPR road vibration was dropped because haptics are stopped.",
@@ -214,6 +260,11 @@ public sealed class PHprRoadVibrationRouter
             if (safetyContext?.TelemetryStale == true)
             {
                 IncrementStaleTelemetrySuppressed();
+                await StopActiveRoadAsync(
+                    "P-HPR road stopped because telemetry is stale.",
+                    now,
+                    countAsWatchdog: false,
+                    cancellationToken).ConfigureAwait(false);
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
                     "P-HPR road vibration was dropped because telemetry is stale.",
@@ -228,6 +279,11 @@ public sealed class PHprRoadVibrationRouter
                     IncrementStaleTelemetrySuppressed();
                 }
 
+                await StopActiveRoadAsync(
+                    $"P-HPR road stopped because the shared road signal is inactive: {signal.SuppressedReason ?? "inactive signal"}.",
+                    now,
+                    countAsWatchdog: false,
+                    cancellationToken).ConfigureAwait(false);
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration,
                     $"No active road vibration was detected; no P-HPR road command was sent. Reason: {signal.SuppressedReason ?? "inactive signal"}.",
@@ -238,6 +294,11 @@ public sealed class PHprRoadVibrationRouter
             if (signal.GearDuckingActive)
             {
                 IncrementGearDuckingSuppressed();
+                await StopActiveRoadAsync(
+                    "P-HPR road stopped because a higher-priority gear pulse is inside the ducking window.",
+                    now,
+                    countAsWatchdog: false,
+                    cancellationToken).ConfigureAwait(false);
                 return StoreIgnored(
                     PHprRoadVibrationRoutingStatus.IgnoredGearDucking,
                     "P-HPR road vibration was suppressed because a higher-priority gear pulse is inside the ducking window.",
@@ -249,6 +310,15 @@ public sealed class PHprRoadVibrationRouter
             var plans = CreatePlans(options, intensity, now);
             if (plans.Count == 0)
             {
+                if (!options.Brake.IsEnabled && !options.Throttle.IsEnabled)
+                {
+                    await StopActiveRoadAsync(
+                        "P-HPR road stopped because no pedal road output is enabled.",
+                        now,
+                        countAsWatchdog: false,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
                 return StoreIgnored(
                     options.Brake.IsEnabled || options.Throttle.IsEnabled
                         ? PHprRoadVibrationRoutingStatus.IgnoredMinimumInterval
@@ -437,6 +507,7 @@ public sealed class PHprRoadVibrationRouter
             {
                 _routeCount++;
                 _lastCommandRoutedAtUtc = nowUtc;
+                MarkRoadActiveLocked(module, nowUtc);
             }
             else
             {
@@ -446,6 +517,86 @@ public sealed class PHprRoadVibrationRouter
                     _commandRateSuppressedCount++;
                 }
             }
+        }
+    }
+
+    private async ValueTask StopActiveRoadAsync(
+        string reason,
+        DateTimeOffset nowUtc,
+        bool countAsWatchdog,
+        CancellationToken cancellationToken)
+    {
+        bool shouldStop;
+        lock (_gate)
+        {
+            shouldStop = _brakeRoadActive || _throttleRoadActive;
+            if (!shouldStop)
+            {
+                _runtimeState = "Idle";
+                _lastRoadStopReason = reason;
+                return;
+            }
+
+            _runtimeState = "Stopping";
+        }
+
+        var command = PHprCommand.Create(
+            PHprModuleId.Both,
+            0d,
+            PHprSafetyLimits.Default.MinFrequencyHz,
+            0,
+            PHprCommandSource.RoadTexture,
+            priority: PHprPedalEffectProfile.RoadVibrationDefault.Priority,
+            timestampUtc: nowUtc);
+        var result = await _output.SendAsync(command, cancellationToken).ConfigureAwait(false);
+
+        lock (_gate)
+        {
+            _lastCommand = result.Command ?? command;
+            _lastOutputResult = result;
+            _lastRoadStopAtUtc = nowUtc;
+            _lastRoadStopReason = $"{reason} {result.Message}".Trim();
+            _roadStopCommandCount++;
+            if (countAsWatchdog)
+            {
+                _watchdogStopCount++;
+            }
+
+            _brakeRoadActive = false;
+            _throttleRoadActive = false;
+            _lastActive = false;
+            _lastIntensity01 = 0d;
+            _runtimeState = result.Succeeded ? "Idle" : "StopRejected";
+        }
+    }
+
+    public async ValueTask StopIfHoldExpiredAsync(
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        var now = nowUtc ?? DateTimeOffset.UtcNow;
+        PHprRoadVibrationRouterOptions options;
+        DateTimeOffset? lastUpdate;
+        bool active;
+        lock (_gate)
+        {
+            options = _options.Normalize();
+            lastUpdate = _lastRoadUpdateAtUtc;
+            active = _brakeRoadActive || _throttleRoadActive;
+        }
+
+        if (!active || lastUpdate is null || options.HoldTimeout <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (now - lastUpdate.Value >= options.HoldTimeout)
+        {
+            await StopActiveRoadAsync(
+                "P-HPR road watchdog stopped output because road updates exceeded hold timeout.",
+                now,
+                countAsWatchdog: true,
+                cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -519,6 +670,36 @@ public sealed class PHprRoadVibrationRouter
         {
             _staleTelemetrySuppressedCount++;
         }
+    }
+
+    private void MarkRoadActiveLocked(PHprModuleId module, DateTimeOffset nowUtc)
+    {
+        var wasActive = _brakeRoadActive || _throttleRoadActive;
+        if (module is PHprModuleId.Brake or PHprModuleId.Both)
+        {
+            _brakeRoadActive = true;
+        }
+
+        if (module is PHprModuleId.Throttle or PHprModuleId.Both)
+        {
+            _throttleRoadActive = true;
+        }
+
+        _lastRoadStartAtUtc = wasActive ? _lastRoadStartAtUtc : nowUtc;
+        _lastRoadUpdateAtUtc = nowUtc;
+        _runtimeState = "Active";
+        _lastRoadStopReason = "none";
+    }
+
+    private string FormatActiveModulesLocked()
+    {
+        return (_brakeRoadActive, _throttleRoadActive) switch
+        {
+            (true, true) => PHprModuleId.Both.ToString(),
+            (true, false) => PHprModuleId.Brake.ToString(),
+            (false, true) => PHprModuleId.Throttle.ToString(),
+            _ => "none"
+        };
     }
 
     private static bool IsCommandRateSuppression(PHprCommandResult result)

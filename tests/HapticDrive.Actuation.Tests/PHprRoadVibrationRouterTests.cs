@@ -51,6 +51,7 @@ public sealed class PHprRoadVibrationRouterTests
         Assert.Contains(inner.CommandHistory, command => command.TargetModule == PHprModuleId.Throttle && command.Source == PHprCommandSource.RoadTexture);
         Assert.Contains(inner.FrameHistory, frame => frame.TargetModule == PHprModuleId.Brake && frame.State == PHprMockProtocolState.Start);
         Assert.Contains(inner.FrameHistory, frame => frame.TargetModule == PHprModuleId.Throttle && frame.State == PHprMockProtocolState.Start);
+        Assert.All(inner.CommandHistory, command => Assert.True(command.DurationMs >= PHprRoadVibrationPedalSettings.MinimumRoadDurationMs));
     }
 
     [Fact]
@@ -96,6 +97,38 @@ public sealed class PHprRoadVibrationRouterTests
         Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredGearDucking, result.Status);
         Assert.Empty(inner.CommandHistory);
         Assert.Equal(1, router.GetSnapshot().GearDuckingSuppressedCount);
+    }
+
+    [Fact]
+    public async Task GearDuckingStopsActiveRoadBeforeSuppressingUpdates()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprRoadVibrationRouter(
+            output,
+            PHprRoadVibrationRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateRoadVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        router.NotifyGearPulseAccepted(BaseTime.AddMilliseconds(100));
+        var duckedSignal = new RoadTextureEvaluator().Evaluate(
+            CreateRoadVehicleState(frame: 2),
+            new RoadTextureEvaluationContext(
+                BaseTime.AddMilliseconds(110),
+                HapticsRunning: true,
+                DrivingArmed: true,
+                AllowWhenDrivingNotArmed: false,
+                TelemetryStale: false,
+                LastGearPulseAtUtc: BaseTime.AddMilliseconds(100)));
+
+        var ducked = await router.RouteAsync(duckedSignal, PHprSafetyContext.DefaultMock, BaseTime.AddMilliseconds(110));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredGearDucking, ducked.Status);
+        Assert.Equal(1, snapshot.RoadStopCommandCount);
+        Assert.Equal("none", snapshot.ActiveRoadModules);
+        Assert.Contains(inner.CommandHistory, command => command.Source == PHprCommandSource.RoadTexture && command.DurationMs == 0);
     }
 
     [Theory]
@@ -146,6 +179,97 @@ public sealed class PHprRoadVibrationRouterTests
         Assert.Equal(2, inner.CommandHistory.Count);
         Assert.Equal(2, router.GetSnapshot().IntervalSuppressedCount);
         Assert.Equal(2, router.GetSnapshot().RouteAttemptCount);
+    }
+
+    [Fact]
+    public async Task RoadRoutesAtBoundedCadenceWithOverlappingDuration()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprRoadVibrationRouter(
+            output,
+            PHprRoadVibrationRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateRoadVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var second = await router.RouteAsync(
+            CreateRoadVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock,
+            BaseTime.AddMilliseconds(100));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.True(second.WasRouted, second.Message);
+        Assert.Equal(4, inner.CommandHistory.Count(command => command.Source == PHprCommandSource.RoadTexture && command.DurationMs > 0));
+        Assert.All(inner.CommandHistory.Where(command => command.DurationMs > 0), command => Assert.True(command.DurationMs >= 180));
+        Assert.Equal("Both", snapshot.ActiveRoadModules);
+        Assert.Equal("Active", snapshot.RuntimeState);
+        Assert.NotNull(snapshot.LastRoadUpdateAtUtc);
+    }
+
+    [Fact]
+    public async Task StaleTelemetryStopsActiveRoad()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprRoadVibrationRouter(
+            output,
+            PHprRoadVibrationRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateRoadVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var stale = await router.RouteAsync(
+            CreateRoadVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock with { TelemetryStale = true },
+            BaseTime.AddMilliseconds(120));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(PHprRoadVibrationRoutingStatus.IgnoredNoActiveRoadVibration, stale.Status);
+        Assert.Equal(1, snapshot.StaleTelemetrySuppressedCount);
+        Assert.Equal(1, snapshot.RoadStopCommandCount);
+        Assert.Equal("Idle", snapshot.RuntimeState);
+        Assert.Equal("none", snapshot.ActiveRoadModules);
+        Assert.Contains("stale", snapshot.LastRoadStopReason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(inner.CommandHistory, command => command.Source == PHprCommandSource.RoadTexture && command.DurationMs == 0);
+    }
+
+    [Fact]
+    public async Task HoldTimeoutWatchdogStopsActiveRoad()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprRoadVibrationRouter(
+            output,
+            PHprRoadVibrationRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateRoadVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        await router.StopIfHoldExpiredAsync(BaseTime.AddMilliseconds(500));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(1, snapshot.WatchdogStopCount);
+        Assert.Equal(1, snapshot.RoadStopCommandCount);
+        Assert.Equal("Idle", snapshot.RuntimeState);
+        Assert.Contains("hold timeout", snapshot.LastRoadStopReason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RoadStrengthScaleMakesLowIntensityMoreTactileWithoutChangingMaximum()
+    {
+        var settings = PHprRoadVibrationPedalSettings.Default with
+        {
+            MinimumStrength01 = 0.01d,
+            Strength01 = 0.50d
+        };
+
+        var low = settings.ScaleStrength(0.09d);
+        var max = settings.ScaleStrength(1.0d);
+
+        Assert.True(low > 0.12d);
+        Assert.True(low < 0.20d);
+        Assert.Equal(0.50d, max, precision: 6);
     }
 
     [Fact]

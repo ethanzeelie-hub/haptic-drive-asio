@@ -350,6 +350,14 @@ public sealed class RoadTextureDiagnosticsReportTests
             FirstRouteAttemptAtUtc: routeAttempts > 0 ? BaseTime : null,
             LastRouteAttemptAtUtc: routeAttempts > 0 ? BaseTime.AddSeconds(Math.Max(1, routeAttempts)) : null,
             LastCommandRoutedAtUtc: lastCommand is null ? null : BaseTime,
+            RuntimeState: lastCommand is null ? "Idle" : "Active",
+            ActiveRoadModules: lastCommand?.TargetModule.ToString() ?? "none",
+            LastRoadStartAtUtc: lastCommand is null ? null : BaseTime,
+            LastRoadUpdateAtUtc: lastCommand is null ? null : BaseTime,
+            LastRoadStopAtUtc: null,
+            LastRoadStopReason: "none",
+            RoadStopCommandCount: 0,
+            WatchdogStopCount: 0,
             LastIgnoredReason: ignored > 0 ? "ignored for test" : null,
             LastError: null);
     }

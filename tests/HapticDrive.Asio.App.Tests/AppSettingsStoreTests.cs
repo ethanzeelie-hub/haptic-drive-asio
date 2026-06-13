@@ -106,7 +106,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.06d, loaded.RealPhprRoadVibrationRouting.Brake.Strength01);
         Assert.Equal(30d, loaded.RealPhprRoadVibrationRouting.Brake.MinimumFrequencyHz);
         Assert.Equal(50d, loaded.RealPhprRoadVibrationRouting.Brake.FrequencyHz);
-        Assert.Equal(70, loaded.RealPhprRoadVibrationRouting.Brake.DurationMs);
+        Assert.Equal(PHprRoadVibrationPedalSettings.MinimumRoadDurationMs, loaded.RealPhprRoadVibrationRouting.Brake.DurationMs);
         Assert.False(loaded.RealPhprRoadVibrationRouting.Throttle.IsEnabled);
         Assert.DoesNotContain("DirectControlEnabled", json, StringComparison.Ordinal);
         Assert.DoesNotContain("DirectControlArmed", json, StringComparison.Ordinal);
@@ -243,7 +243,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.04d, loaded.RealPhprRoadVibrationRouting.Throttle.Strength01);
         Assert.Equal(25d, loaded.RealPhprRoadVibrationRouting.Throttle.MinimumFrequencyHz);
         Assert.Equal(45d, loaded.RealPhprRoadVibrationRouting.Throttle.FrequencyHz);
-        Assert.Equal(10, loaded.RealPhprRoadVibrationRouting.Throttle.DurationMs);
+        Assert.Equal(PHprRoadVibrationPedalSettings.MinimumRoadDurationMs, loaded.RealPhprRoadVibrationRouting.Throttle.DurationMs);
     }
 
     [Fact]

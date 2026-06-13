@@ -25,5 +25,13 @@ public sealed record PHprRoadVibrationRoutingSnapshot(
     DateTimeOffset? FirstRouteAttemptAtUtc,
     DateTimeOffset? LastRouteAttemptAtUtc,
     DateTimeOffset? LastCommandRoutedAtUtc,
+    string RuntimeState,
+    string ActiveRoadModules,
+    DateTimeOffset? LastRoadStartAtUtc,
+    DateTimeOffset? LastRoadUpdateAtUtc,
+    DateTimeOffset? LastRoadStopAtUtc,
+    string LastRoadStopReason,
+    long RoadStopCommandCount,
+    long WatchdogStopCount,
     string? LastIgnoredReason,
     string? LastError);

@@ -165,6 +165,26 @@ internal sealed record RoadTextureDiagnosticSnapshot
 
     public bool LastRoadRoutedIsStaleHistorical { get; init; }
 
+    public string PHprRoadRuntimeState { get; init; } = "Idle";
+
+    public double UpdateCadenceMs { get; init; }
+
+    public double HoldTimeoutMs { get; init; }
+
+    public string ActiveRoadModules { get; init; } = "none";
+
+    public double? LastRoadStartAgeMs { get; init; }
+
+    public double? LastRoadUpdateAgeMs { get; init; }
+
+    public double? LastRoadStopAgeMs { get; init; }
+
+    public string LastRoadStopReason { get; init; } = "none";
+
+    public long RoadStopCommandCount { get; init; }
+
+    public long WatchdogStopCount { get; init; }
+
     public bool FlightRecorderActive { get; init; }
 
     public string FlightRecorderPath { get; init; } = "disabled";
@@ -315,6 +335,16 @@ internal sealed record RoadTextureDiagnosticSnapshot
             LastStopReason = realOutput.LastStopResultMessage ?? "none",
             LastStopAgeMs = realOutput.LastStopSentAtUtc is null ? null : Math.Max(0d, (now - realOutput.LastStopSentAtUtc.Value).TotalMilliseconds),
             LastRoadRoutedIsStaleHistorical = !phprRoadOptions.IsEnabled && (lastResult?.WasRouted == true || lastCommand is not null),
+            PHprRoadRuntimeState = phprRoad.RuntimeState,
+            UpdateCadenceMs = phprRoad.Options.Normalize().MinimumRouteInterval.TotalMilliseconds,
+            HoldTimeoutMs = phprRoad.Options.Normalize().HoldTimeout.TotalMilliseconds,
+            ActiveRoadModules = phprRoad.ActiveRoadModules,
+            LastRoadStartAgeMs = phprRoad.LastRoadStartAtUtc is null ? null : Math.Max(0d, (now - phprRoad.LastRoadStartAtUtc.Value).TotalMilliseconds),
+            LastRoadUpdateAgeMs = phprRoad.LastRoadUpdateAtUtc is null ? null : Math.Max(0d, (now - phprRoad.LastRoadUpdateAtUtc.Value).TotalMilliseconds),
+            LastRoadStopAgeMs = phprRoad.LastRoadStopAtUtc is null ? null : Math.Max(0d, (now - phprRoad.LastRoadStopAtUtc.Value).TotalMilliseconds),
+            LastRoadStopReason = phprRoad.LastRoadStopReason,
+            RoadStopCommandCount = phprRoad.RoadStopCommandCount,
+            WatchdogStopCount = phprRoad.WatchdogStopCount,
             FlightRecorderActive = flightRecorderActive,
             FlightRecorderPath = flightRecorderPath
         };
@@ -326,7 +356,7 @@ internal sealed record RoadTextureDiagnosticSnapshot
         [
             $"Road signal: sharedRoadSignalEnabled {SharedRoadSignalEnabled}; telemetryFresh {RoadTelemetryFresh}; drivingArmed {RoadDrivingArmed}; speed {SpeedKph} km/h; speedScale {SpeedScale:0.000}; surfaces {SurfaceTypes}; {SurfaceClass}/{SurfaceName}; surface mix/base {SurfaceMix:0.000}; suspension {SuspensionAccelerationContribution:0.000}; wheel force {WheelVertForceContribution:0.000}; vertical G {VerticalGContribution:0.000}; roughness {RoughnessMetric:0.000}; raw {RawIntensity:0.000}; smoothed {SmoothedIntensity:0.000}; output {OutputIntensity:0.000}; BST-1 {Bst1FrequencyHz:0.0} Hz; P-HPR {PHprFrequencyHz:0.0} Hz; gear ducking {GearDuckingActive}; ducking gain {DuckingGain:0.000}; suppression {SuppressionReason}.",
             $"BST-1 road proof: bst1RoadOutputEnabled {Bst1RoadEnabled}; gain {Bst1RoadGain:P0}; pre-mixer peak {Bst1RoadPeakBeforeMixer:0.000}/RMS {Bst1RoadRmsBeforeMixer:0.000}; after-mixer peak {FormatNullable(Bst1RoadPeakAfterMixer)}/RMS {FormatNullable(Bst1RoadRmsAfterMixer)}; post-safety estimate peak {FormatNullable(Bst1RoadPeakAfterSafety)}/RMS {FormatNullable(Bst1RoadRmsAfterSafety)}; road-only post-safety proof {RoadOnlyPostSafetyProofAvailable}; note {RoadOnlyProofNote}; total mixer peak {TotalMixerPeak:0.000}; total output peak {TotalOutputPeak:0.000}; output scope {OutputPeakScope}; safety gain {SafetyOutputGain:P0}; ceiling {ConservativeCeiling:0.00}; limiter {LimiterEnabled}; limited {LimitedSamples:N0}; clipped {ClippedSamples:N0}.",
-            $"P-HPR road proof: enabled {PHprRoadEnabled}; brake {BrakeRoadEnabled} scale {BrakeRoadOutputScale:P0}; throttle {ThrottleRoadEnabled} scale {ThrottleRoadOutputScale:P0}; attempts {RouteAttempts:N0} ({RouteAttemptsPerSecond:0.00}/s); routed commands {RoutedCommands:N0} ({RoutedCommandsPerSecond:0.00}/s); ignored {IgnoredCount:N0}; ignored reason {IgnoredReason}; interval suppressed {IntervalSuppressedCount:N0}; safety rejected {SafetyRejectedCount:N0}; stale telemetry {StaleTelemetrySuppressedCount:N0}; gear ducking suppressed {GearDuckingSuppressedCount:N0}; higher priority suppressed {HigherPriorityEffectSuppressedCount:N0}; in-flight suppressed {InFlightSuppressedCount:N0}; command-rate suppressed {CommandRateSuppressedCount:N0}; last target {LastCommandTarget}; age {FormatNullable(LastCommandAgeMs)} ms; strength {FormatNullable(LastCommandStrength)}; freq {FormatNullable(LastCommandFrequencyHz)} Hz; duration {LastCommandDurationMs?.ToString("N0") ?? "none"} ms; intensity {FormatNullable(LastCommandRoadIntensity)}; reason {LastCommandReason}; stop {LastStopReason}; stop age {FormatNullable(LastStopAgeMs)} ms; stale historical {LastRoadRoutedIsStaleHistorical}.",
+            $"P-HPR road proof: enabled {PHprRoadEnabled}; brake {BrakeRoadEnabled} scale {BrakeRoadOutputScale:P0}; throttle {ThrottleRoadEnabled} scale {ThrottleRoadOutputScale:P0}; runtime {PHprRoadRuntimeState}; cadence {UpdateCadenceMs:0} ms; hold {HoldTimeoutMs:0} ms; active modules {ActiveRoadModules}; attempts {RouteAttempts:N0} ({RouteAttemptsPerSecond:0.00}/s); routed commands {RoutedCommands:N0} ({RoutedCommandsPerSecond:0.00}/s); ignored {IgnoredCount:N0}; ignored reason {IgnoredReason}; interval suppressed {IntervalSuppressedCount:N0}; safety rejected {SafetyRejectedCount:N0}; stale telemetry {StaleTelemetrySuppressedCount:N0}; gear ducking suppressed {GearDuckingSuppressedCount:N0}; higher priority suppressed {HigherPriorityEffectSuppressedCount:N0}; in-flight suppressed {InFlightSuppressedCount:N0}; command-rate suppressed {CommandRateSuppressedCount:N0}; last target {LastCommandTarget}; age {FormatNullable(LastCommandAgeMs)} ms; strength {FormatNullable(LastCommandStrength)}; freq {FormatNullable(LastCommandFrequencyHz)} Hz; duration {LastCommandDurationMs?.ToString("N0") ?? "none"} ms; intensity {FormatNullable(LastCommandRoadIntensity)}; reason {LastCommandReason}; road start age {FormatNullable(LastRoadStartAgeMs)} ms; road update age {FormatNullable(LastRoadUpdateAgeMs)} ms; road stop age {FormatNullable(LastRoadStopAgeMs)} ms; road stop reason {LastRoadStopReason}; stop commands {RoadStopCommandCount:N0}; watchdog stops {WatchdogStopCount:N0}; stop {LastStopReason}; stop age {FormatNullable(LastStopAgeMs)} ms; stale historical {LastRoadRoutedIsStaleHistorical}.",
             $"Road flight recorder: active {FlightRecorderActive}; path {FlightRecorderPath}; source {Source}; replay {ReplaySource}; telemetry age {(TelemetryAgeMs is null ? "none" : $"{TelemetryAgeMs:0} ms")}; recommended event {RecommendedEventType}."
         ];
     }

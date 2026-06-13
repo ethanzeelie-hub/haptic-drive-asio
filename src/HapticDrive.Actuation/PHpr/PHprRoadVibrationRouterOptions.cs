@@ -19,6 +19,8 @@ public sealed record PHprRoadVibrationRouterOptions
 
     public TimeSpan MinimumRouteInterval { get; init; } = TimeSpan.FromMilliseconds(100);
 
+    public TimeSpan HoldTimeout { get; init; } = TimeSpan.FromMilliseconds(350);
+
     public int Priority { get; init; } = PHprPedalEffectProfile.RoadVibrationDefault.Priority;
 
     public PHprRoadVibrationRouterOptions Normalize(PHprSafetyLimits? limits = null)
@@ -28,6 +30,7 @@ public sealed record PHprRoadVibrationRouterOptions
             Brake = (Brake ?? PHprRoadVibrationPedalSettings.Default).Normalize(limits),
             Throttle = (Throttle ?? PHprRoadVibrationPedalSettings.Default).Normalize(limits),
             MinimumRouteInterval = MinimumRouteInterval < TimeSpan.Zero ? TimeSpan.Zero : MinimumRouteInterval,
+            HoldTimeout = HoldTimeout < TimeSpan.Zero ? TimeSpan.Zero : HoldTimeout,
             Priority = Math.Clamp(Priority, 0, 1_000)
         };
     }

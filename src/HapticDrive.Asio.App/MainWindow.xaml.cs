@@ -77,6 +77,8 @@ public partial class MainWindow : Window
     {
         Interval = TimeSpan.FromMilliseconds(500)
     };
+    private readonly CancellationTokenSource _realRoadVibrationRuntimeCts = new();
+    private Task? _realRoadVibrationRuntimeTask;
     private readonly IReadOnlyList<AudioTestSignalDefinition> _testBenchSignals =
     [
         AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Silence),
@@ -381,6 +383,7 @@ public partial class MainWindow : Window
         {
             await _telemetryReceiver.StartAsync();
             _telemetryStatusTimer.Start();
+            StartRealRoadVibrationRuntime();
         }
         catch (Exception ex)
         {
@@ -5600,8 +5603,7 @@ public partial class MainWindow : Window
         RefreshPhprSoftwareCoexistenceStatus();
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
-        var slipLockResult = await RouteRealSlipLockFromSnapshotAsync(pipelineSnapshot);
-        await RouteRealRoadVibrationFromSnapshotAsync(pipelineSnapshot, slipLockResult?.WasRouted == true);
+        await RouteRealSlipLockFromSnapshotAsync(pipelineSnapshot);
         RecordRoadTextureFlightRecorder(pipelineSnapshot);
         UpdateTelemetryStatus();
         UpdateHapticsStateText();
@@ -5773,6 +5775,9 @@ public partial class MainWindow : Window
         if (higherPriorityPedalEffectRouted)
         {
             Interlocked.Increment(ref _realRoadHigherPrioritySuppressedCount);
+            await _realRoadVibrationRouter.StopAsync(
+                "P-HPR road stopped because a higher-priority pedal effect routed.",
+                cancellationToken: CancellationToken.None);
             return;
         }
 
@@ -5785,6 +5790,9 @@ public partial class MainWindow : Window
             || !_realPhprOptions.Selector.IsSelected
             || pipelineSnapshot.VehicleStateUpdateCount <= 0)
         {
+            await _realRoadVibrationRouter.StopAsync(
+                "P-HPR road stopped because output readiness or road routing gates are not satisfied.",
+                cancellationToken: CancellationToken.None);
             return;
         }
 
@@ -5799,6 +5807,46 @@ public partial class MainWindow : Window
         finally
         {
             _routingRealRoadVibration = false;
+        }
+    }
+
+    private void StartRealRoadVibrationRuntime()
+    {
+        if (_realRoadVibrationRuntimeTask is not null)
+        {
+            return;
+        }
+
+        _realRoadVibrationRuntimeTask = Task.Run(
+            () => RunRealRoadVibrationRuntimeAsync(_realRoadVibrationRuntimeCts.Token),
+            _realRoadVibrationRuntimeCts.Token);
+    }
+
+    private async Task RunRealRoadVibrationRuntimeAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+                var higherPriorityPedalEffectRouted = _routingRealSlipLock
+                    || (_lastRealSlipLockRoutingResult?.WasRouted == true
+                        && DateTimeOffset.UtcNow - _lastRealSlipLockRoutingResult.RoutedAtUtc < TimeSpan.FromMilliseconds(150));
+                await RouteRealRoadVibrationFromSnapshotAsync(
+                        pipelineSnapshot,
+                        higherPriorityPedalEffectRouted)
+                    .ConfigureAwait(false);
+                await _realRoadVibrationRouter.StopIfHoldExpiredAsync(
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+        {
         }
     }
 
@@ -6660,6 +6708,22 @@ public partial class MainWindow : Window
         _telemetryReceiver.PacketReceived -= TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick -= TelemetryStatusTimer_Tick;
         _telemetryStatusTimer.Stop();
+        _realRoadVibrationRuntimeCts.Cancel();
+        if (_realRoadVibrationRuntimeTask is not null)
+        {
+            try
+            {
+                await _realRoadVibrationRuntimeTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or TimeoutException)
+            {
+                if (ex is TimeoutException)
+                {
+                    shutdownExceptions.Add("roadRuntime:TimeoutException:road runtime did not stop within 2 seconds");
+                }
+            }
+        }
+
         timersDisposed = true;
 
         _hapticPipeline.StopManualAsioHardwareTest("App shutdown stopped standalone BST-1 pulse session.");
@@ -6696,6 +6760,10 @@ public partial class MainWindow : Window
 
         try
         {
+            await _realRoadVibrationRouter.StopAsync("App shutdown stopped P-HPR road output.")
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2))
+                .ConfigureAwait(false);
             await _realPhprOutput.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         }
         catch (Exception ex)
