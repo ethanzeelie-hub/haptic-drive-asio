@@ -347,7 +347,7 @@
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Audio gain" />
                                         <Slider x:Name="GearShiftGainSlider"
-                                                Maximum="0.4"
+                                                Maximum="1"
                                                 Minimum="0"
                                                 ValueChanged="TuningControl_Changed" />
                                         <TextBlock x:Name="GearShiftGainValueText"
@@ -473,7 +473,7 @@
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Gain" />
                                         <Slider x:Name="EngineGainSlider"
-                                                Maximum="0.4"
+                                                Maximum="1"
                                                 Minimum="0"
                                                 ValueChanged="TuningControl_Changed" />
                                         <TextBlock x:Name="EngineGainValueText"
@@ -525,7 +525,7 @@
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Gain" />
                                         <Slider x:Name="KerbGainSlider"
-                                                Maximum="0.4"
+                                                Maximum="1"
                                                 Minimum="0"
                                                 ValueChanged="TuningControl_Changed" />
                                         <TextBlock x:Name="KerbGainValueText"
@@ -573,7 +573,7 @@
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Gain" />
                                         <Slider x:Name="ImpactGainSlider"
-                                                Maximum="0.4"
+                                                Maximum="1"
                                                 Minimum="0"
                                                 ValueChanged="TuningControl_Changed" />
                                         <TextBlock x:Name="ImpactGainValueText"
@@ -621,7 +621,7 @@
                                                    Style="{StaticResource MutedTextBlockStyle}"
                                                    Text="Gain" />
                                         <Slider x:Name="SlipGainSlider"
-                                                Maximum="0.3"
+                                                Maximum="1"
                                                 Minimum="0"
                                                 ValueChanged="TuningControl_Changed" />
                                         <TextBlock x:Name="SlipGainValueText"
@@ -720,7 +720,7 @@
                                                   Margin="0,8,0,0"
                                                   Checked="RealPhprDirectControlCheckBox_Changed"
                                                   Unchecked="RealPhprDirectControlCheckBox_Changed"
-                                                  Content="Brake road enabled" />
+                                                  Content="Brake road texture enabled" />
                                         <WrapPanel Margin="0,8,0,0">
                                             <TextBlock Margin="0,4,6,8"
                                                        Style="{StaticResource MutedTextBlockStyle}"
@@ -749,12 +749,12 @@
                                                   Margin="0,10,0,0"
                                                   Checked="RealPhprDirectControlCheckBox_Changed"
                                                   Unchecked="RealPhprDirectControlCheckBox_Changed"
-                                                  Content="Enable real slip/lock" />
+                                                  Content="Wheel slip / lock routing enabled" />
                                         <CheckBox x:Name="RealLockEnabledCheckBox"
                                                   Margin="0,8,0,0"
                                                   Checked="RealPhprDirectControlCheckBox_Changed"
                                                   Unchecked="RealPhprDirectControlCheckBox_Changed"
-                                                  Content="Brake lock enabled" />
+                                                  Content="Brake wheel lock enabled" />
                                         <WrapPanel Margin="0,8,0,0">
                                             <TextBlock Margin="0,4,6,8"
                                                        Style="{StaticResource MutedTextBlockStyle}"
@@ -834,7 +834,7 @@
                                                   Margin="0,10,0,0"
                                                   Checked="RealPhprDirectControlCheckBox_Changed"
                                                   Unchecked="RealPhprDirectControlCheckBox_Changed"
-                                                  Content="Throttle road enabled" />
+                                                  Content="Throttle road texture enabled" />
                                         <WrapPanel Margin="0,8,0,0">
                                             <TextBlock Margin="0,4,6,8"
                                                        Style="{StaticResource MutedTextBlockStyle}"
@@ -863,7 +863,7 @@
                                                   Margin="0,10,0,0"
                                                   Checked="RealPhprDirectControlCheckBox_Changed"
                                                   Unchecked="RealPhprDirectControlCheckBox_Changed"
-                                                  Content="Throttle slip enabled" />
+                                                  Content="Throttle wheel slip enabled" />
                                         <WrapPanel Margin="0,8,0,0">
                                             <TextBlock Margin="0,4,6,8"
                                                        Style="{StaticResource MutedTextBlockStyle}"
@@ -1005,25 +1005,14 @@
                                     <TextBlock Style="{StaticResource MutedTextBlockStyle}"
                                                Text="Safety output gain" />
                                     <Slider x:Name="SafetyOutputGainSlider"
-                                            Maximum="0.5"
+                                            Maximum="1"
                                             Minimum="0"
                                             ValueChanged="TuningControl_Changed" />
                                     <TextBlock x:Name="SafetyOutputGainValueText"
                                                Style="{StaticResource MutedTextBlockStyle}" />
                                     <TextBlock Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
-                                               Text="Conservative output ceiling" />
-                                    <Slider x:Name="SafetyOutputCeilingSlider"
-                                            Maximum="0.75"
-                                            Minimum="0.05"
-                                            ValueChanged="TuningControl_Changed" />
-                                    <TextBlock x:Name="SafetyOutputCeilingValueText"
-                                               Style="{StaticResource MutedTextBlockStyle}" />
-                                    <CheckBox x:Name="LimiterEnabledCheckBox"
-                                              Margin="0,12,0,0"
-                                              Checked="TuningControl_Changed"
-                                              Content="Limiter enabled"
-                                              Unchecked="TuningControl_Changed" />
+                                               Text="Limiter stays on automatically. Internal output ceiling stays at 100%." />
                                     <TextBlock x:Name="MixerOutputPeakStatusText"
                                                Margin="0,10,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}" />
@@ -2404,9 +2393,24 @@
                                         Content="Refresh Library" />
                                 <Button x:Name="DeleteSelectedRecordingButton"
                                         Width="140"
+                                        Margin="0,0,8,0"
                                         HorizontalAlignment="Left"
                                         Click="DeleteSelectedRecordingButton_Click"
                                         Content="Delete Selected" />
+                                <Button x:Name="RenameSelectedRecordingButton"
+                                        Width="150"
+                                        HorizontalAlignment="Left"
+                                        Click="RenameSelectedRecordingButton_Click"
+                                        Content="Rename Selected" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,12,0,0">
+                                <TextBlock Margin="0,4,8,8"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="Rename to" />
+                                <TextBox x:Name="RecordingRenameTextBox"
+                                         Width="280"
+                                         Margin="0,0,8,8"
+                                         Style="{StaticResource FieldTextBoxStyle}" />
                             </WrapPanel>
                             <TextBlock x:Name="RecordingsDetailText"
                                        Margin="0,14,0,0"
@@ -2515,6 +2519,7 @@
                                        Text="Profile name" />
                             <TextBox x:Name="ProfileNameTextBox"
                                      MaxWidth="360"
+                                     LostFocus="ProfileNameTextBox_LostFocus"
                                      HorizontalAlignment="Left" />
                             <WrapPanel Margin="0,14,0,0">
                                 <Button Width="120"
@@ -2561,7 +2566,7 @@
                                     Margin="0,14,0,0"
                                     HorizontalAlignment="Left"
                                     Click="ResetProfileButton_Click"
-                                    Content="Reset Conservative Defaults" />
+                                    Content="Reset Current Rig Defaults" />
                             <TextBlock x:Name="SettingsStatusText"
                                        Margin="0,14,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}" />

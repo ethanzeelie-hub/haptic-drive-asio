@@ -39,7 +39,7 @@ The status text separates ASIO readiness from the continuous stream. `ASIO READY
 
 ## BST-1 Paddle Gear Pulse
 
-In Devices `Bass Shaker / ASIO`, `BST-1 paddle gear pulse` is off by default. When enabled for local bench validation, each accepted Paddle Gear Bench mapped `Pressed` event can fire a short BST-1 ASIO pulse alongside the P-HPR bench pulse.
+In Devices `Bass Shaker / ASIO`, `BST-1 paddle gear pulse` is on by default for the current rig and is restored from app settings on the next launch. Each accepted Paddle Gear Bench mapped `Pressed` event can fire a short BST-1 ASIO pulse alongside the P-HPR bench pulse.
 
 Controls:
 
@@ -115,6 +115,8 @@ Replay feeds recorded packets through the same parser, VehicleState adapter, eff
 For P-HPR, replay can validate road vibration, wheel slip, and wheel lock software routing through mock/fake output because those effects come from `VehicleState`. Replay does not create GT Neo paddle events, so it does not validate instant gear-pulse input unless a later explicit synthetic-input test path is added.
 
 The Devices P-HPR workflow summary and Diagnostics report show the current pipeline input source, replay source file name or in-memory replay status, and replay packet count.
+
+The Recordings page also supports `Rename Selected`. Rename keeps the file inside the local recordings folder, sanitizes the name, preserves the `.hdrec` extension, blocks overwrite, and blocks renaming the active recording output.
 
 ## P-HPR Mock Mode
 
@@ -234,6 +236,8 @@ Use the Profiles page to save/load:
 
 - the audio profile for ASIO/BST-1 effect, mixer, and audio safety settings,
 - the P-HPR effect profile for shift intent, mock routing, real gear pulse, road vibration, wheel slip, and wheel lock preferences.
+
+Normal audio tuning changes also auto-save to `default.hdprofile.json`, so the next launch restores the last normal tuning state without restoring unsafe runtime-active output state.
 
 Profiles do not save:
 

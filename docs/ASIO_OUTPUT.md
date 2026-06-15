@@ -75,8 +75,8 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 
 ## BST-1 Paddle Gear Pulse
 
-- Devices `BST-1 paddle gear pulse` is off by default.
-- When enabled, accepted Paddle Gear Bench mapped `Pressed` events can fire a short BST-1 ASIO pulse from the same accepted bench event as the P-HPR gear pulse.
+- Devices `BST-1 paddle gear pulse` defaults on for the current rig and is restored from app settings on the next launch unless the user turns it off.
+- Accepted Paddle Gear Bench mapped `Pressed` events can fire a short BST-1 ASIO pulse from the same accepted bench event as the P-HPR gear pulse.
 - The BST-1 pulse does not wait for F1 telemetry gear-change confirmation and does not require Start Haptics in bench mode.
 - Duration can sync to the shared P-HPR gear-pulse duration or use a custom BST-1 duration because the audio shaker may feel different from the P-HPR modules. Custom BST-1 duration applies only when sync is unchecked.
 - Release, held, repeat, unknown, unmapped, and suppressed events must not trigger BST-1 output.
@@ -122,6 +122,6 @@ ASIO is the intended low-latency output path for the real bass shaker chain. Sta
 ## Stage 18 Pre-Shaker Readiness
 
 - `Run-HapticDrive.cmd` is the preferred launch path during development because it avoids normal PowerShell execution-policy blocks, checks the repo-local .NET 8 Desktop runtime, and starts the WPF executable.
-- App settings persist theme, forwarding destinations, and last ASIO driver/channel selection only.
+- App settings persist theme, safe output selection, replay mode, forwarding destinations, paddle mapping/debounce, and BST-1 local paddle gear settings without restoring hardware-energising runtime state.
 - Diagnostics can be copied and include output callback counters, packet-ID counts, forwarding state, recording/replay state, runtime prerequisite status, and ASIO readiness state.
 - Startup may preselect the validated M-Audio ASIO path when discoverable, but output remains explicit: no stream starts until Start Haptics or a bounded manual/local pulse is requested.

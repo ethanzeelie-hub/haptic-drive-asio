@@ -629,3 +629,11 @@
 - P-HPR road now uses a bounded continuous cadence model with overlapping duration, explicit stops, and hold-timeout watchdog diagnostics, but physical cadence feel, safe strength, stop behavior, and mixed road/gear priority still require Ethan-local validation.
 - If P-HPR road still feels like sparse thumps, sticks on, blocks gear pulses, triggers command-rate suppression, or fails to stop on Emergency Stop / Stop Haptics / app close, stop the run and keep the diagnostics export plus `local-validation-results/road-texture-flight-recorder.jsonl`.
 - Stage 18q-F documentation gives the local validation order, but the project still must not claim final road feel, physical latency, safe gain, or frequency tuning from software/fake-backed tests alone.
+
+## Stage 18r-B
+
+- Normal audio tuning now auto-saves to `default.hdprofile.json`, so deliberate temporary experimentation can persist unless the user loads/resets another profile. This is intentional for sim-style workflow but still means the default profile is the live working profile.
+- Safe output selection, replay mode, and BST-1 local paddle gear settings now persist across launches, but ASIO armed state, haptics running, emergency mute, direct P-HPR enable/arm/private-device state, active pulses, pending stops, and bench-active state remain runtime-only and must be re-established deliberately.
+- Routing / Mixer no longer exposes the conservative ceiling or limiter toggle as normal-user controls. Advanced diagnostics and runtime summaries still need to be used if deeper safety-chain inspection is required.
+- Rename Selected blocks overwrite and active-recording output, but it remains a single deliberate action rather than a confirmation dialog or in-place list editing workflow.
+- Physical shaker feel, safe physical gain, physical latency, and final road/slip/lock tuning remain Ethan-local validation items. Stage 18r-B changes persistence/defaults/UI language only and does not claim physical validation.

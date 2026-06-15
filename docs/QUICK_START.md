@@ -49,7 +49,7 @@ Use this only for local Paddle Gear Bench validation after manual BST-1 pulse wo
 4. Keep duration synced to the shared P-HPR gear pulse duration first, then switch to custom duration if the Dayton shaker needs different timing.
 5. Press mapped paddles and confirm accepted bench events plus BST-1 ASIO diagnostics.
 
-BST-1 paddle gear pulse is off by default, uses accepted mapped `Pressed` bench events only, and still targets selected ASIO channel `1`.
+BST-1 paddle gear pulse now defaults on for the current rig, restores from app settings on next launch, uses accepted mapped `Pressed` bench events only, and still targets selected ASIO channel `1`.
 
 ## Paddle Gear Bench Test
 

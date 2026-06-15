@@ -13,16 +13,25 @@ namespace HapticDrive.Asio.Audio.Tests;
 public sealed class HapticProfileTests
 {
     [Fact]
-    public void DefaultProfile_UsesConservativeHardwareSafeValues()
+    public void DefaultProfile_UsesStage18rBCurrentRigDefaults()
     {
         var profile = HapticDriveProfile.Default;
 
         Assert.Equal(HapticDriveProfile.CurrentVersion, profile.Version);
-        Assert.True(profile.Effects.Engine.IsEnabled);
-        Assert.InRange(profile.Effects.Engine.Gain, 0f, 0.1f);
-        Assert.InRange(profile.Effects.Impact.Gain, 0f, 0.25f);
-        Assert.InRange(profile.Safety.OutputGain, 0f, AudioSafetyProcessorOptions.DefaultOutputGain);
+        Assert.False(profile.Effects.Engine.IsEnabled);
+        Assert.False(profile.Effects.GearShift.IsEnabled);
+        Assert.False(profile.Effects.Kerb.IsEnabled);
+        Assert.False(profile.Effects.Impact.IsEnabled);
+        Assert.True(profile.Effects.RoadTexture.IsEnabled);
+        Assert.True(profile.Effects.RoadTexture.Bst1OutputEnabled);
+        Assert.Equal(1f, profile.Effects.RoadTexture.Gain, precision: 6);
+        Assert.False(profile.Effects.Slip.IsEnabled);
+        Assert.Equal(0.5f, profile.Effects.Engine.Gain, precision: 6);
+        Assert.Equal(0.5f, profile.Effects.GearShift.Gain, precision: 6);
+        Assert.Equal(0.5f, profile.Effects.Impact.Gain, precision: 6);
+        Assert.Equal(AudioSafetyProcessorOptions.DefaultOutputGain, profile.Safety.OutputGain, precision: 6);
         Assert.Equal(AudioSafetyProcessorOptions.DefaultOutputGainCeiling, profile.Safety.OutputGainCeiling);
+        Assert.True(profile.Safety.LimiterEnabled);
         Assert.False(profile.Mixer.IsMuted);
     }
 
@@ -137,7 +146,8 @@ public sealed class HapticProfileTests
             Safety = HapticDriveProfile.Default.Safety with
             {
                 OutputGain = 2f,
-                OutputGainCeiling = 10f
+                OutputGainCeiling = 10f,
+                LimiterEnabled = false
             }
         };
 
@@ -145,29 +155,34 @@ public sealed class HapticProfileTests
 
         Assert.True(result.IsSupportedVersion);
         Assert.True(result.WasRepaired);
-        Assert.Equal("Default Conservative", result.Profile.Name);
-        Assert.InRange(result.Profile.Effects.Engine.Gain, 0f, 0.4f);
+        Assert.Equal("Current Rig Defaults", result.Profile.Name);
+        Assert.InRange(result.Profile.Effects.Engine.Gain, 0f, 1f);
         Assert.InRange(result.Profile.Effects.RoadTexture.Gain, 0f, 1f);
         Assert.Equal(HapticDriveProfile.Default.Effects.Slip.SlipRatioThreshold, result.Profile.Effects.Slip.SlipRatioThreshold);
         Assert.Equal(HapticDriveProfile.Default.Mixer.MasterGain, result.Profile.Mixer.MasterGain);
-        Assert.Equal(0.5f, result.Profile.Safety.OutputGain, precision: 6);
+        Assert.Equal(1f, result.Profile.Safety.OutputGain, precision: 6);
         Assert.Equal(AudioSafetyProcessorOptions.DefaultOutputGainCeiling, result.Profile.Safety.OutputGainCeiling);
+        Assert.True(result.Profile.Safety.LimiterEnabled);
     }
 
     [Fact]
-    public void RoadTextureProfile_DefaultStaysConservativeButAllowsBst1GainAboveOldCap()
+    public void ProfileValidation_AllowsFullBst1AndNonRoadGainRange()
     {
         var defaultProfile = HapticDriveProfile.Default;
         var tunedProfile = HapticProfileValidator.Validate(defaultProfile with
         {
             Effects = defaultProfile.Effects with
             {
-                RoadTexture = defaultProfile.Effects.RoadTexture with { Gain = 1f }
+                Engine = defaultProfile.Effects.Engine with { Gain = 1f },
+                RoadTexture = defaultProfile.Effects.RoadTexture with { Gain = 1f },
+                Slip = defaultProfile.Effects.Slip with { Gain = 1f }
             }
         }).Profile;
 
-        Assert.InRange(defaultProfile.Effects.RoadTexture.Gain, 0f, 0.25f);
+        Assert.Equal(1f, defaultProfile.Effects.RoadTexture.Gain, precision: 6);
+        Assert.Equal(1f, tunedProfile.Effects.Engine.Gain, precision: 6);
         Assert.Equal(1f, tunedProfile.Effects.RoadTexture.Gain, precision: 6);
+        Assert.Equal(1f, tunedProfile.Effects.Slip.Gain, precision: 6);
         Assert.Equal(1f, tunedProfile.ToEffectOptions().RoadTexture.Gain, precision: 6);
     }
 
@@ -242,7 +257,7 @@ public sealed class HapticProfileTests
     }
 
     [Fact]
-    public void ProfileMapsMixerAndSafetyWithoutPersistingEmergencyMute()
+    public void ProfileMapsMixerAndInternalSafetyWithoutPersistingEmergencyMute()
     {
         var profile = HapticDriveProfile.Default with
         {
@@ -259,8 +274,8 @@ public sealed class HapticProfileTests
         Assert.True(mixer.EmergencyMute);
         Assert.False(clearedMixer.EmergencyMute);
         Assert.Equal(0.3f, safety.OutputGain, precision: 6);
-        Assert.Equal(0.5f, safety.OutputGainCeiling, precision: 6);
-        Assert.False(safety.LimiterEnabled);
+        Assert.Equal(1f, safety.OutputGainCeiling, precision: 6);
+        Assert.True(safety.LimiterEnabled);
         Assert.True(safety.EmergencyMute);
     }
 

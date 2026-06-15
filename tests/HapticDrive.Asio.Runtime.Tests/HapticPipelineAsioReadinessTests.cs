@@ -214,7 +214,7 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.Equal(400f, snapshot.LastOutputTrimPercent);
         Assert.Equal(4.0f, snapshot.LastEffectivePreLimiterAmplitude);
         Assert.True(snapshot.LimiterApplied);
-        Assert.True(snapshot.LastEffectivePostLimiterAmplitude is > 0f and <= 0.75f);
+        Assert.True(snapshot.LastEffectivePostLimiterAmplitude is > 0f and <= 1f);
     }
 
     [Fact]

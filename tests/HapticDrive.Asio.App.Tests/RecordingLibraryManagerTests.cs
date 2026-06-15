@@ -114,6 +114,96 @@ public sealed class RecordingLibraryManagerTests
         Assert.True(File.Exists(path));
     }
 
+    [Fact]
+    public async Task RenameSelectedRecording_RenamesFilePreservesContentAndRefreshes()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        var path = Path.Combine(temp.Path, "original.hdrec");
+        await CreateRecordingAsync(path);
+        var before = await File.ReadAllBytesAsync(path);
+
+        var result = RecordingLibraryManager.RenameSelected(temp.Path, path, "renamed-session", activeRecordingPath: null);
+        var refreshed = await RecordingLibraryManager.LoadAsync(temp.Path);
+        var renamedPath = Path.Combine(temp.Path, "renamed-session.hdrec");
+        var after = await File.ReadAllBytesAsync(renamedPath);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(RecordingLibraryRenameStatus.Success, result.Status);
+        Assert.Equal(renamedPath, result.RenamedPath);
+        Assert.False(File.Exists(path));
+        Assert.True(File.Exists(renamedPath));
+        Assert.Equal(before, after);
+        Assert.Single(refreshed);
+        Assert.Equal(renamedPath, refreshed[0].Path);
+    }
+
+    [Fact]
+    public async Task RenameSelectedRecording_EnforcesHdrecExtension()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        var path = Path.Combine(temp.Path, "source.hdrec");
+        await CreateRecordingAsync(path);
+
+        var result = RecordingLibraryManager.RenameSelected(temp.Path, path, "renamed.txt", activeRecordingPath: null);
+        var renamedPath = Path.Combine(temp.Path, "renamed.hdrec");
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.True(File.Exists(renamedPath));
+        Assert.False(File.Exists(Path.Combine(temp.Path, "renamed.txt")));
+    }
+
+    [Fact]
+    public async Task RenameSelectedRecording_BlocksEmptyOrInvalidName()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        var path = Path.Combine(temp.Path, "source.hdrec");
+        await CreateRecordingAsync(path);
+
+        var empty = RecordingLibraryManager.RenameSelected(temp.Path, path, "   ", activeRecordingPath: null);
+        var invalid = RecordingLibraryManager.RenameSelected(temp.Path, path, "...", activeRecordingPath: null);
+
+        Assert.False(empty.Succeeded);
+        Assert.Equal(RecordingLibraryRenameStatus.Blocked, empty.Status);
+        Assert.False(invalid.Succeeded);
+        Assert.Equal(RecordingLibraryRenameStatus.Blocked, invalid.Status);
+        Assert.True(File.Exists(path));
+    }
+
+    [Fact]
+    public async Task RenameSelectedRecording_BlocksPathTraversal()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        var path = Path.Combine(temp.Path, "source.hdrec");
+        await CreateRecordingAsync(path);
+
+        var result = RecordingLibraryManager.RenameSelected(temp.Path, path, "..\\escape", activeRecordingPath: null);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(RecordingLibraryRenameStatus.Blocked, result.Status);
+        Assert.Contains("name only", result.Message);
+        Assert.True(File.Exists(path));
+    }
+
+    [Fact]
+    public async Task RenameSelectedRecording_BlocksOverwriteAndActiveRecordingOutput()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        var first = Path.Combine(temp.Path, "first.hdrec");
+        var second = Path.Combine(temp.Path, "second.hdrec");
+        await CreateRecordingAsync(first);
+        await CreateRecordingAsync(second);
+
+        var overwrite = RecordingLibraryManager.RenameSelected(temp.Path, first, "second", activeRecordingPath: null);
+        var active = RecordingLibraryManager.RenameSelected(temp.Path, first, "active-rename", activeRecordingPath: first);
+
+        Assert.False(overwrite.Succeeded);
+        Assert.Equal(RecordingLibraryRenameStatus.Blocked, overwrite.Status);
+        Assert.False(active.Succeeded);
+        Assert.Equal(RecordingLibraryRenameStatus.Blocked, active.Status);
+        Assert.True(File.Exists(first));
+        Assert.True(File.Exists(second));
+    }
+
     private static async Task CreateRecordingAsync(string path)
     {
         var createdAtUtc = new DateTimeOffset(2026, 6, 12, 1, 0, 0, TimeSpan.Zero);

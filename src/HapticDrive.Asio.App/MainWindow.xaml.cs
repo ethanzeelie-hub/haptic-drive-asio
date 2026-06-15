@@ -169,9 +169,9 @@ public partial class MainWindow : Window
             "Versioned JSON tuning profiles for existing effects, mixer, and safety settings.",
             "Profiles available",
             [
-                "The default profile uses conservative hardware-safe values.",
-                "Profiles save and load as versioned JSON under local app data.",
-                "Profile values are validated and repaired to safe software ranges on load.",
+                "The default profile uses the current Stage 18r-B software defaults for this rig.",
+                "Audio tuning auto-saves to the default profile under local app data.",
+                "Profile values are validated and repaired to the current software ranges on load.",
                 "Emergency mute remains runtime-only and is not saved in profiles.",
                 "Device settings remain separate from effect profiles."
             ]),
@@ -202,6 +202,9 @@ public partial class MainWindow : Window
     private string? _recordingError;
     private string? _replayError;
     private string? _settingsError;
+    private bool _hasPersistedOutputModePreference;
+    private string _startupProfileStatusMessage = "Current rig defaults loaded.";
+    private IReadOnlyList<string> _startupProfileValidationMessages = [];
     private HapticDriveProfile _currentProfile = HapticDriveProfile.Default;
     private HapticPipelineCoordinator _hapticPipeline;
     private AsioDriverVisibilitySnapshot _asioVisibilitySnapshot = AsioDriverVisibilitySnapshot.NotChecked;
@@ -271,10 +274,13 @@ public partial class MainWindow : Window
         _settingsError = appSettings.LastStatusMessage;
         _lightTheme = appSettings.UseLightTheme;
         _advancedDiagnosticsEnabled = appSettings.AdvancedDiagnosticsEnabled;
+        _hasPersistedOutputModePreference = appSettings.PreferredOutputMode is not null;
+        _selectedOutputKind = appSettings.PreferredOutputMode ?? AudioOutputDeviceKind.Null;
         _selectedAsioDriverName = appSettings.LastAsioDriverName;
         _selectedAsioOutputChannel = appSettings.LastAsioOutputChannel;
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
         _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
+        ApplyBst1PaddleGearPulseSetting(appSettings.Bst1PaddleGearPulse);
         _realPhprOptions = CreateRealPhprOutputOptions(appSettings.RealPhprGearPulseRouting);
         _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.ResolveSharedDuration(
             _realPhprOptions.BrakeGearPulse,
@@ -311,6 +317,7 @@ public partial class MainWindow : Window
         _mockPedalEffectsRouter = new PHprPedalEffectsRouter(
             _mockPhprSafetyOutput,
             CreateMockPedalEffectsRouterOptions(appSettings.MockPedalEffectsRouting));
+        LoadPersistedAudioProfile();
         _hapticPipeline = CreatePipelineForSelectedOutput();
 
         _updatingOutputUi = true;
@@ -341,13 +348,13 @@ public partial class MainWindow : Window
         RealPhprReportTransportComboBox.ItemsSource = _realPhprReportTransportOptions;
         RealPhprReportTransportComboBox.SelectedItem = PHprHidReportTransport.OutputReport;
         ReplayTimingModeComboBox.ItemsSource = _replayTimingModeOptions;
-        ReplayTimingModeComboBox.SelectedItem = ReplayTimingModeOption.RealTime;
-        ReplayTimingModeHelpText.Text = ReplayTimingModeOption.RealTime.HelpText;
+        ReplayTimingModeComboBox.SelectedItem = GetReplayTimingModeOption(appSettings.ReplayTimingPreference);
+        ReplayTimingModeHelpText.Text = GetSelectedReplayTimingMode().HelpText;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
         ApplyProfileToRuntime(_currentProfile);
-        UpdateProfileStatus("Default conservative profile loaded.", []);
+        UpdateProfileStatus(_startupProfileStatusMessage, _startupProfileValidationMessages);
         ApplyPaddleMappingToControls();
         ApplyShiftIntentSettingsToControls();
         ApplyMockGearPulseSettingsToControls();
@@ -400,6 +407,39 @@ public partial class MainWindow : Window
         UpdateDiagnosticsStatus();
         UpdateForwardingEditorStatus();
         await RefreshRecordingLibraryAsync();
+    }
+
+    private void LoadPersistedAudioProfile()
+    {
+        var result = _profileStore.LoadAsync(HapticProfileStore.GetDefaultProfilePath())
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        if (result.Succeeded && result.Profile is not null)
+        {
+            _currentProfile = result.Profile;
+            _startupProfileStatusMessage = result.Message;
+            _startupProfileValidationMessages = result.ValidationMessages;
+            return;
+        }
+
+        if (result.Status != HapticProfileLoadStatus.FileNotFound)
+        {
+            _startupProfileStatusMessage = $"{result.Message} Current rig defaults were used.";
+            _startupProfileValidationMessages = result.ValidationMessages;
+        }
+    }
+
+    private void ApplyBst1PaddleGearPulseSetting(Bst1PaddleGearPulseSetting setting)
+    {
+        _bst1PaddleGearPulseEnabled = setting.IsEnabled;
+        _bst1PaddleGearStrengthPercent = setting.StrengthPercent;
+        _bst1PaddleGearFrequencyHz = setting.FrequencyHz;
+        _bst1PaddleGearSyncDuration = setting.UseSharedDuration;
+        _bst1PaddleGearCustomDurationMs = Bst1GearPulseDurationSync.NormalizeGearDuration(setting.CustomDurationMs);
+        _lastBst1PaddleGearPulseMessage = _bst1PaddleGearPulseEnabled
+            ? "BST-1 paddle gear pulse enabled for accepted bench Pressed events."
+            : "BST-1 paddle gear pulse is disabled.";
     }
 
     private void MainWindow_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
@@ -485,6 +525,7 @@ public partial class MainWindow : Window
         }
 
         _selectedOutputKind = option.Kind;
+        SaveAppSettings();
         await RebuildHapticPipelineForOutputSelectionAsync($"Output mode changed to {option.Label}; haptics are stopped until started explicitly.");
     }
 
@@ -2568,6 +2609,18 @@ public partial class MainWindow : Window
         };
     }
 
+    private Bst1PaddleGearPulseSetting CreateBst1PaddleGearPulseSetting()
+    {
+        return new Bst1PaddleGearPulseSetting
+        {
+            IsEnabled = _bst1PaddleGearPulseEnabled,
+            StrengthPercent = _bst1PaddleGearStrengthPercent,
+            FrequencyHz = _bst1PaddleGearFrequencyHz,
+            UseSharedDuration = _bst1PaddleGearSyncDuration,
+            CustomDurationMs = _bst1PaddleGearCustomDurationMs
+        };
+    }
+
     private static ShiftIntentProcessorOptions CreateShiftIntentOptions(ShiftIntentSetting setting)
     {
         return new ShiftIntentProcessorOptions
@@ -3414,10 +3467,13 @@ public partial class MainWindow : Window
             {
                 UseLightTheme = _lightTheme,
                 AdvancedDiagnosticsEnabled = _advancedDiagnosticsEnabled,
+                PreferredOutputMode = _selectedOutputKind,
                 LastAsioDriverName = _selectedAsioDriverName,
                 LastAsioOutputChannel = _selectedAsioOutputChannel,
+                ReplayTimingPreference = GetSelectedReplayTimingPreference(),
                 ForwardingDestinations = _forwardingDestinations.ToList(),
                 PaddleInputMapping = CreatePaddleMappingSetting(),
+                Bst1PaddleGearPulse = CreateBst1PaddleGearPulseSetting(),
                 ShiftIntent = CreateShiftIntentSetting(),
                 MockGearPulseRouting = CreateMockGearPulseRoutingSetting(),
                 MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting(),
@@ -3433,6 +3489,21 @@ public partial class MainWindow : Window
         }
 
         UpdateProfileStatus();
+    }
+
+    private HapticProfileSaveResult PersistCurrentAudioProfile()
+    {
+        var result = _profileStore.SaveAsync(_currentProfile, HapticProfileStore.GetDefaultProfilePath())
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        if (result.Succeeded)
+        {
+            _startupProfileStatusMessage = result.Message;
+            _startupProfileValidationMessages = result.ValidationMessages;
+        }
+
+        return result;
     }
 
     private async void StartStopButton_Click(object sender, RoutedEventArgs e)
@@ -3566,6 +3637,7 @@ public partial class MainWindow : Window
     {
         var replayMode = GetSelectedReplayTimingMode();
         ReplayTimingModeHelpText.Text = replayMode.HelpText;
+        SaveAppSettings();
         UpdateRecordingStatus();
     }
 
@@ -3594,12 +3666,37 @@ public partial class MainWindow : Window
         UpdateRecordingStatus();
     }
 
+    private async void RenameSelectedRecordingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RecordingLibraryListBox.SelectedItem is not RecordingLibraryItem item)
+        {
+            RecordingLibraryStatusText.Text = "Select a recording before renaming.";
+            FooterStatusText.Text = RecordingLibraryStatusText.Text;
+            return;
+        }
+
+        var recordingSnapshot = _hapticPipeline.GetSnapshot().Recording;
+        var result = RecordingLibraryManager.RenameSelected(
+            GetRecordingsDirectory(),
+            item.Path,
+            RecordingRenameTextBox.Text,
+            recordingSnapshot.IsRecording ? recordingSnapshot.FilePath : null);
+        await RefreshRecordingLibraryAsync(result.RenamedPath);
+        RecordingLibraryStatusText.Text = result.Message;
+        FooterStatusText.Text = result.Message;
+        UpdateRecordingStatus();
+    }
+
     private void RecordingLibraryListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem item)
         {
             RecordingLibraryStatusText.Text = item.DetailText;
+            RecordingRenameTextBox.Text = Path.GetFileNameWithoutExtension(item.Path);
+            return;
         }
+
+        RecordingRenameTextBox.Text = string.Empty;
     }
 
     private async Task ReplayRecordingAsync(string path)
@@ -3617,12 +3714,18 @@ public partial class MainWindow : Window
         });
     }
 
-    private async Task RefreshRecordingLibraryAsync()
+    private async Task RefreshRecordingLibraryAsync(string? selectedPath = null)
     {
         try
         {
             _recordingLibraryItems = await RecordingLibraryManager.LoadAsync(GetRecordingsDirectory());
             RecordingLibraryListBox.ItemsSource = _recordingLibraryItems;
+            if (!string.IsNullOrWhiteSpace(selectedPath))
+            {
+                RecordingLibraryListBox.SelectedItem = _recordingLibraryItems.FirstOrDefault(item =>
+                    string.Equals(item.Path, selectedPath, StringComparison.OrdinalIgnoreCase));
+            }
+
             RecordingLibraryStatusText.Text = _recordingLibraryItems.Count == 0
                 ? $"No .hdrec files found in {GetRecordingsDirectory()}."
                 : $"{_recordingLibraryItems.Count} recording(s) found in {GetRecordingsDirectory()}.";
@@ -3796,12 +3899,22 @@ public partial class MainWindow : Window
 
         var profile = BuildProfileFromControls();
         ApplyProfileToRuntime(profile);
+        var saveResult = PersistCurrentAudioProfile();
         UpdateProfileControlText(profile);
         UpdateMixerStatus();
         UpdateEffectStatus();
         UpdateDiagnosticsStatus();
 
-        if (_hapticsStarted)
+        if (!saveResult.Succeeded)
+        {
+            UpdateProfileStatus(saveResult.Message, saveResult.ValidationMessages);
+        }
+
+        if (!saveResult.Succeeded)
+        {
+            FooterStatusText.Text = saveResult.Message;
+        }
+        else if (_hapticsStarted)
         {
             FooterStatusText.Text = "Tuning applied to the output-owned render path.";
         }
@@ -3821,6 +3934,23 @@ public partial class MainWindow : Window
         ApplyTheme(SettingsLightThemeCheckBox.IsChecked == true);
         SaveAppSettings();
         UpdateProfileStatus();
+    }
+
+    private void ProfileNameTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_updatingTuningUi)
+        {
+            return;
+        }
+
+        _currentProfile = BuildProfileFromControls();
+        var result = PersistCurrentAudioProfile();
+        if (!result.Succeeded)
+        {
+            FooterStatusText.Text = result.Message;
+        }
+
+        UpdateProfileStatus(result.Message, result.ValidationMessages);
     }
 
     private HapticDriveProfile BuildProfileFromControls()
@@ -3884,8 +4014,8 @@ public partial class MainWindow : Window
             Safety = _currentProfile.Safety with
             {
                 OutputGain = (float)SafetyOutputGainSlider.Value,
-                OutputGainCeiling = (float)SafetyOutputCeilingSlider.Value,
-                LimiterEnabled = LimiterEnabledCheckBox.IsChecked == true
+                OutputGainCeiling = AudioSafetyProcessorOptions.DefaultOutputGainCeiling,
+                LimiterEnabled = true
             }
         }).Profile;
     }
@@ -3931,8 +4061,6 @@ public partial class MainWindow : Window
         MasterGainSlider.Value = safeProfile.Mixer.MasterGain;
         MixerMuteCheckBox.IsChecked = safeProfile.Mixer.IsMuted;
         SafetyOutputGainSlider.Value = safeProfile.Safety.OutputGain;
-        SafetyOutputCeilingSlider.Value = safeProfile.Safety.OutputGainCeiling;
-        LimiterEnabledCheckBox.IsChecked = safeProfile.Safety.LimiterEnabled;
 
         _updatingTuningUi = false;
         UpdateProfileControlText(safeProfile);
@@ -3954,7 +4082,6 @@ public partial class MainWindow : Window
         SlipThresholdValueText.Text = $"{profile.Effects.Slip.SlipRatioThreshold:0.00}";
         MasterGainValueText.Text = $"{profile.Mixer.MasterGain:P0}";
         SafetyOutputGainValueText.Text = $"{profile.Safety.OutputGain:P0}";
-        SafetyOutputCeilingValueText.Text = $"{profile.Safety.OutputGainCeiling:0.00}";
     }
 
     private PhprEffectProfile BuildPhprEffectProfileFromCurrentSettings(string name)
@@ -4062,18 +4189,31 @@ public partial class MainWindow : Window
         ApplyProfileToControls(HapticDriveProfile.Default);
         ApplyProfileToRuntime(HapticDriveProfile.Default);
         ApplyPhprEffectProfileToRuntime(PhprEffectProfile.Default);
+        ApplyBst1PaddleGearPulseSetting(new Bst1PaddleGearPulseSetting());
+        ApplyBst1PulseSettingsToControls();
+        var audioSaveResult = PersistCurrentAudioProfile();
         SaveAppSettings();
         UpdateEffectStatus();
         UpdateMixerStatus();
-        UpdateProfileStatus("Reset to conservative audio and P-HPR defaults.", []);
+        UpdateProfileStatus(
+            audioSaveResult.Succeeded
+                ? "Reset to current rig audio, BST-1 local gear, and P-HPR defaults."
+                : audioSaveResult.Message,
+            audioSaveResult.ValidationMessages);
 
-        if (_hapticsStarted)
+        if (!audioSaveResult.Succeeded)
         {
-            FooterStatusText.Text = "Reset tuning to conservative defaults for the output-owned render path.";
+            FooterStatusText.Text = audioSaveResult.Message;
             return;
         }
 
-        FooterStatusText.Text = "Reset tuning to conservative defaults.";
+        if (_hapticsStarted)
+        {
+            FooterStatusText.Text = "Reset tuning to the current rig defaults for the output-owned render path.";
+            return;
+        }
+
+        FooterStatusText.Text = "Reset tuning to the current rig defaults.";
     }
 
     private void RefreshDiagnosticsButton_Click(object sender, RoutedEventArgs e)
@@ -4385,6 +4525,7 @@ public partial class MainWindow : Window
             ? "BST-1 paddle gear pulse enabled for accepted bench Pressed events."
             : "BST-1 paddle gear pulse is disabled.";
         ApplyBst1PulseSettingsToControls();
+        SaveAppSettings();
         UpdateManualAsioHardwareTestStatus();
         FooterStatusText.Text = footerMessage;
         return true;
@@ -4509,11 +4650,10 @@ public partial class MainWindow : Window
         var safety = _currentProfile.ToSafetyOptions(_emergencyMuted);
         MasterGainValueText.Text = $"{mixer.MasterGain:P0}";
         SafetyOutputGainValueText.Text = $"{safety.OutputGain:P0}";
-        SafetyOutputCeilingValueText.Text = $"{safety.OutputGainCeiling:0.00}";
         MixerEmergencyMuteStatusText.Text = $"Emergency mute: {FormatOnOff(_emergencyMuted)}; normal mute: {FormatOnOff(pipelineSnapshot.IsMuted)}.";
         MixerOutputPeakStatusText.Text = $"Output peak: {audioDiagnostics.OutputPeakLevel:0.000}; mixer peak {audioDiagnostics.MixerPeakLevel:0.000}.";
         MixerLimiterActivityStatusText.Text =
-            $"Limiter: {(safety.LimiterEnabled ? "enabled" : "disabled")}; limited samples {audioDiagnostics.LimitedSampleCount:N0}; clipped samples {audioDiagnostics.ClippedSampleCount:N0}.";
+            $"Limiter: always on; internal ceiling {safety.OutputGainCeiling:P0}; limited samples {audioDiagnostics.LimitedSampleCount:N0}; clipped samples {audioDiagnostics.ClippedSampleCount:N0}.";
 
         var outputStatus = pipelineSnapshot.Output;
         var manualAsio = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
@@ -4589,26 +4729,26 @@ public partial class MainWindow : Window
         var path = HapticProfileStore.GetDefaultProfilePath();
         var phprPath = PhprEffectProfileStore.GetDefaultProfilePath();
         ProfileStatusText.Text = message ?? $"Active profile: {_currentProfile.Name}.";
-        ProfilePathText.Text = $"Audio profile path: {path}";
-        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; profile saves shift intent, mock gear/pedal effects, real gear, road, slip, and lock preferences only. Paddle bench enable is runtime-only.";
+        ProfilePathText.Text = $"Audio profile path: {path}; normal BST-1/audio tuning auto-saves here for the next launch.";
+        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; manual save/load snapshot for shift intent, mock gear/pedal effects, and real gear/road/slip/lock preferences. Startup restore uses app settings for safe P-HPR preferences; direct enable/arm/device and paddle bench state remain runtime-only.";
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
-            : "Profile values are clamped to conservative software ranges on load and save.";
+            : "Profile values are clamped to the current Stage 18r-B software ranges on load and save.";
         var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
         var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Paddle bench enable and manual ASIO test active state are not saved. Default output remains NullAudioOutputDevice. {_settingsError ?? ""}".Trim();
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Saved output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} at {_bst1PaddleGearStrengthPercent:0}% / {_bst1PaddleGearFrequencyHz:0.#} Hz / {GetEffectiveBst1PaddleGearDurationMs()} ms. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Haptics running, emergency mute, ASIO armed state, direct enable/arm/private device, paddle bench enable, and manual ASIO test active state are not saved. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Profiles" })
         {
-            PageStatusText.Text = $"Active profile {_currentProfile.Name}; audio JSON version {HapticDriveProfile.CurrentVersion}; P-HPR JSON version {PhprEffectProfile.CurrentVersion}; emergency mute and direct-control enable are not saved.";
+            PageStatusText.Text = $"Active profile {_currentProfile.Name}; audio JSON version {HapticDriveProfile.CurrentVersion}; P-HPR JSON version {PhprEffectProfile.CurrentVersion}; startup restores saved tuning without auto-starting haptics or direct output.";
         }
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
         {
-            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; ASIO armed state and auto-start are never persisted.";
+            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; haptics running, ASIO armed state, and direct-output enable/arm/device state are never persisted.";
         }
     }
 
@@ -4891,7 +5031,7 @@ public partial class MainWindow : Window
         {
             warning,
             $"Replay validation: input {pipelineSnapshot.InputSource}; replay source {replaySource}; replay packets {pipelineSnapshot.Replay.PacketsReplayed:N0}; replay does not synthesize gear-paddle events.",
-            $"Profiles: audio {Path.GetFileName(HapticProfileStore.GetDefaultProfilePath())}; P-HPR {Path.GetFileName(PhprEffectProfileStore.GetDefaultProfilePath())}; P-HPR profile saves effect preferences only.",
+            $"Profiles: audio {Path.GetFileName(HapticProfileStore.GetDefaultProfilePath())} auto-saves current rig tuning/defaults; P-HPR {Path.GetFileName(PhprEffectProfileStore.GetDefaultProfilePath())} is a manual effect-preferences snapshot only.",
             $"Instant gear pulse: brake {FormatRealPhprPulse(realDiagnostics.Options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(realDiagnostics.Options.ThrottleGearPulse)}; last latency {BuildRealPhprGearPulseLatencyText()}.",
             $"Road vibration: {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)}; throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)}; last {BuildRealRoadVibrationRoutingText()}.",
             $"Slip/lock: {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)}; lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)}; last {BuildRealSlipLockRoutingText()}.",
@@ -5135,7 +5275,7 @@ public partial class MainWindow : Window
             $"Manual ASIO Hardware Test: {BuildManualAsioHardwareTestDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, P-HPR real direct-control enabled/selected device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, and mock histories are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; BST-1 local gear {( _bst1PaddleGearPulseEnabled ? "enabled" : "disabled") } {_bst1PaddleGearStrengthPercent:0}% {_bst1PaddleGearFrequencyHz:0.#} Hz {GetEffectiveBst1PaddleGearDurationMs()} ms; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
@@ -5557,17 +5697,42 @@ public partial class MainWindow : Window
 
         _startupAsioDefaultsApplied = true;
         var selection = Bst1AsioStartupDefaults.Resolve(_asioVisibilitySnapshot.DriverNames);
-        _selectedOutputKind = selection.OutputKind;
-        _selectedAsioDriverName = selection.DriverName;
-        _selectedAsioOutputChannel = selection.OutputChannel;
-        _asioArmed = selection.Armed;
+        string message;
+        if (_hasPersistedOutputModePreference)
+        {
+            if (_selectedOutputKind == AudioOutputDeviceKind.Asio
+                && _selectedAsioDriverName is not null
+                && !_asioVisibilitySnapshot.DriverNames.Contains(_selectedAsioDriverName, StringComparer.OrdinalIgnoreCase))
+            {
+                _selectedAsioDriverName = null;
+                message = "Saved ASIO output selection restored, but the saved driver is unavailable. Select a driver and arm ASIO manually before starting haptics.";
+            }
+            else if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
+            {
+                message = "Saved ASIO output selection restored. ASIO remains disarmed until you arm it manually.";
+            }
+            else
+            {
+                message = $"Saved output selection restored: {_selectedOutputKind}.";
+            }
+
+            _asioArmed = false;
+        }
+        else
+        {
+            _selectedOutputKind = selection.OutputKind;
+            _selectedAsioDriverName = selection.DriverName;
+            _selectedAsioOutputChannel = selection.OutputChannel;
+            _asioArmed = selection.Armed;
+            message = selection.Message;
+        }
 
         _updatingOutputUi = true;
         OutputModeComboBox.SelectedItem = _outputModeOptions.Single(option => option.Kind == _selectedOutputKind);
         UpdateAsioDriverSelectionItems();
         _updatingOutputUi = false;
 
-        await RebuildHapticPipelineForOutputSelectionAsync(selection.Message);
+        await RebuildHapticPipelineForOutputSelectionAsync(message);
     }
 
     private async Task RefreshAsioReadinessDiagnosticsAsync()
@@ -6499,10 +6664,24 @@ public partial class MainWindow : Window
             : $"Replay inactive; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s) last replayed. {snapshot.StatusMessage}";
     }
 
+    private static ReplayTimingModeOption GetReplayTimingModeOption(ReplayTimingPreference preference)
+    {
+        return preference == ReplayTimingPreference.FastDebug
+            ? ReplayTimingModeOption.FastDebug
+            : ReplayTimingModeOption.RealTime;
+    }
+
     private ReplayTimingModeOption GetSelectedReplayTimingMode()
     {
         return ReplayTimingModeComboBox.SelectedItem as ReplayTimingModeOption
             ?? ReplayTimingModeOption.RealTime;
+    }
+
+    private ReplayTimingPreference GetSelectedReplayTimingPreference()
+    {
+        return GetSelectedReplayTimingMode().IsFastDebug
+            ? ReplayTimingPreference.FastDebug
+            : ReplayTimingPreference.RealTime;
     }
 
     private static string CreateDefaultRecordingPath()

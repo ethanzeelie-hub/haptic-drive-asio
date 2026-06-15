@@ -2997,3 +2997,50 @@ Self-review:
 - BST-1 100% road output gain is tuning headroom, not a recommended universal setting.
 - P-HPR road now has a cadence/hold/watchdog model, but Ethan-local validation is still required to prove the sparse 3-5 second gap/thump symptom is resolved physically.
 - Raw UDP preservation, F1 25 packet parsing, confirmed P-HPR HID/report bytes, and ASIO/BST-1 hardware absence behavior remain protected by the existing boundaries.
+
+## Stage 18r-B - User Settings Persistence, Defaults Cleanup, UI Safety Simplification, P-HPR Wording Cleanup, And Replay Rename
+
+Date: 2026-06-15
+
+Status: Complete.
+
+Goal: Persist normal user tuning/settings across launches, clean up current-rig defaults, simplify confusing normal-user mixer safety controls, clarify P-HPR road/slip/lock wording, and add rename-selected recording support without changing gear runtime behavior, ASIO backend behavior, P-HPR HID/runtime behavior, or road/slip DSP logic.
+
+Changes:
+
+- Added default audio-profile auto-load and auto-save through `default.hdprofile.json`, so normal ASIO/BST-1 tuning changes now restore on the next launch without restoring runtime-active output state.
+- Extended app settings persistence for safe UI/device state including preferred output mode, replay timing mode, and BST-1 local paddle gear settings while keeping ASIO armed, haptics running, emergency mute, bench-active, active-pulse, pending-stop, and direct P-HPR enable/arm/private-device state runtime-only.
+- Updated current-rig defaults: BST-1 road stays on at 100% gain, other BST-1 effects default off with 50% gain headroom, BST-1 local paddle gear defaults on at `50%`, `50 Hz`, shared duration, and BST-1 gain sliders now allow the full `0-100%` range.
+- Simplified Routing / Mixer normal controls to output gain only, with limiter kept internally on and the conservative ceiling normalized internally to `100%`.
+- Cleaned up normal P-HPR Effects wording to `Brake road texture enabled`, `Throttle road texture enabled`, `Brake wheel lock enabled`, and `Throttle wheel slip enabled`.
+- Added `Rename Selected` to the recordings library with filename sanitization, `.hdrec` enforcement, overwrite blocking, active-recording blocking, and post-rename refresh.
+- Updated diagnostics/docs to list what persists, what remains runtime-only, and where those values live.
+
+Persistence summary:
+
+- `default.hdprofile.json`: audio effect enabled states, gains, frequencies, durations, mixer mute/gain, and normal safety output gain.
+- `appsettings.json`: theme, Advanced visibility, safe output selection, replay mode, forwarding destinations, paddle mapping/debounce, BST-1 local paddle gear settings, shift intent, and safe P-HPR/mock preferences.
+- `p-hpr.hdphprprofile.json`: manual P-HPR effect-preferences snapshot only.
+
+Runtime-only by design:
+
+- Haptics running.
+- Emergency mute and emergency-stop state.
+- ASIO armed state.
+- Direct P-HPR enable/arm/private device selection.
+- Active pulses, pending stops, and bench-active state.
+- Flight-recorder/mock history and diagnostics counters.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 675 passing tests and 0 skipped tests after updating one runtime test to opt into an engine-enabled profile instead of relying on the new Stage 18r-B default-off engine setting.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18r-B stayed within persistence/defaults/UI wording/recording-library scope.
+- Gear runtime behavior was not intentionally changed.
+- No physical validation, safe physical gain claim, shaker feel claim, or latency claim is made here.

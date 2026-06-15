@@ -41,7 +41,8 @@ public sealed class PhprWorkflowDiagnosticsReportTests
 
         Assert.Contains("audio", line, StringComparison.Ordinal);
         Assert.Contains("P-HPR", line, StringComparison.Ordinal);
-        Assert.Contains("effect preferences only", line, StringComparison.Ordinal);
-        Assert.Contains("excludes direct-enable/device/emergency state", line, StringComparison.Ordinal);
+        Assert.Contains("auto-saves current rig tuning/defaults", line, StringComparison.Ordinal);
+        Assert.Contains("manual effect-preferences snapshot only", line, StringComparison.Ordinal);
+        Assert.Contains("excludes direct-enable/arm/device/emergency state", line, StringComparison.Ordinal);
     }
 }

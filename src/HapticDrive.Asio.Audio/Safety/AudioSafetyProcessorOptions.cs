@@ -6,8 +6,8 @@ public sealed record AudioSafetyProcessorOptions(
     bool LimiterEnabled,
     bool EmergencyMute)
 {
-    public const float DefaultOutputGain = 0.25f;
-    public const float DefaultOutputGainCeiling = 0.75f;
+    public const float DefaultOutputGain = 1f;
+    public const float DefaultOutputGainCeiling = 1f;
 
     public static AudioSafetyProcessorOptions Default { get; } = new(
         OutputGain: DefaultOutputGain,

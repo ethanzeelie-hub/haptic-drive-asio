@@ -38,6 +38,42 @@ internal sealed record RecordingLibraryDeleteResult(
     }
 }
 
+internal enum RecordingLibraryRenameStatus
+{
+    Success,
+    Missing,
+    Blocked,
+    Failure
+}
+
+internal sealed record RecordingLibraryRenameResult(
+    RecordingLibraryRenameStatus Status,
+    string Message,
+    string? RenamedPath = null)
+{
+    public bool Succeeded => Status is RecordingLibraryRenameStatus.Success or RecordingLibraryRenameStatus.Missing;
+
+    public static RecordingLibraryRenameResult Success(string message, string renamedPath)
+    {
+        return new(RecordingLibraryRenameStatus.Success, message, renamedPath);
+    }
+
+    public static RecordingLibraryRenameResult Missing(string message)
+    {
+        return new(RecordingLibraryRenameStatus.Missing, message);
+    }
+
+    public static RecordingLibraryRenameResult Blocked(string message)
+    {
+        return new(RecordingLibraryRenameStatus.Blocked, message);
+    }
+
+    public static RecordingLibraryRenameResult Failure(string message)
+    {
+        return new(RecordingLibraryRenameStatus.Failure, message);
+    }
+}
+
 internal sealed record RecordingLibraryItem(
     string Path,
     string DisplayText,
@@ -164,10 +200,147 @@ internal static class RecordingLibraryManager
         }
     }
 
+    public static RecordingLibraryRenameResult RenameSelected(
+        string recordingsDirectory,
+        string? selectedPath,
+        string? requestedName,
+        string? activeRecordingPath)
+    {
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return RecordingLibraryRenameResult.Blocked("Select a recording before renaming.");
+        }
+
+        string fullDirectory;
+        string fullPath;
+        try
+        {
+            fullDirectory = Path.GetFullPath(recordingsDirectory);
+            fullPath = Path.GetFullPath(selectedPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return RecordingLibraryRenameResult.Blocked($"Rename blocked: recording path is invalid: {ex.Message}");
+        }
+
+        if (!IsPathInsideDirectory(fullDirectory, fullPath))
+        {
+            return RecordingLibraryRenameResult.Blocked("Rename blocked: selected file is outside the recordings folder.");
+        }
+
+        if (!string.Equals(Path.GetExtension(fullPath), ".hdrec", StringComparison.OrdinalIgnoreCase))
+        {
+            return RecordingLibraryRenameResult.Blocked("Rename blocked: selected file is not an .hdrec recording.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(activeRecordingPath))
+        {
+            string activeFullPath;
+            try
+            {
+                activeFullPath = Path.GetFullPath(activeRecordingPath);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return RecordingLibraryRenameResult.Blocked($"Rename blocked: active recording path is invalid: {ex.Message}");
+            }
+
+            if (string.Equals(fullPath, activeFullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return RecordingLibraryRenameResult.Blocked("Rename blocked: the selected file is the active recording output.");
+            }
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            return RecordingLibraryRenameResult.Missing("Selected recording was already missing; library refreshed.");
+        }
+
+        if (!TryBuildRenamedPath(fullDirectory, requestedName, out var renamedPath, out var message))
+        {
+            return RecordingLibraryRenameResult.Blocked(message);
+        }
+
+        if (string.Equals(fullPath, renamedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return RecordingLibraryRenameResult.Success("Recording name unchanged; library refreshed.", renamedPath);
+        }
+
+        if (File.Exists(renamedPath))
+        {
+            return RecordingLibraryRenameResult.Blocked($"Rename blocked: {Path.GetFileName(renamedPath)} already exists.");
+        }
+
+        try
+        {
+            File.Move(fullPath, renamedPath);
+            return RecordingLibraryRenameResult.Success(
+                $"Renamed recording to {Path.GetFileName(renamedPath)}.",
+                renamedPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return RecordingLibraryRenameResult.Failure($"Recording could not be renamed: {ex.Message}");
+        }
+    }
+
     private static bool IsPathInsideDirectory(string fullDirectory, string fullPath)
     {
         var directory = fullDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             + Path.DirectorySeparatorChar;
         return fullPath.StartsWith(directory, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryBuildRenamedPath(
+        string fullDirectory,
+        string? requestedName,
+        out string renamedPath,
+        out string message)
+    {
+        renamedPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(requestedName))
+        {
+            message = "Enter a recording name before renaming.";
+            return false;
+        }
+
+        var trimmed = requestedName.Trim();
+        if (Path.IsPathRooted(trimmed)
+            || trimmed.Contains(Path.DirectorySeparatorChar)
+            || trimmed.Contains(Path.AltDirectorySeparatorChar))
+        {
+            message = "Rename blocked: use a recording name only, not a path.";
+            return false;
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(trimmed);
+        var sanitizedBaseName = SanitizeFileName(baseName).Trim();
+        if (string.IsNullOrWhiteSpace(sanitizedBaseName))
+        {
+            message = "Rename blocked: the recording name is empty after sanitization.";
+            return false;
+        }
+
+        renamedPath = Path.GetFullPath(Path.Combine(fullDirectory, $"{sanitizedBaseName}.hdrec"));
+        if (!IsPathInsideDirectory(fullDirectory, renamedPath))
+        {
+            message = "Rename blocked: renamed file would leave the recordings folder.";
+            return false;
+        }
+
+        message = $"Recording rename target ready: {Path.GetFileName(renamedPath)}.";
+        return true;
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new char[fileName.Length];
+        for (var index = 0; index < fileName.Length; index++)
+        {
+            sanitized[index] = invalid.Contains(fileName[index]) ? '-' : fileName[index];
+        }
+
+        return new string(sanitized).Trim().TrimEnd('.');
     }
 }

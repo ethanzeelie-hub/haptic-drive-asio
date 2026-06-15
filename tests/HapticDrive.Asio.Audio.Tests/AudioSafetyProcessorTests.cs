@@ -94,7 +94,7 @@ public sealed class AudioSafetyProcessorTests
     }
 
     [Fact]
-    public void ConservativeDefaults_ApplyOutputGainAndCeiling()
+    public void Stage18rBDefaults_ApplyFullOutputGainAndInternalCeiling()
     {
         var processor = new AudioSafetyProcessor();
         var source = Buffer([4f, -4f, 1f, 0f]);
@@ -102,7 +102,7 @@ public sealed class AudioSafetyProcessorTests
 
         var snapshot = processor.Process(source, output);
 
-        AssertSamples(output, [0.75f, -0.75f, 0.1875f, 0f]);
+        AssertSamples(output, [1f, -1f, 0.25f, 0f]);
         Assert.Equal(AudioSafetyProcessorOptions.DefaultOutputGain, snapshot.OutputGain);
         Assert.Equal(AudioSafetyProcessorOptions.DefaultOutputGainCeiling, snapshot.OutputGainCeiling);
         Assert.Equal(2, snapshot.LimitedSampleCount);

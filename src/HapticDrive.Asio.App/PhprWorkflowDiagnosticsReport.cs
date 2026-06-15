@@ -17,7 +17,7 @@ internal static class PhprWorkflowDiagnosticsReport
 {
     public static string BuildProfilePersistenceLine(string audioProfilePath, string phprProfilePath)
     {
-        return $"Profiles: audio {audioProfilePath}; P-HPR {phprProfilePath}; P-HPR profile contains effect preferences only and excludes direct-enable/device/emergency state.";
+        return $"Profiles: audio {audioProfilePath} auto-saves current rig tuning/defaults; P-HPR {phprProfilePath} is a manual effect-preferences snapshot only and excludes direct-enable/arm/device/emergency state.";
     }
 
     public static string BuildWorkflowLine(PhprWorkflowDiagnosticsSnapshot snapshot)

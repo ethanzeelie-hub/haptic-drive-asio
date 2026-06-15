@@ -4,33 +4,53 @@ Stage 14 adds practical tuning profiles and runtime diagnostics for the existing
 
 ## Profile Scope
 
-Profiles store software tuning values for existing haptic effects, the mixer, and the safety chain.
+Profiles store software tuning values for existing haptic effects, the mixer, and the normal-user-facing audio safety chain.
 
 Profiles include:
 
 - Format version.
 - Profile name.
-- Per-effect enabled state and conservative gain.
+- Per-effect enabled state and per-output gain.
 - Selected existing effect parameters exposed by the UI, such as engine frequency bounds, gear/impact pulse duration, kerb base frequency, road texture speed gate, and slip ratio threshold.
 - Mixer master gain and normal mute.
-- Safety output gain, normalized output ceiling, and limiter enabled state.
+- Safety output gain. The persisted ceiling/limiter values are normalized back to the protected Stage 18r-B internal settings when profiles load.
 
 Profiles do not include:
 
 - Emergency mute. Emergency mute is runtime-only.
-- Output device selection.
-- ASIO or WASAPI hardware settings.
+- Output device selection or replay mode.
+- ASIO or WASAPI hardware running state.
 - UDP forwarding destinations.
 - Recording files or replay files.
 - Physical shaker gain, calibration, safe physical output, latency, or frequency-response data.
 
-Stage 18 app settings are separate from profiles. App settings persist theme, UDP forwarding destinations, and last ASIO driver/channel selections. They do not persist ASIO armed state, haptic running state, emergency mute, Manual ASIO Hardware Test active state, Paddle Gear Bench Test enable/arm state, or physical calibration.
+Stage 18r-B app settings are separate from profiles. App settings now persist:
+
+- Theme and Advanced / Diagnostics visibility.
+- Safe output selections: preferred output mode, last ASIO driver, and last ASIO channel.
+- Replay timing mode.
+- UDP forwarding destinations.
+- Paddle input device, left/right mapping, and debounce.
+- BST-1 local paddle gear pulse enable/strength/frequency/duration mode.
+- Shift-intent settings.
+- Safe mock and normal P-HPR effect preferences already covered by the existing app-settings model.
+
+App settings intentionally do not persist:
+
+- Haptics running state.
+- Emergency mute or emergency-stop state as a desired startup setting.
+- ASIO armed state.
+- Manual ASIO hardware test active state.
+- Direct P-HPR enable/arm/private device state.
+- Active pulses, pending stops, or bench-active state.
+- Flight-recorder history, mock history, or diagnostic counters.
+- Physical calibration or physical validation results.
 
 ## JSON Format
 
 Profiles are stored as human-readable JSON with `Version` set to `1`.
 
-The default file name used by the shell is:
+The default audio profile file name used by the shell is:
 
 ```text
 default.hdprofile.json
@@ -44,6 +64,8 @@ The default directory is under the current user's local application data:
 
 Generated profile files are user data and should not be committed.
 
+The shell now auto-saves normal audio tuning changes back to `default.hdprofile.json`. Manual profile save/load still exists for explicit snapshots. The separate P-HPR profile remains a manual effect-preferences snapshot and does not re-arm direct output on launch.
+
 ## Validation
 
 Profile loading and saving run through the same validator.
@@ -51,11 +73,12 @@ Profile loading and saving run through the same validator.
 - Unsupported profile versions fail safely and are not applied.
 - Missing profile files fail safely.
 - Corrupt JSON fails safely.
-- Missing profile sections are repaired to conservative defaults.
-- Invalid finite values, NaN, infinity, and out-of-range values are repaired or clamped to conservative software ranges.
+- Missing profile sections are repaired to the Stage 18r-B current-rig defaults.
+- Invalid finite values, NaN, infinity, and out-of-range values are repaired or clamped to software-safe ranges.
 - Effect gains remain normalized and bounded.
-- Safety output gain remains at or below `0.5`.
-- The normalized output ceiling remains at or below the Stage 10 default ceiling of `0.75`.
+- BST-1 effect gain sliders and stored gain values can now use the full `0.0-1.0` range.
+- Safety output gain remains normalized and bounded to `0.0-1.0`.
+- The normal-user-facing output ceiling control is removed; profile loads normalize the internal ceiling to `1.0` and keep the limiter enabled.
 
 These are software safety bounds only. They are not physical shaker calibration and must not be treated as final safe gain.
 

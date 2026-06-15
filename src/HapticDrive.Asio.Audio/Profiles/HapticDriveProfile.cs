@@ -153,42 +153,42 @@ public sealed record HapticDriveProfile(
         var effects = HapticEffectEngineOptions.Default;
         return new HapticDriveProfile(
             CurrentVersion,
-            "Default Conservative",
+            "Current Rig Defaults",
             new HapticEffectTuning(
                 new EngineVibrationTuning(
-                    effects.Engine.IsEnabled,
-                    effects.Engine.Gain,
+                    IsEnabled: false,
+                    Gain: 0.5f,
                     effects.Engine.MinimumFrequencyHz,
                     effects.Engine.MaximumFrequencyHz),
                 new GearShiftTuning(
-                    effects.GearShift.IsEnabled,
-                    effects.GearShift.Gain,
+                    IsEnabled: false,
+                    Gain: 0.5f,
                     effects.GearShift.PulseFrequencyHz,
                     (int)Math.Round(effects.GearShift.PulseDuration.TotalMilliseconds)),
                 new KerbTuning(
-                    effects.Kerb.IsEnabled,
-                    effects.Kerb.Gain,
+                    IsEnabled: false,
+                    Gain: 0.5f,
                     effects.Kerb.BaseFrequencyHz,
                     effects.Kerb.MinimumSpeedKph,
                     effects.Kerb.FullIntensitySpeedKph),
                 new ImpactTuning(
-                    effects.Impact.IsEnabled,
-                    effects.Impact.Gain,
+                    IsEnabled: false,
+                    Gain: 0.5f,
                     effects.Impact.PulseFrequencyHz,
                     (int)Math.Round(effects.Impact.PulseDuration.TotalMilliseconds),
                     (int)Math.Round(effects.Impact.CooldownDuration.TotalMilliseconds),
                     effects.Impact.VerticalGDeltaThreshold),
                 new RoadTextureTuning(
-                    effects.RoadTexture.IsEnabled,
-                    effects.RoadTexture.Gain,
+                    IsEnabled: true,
+                    Gain: 1f,
                     effects.RoadTexture.MinimumSpeedKph,
                     effects.RoadTexture.FullIntensitySpeedKph)
                 {
-                    Bst1OutputEnabled = effects.RoadTexture.Bst1OutputEnabled
+                    Bst1OutputEnabled = true
                 },
                 new SlipTuning(
-                    effects.Slip.IsEnabled,
-                    effects.Slip.Gain,
+                    IsEnabled: false,
+                    Gain: 0.5f,
                     effects.Slip.BaseFrequencyHz,
                     effects.Slip.MinimumSpeedKph,
                     effects.Slip.SlipRatioThreshold,
@@ -321,7 +321,7 @@ public static class HapticProfileValidator
         var repairedEffects = new HapticEffectTuning(
             new EngineVibrationTuning(
                 effects.Engine?.IsEnabled ?? defaultProfile.Effects.Engine.IsEnabled,
-                Clamp(effects.Engine?.Gain, 0f, 0.4f, defaultProfile.Effects.Engine.Gain, "engine gain", messages, ref repaired),
+                Clamp(effects.Engine?.Gain, 0f, 1f, defaultProfile.Effects.Engine.Gain, "engine gain", messages, ref repaired),
                 Clamp(effects.Engine?.MinimumFrequencyHz, 15f, 80f, defaultProfile.Effects.Engine.MinimumFrequencyHz, "engine minimum frequency", messages, ref repaired),
                 ClampAtLeast(
                     Clamp(effects.Engine?.MaximumFrequencyHz, 20f, 120f, defaultProfile.Effects.Engine.MaximumFrequencyHz, "engine maximum frequency", messages, ref repaired),
@@ -332,12 +332,12 @@ public static class HapticProfileValidator
                     ref repaired)),
             new GearShiftTuning(
                 effects.GearShift?.IsEnabled ?? defaultProfile.Effects.GearShift.IsEnabled,
-                Clamp(effects.GearShift?.Gain, 0f, 0.4f, defaultProfile.Effects.GearShift.Gain, "gear shift gain", messages, ref repaired),
+                Clamp(effects.GearShift?.Gain, 0f, 1f, defaultProfile.Effects.GearShift.Gain, "gear shift gain", messages, ref repaired),
                 Clamp(effects.GearShift?.PulseFrequencyHz, 5f, 120f, defaultProfile.Effects.GearShift.PulseFrequencyHz, "gear shift pulse frequency", messages, ref repaired),
                 Clamp(effects.GearShift?.PulseDurationMilliseconds, 10, 250, defaultProfile.Effects.GearShift.PulseDurationMilliseconds, "gear shift pulse duration", messages, ref repaired)),
             new KerbTuning(
                 effects.Kerb?.IsEnabled ?? defaultProfile.Effects.Kerb.IsEnabled,
-                Clamp(effects.Kerb?.Gain, 0f, 0.4f, defaultProfile.Effects.Kerb.Gain, "kerb gain", messages, ref repaired),
+                Clamp(effects.Kerb?.Gain, 0f, 1f, defaultProfile.Effects.Kerb.Gain, "kerb gain", messages, ref repaired),
                 Clamp(effects.Kerb?.BaseFrequencyHz, 5f, 120f, defaultProfile.Effects.Kerb.BaseFrequencyHz, "kerb base frequency", messages, ref repaired),
                 Clamp(effects.Kerb?.MinimumSpeedKph, 0f, 80f, defaultProfile.Effects.Kerb.MinimumSpeedKph, "kerb minimum speed", messages, ref repaired),
                 ClampAtLeast(
@@ -349,7 +349,7 @@ public static class HapticProfileValidator
                     ref repaired)),
             new ImpactTuning(
                 effects.Impact?.IsEnabled ?? defaultProfile.Effects.Impact.IsEnabled,
-                Clamp(effects.Impact?.Gain, 0f, 0.4f, defaultProfile.Effects.Impact.Gain, "impact gain", messages, ref repaired),
+                Clamp(effects.Impact?.Gain, 0f, 1f, defaultProfile.Effects.Impact.Gain, "impact gain", messages, ref repaired),
                 Clamp(effects.Impact?.PulseFrequencyHz, 5f, 120f, defaultProfile.Effects.Impact.PulseFrequencyHz, "impact pulse frequency", messages, ref repaired),
                 Clamp(effects.Impact?.PulseDurationMilliseconds, 10, 300, defaultProfile.Effects.Impact.PulseDurationMilliseconds, "impact pulse duration", messages, ref repaired),
                 Clamp(effects.Impact?.CooldownMilliseconds, 0, 1000, defaultProfile.Effects.Impact.CooldownMilliseconds, "impact cooldown", messages, ref repaired),
@@ -373,7 +373,7 @@ public static class HapticProfileValidator
             },
             new SlipTuning(
                 effects.Slip?.IsEnabled ?? defaultProfile.Effects.Slip.IsEnabled,
-                Clamp(effects.Slip?.Gain, 0f, 0.3f, defaultProfile.Effects.Slip.Gain, "slip gain", messages, ref repaired),
+                Clamp(effects.Slip?.Gain, 0f, 1f, defaultProfile.Effects.Slip.Gain, "slip gain", messages, ref repaired),
                 Clamp(effects.Slip?.BaseFrequencyHz, 5f, 120f, defaultProfile.Effects.Slip.BaseFrequencyHz, "slip base frequency", messages, ref repaired),
                 Clamp(effects.Slip?.MinimumSpeedKph, 0f, 120f, defaultProfile.Effects.Slip.MinimumSpeedKph, "slip minimum speed", messages, ref repaired),
                 Clamp(effects.Slip?.SlipRatioThreshold, 0.01f, 1f, defaultProfile.Effects.Slip.SlipRatioThreshold, "slip ratio threshold", messages, ref repaired),
@@ -387,9 +387,9 @@ public static class HapticProfileValidator
                 Clamp(mixer.MasterGain, 0f, 1f, defaultProfile.Mixer.MasterGain, "master gain", messages, ref repaired),
                 mixer.IsMuted),
             new HapticSafetyTuning(
-                Clamp(safety.OutputGain, 0f, 0.5f, defaultProfile.Safety.OutputGain, "safety output gain", messages, ref repaired),
-                Clamp(safety.OutputGainCeiling, 0.05f, AudioSafetyProcessorOptions.DefaultOutputGainCeiling, defaultProfile.Safety.OutputGainCeiling, "safety output ceiling", messages, ref repaired),
-                safety.LimiterEnabled));
+                Clamp(safety.OutputGain, 0f, 1f, defaultProfile.Safety.OutputGain, "safety output gain", messages, ref repaired),
+                NormalizeSafetyOutputCeiling(safety.OutputGainCeiling, messages, ref repaired),
+                NormalizeLimiterEnabled(safety.LimiterEnabled, messages, ref repaired)));
 
         if (repairedProfile.Name != profile.Name)
         {
@@ -406,7 +406,7 @@ public static class HapticProfileValidator
 
     private static string SafeName(string? name)
     {
-        return string.IsNullOrWhiteSpace(name) ? "Default Conservative" : name.Trim();
+        return string.IsNullOrWhiteSpace(name) ? "Current Rig Defaults" : name.Trim();
     }
 
     private static float Clamp(
@@ -480,5 +480,34 @@ public static class HapticProfileValidator
         var repairedValue = Math.Max(minimum, fallback);
         messages.Add($"{name} was raised to {repairedValue:0.###}.");
         return repairedValue;
+    }
+
+    private static float NormalizeSafetyOutputCeiling(
+        float value,
+        ICollection<string> messages,
+        ref bool repaired)
+    {
+        var normalized = AudioSafetyProcessorOptions.DefaultOutputGainCeiling;
+        if (!float.IsFinite(value) || Math.Abs(value - normalized) > 0.0001f)
+        {
+            repaired = true;
+            messages.Add($"safety output ceiling is now internal; normalized to {normalized:0.###}.");
+        }
+
+        return normalized;
+    }
+
+    private static bool NormalizeLimiterEnabled(
+        bool value,
+        ICollection<string> messages,
+        ref bool repaired)
+    {
+        if (!value)
+        {
+            repaired = true;
+            messages.Add("limiter remains internally enabled for safety.");
+        }
+
+        return true;
     }
 }

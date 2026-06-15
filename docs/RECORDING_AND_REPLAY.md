@@ -82,6 +82,7 @@ The Recordings page can:
 - Show file name, packet count, file size, source game, source profile, app version, created time, and modified time for readable `.hdrec` files.
 - Replay the selected recording through the same output-owned haptic pipeline in Real-time mode by default.
 - Explicitly switch replay mode to Fast debug for parser diagnostics.
+- Rename the selected recording with guarded filename sanitization, preserved `.hdrec` extension, no overwrite, and directory-bound checks.
 - Delete the selected recording after guarding that the selected path is an `.hdrec` file inside the recordings folder and is not the active recording output.
 
 The library reads from:

@@ -1,6 +1,8 @@
 using System.IO;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.App;
+using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Runtime.Pipeline;
 
 namespace HapticDrive.Asio.App.Tests;
 
@@ -292,6 +294,112 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(40d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumFrequencyHz);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelLock.FrequencyHz);
         Assert.Equal(10, loaded.RealPhprSlipLockRouting.WheelLock.DurationMs);
+    }
+
+    [Fact]
+    public void OutputReplayAndBst1LocalGearPreferencesPersist()
+    {
+        using var directory = new TempDirectory();
+        var store = new AppSettingsStore(Path.Combine(directory.Path, "appsettings.json"));
+
+        store.Save(new AppSettings
+        {
+            PreferredOutputMode = AudioOutputDeviceKind.Asio,
+            LastAsioDriverName = "M-Audio Test Driver",
+            LastAsioOutputChannel = 1,
+            ReplayTimingPreference = ReplayTimingPreference.FastDebug,
+            Bst1PaddleGearPulse = new Bst1PaddleGearPulseSetting
+            {
+                IsEnabled = true,
+                StrengthPercent = 55f,
+                FrequencyHz = 62.5f,
+                UseSharedDuration = false,
+                CustomDurationMs = 70
+            }
+        });
+
+        var loaded = store.Load();
+
+        Assert.Equal(AudioOutputDeviceKind.Asio, loaded.PreferredOutputMode);
+        Assert.Equal("M-Audio Test Driver", loaded.LastAsioDriverName);
+        Assert.Equal(1, loaded.LastAsioOutputChannel);
+        Assert.Equal(ReplayTimingPreference.FastDebug, loaded.ReplayTimingPreference);
+        Assert.True(loaded.Bst1PaddleGearPulse.IsEnabled);
+        Assert.Equal(55f, loaded.Bst1PaddleGearPulse.StrengthPercent, precision: 6);
+        Assert.Equal(62.5f, loaded.Bst1PaddleGearPulse.FrequencyHz, precision: 6);
+        Assert.False(loaded.Bst1PaddleGearPulse.UseSharedDuration);
+        Assert.Equal(70, loaded.Bst1PaddleGearPulse.CustomDurationMs);
+    }
+
+    [Fact]
+    public void Bst1LocalGearSettingsAreClampedToSafeRanges()
+    {
+        using var directory = new TempDirectory();
+        var store = new AppSettingsStore(Path.Combine(directory.Path, "appsettings.json"));
+
+        store.Save(new AppSettings
+        {
+            Bst1PaddleGearPulse = new Bst1PaddleGearPulseSetting
+            {
+                IsEnabled = true,
+                StrengthPercent = 500f,
+                FrequencyHz = 5_000f,
+                UseSharedDuration = false,
+                CustomDurationMs = -10
+            }
+        });
+
+        var loaded = store.Load();
+
+        Assert.True(loaded.Bst1PaddleGearPulse.IsEnabled);
+        Assert.Equal(100f, loaded.Bst1PaddleGearPulse.StrengthPercent, precision: 6);
+        Assert.Equal(ManualAsioHardwareTestRequest.MaximumFrequencyHz, loaded.Bst1PaddleGearPulse.FrequencyHz, precision: 6);
+        Assert.Equal(ManualAsioHardwareTestRequest.MinimumDurationMilliseconds, loaded.Bst1PaddleGearPulse.CustomDurationMs);
+    }
+
+    [Fact]
+    public void MissingNewFieldsLoadToSafeDefaultsWithoutCrashing()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        File.WriteAllText(path, """{"UseLightTheme":true,"LastAsioDriverName":"Existing Driver"}""");
+        var store = new AppSettingsStore(path);
+
+        var loaded = store.Load();
+
+        Assert.True(loaded.UseLightTheme);
+        Assert.Equal("Existing Driver", loaded.LastAsioDriverName);
+        Assert.Null(loaded.PreferredOutputMode);
+        Assert.Equal(ReplayTimingPreference.RealTime, loaded.ReplayTimingPreference);
+        Assert.True(loaded.Bst1PaddleGearPulse.IsEnabled);
+        Assert.Equal(50f, loaded.Bst1PaddleGearPulse.StrengthPercent, precision: 6);
+        Assert.Equal(50f, loaded.Bst1PaddleGearPulse.FrequencyHz, precision: 6);
+        Assert.True(loaded.Bst1PaddleGearPulse.UseSharedDuration);
+        Assert.Equal(Bst1GearPulseDurationSync.DefaultGearDurationMs, loaded.Bst1PaddleGearPulse.CustomDurationMs);
+    }
+
+    [Fact]
+    public void AppSettingsJson_DoesNotPersistRuntimeOnlyStates()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var store = new AppSettingsStore(path);
+
+        store.Save(new AppSettings
+        {
+            PreferredOutputMode = AudioOutputDeviceKind.Asio,
+            Bst1PaddleGearPulse = new Bst1PaddleGearPulseSetting { IsEnabled = true }
+        });
+
+        var json = File.ReadAllText(path);
+
+        Assert.DoesNotContain("AsioArmed", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("HapticsStarted", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("EmergencyMute", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActivePulse", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("PendingStop", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("PaddleGearBench", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlightRecorder", json, StringComparison.Ordinal);
     }
 
     [Fact]

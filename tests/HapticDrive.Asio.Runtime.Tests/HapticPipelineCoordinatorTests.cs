@@ -53,7 +53,16 @@ public sealed class HapticPipelineCoordinatorTests
     [Fact]
     public async Task LiveLikePacket_DrivesParserVehicleStateEffectsMixerSafetyAndNullOutput()
     {
-        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                Engine = HapticDriveProfile.Default.Effects.Engine with { IsEnabled = true }
+            }
+        };
+        await using var coordinator = new HapticPipelineCoordinator(
+            profile: profile,
+            options: HapticPipelineOptions.ManualRendering);
         var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 0.8f, gear: 6));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);

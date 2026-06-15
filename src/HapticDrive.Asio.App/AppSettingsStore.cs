@@ -1,9 +1,11 @@
 using System.IO;
 using System.Text.Json;
 using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
+using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Simagic.PHPR.Output.Windows;
 
 namespace HapticDrive.Asio.App;
@@ -86,14 +88,23 @@ internal sealed class AppSettingsStore
 
         return settings with
         {
+            PreferredOutputMode = settings.PreferredOutputMode is null
+                ? null
+                : Enum.IsDefined(settings.PreferredOutputMode.Value)
+                    ? settings.PreferredOutputMode
+                    : null,
             LastAsioDriverName = string.IsNullOrWhiteSpace(settings.LastAsioDriverName)
                 ? null
                 : settings.LastAsioDriverName.Trim(),
             LastAsioOutputChannel = settings.LastAsioOutputChannel is >= 0 and <= 63
                 ? settings.LastAsioOutputChannel
                 : null,
+            ReplayTimingPreference = Enum.IsDefined(settings.ReplayTimingPreference)
+                ? settings.ReplayTimingPreference
+                : ReplayTimingPreference.RealTime,
             ForwardingDestinations = destinations,
             PaddleInputMapping = SanitizePaddleInputMapping(settings.PaddleInputMapping),
+            Bst1PaddleGearPulse = SanitizeBst1PaddleGearPulse(settings.Bst1PaddleGearPulse),
             ShiftIntent = SanitizeShiftIntent(settings.ShiftIntent),
             MockGearPulseRouting = SanitizeMockGearPulseRouting(settings.MockGearPulseRouting),
             MockPedalEffectsRouting = SanitizeMockPedalEffectsRouting(settings.MockPedalEffectsRouting),
@@ -122,6 +133,31 @@ internal sealed class AppSettingsStore
             LeftPaddleButtonId = NormalizeButtonId(setting.LeftPaddleButtonId),
             RightPaddleButtonId = NormalizeButtonId(setting.RightPaddleButtonId),
             DebounceMilliseconds = debounce
+        };
+    }
+
+    private static Bst1PaddleGearPulseSetting SanitizeBst1PaddleGearPulse(Bst1PaddleGearPulseSetting? setting)
+    {
+        if (setting is null)
+        {
+            return new Bst1PaddleGearPulseSetting();
+        }
+
+        return setting with
+        {
+            StrengthPercent = float.IsFinite(setting.StrengthPercent)
+                ? Math.Clamp(setting.StrengthPercent, 0f, 100f)
+                : 50f,
+            FrequencyHz = float.IsFinite(setting.FrequencyHz)
+                ? Math.Clamp(
+                    setting.FrequencyHz,
+                    ManualAsioHardwareTestRequest.MinimumFrequencyHz,
+                    ManualAsioHardwareTestRequest.MaximumFrequencyHz)
+                : 50f,
+            CustomDurationMs = Math.Clamp(
+                setting.CustomDurationMs,
+                ManualAsioHardwareTestRequest.MinimumDurationMilliseconds,
+                (int)ManualAsioHardwareTestRequest.MaximumDuration.TotalMilliseconds)
         };
     }
 
@@ -348,13 +384,19 @@ internal sealed record AppSettings
 
     public bool AdvancedDiagnosticsEnabled { get; init; }
 
+    public AudioOutputDeviceKind? PreferredOutputMode { get; init; }
+
     public string? LastAsioDriverName { get; init; }
 
     public int? LastAsioOutputChannel { get; init; }
 
+    public ReplayTimingPreference ReplayTimingPreference { get; init; } = ReplayTimingPreference.RealTime;
+
     public List<ForwardingDestinationSetting> ForwardingDestinations { get; init; } = [];
 
     public PaddleInputMappingSetting PaddleInputMapping { get; init; } = new();
+
+    public Bst1PaddleGearPulseSetting Bst1PaddleGearPulse { get; init; } = new();
 
     public ShiftIntentSetting ShiftIntent { get; init; } = new();
 
@@ -373,6 +415,12 @@ internal sealed record AppSettings
     public static AppSettings Default { get; } = new();
 }
 
+internal enum ReplayTimingPreference
+{
+    RealTime = 0,
+    FastDebug = 1
+}
+
 internal sealed record PaddleInputMappingSetting
 {
     public string? SelectedDeviceId { get; init; }
@@ -384,6 +432,19 @@ internal sealed record PaddleInputMappingSetting
     public int? RightPaddleButtonId { get; init; } = 13;
 
     public int DebounceMilliseconds { get; init; } = (int)WheelPaddleMapping.DefaultDebounceDuration.TotalMilliseconds;
+}
+
+internal sealed record Bst1PaddleGearPulseSetting
+{
+    public bool IsEnabled { get; init; } = true;
+
+    public float StrengthPercent { get; init; } = 50f;
+
+    public float FrequencyHz { get; init; } = 50f;
+
+    public bool UseSharedDuration { get; init; } = true;
+
+    public int CustomDurationMs { get; init; } = Bst1GearPulseDurationSync.DefaultGearDurationMs;
 }
 
 internal sealed record ShiftIntentSetting

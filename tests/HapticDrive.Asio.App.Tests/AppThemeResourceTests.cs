@@ -206,17 +206,43 @@ public sealed class AppThemeResourceTests
         Assert.Contains("MasterGainSlider", mixerNames);
         Assert.Contains("MixerMuteCheckBox", mixerNames);
         Assert.Contains("SafetyOutputGainSlider", mixerNames);
-        Assert.Contains("SafetyOutputCeilingSlider", mixerNames);
-        Assert.Contains("LimiterEnabledCheckBox", mixerNames);
+        Assert.DoesNotContain("SafetyOutputCeilingSlider", mixerNames);
+        Assert.DoesNotContain("LimiterEnabledCheckBox", mixerNames);
         Assert.Contains("MixerOutputPeakStatusText", mixerNames);
         Assert.Contains("MixerLimiterActivityStatusText", mixerNames);
         Assert.Contains("MixerEmergencyMuteStatusText", mixerNames);
 
         Assert.Contains("Routing / Mixer", mixerText);
         Assert.Contains("Mixer And Safety", mixerText);
+        Assert.Contains(
+            mixerText,
+            text => text.Contains("Limiter stays on automatically. Internal output ceiling stays at 100%.", StringComparison.Ordinal));
         Assert.Contains("Output Routing Summary", mixerText);
         Assert.Contains("Active Effects", mixerText);
         Assert.Contains("Priority And Ducking", mixerText);
+    }
+
+    [Fact]
+    public void RecordingsPageContainsReplayModeAndRenameControls()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var recordingsPanel = FindElementByXName(mainWindowXaml, "RecordingsPanel");
+        var recordingsText = GetTextValues(recordingsPanel);
+        var recordingsNames = GetXNameValues(recordingsPanel);
+
+        Assert.Contains("ReplayTimingModeComboBox", recordingsNames);
+        Assert.Contains("RecordingLibraryListBox", recordingsNames);
+        Assert.Contains("DeleteSelectedRecordingButton", recordingsNames);
+        Assert.Contains("RenameSelectedRecordingButton", recordingsNames);
+        Assert.Contains("RecordingRenameTextBox", recordingsNames);
+
+        Assert.Contains("Recording And Replay", recordingsText);
+        Assert.Contains(
+            recordingsText,
+            text => text.Contains("Rename to", StringComparison.Ordinal));
+        Assert.Contains(
+            recordingsText,
+            text => text.Contains("Recording captures raw UDP payload bytes before parser validation.", StringComparison.Ordinal));
     }
 
     [Fact]
