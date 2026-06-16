@@ -1,0 +1,928 @@
+using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Audio.Effects;
+using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Haptics;
+using HapticDrive.Asio.Core.Telemetry;
+using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Recording;
+using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Simagic.PHPR.Abstractions.Commands;
+using HapticDrive.Simagic.PHPR.Abstractions.MockProtocol;
+using HapticDrive.Simagic.PHPR.Abstractions.Output;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+
+namespace HapticDrive.Actuation.Tests;
+
+public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
+{
+    private static readonly DateTimeOffset BaseTime = new(2026, 6, 16, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void CoordinatorLivesInActuationAssemblyWithoutWpfOrAppDependencies()
+    {
+        var assembly = typeof(PHprContinuousEffectsRuntimeCoordinator).Assembly;
+        var references = assembly.GetReferencedAssemblies()
+            .Select(reference => reference.Name)
+            .ToArray();
+
+        Assert.Equal("HapticDrive.Actuation", assembly.GetName().Name);
+        Assert.DoesNotContain("HapticDrive.Asio.App", references, StringComparer.Ordinal);
+        Assert.DoesNotContain("PresentationFramework", references, StringComparer.Ordinal);
+        Assert.DoesNotContain("PresentationCore", references, StringComparer.Ordinal);
+        Assert.DoesNotContain("WindowsBase", references, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task ConstructingCoordinator_DoesNotWriteCommands()
+    {
+        await using var harness = new RuntimeHarness();
+
+        Assert.Empty(harness.InnerOutput.CommandHistory);
+        Assert.False(harness.Runtime.GetSnapshot().RoadRuntimeStarted);
+        Assert.False(harness.Runtime.GetSnapshot().SlipLockRuntimeStarted);
+    }
+
+    [Fact]
+    public async Task StartingWithAllEffectsDisabled_SendsNoStartCommands()
+    {
+        await using var harness = new RuntimeHarness(
+            roadOptions: PHprRoadVibrationRouterOptions.Disabled,
+            slipLockOptions: PHprSlipLockRouterOptions.Disabled);
+        harness.CurrentInput = harness.CreateRoadAndSlipInput();
+
+        harness.Runtime.StartSlipLockRuntime();
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 2);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await Task.Delay(10);
+
+        Assert.Empty(harness.InnerOutput.CommandHistory);
+    }
+
+    [Fact]
+    public async Task StartingRoadRuntimeWithValidTelemetry_RoutesThroughRoadRouterPath()
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateRoadInput();
+
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.InnerOutput.CommandHistory.Count >= 2);
+
+        var commands = harness.InnerOutput.CommandHistory.ToArray();
+        Assert.Contains(commands, command => command.Source == PHprCommandSource.RoadTexture && command.TargetModule == PHprModuleId.Brake);
+        Assert.Contains(commands, command => command.Source == PHprCommandSource.RoadTexture && command.TargetModule == PHprModuleId.Throttle);
+        Assert.True(harness.RoadRouter.GetSnapshot().LastResult?.WasRouted == true);
+        Assert.True(harness.Runtime.GetSnapshot().LastRoadVibrationRoutingResult?.WasRouted == true);
+    }
+
+    [Fact]
+    public async Task StartingSlipLockRuntimeWithValidTelemetry_RoutesThroughSlipLockRouterPath()
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateSlipInput();
+
+        harness.Runtime.StartSlipLockRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.InnerOutput.CommandHistory.Count >= 1);
+
+        var command = Assert.Single(harness.InnerOutput.CommandHistory);
+        Assert.Equal(PHprCommandSource.WheelSlip, command.Source);
+        Assert.Equal(PHprModuleId.Throttle, command.TargetModule);
+        Assert.True(harness.SlipLockRouter.GetSnapshot().LastResult?.WasRouted == true);
+        Assert.True(harness.Runtime.GetSnapshot().LastSlipLockRoutingResult?.WasRouted == true);
+    }
+
+    [Fact]
+    public async Task RoadRuntime_YieldsWhileSlipLockOwnsAModule()
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateRoadAndSlipInput();
+
+        harness.Runtime.StartSlipLockRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.SlipLockRouter.GetSnapshot().ActiveSlipLockModules != "none");
+        harness.InnerOutput.ClearHistory();
+
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 2);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.Runtime.GetSnapshot().RoadHigherPrioritySuppressedCount >= 1);
+
+        Assert.DoesNotContain(harness.InnerOutput.CommandHistory, command => command.Source == PHprCommandSource.RoadTexture && command.DurationMs > 0);
+        Assert.Equal(1, harness.Runtime.GetSnapshot().RoadHigherPrioritySuppressedCount);
+    }
+
+    [Theory]
+    [MemberData(nameof(BlockingRoadContexts))]
+    public async Task RoadRuntime_BlockingContextsStopContinuousOutput(
+        string scenario,
+        Func<RuntimeHarness, PHprContinuousEffectsRuntimeInput> blockedInputFactory)
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateRoadInput();
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.RoadRouter.GetSnapshot().ActiveRoadModules != "none");
+
+        harness.CurrentInput = blockedInputFactory(harness);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.RoadRouter.GetSnapshot().ActiveRoadModules == "none");
+
+        var snapshot = harness.RoadRouter.GetSnapshot();
+        Assert.Equal("none", snapshot.ActiveRoadModules);
+        Assert.True(snapshot.RoadStopCommandCount >= 1, scenario);
+        Assert.Contains(harness.InnerOutput.CommandHistory, command => command.Source == PHprCommandSource.RoadTexture && command.DurationMs == 0);
+    }
+
+    [Theory]
+    [MemberData(nameof(BlockingSlipLockContexts))]
+    public async Task SlipLockRuntime_BlockingContextsStopContinuousOutput(
+        string scenario,
+        Func<RuntimeHarness, PHprContinuousEffectsRuntimeInput> blockedInputFactory)
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateSlipInput();
+        harness.Runtime.StartSlipLockRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.SlipLockRouter.GetSnapshot().ActiveSlipLockModules != "none");
+
+        harness.CurrentInput = blockedInputFactory(harness);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.SlipLockRouter.GetSnapshot().ActiveSlipLockModules == "none");
+
+        var snapshot = harness.SlipLockRouter.GetSnapshot();
+        Assert.Equal("none", snapshot.ActiveSlipLockModules);
+        Assert.True(snapshot.StopCommandCount >= 1, scenario);
+        Assert.Contains(harness.InnerOutput.CommandHistory, command => command.DurationMs == 0);
+    }
+
+    [Fact]
+    public async Task CoexistenceConflictSuppressesContinuousStartsThroughSameSafetyPath()
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateRoadInput(
+            roadSafetyContext: PHprSafetyContext.DefaultMock with { SoftwareConflictStatus = PHprSoftwareConflictStatus.ActiveConflict });
+
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await Task.Delay(10);
+
+        Assert.Empty(harness.InnerOutput.CommandHistory);
+        Assert.False(harness.RoadRouter.GetSnapshot().LastResult?.WasRouted ?? false);
+    }
+
+    [Fact]
+    public async Task StopAndDisposeCancelBackgroundLoopsDeterministically()
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateRoadAndSlipInput();
+
+        harness.Runtime.StartSlipLockRuntime();
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 2);
+
+        var stopResult = await harness.Runtime.StopAsync(TimeSpan.FromSeconds(1));
+        var stoppedSnapshot = harness.Runtime.GetSnapshot();
+
+        Assert.False(stopResult.SlipLockRuntimeTimedOut);
+        Assert.False(stopResult.RoadRuntimeTimedOut);
+        Assert.False(stoppedSnapshot.SlipLockRuntimeActive);
+        Assert.False(stoppedSnapshot.RoadRuntimeActive);
+
+        await harness.Runtime.DisposeAsync();
+
+        var disposedSnapshot = harness.Runtime.GetSnapshot();
+        Assert.False(disposedSnapshot.SlipLockRuntimeActive);
+        Assert.False(disposedSnapshot.RoadRuntimeActive);
+    }
+
+    public static IEnumerable<object[]> BlockingRoadContexts()
+    {
+        yield return
+        [
+            "telemetry stale",
+            (Func<RuntimeHarness, PHprContinuousEffectsRuntimeInput>)(harness =>
+                harness.CreateRoadInput(
+                    telemetryTimedOutMuted: true,
+                    roadSafetyContext: PHprSafetyContext.DefaultMock with { TelemetryStale = true }))
+        ];
+        yield return
+        [
+            "haptics stopped",
+            (Func<RuntimeHarness, PHprContinuousEffectsRuntimeInput>)(harness =>
+                harness.CreateRoadInput(
+                    isRunning: false,
+                    roadSafetyContext: PHprSafetyContext.DefaultMock with { HapticsStopped = true }))
+        ];
+    }
+
+    public static IEnumerable<object[]> BlockingSlipLockContexts()
+    {
+        yield return
+        [
+            "telemetry stale",
+            (Func<RuntimeHarness, PHprContinuousEffectsRuntimeInput>)(harness =>
+                harness.CreateSlipInput(
+                    telemetryTimedOutMuted: true,
+                    slipLockSafetyContext: PHprSafetyContext.DefaultMock with { TelemetryStale = true }))
+        ];
+        yield return
+        [
+            "haptics stopped",
+            (Func<RuntimeHarness, PHprContinuousEffectsRuntimeInput>)(harness =>
+                harness.CreateSlipInput(
+                    isRunning: false,
+                    slipLockSafetyContext: PHprSafetyContext.DefaultMock with { HapticsStopped = true }))
+        ];
+        yield return
+        [
+            "emergency mute",
+            (Func<RuntimeHarness, PHprContinuousEffectsRuntimeInput>)(harness =>
+                harness.CreateSlipInput(
+                    emergencyMute: true,
+                    slipLockSafetyContext: PHprSafetyContext.DefaultMock with { EmergencyMuteActive = true }))
+        ];
+    }
+
+    private static async Task WaitForAsync(Func<bool> predicate)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (predicate())
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.True(predicate());
+    }
+
+    public sealed class RuntimeHarness : IAsyncDisposable
+    {
+        private readonly RoadTextureEvaluator _roadEvaluator = new();
+
+        public RuntimeHarness(
+            PHprRoadVibrationRouterOptions? roadOptions = null,
+            PHprSlipLockRouterOptions? slipLockOptions = null)
+        {
+            InnerOutput = new MockPhprOutputDevice();
+            Output = new SafetyLimitedPhprOutputDevice(InnerOutput);
+            RoadRouter = new PHprRoadVibrationRouter(
+                Output,
+                roadOptions ?? PHprRoadVibrationRouterOptions.EnabledDefault,
+                Output.SetSafetyContext);
+            SlipLockRouter = new PHprSlipLockRouter(
+                Output,
+                slipLockOptions ?? PHprSlipLockRouterOptions.EnabledDefault,
+                Output.SetSafetyContext);
+            Clock = new FakeRuntimeClock();
+            CurrentInput = CreateRoadInput();
+            Runtime = new PHprContinuousEffectsRuntimeCoordinator(
+                RoadRouter,
+                SlipLockRouter,
+                () => CurrentInput,
+                Clock);
+        }
+
+        public MockPhprOutputDevice InnerOutput { get; }
+
+        public SafetyLimitedPhprOutputDevice Output { get; }
+
+        public PHprRoadVibrationRouter RoadRouter { get; }
+
+        public PHprSlipLockRouter SlipLockRouter { get; }
+
+        public FakeRuntimeClock Clock { get; }
+
+        public PHprContinuousEffectsRuntimeCoordinator Runtime { get; }
+
+        public PHprContinuousEffectsRuntimeInput CurrentInput { get; set; }
+
+        public PHprContinuousEffectsRuntimeInput CreateRoadInput(
+            bool isRunning = true,
+            bool telemetryTimedOutMuted = false,
+            bool emergencyMute = false,
+            PHprSafetyContext? roadSafetyContext = null,
+            PHprSafetyContext? slipLockSafetyContext = null)
+        {
+            var vehicleState = CreateRoadVehicleState();
+            var signal = _roadEvaluator.Evaluate(
+                vehicleState,
+                new RoadTextureEvaluationContext(
+                    Clock.UtcNow,
+                    HapticsRunning: isRunning,
+                    DrivingArmed: true,
+                    AllowWhenDrivingNotArmed: false,
+                    TelemetryStale: telemetryTimedOutMuted,
+                    LastGearPulseAtUtc: null));
+            return CreateInput(
+                vehicleState,
+                signal,
+                isRunning,
+                telemetryTimedOutMuted,
+                emergencyMute,
+                roadSafetyContext ?? CreateContinuousSafetyContext(isRunning, telemetryTimedOutMuted, emergencyMute),
+                slipLockSafetyContext ?? CreateContinuousSafetyContext(isRunning, telemetryTimedOutMuted, emergencyMute));
+        }
+
+        public PHprContinuousEffectsRuntimeInput CreateSlipInput(
+            bool isRunning = true,
+            bool telemetryTimedOutMuted = false,
+            bool emergencyMute = false,
+            PHprSafetyContext? roadSafetyContext = null,
+            PHprSafetyContext? slipLockSafetyContext = null)
+        {
+            var vehicleState = CreateSlipVehicleState();
+            return CreateInput(
+                vehicleState,
+                RoadTextureSignal.Inactive(Clock.UtcNow, "road inactive for slip test"),
+                isRunning,
+                telemetryTimedOutMuted,
+                emergencyMute,
+                roadSafetyContext ?? CreateContinuousSafetyContext(isRunning, telemetryTimedOutMuted, emergencyMute),
+                slipLockSafetyContext ?? CreateContinuousSafetyContext(isRunning, telemetryTimedOutMuted, emergencyMute));
+        }
+
+        public PHprContinuousEffectsRuntimeInput CreateRoadAndSlipInput(
+            bool isRunning = true,
+            bool telemetryTimedOutMuted = false,
+            bool emergencyMute = false,
+            PHprSafetyContext? roadSafetyContext = null,
+            PHprSafetyContext? slipLockSafetyContext = null)
+        {
+            var vehicleState = CreateRoadAndSlipVehicleState();
+            var signal = _roadEvaluator.Evaluate(
+                vehicleState,
+                new RoadTextureEvaluationContext(
+                    Clock.UtcNow,
+                    HapticsRunning: isRunning,
+                    DrivingArmed: true,
+                    AllowWhenDrivingNotArmed: false,
+                    TelemetryStale: telemetryTimedOutMuted,
+                    LastGearPulseAtUtc: null));
+            return CreateInput(
+                vehicleState,
+                signal,
+                isRunning,
+                telemetryTimedOutMuted,
+                emergencyMute,
+                roadSafetyContext ?? CreateContinuousSafetyContext(isRunning, telemetryTimedOutMuted, emergencyMute),
+                slipLockSafetyContext ?? CreateContinuousSafetyContext(isRunning, telemetryTimedOutMuted, emergencyMute));
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Runtime.DisposeAsync();
+            await Output.DisposeAsync();
+            await InnerOutput.DisposeAsync();
+        }
+
+        private PHprContinuousEffectsRuntimeInput CreateInput(
+            VehicleState vehicleState,
+            RoadTextureSignal signal,
+            bool isRunning,
+            bool telemetryTimedOutMuted,
+            bool emergencyMute,
+            PHprSafetyContext roadSafetyContext,
+            PHprSafetyContext slipLockSafetyContext)
+        {
+            var pipelineSnapshot = new HapticPipelineSnapshot(
+                IsRunning: isRunning,
+                HapticPipelineInputSource.LiveUdp,
+                LastPacketAtUtc: Clock.UtcNow,
+                LastVehicleStateUpdateAtUtc: Clock.UtcNow,
+                PacketsObserved: 1,
+                ParserSuccessCount: 1,
+                ParserIgnoredCount: 0,
+                ParserFailureCount: 0,
+                VehicleStateUpdateCount: 1,
+                RenderedBufferCount: 0,
+                TelemetryAge: TimeSpan.Zero,
+                TelemetryMuteTimeout: TimeSpan.FromMilliseconds(500),
+                TelemetryTimedOutMuted: telemetryTimedOutMuted,
+                IsMuted: false,
+                EmergencyMute: emergencyMute,
+                LastPacketMessage: "test",
+                LastVehicleStateMessage: "test",
+                LastPipelineError: null,
+                VehicleState: vehicleState,
+                Effects: new HapticEffectEngineSnapshot(
+                    Engine: null!,
+                    GearShift: null!,
+                    Kerb: null!,
+                    Impact: null!,
+                    RoadTexture: new RoadTextureEffectSnapshot(
+                        IsEnabled: true,
+                        Bst1OutputEnabled: true,
+                        IsActive: signal.IsActive,
+                        DominantSurfaceTypeId: signal.SurfaceTypeIds.FrontLeft,
+                        DominantSurfaceName: signal.SurfaceName,
+                        CurrentFrequencyHz: signal.PHprFrequencyHz,
+                        CurrentAmplitude: signal.OutputIntensity,
+                        SurfaceMix: signal.SurfaceMix,
+                        PeakLevel: signal.OutputIntensity,
+                        Signal: signal,
+                        RmsLevel: signal.OutputIntensity),
+                    Slip: null!,
+                    ActiveEffectCount: signal.IsActive ? 1 : 0,
+                    PeakLevel: signal.OutputIntensity),
+                Audio: null,
+                Output: new AudioOutputStatus(
+                    AudioOutputDeviceKind.Null,
+                    AudioOutputDeviceState.Stopped,
+                    "Null output",
+                    "test",
+                    DeviceName: null,
+                    SampleRate: 48_000,
+                    ChannelCount: 1,
+                    BufferSize: 480,
+                    RequiresPhysicalHardware: false,
+                    IsManualDebugOnly: false,
+                    IsAvailable: true),
+                ManualAsioHardwareTest: new ManualAsioHardwareTestSnapshot(
+                    IsActive: false,
+                    TestMode: "none",
+                    OutputMode: "Null",
+                    SelectedAsioDriver: "none",
+                    SelectedOutputChannel: null,
+                    AsioRunning: false,
+                    AsioArmed: false,
+                    AsioCallbackActive: false,
+                    HapticsRunning: isRunning,
+                    EmergencyMute: emergencyMute,
+                    NormalMute: false,
+                    OutputPeakLevel: 0f,
+                    FramesSubmitted: 0,
+                    FramesRendered: 0,
+                    RenderCallbackCount: 0,
+                    SubmittedFrameCount: 0,
+                    DroppedFrameCount: 0,
+                    BackendCallbackCount: 0,
+                    LastPulseUsedAsio: false,
+                    LastManualPulseUsedAsio: false,
+                    LastGearPulseUsedAsio: false,
+                    LastPulseBlocked: false,
+                    LimiterApplied: false,
+                    PulseGenerationId: 0,
+                    StaleStopIgnoredCount: 0,
+                    BlockedReason: null,
+                    LastTestSignal: null,
+                    LastTestDuration: null,
+                    LastStrengthPercent: null,
+                    LastOutputTrimPercent: null,
+                    LastEffectivePreLimiterAmplitude: null,
+                    LastEffectivePostLimiterAmplitude: null,
+                    LastFrequencyHz: null,
+                    LastDurationMs: null,
+                    LastSource: null,
+                    LastDurationMode: null,
+                    ManualPulsePeak: 0f,
+                    FlightRecorderPath: string.Empty,
+                    LastError: null),
+                NullOutput: null,
+                Forwarding: new UdpTelemetryForwarderSnapshot(false, 0, 0, 0, 0, 0, 0, null, null),
+                PacketDiagnostics: [],
+                Recording: new TelemetryRecordingSnapshot(false, null, 0, null, null),
+                Replay: new TelemetryReplaySnapshot(false, null, 0, "idle"));
+
+            return new PHprContinuousEffectsRuntimeInput(
+                pipelineSnapshot,
+                IsPedalRoutingReady: true,
+                roadSafetyContext,
+                slipLockSafetyContext);
+        }
+    }
+
+    public sealed class FakeRuntimeClock : IPHprContinuousEffectsRuntimeClock
+    {
+        private readonly object _gate = new();
+        private readonly List<ScheduledDelay> _delays = [];
+        private TimeSpan _elapsed;
+
+        public DateTimeOffset UtcNow { get; private set; } = BaseTime;
+
+        public int PendingDelayCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _delays.Count;
+                }
+            }
+        }
+
+        public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new ValueTask(Task.FromCanceled(cancellationToken));
+            }
+
+            lock (_gate)
+            {
+                if (delay <= TimeSpan.Zero)
+                {
+                    return ValueTask.CompletedTask;
+                }
+
+                var scheduled = new ScheduledDelay(_elapsed + delay, cancellationToken);
+                _delays.Add(scheduled);
+                return new ValueTask(scheduled.Task);
+            }
+        }
+
+        public void AdvanceBy(TimeSpan delay)
+        {
+            ScheduledDelay[] ready;
+            lock (_gate)
+            {
+                _elapsed += delay;
+                UtcNow = UtcNow.Add(delay);
+                ready = _delays.Where(scheduled => scheduled.DueAt <= _elapsed).ToArray();
+                foreach (var scheduled in ready)
+                {
+                    _delays.Remove(scheduled);
+                }
+            }
+
+            foreach (var scheduled in ready)
+            {
+                scheduled.Complete();
+            }
+        }
+    }
+
+    private sealed class ScheduledDelay : IDisposable
+    {
+        private readonly TaskCompletionSource _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly CancellationTokenRegistration _registration;
+
+        public ScheduledDelay(TimeSpan dueAt, CancellationToken cancellationToken)
+        {
+            DueAt = dueAt;
+            _registration = cancellationToken.Register(() => _completion.TrySetCanceled(cancellationToken));
+        }
+
+        public TimeSpan DueAt { get; }
+
+        public Task Task => _completion.Task;
+
+        public void Complete()
+        {
+            _completion.TrySetResult();
+            Dispose();
+        }
+
+        public void Dispose()
+        {
+            _registration.Dispose();
+        }
+    }
+
+    private static PHprSafetyContext CreateContinuousSafetyContext(
+        bool isRunning,
+        bool telemetryTimedOutMuted,
+        bool emergencyMute)
+    {
+        return PHprSafetyContext.DefaultMock with
+        {
+            HapticsStopped = !isRunning,
+            TelemetryStale = telemetryTimedOutMuted,
+            EmergencyMuteActive = emergencyMute
+        };
+    }
+
+    private static VehicleState CreateRoadVehicleState(uint frame = 1)
+    {
+        var stamp = new VehicleStateStamp(
+            "test",
+            SessionUid: 7,
+            SessionTime: 12.5f,
+            FrameIdentifier: frame,
+            OverallFrameIdentifier: frame,
+            PlayerCarIndex: 0);
+
+        return new VehicleState(
+            new VehicleStateFrame(7, 12.5f, frame, frame, 0, "test"),
+            Motion: new VehicleStateSample<VehicleMotionState>(
+                new VehicleMotionState(
+                    WorldPositionX: 0f,
+                    WorldPositionY: 0f,
+                    WorldPositionZ: 0f,
+                    WorldVelocityX: 0f,
+                    WorldVelocityY: 0f,
+                    WorldVelocityZ: 0f,
+                    GForceLateral: 0f,
+                    GForceLongitudinal: 0f,
+                    GForceVertical: 1f,
+                    Yaw: 0f,
+                    Pitch: 0f,
+                    Roll: 0f),
+                stamp),
+            Session: new VehicleStateSample<VehicleSessionState>(
+                new VehicleSessionState(
+                    Weather: 0,
+                    TrackTemperatureCelsius: 30,
+                    AirTemperatureCelsius: 25,
+                    TotalLaps: 10,
+                    TrackLengthMeters: 5_000,
+                    SessionType: 10,
+                    TrackId: 1,
+                    GamePaused: 0,
+                    SafetyCarStatus: 0,
+                    NetworkGame: 1,
+                    GameMode: 0),
+                stamp),
+            Lap: new VehicleStateSample<VehicleLapState>(
+                new VehicleLapState(
+                    LastLapTimeInMs: 0,
+                    CurrentLapTimeInMs: 0,
+                    LapDistanceMeters: 100f,
+                    TotalDistanceMeters: 100f,
+                    CarPosition: 1,
+                    CurrentLapNumber: 1,
+                    PitStatus: 0,
+                    Sector: 0,
+                    DriverStatus: 1,
+                    ResultStatus: 2,
+                    CurrentLapInvalid: 0),
+                stamp),
+            Participant: null,
+            Telemetry: new VehicleStateSample<VehicleTelemetryState>(
+                new VehicleTelemetryState(
+                    SpeedKph: 120,
+                    Throttle: 0.4f,
+                    Steer: 0f,
+                    Brake: 0f,
+                    Clutch: 0,
+                    Gear: 4,
+                    EngineRpm: 9_500,
+                    Drs: 0,
+                    RevLightsPercent: 0,
+                    RevLightsBitValue: 0,
+                    EngineTemperatureCelsius: 90,
+                    SuggestedGear: 0,
+                    BrakeTemperatureCelsius: Wheels<ushort>(300),
+                    TyreSurfaceTemperatureCelsius: Wheels((byte)80),
+                    TyreInnerTemperatureCelsius: Wheels((byte)80),
+                    TyrePressurePsi: Wheels(22f),
+                    SurfaceTypeIds: Wheels((byte)1)),
+                stamp),
+            CarStatus: new VehicleStateSample<VehicleCarStatusState>(
+                new VehicleCarStatusState(
+                    TractionControl: 0,
+                    AntiLockBrakes: 0,
+                    FuelMix: 0,
+                    FrontBrakeBias: 55,
+                    PitLimiterStatus: 0,
+                    FuelInTank: 20f,
+                    FuelCapacity: 100f,
+                    FuelRemainingLaps: 10f,
+                    MaxRpm: 12_000,
+                    IdleRpm: 4_000,
+                    MaxGears: 8,
+                    DrsAllowed: 0,
+                    DrsActivationDistance: 0,
+                    ActualTyreCompound: 16,
+                    VisualTyreCompound: 16,
+                    TyresAgeLaps: 1,
+                    VehicleFiaFlags: 0,
+                    EnginePowerIceWatts: 500_000f,
+                    EnginePowerMgukWatts: 120_000f,
+                    ErsStoreEnergyJoules: 3_000_000f,
+                    ErsDeployMode: 0,
+                    ErsHarvestedThisLapMgukJoules: 0f,
+                    ErsHarvestedThisLapMguhJoules: 0f,
+                    ErsDeployedThisLapJoules: 0f,
+                    NetworkPaused: 0),
+                stamp),
+            Damage: null,
+            MotionEx: new VehicleStateSample<VehicleMotionExState>(
+                new VehicleMotionExState(
+                    SuspensionPosition: Wheels(0f),
+                    SuspensionVelocity: Wheels(0f),
+                    SuspensionAcceleration: Wheels(0.8f),
+                    WheelSpeed: Wheels(30f),
+                    WheelSlipRatio: Wheels(0.01f),
+                    WheelSlipAngle: Wheels(0.01f),
+                    WheelLatForce: Wheels(0f),
+                    WheelLongForce: Wheels(0f),
+                    HeightOfCogAboveGround: 0.2f,
+                    LocalVelocityX: 0f,
+                    LocalVelocityY: 0f,
+                    LocalVelocityZ: 0f,
+                    AngularVelocityX: 0f,
+                    AngularVelocityY: 0f,
+                    AngularVelocityZ: 0f,
+                    AngularAccelerationX: 0f,
+                    AngularAccelerationY: 0f,
+                    AngularAccelerationZ: 0f,
+                    FrontWheelsAngleRadians: 0f,
+                    WheelVertForce: Wheels(0.6f),
+                    FrontAeroHeight: 0f,
+                    RearAeroHeight: 0f,
+                    FrontRollAngle: 0f,
+                    RearRollAngle: 0f,
+                    ChassisYaw: 0f,
+                    ChassisPitch: 0f,
+                    WheelCamber: Wheels(0f),
+                    WheelCamberGain: Wheels(0f)),
+                stamp),
+            LastEvent: null);
+    }
+
+    private static VehicleState CreateSlipVehicleState(uint frame = 1)
+    {
+        return CreateVehicleState(
+            frame,
+            speedKph: 120,
+            throttle: 0.8f,
+            brake: 0f,
+            wheelSlipRatio: Wheels(0.42f),
+            wheelSlipAngle: Wheels(0.12f),
+            wheelSpeed: Wheels(30f),
+            surfaceTypeId: 0,
+            includeMotion: false);
+    }
+
+    private static VehicleState CreateRoadAndSlipVehicleState(uint frame = 1)
+    {
+        return CreateVehicleState(
+            frame,
+            speedKph: 120,
+            throttle: 0.8f,
+            brake: 0.8f,
+            wheelSlipRatio: Wheels(0.42f),
+            wheelSlipAngle: Wheels(0.12f),
+            wheelSpeed: Wheels(1f),
+            surfaceTypeId: 1,
+            includeMotion: true);
+    }
+
+    private static VehicleState CreateVehicleState(
+        uint frame,
+        ushort speedKph,
+        float throttle,
+        float brake,
+        VehicleWheelData<float> wheelSlipRatio,
+        VehicleWheelData<float> wheelSlipAngle,
+        VehicleWheelData<float> wheelSpeed,
+        byte surfaceTypeId,
+        bool includeMotion)
+    {
+        var stamp = new VehicleStateStamp(
+            "test",
+            SessionUid: 7,
+            SessionTime: 12.5f,
+            FrameIdentifier: frame,
+            OverallFrameIdentifier: frame,
+            PlayerCarIndex: 0);
+
+        return new VehicleState(
+            new VehicleStateFrame(7, 12.5f, frame, frame, 0, "test"),
+            Motion: includeMotion
+                ? new VehicleStateSample<VehicleMotionState>(
+                    new VehicleMotionState(
+                        WorldPositionX: 0f,
+                        WorldPositionY: 0f,
+                        WorldPositionZ: 0f,
+                        WorldVelocityX: 0f,
+                        WorldVelocityY: 0f,
+                        WorldVelocityZ: 0f,
+                        GForceLateral: 0f,
+                        GForceLongitudinal: 0f,
+                        GForceVertical: 1f,
+                        Yaw: 0f,
+                        Pitch: 0f,
+                        Roll: 0f),
+                    stamp)
+                : null,
+            Session: new VehicleStateSample<VehicleSessionState>(
+                new VehicleSessionState(
+                    Weather: 0,
+                    TrackTemperatureCelsius: 30,
+                    AirTemperatureCelsius: 25,
+                    TotalLaps: 10,
+                    TrackLengthMeters: 5_000,
+                    SessionType: 10,
+                    TrackId: 1,
+                    GamePaused: 0,
+                    SafetyCarStatus: 0,
+                    NetworkGame: 1,
+                    GameMode: 0),
+                stamp),
+            Lap: new VehicleStateSample<VehicleLapState>(
+                new VehicleLapState(
+                    LastLapTimeInMs: 0,
+                    CurrentLapTimeInMs: 0,
+                    LapDistanceMeters: 100f,
+                    TotalDistanceMeters: 100f,
+                    CarPosition: 1,
+                    CurrentLapNumber: 1,
+                    PitStatus: 0,
+                    Sector: 0,
+                    DriverStatus: 1,
+                    ResultStatus: 2,
+                    CurrentLapInvalid: 0),
+                stamp),
+            Participant: null,
+            Telemetry: new VehicleStateSample<VehicleTelemetryState>(
+                new VehicleTelemetryState(
+                    SpeedKph: speedKph,
+                    Throttle: throttle,
+                    Steer: 0f,
+                    Brake: brake,
+                    Clutch: 0,
+                    Gear: 4,
+                    EngineRpm: 9_500,
+                    Drs: 0,
+                    RevLightsPercent: 0,
+                    RevLightsBitValue: 0,
+                    EngineTemperatureCelsius: 90,
+                    SuggestedGear: 0,
+                    BrakeTemperatureCelsius: Wheels<ushort>(300),
+                    TyreSurfaceTemperatureCelsius: Wheels((byte)80),
+                    TyreInnerTemperatureCelsius: Wheels((byte)80),
+                    TyrePressurePsi: Wheels(22f),
+                    SurfaceTypeIds: Wheels(surfaceTypeId)),
+                stamp),
+            CarStatus: new VehicleStateSample<VehicleCarStatusState>(
+                new VehicleCarStatusState(
+                    TractionControl: 0,
+                    AntiLockBrakes: 0,
+                    FuelMix: 0,
+                    FrontBrakeBias: 55,
+                    PitLimiterStatus: 0,
+                    FuelInTank: 20f,
+                    FuelCapacity: 100f,
+                    FuelRemainingLaps: 10f,
+                    MaxRpm: 12_000,
+                    IdleRpm: 4_000,
+                    MaxGears: 8,
+                    DrsAllowed: 0,
+                    DrsActivationDistance: 0,
+                    ActualTyreCompound: 16,
+                    VisualTyreCompound: 16,
+                    TyresAgeLaps: 1,
+                    VehicleFiaFlags: 0,
+                    EnginePowerIceWatts: 500_000f,
+                    EnginePowerMgukWatts: 120_000f,
+                    ErsStoreEnergyJoules: 3_000_000f,
+                    ErsDeployMode: 0,
+                    ErsHarvestedThisLapMgukJoules: 0f,
+                    ErsHarvestedThisLapMguhJoules: 0f,
+                    ErsDeployedThisLapJoules: 0f,
+                    NetworkPaused: 0),
+                stamp),
+            Damage: null,
+            MotionEx: new VehicleStateSample<VehicleMotionExState>(
+                new VehicleMotionExState(
+                    SuspensionPosition: Wheels(0f),
+                    SuspensionVelocity: Wheels(0f),
+                    SuspensionAcceleration: Wheels(0.8f),
+                    WheelSpeed: wheelSpeed,
+                    WheelSlipRatio: wheelSlipRatio,
+                    WheelSlipAngle: wheelSlipAngle,
+                    WheelLatForce: Wheels(0f),
+                    WheelLongForce: Wheels(0f),
+                    HeightOfCogAboveGround: 0.2f,
+                    LocalVelocityX: 0f,
+                    LocalVelocityY: 0f,
+                    LocalVelocityZ: 0f,
+                    AngularVelocityX: 0f,
+                    AngularVelocityY: 0f,
+                    AngularVelocityZ: 0f,
+                    AngularAccelerationX: 0f,
+                    AngularAccelerationY: 0f,
+                    AngularAccelerationZ: 0f,
+                    FrontWheelsAngleRadians: 0f,
+                    WheelVertForce: Wheels(0.6f),
+                    FrontAeroHeight: 0f,
+                    RearAeroHeight: 0f,
+                    FrontRollAngle: 0f,
+                    RearRollAngle: 0f,
+                    ChassisYaw: 0f,
+                    ChassisPitch: 0f,
+                    WheelCamber: Wheels(0f),
+                    WheelCamberGain: Wheels(0f)),
+                stamp),
+            LastEvent: null);
+    }
+
+    private static VehicleWheelData<T> Wheels<T>(T value)
+    {
+        return new VehicleWheelData<T>(value, value, value, value);
+    }
+}

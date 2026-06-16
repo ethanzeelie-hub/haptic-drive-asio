@@ -922,3 +922,46 @@ Remaining extraction order:
 1. Stage 19C should move continuous real road/slip/lock loop ownership out of `MainWindow`.
 2. Stage 19D should move paddle input routing ownership out of `MainWindow`.
 3. Stage 20 should introduce one shared slip/lock evaluator for BST-1 and P-HPR.
+
+## Stage 19C Continuous Real P-HPR Runtime Extraction
+
+Stage 19C moves continuous real P-HPR road/slip/lock loop ownership out of `MainWindow.xaml.cs` while preserving the same cadence, stop behavior, safety gating, and diagnostics meaning.
+
+New coordinator:
+
+- `PHprContinuousEffectsRuntimeCoordinator`
+- project: `HapticDrive.Actuation`
+- namespace: `HapticDrive.Actuation.PHpr`
+
+The coordinator owns:
+
+- the real slip/lock background loop,
+- the real road background loop,
+- loop cancellation and shutdown waits,
+- in-flight suppression state,
+- road-yield-after-slip/lock suppression counting,
+- last real road/slip routing result snapshots.
+
+The coordinator intentionally stays in `HapticDrive.Actuation.PHpr` because it orchestrates the existing P-HPR road and slip/lock routers around `HapticPipelineSnapshot` / `VehicleState`-derived state. That is actuator runtime logic, not WPF UI and not generic ASIO runtime.
+
+`MainWindow.xaml.cs` now stays a thin consumer for this slice:
+
+- it constructs the coordinator,
+- provides the latest `HapticPipelineSnapshot` plus real-road/real-slip safety contexts and readiness gates,
+- starts the coordinator on app load,
+- stops/disposes the coordinator on app shutdown,
+- reads coordinator diagnostics for status/report text.
+
+What intentionally stayed in `MainWindow`:
+
+- GT Neo paddle input routing through `PaddleInputSource_PaddleInputReceived`,
+- direct P-HPR gear-pulse runtime ownership already moved in Stage 19B,
+- router option editing, UI control reads/writes, and status text formatting,
+- the final app-shutdown explicit road stop/output dispose sequence.
+
+Stage 19C does not move continuous runtime ownership into `HapticDrive.Asio.Runtime`, because that would again blur the line between the generic pipeline runtime and actuator-specific orchestration. It also does not move paddle input routing; that remains Stage 19D.
+
+Remaining extraction order:
+
+1. Stage 19D should move paddle input routing ownership out of `MainWindow`.
+2. Stage 20 should introduce one shared slip/lock evaluator for BST-1 and P-HPR.

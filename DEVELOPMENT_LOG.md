@@ -3210,3 +3210,41 @@ Self-review:
 - Stage 19B changed dependency direction and non-UI ownership only. It intentionally did not change UI/XAML, ASIO/BST-1 behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, F1 25 parser layouts, gear tuning, or road/slip/lock cadence.
 - `MainWindow.xaml.cs` still owns the continuous real road/slip/lock loops and the GT Neo paddle-entry event path. Those remain explicit next-stage work.
 - No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. The stage is architecture/risk-reduction work only.
+
+## Stage 19C - Extract Continuous Real P-HPR Road/Slip/Lock Runtime Ownership Out Of MainWindow
+
+Date: 2026-06-16
+
+Status: Complete.
+
+Goal: Move the continuous real P-HPR road/slip/lock background loop ownership out of `MainWindow.xaml.cs` into a non-UI coordinator while preserving the same cadence, stop behavior, diagnostics meaning, and safety gating.
+
+Changes:
+
+- Re-checked the live Stage 19B baseline before moving anything. `MainWindow.xaml.cs` still owned `StartRealSlipLockRuntime`, `RunRealSlipLockRuntimeAsync`, `StartRealRoadVibrationRuntime`, and `RunRealRoadVibrationRuntimeAsync`, but those methods were only orchestrating `HapticPipelineSnapshot`, readiness gates, safety-context builders, router calls, and hold-timeout stops.
+- Added `PHprContinuousEffectsRuntimeCoordinator` in `HapticDrive.Actuation.PHpr` together with small runtime input/snapshot/stop-result models and a loop-clock abstraction for deterministic fake-backed testing.
+- Moved continuous real road/slip/lock loop ownership, cancellation token ownership, shutdown waits, in-flight suppression state, road-yield suppression counting, and last real road/slip routing results out of `MainWindow.xaml.cs` and into the new coordinator.
+- Kept `MainWindow.xaml.cs` as the thin consumer for this slice: it now constructs the coordinator, provides the latest `HapticPipelineSnapshot` plus real-road/real-slip safety contexts and readiness state, starts the coordinator on load, stops/disposes it on shutdown, and reads coordinator diagnostics for UI/report text.
+- Preserved the existing router instances, the existing `100 ms` continuous cadence, `150 ms` road-yield-after-slip window, existing `StopIfHoldExpiredAsync` calls, and the existing stop messages/gates for disabled, not-ready, stale, haptics-stopped, gear-priority, and coexistence paths.
+- Updated App/UI diagnostics and road flight-recorder snapshot building to read coordinator-owned runtime counters/results instead of App-owned loop fields.
+- Added Actuation-side coordinator tests for no-startup-write, disabled-start no-op, road/slip routing through the existing router path, road yield while slip/lock owns priority, stale/haptics/emergency blocking cases, coexistence blocking, and deterministic stop/dispose with a fake runtime clock.
+- Added guardrails proving the new coordinator lives in `HapticDrive.Actuation`, has no App/WPF dependency, and that `MainWindow.xaml.cs` no longer declares the old loop body methods. Updated the production project-graph guardrail so `HapticDrive.Actuation` must not reference `HapticDrive.Asio.App`.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 19C extraction result and the remaining Stage 19D / Stage 20 targets.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 712 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 19C moved continuous loop ownership only. It intentionally did not change UI/XAML, ASIO/BST-1 behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, F1 25 parser layouts, gear routing, road/slip/lock tuning, cadence, hold-timeout, or coexistence semantics.
+- GT Neo paddle input routing still enters through `MainWindow.xaml.cs`. That remains the explicit Stage 19D target.
+- The shared BST-1/P-HPR slip/lock evaluator still does not exist. That remains the explicit Stage 20 target.
+- No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. The stage is architecture/risk-reduction work only.

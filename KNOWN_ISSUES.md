@@ -677,3 +677,11 @@
 - `PHprDirectRuntime.cs`, `PhprDeviceCardPulseService.cs`, and `PaddleGearBenchDirectGate.cs` now live in `HapticDrive.Simagic.PHPR.Output.Windows` instead of `HapticDrive.Asio.App`. This reduces App-owned non-UI runtime code, but it does not yet remove `MainWindow` as the owner of the continuous road/slip/lock and paddle-entry workflows.
 - `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. Stage 20 should introduce the shared evaluator.
 - Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items. Stage 19B changes dependency direction, runtime ownership boundaries, tests, and docs only.
+
+## Stage 19C
+
+- `PHprContinuousEffectsRuntimeCoordinator` now owns the real P-HPR continuous road and slip/lock background loops in `HapticDrive.Actuation.PHpr`, so `MainWindow.xaml.cs` no longer declares those loop body methods.
+- `MainWindow.xaml.cs` still owns GT Neo paddle event routing through `PaddleInputSource_PaddleInputReceived`. Stage 19D should extract that route.
+- `MainWindow.xaml.cs` still owns UI-only settings reads/writes, diagnostics/status formatting, and startup/shutdown orchestration around the coordinator and output device. Stage 19C intentionally does not attempt a broader MVVM rewrite.
+- `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. Stage 20 should introduce the shared evaluator.
+- Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items. Stage 19C changes continuous loop ownership, tests, and docs only.

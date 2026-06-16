@@ -61,6 +61,7 @@ public partial class MainWindow : Window
     private readonly PHprDirectGearPulseRouter _realPhprGearPulseRouter;
     private readonly PHprRoadVibrationRouter _realRoadVibrationRouter;
     private readonly PHprSlipLockRouter _realSlipLockRouter;
+    private readonly PHprContinuousEffectsRuntimeCoordinator _realPhprContinuousEffectsRuntime;
     private readonly PHprManualValidationResultExporter _phprValidationExporter = new();
     private readonly PHprHidOpenCheckRunner _phprHidOpenCheckRunner = new();
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
@@ -77,10 +78,6 @@ public partial class MainWindow : Window
     {
         Interval = TimeSpan.FromMilliseconds(500)
     };
-    private readonly CancellationTokenSource _realSlipLockRuntimeCts = new();
-    private Task? _realSlipLockRuntimeTask;
-    private readonly CancellationTokenSource _realRoadVibrationRuntimeCts = new();
-    private Task? _realRoadVibrationRuntimeTask;
     private readonly IReadOnlyList<AudioTestSignalDefinition> _testBenchSignals =
     [
         AudioTestSignalDefinition.DefaultFor(AudioTestSignalKind.Silence),
@@ -235,10 +232,6 @@ public partial class MainWindow : Window
     private bool _updatingBst1PulseUi;
     private bool _advancedDiagnosticsEnabled;
     private bool _routingMockPedalEffects;
-    private bool _routingRealRoadVibration;
-    private bool _routingRealSlipLock;
-    private long _realRoadHigherPrioritySuppressedCount;
-    private long _realRoadInFlightSuppressedCount;
     private readonly string _roadTextureFlightRecorderSessionId = Guid.NewGuid().ToString("N");
     private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
@@ -259,8 +252,6 @@ public partial class MainWindow : Window
     private bool _bst1PaddleGearSyncDuration = true;
     private int _bst1PaddleGearCustomDurationMs = 45;
     private PHprDirectGearPulseRoutingResult? _lastRealPhprGearPulseRoutingResult;
-    private PHprRoadVibrationRoutingResult? _lastRealRoadVibrationRoutingResult;
-    private PHprSlipLockRoutingResult? _lastRealSlipLockRoutingResult;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
@@ -314,6 +305,10 @@ public partial class MainWindow : Window
             _realPhprOutput,
             _realSlipLockOptions,
             _realPhprOutput.SetSafetyContext);
+        _realPhprContinuousEffectsRuntime = new PHprContinuousEffectsRuntimeCoordinator(
+            _realRoadVibrationRouter,
+            _realSlipLockRouter,
+            BuildRealContinuousEffectsRuntimeInput);
         _mockGearPulseRouter = new PHprGearPulseRouter(
             _mockPhprSafetyOutput,
             CreateMockGearPulseRouterOptions(appSettings.MockGearPulseRouting));
@@ -393,8 +388,8 @@ public partial class MainWindow : Window
         {
             await _telemetryReceiver.StartAsync();
             _telemetryStatusTimer.Start();
-            StartRealSlipLockRuntime();
-            StartRealRoadVibrationRuntime();
+            _realPhprContinuousEffectsRuntime.StartSlipLockRuntime();
+            _realPhprContinuousEffectsRuntime.StartRoadVibrationRuntime();
         }
         catch (Exception ex)
         {
@@ -4732,6 +4727,7 @@ public partial class MainWindow : Window
         ConfigurePhprDirectRuntime();
         var directRuntime = _phprDirectRuntime.GetSnapshot();
         var realOutput = _realPhprOutput.GetDiagnostics();
+        var continuousRuntime = _realPhprContinuousEffectsRuntime.GetSnapshot();
         var realSlipLockSnapshot = _realSlipLockRouter.GetSnapshot();
         var brakeSlipLockActive = realSlipLockSnapshot.ActiveSlipLockModules is "Brake" or "Both"
             && realSlipLockSnapshot.WheelLock.LastActive;
@@ -4743,11 +4739,11 @@ public partial class MainWindow : Window
         BrakePhprRoutingSummaryText.Text =
             $"Mode {PhprPedalsModeComboBox.SelectedItem}; P-HPR {FormatEnabled(_realPhprOptions.DirectControlEnabled)}; {directReadiness}; connection {realOutput.Connection.State}; writes {realOutput.ReportWriteCount:N0}.";
         BrakePhprEffectsSummaryText.Text =
-            $"Effects: gear {FormatEnabledActive(_realPhprOptions.BrakeGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled, _lastRealRoadVibrationRoutingResult?.WasRouted == true)}; lock {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled, brakeSlipLockActive)}.";
+            $"Effects: gear {FormatEnabledActive(_realPhprOptions.BrakeGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled, continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true)}; lock {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled, brakeSlipLockActive)}.";
         ThrottlePhprRoutingSummaryText.Text =
             $"Mode {PhprPedalsModeComboBox.SelectedItem}; P-HPR {FormatEnabled(_realPhprOptions.DirectControlEnabled)}; {directReadiness}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realOutput.Output.IsEmergencyStopActive)}.";
         ThrottlePhprEffectsSummaryText.Text =
-            $"Effects: gear {FormatEnabledActive(_realPhprOptions.ThrottleGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled, _lastRealRoadVibrationRoutingResult?.WasRouted == true)}; slip {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled, throttleSlipLockActive)}.";
+            $"Effects: gear {FormatEnabledActive(_realPhprOptions.ThrottleGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled, continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true)}; slip {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled, throttleSlipLockActive)}.";
 
         ActiveEffectsSummaryText.Text =
             $"{effectSnapshot.ActiveEffectCount:N0} active source(s); engine {FormatActiveIdle(effectSnapshot.Engine.IsActive)}; gear {FormatActiveIdle(effectSnapshot.GearShift.IsActive)}; road {FormatActiveIdle(effectSnapshot.RoadTexture.IsActive)}; kerb {FormatActiveIdle(effectSnapshot.Kerb.IsActive)}; impact {FormatActiveIdle(effectSnapshot.Impact.IsActive)}; slip/lock {FormatActiveIdle(effectSnapshot.Slip.IsActive)}; output peak {audioDiagnostics.OutputPeakLevel:0.000}.";
@@ -5373,6 +5369,7 @@ public partial class MainWindow : Window
         bool flightRecorderActive,
         string flightRecorderPath)
     {
+        var continuousRuntime = _realPhprContinuousEffectsRuntime.GetSnapshot();
         return RoadTextureDiagnosticSnapshot.Create(
             pipelineSnapshot,
             audioDiagnostics,
@@ -5380,8 +5377,8 @@ public partial class MainWindow : Window
             _realRoadVibrationOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits),
             _realRoadVibrationRouter.GetSnapshot(),
             _realPhprOutput.GetDiagnostics(),
-            Interlocked.Read(ref _realRoadHigherPrioritySuppressedCount),
-            Interlocked.Read(ref _realRoadInFlightSuppressedCount),
+            continuousRuntime.RoadHigherPrioritySuppressedCount,
+            continuousRuntime.RoadInFlightSuppressedCount,
             flightRecorderActive,
             flightRecorderPath);
     }
@@ -5493,7 +5490,7 @@ public partial class MainWindow : Window
 
     private string BuildRealRoadVibrationRoutingText()
     {
-        var result = _lastRealRoadVibrationRoutingResult;
+        var result = _realPhprContinuousEffectsRuntime.GetSnapshot().LastRoadVibrationRoutingResult;
         return result is null
             ? "none"
             : $"{result.Status}; routed {result.WasRouted}; intensity {result.Intensity01:0.###}; commands {result.Commands.Count:N0}; at {FormatTimestamp(result.RoutedAtUtc)}";
@@ -5501,6 +5498,7 @@ public partial class MainWindow : Window
 
     private string BuildRealSlipLockRoutingText()
     {
+        var continuousRuntime = _realPhprContinuousEffectsRuntime.GetSnapshot();
         var snapshot = _realSlipLockRouter.GetSnapshot();
         if (snapshot.RouteAttemptCount <= 0 && snapshot.LastResult is null)
         {
@@ -5508,18 +5506,19 @@ public partial class MainWindow : Window
         }
 
         var lastResult = snapshot.LastResult;
-        return $"{lastResult?.Status.ToString() ?? "none"}; runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence {snapshot.Options.MinimumRouteInterval.TotalMilliseconds:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {_realRoadHigherPrioritySuppressedCount:N0}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: false)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: false)}; at {FormatTimestamp(lastResult?.RoutedAtUtc ?? snapshot.LastRouteAttemptAtUtc)}";
+        return $"{lastResult?.Status.ToString() ?? "none"}; runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence {snapshot.Options.MinimumRouteInterval.TotalMilliseconds:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {continuousRuntime.RoadHigherPrioritySuppressedCount:N0}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: false)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: false)}; at {FormatTimestamp(lastResult?.RoutedAtUtc ?? snapshot.LastRouteAttemptAtUtc)}";
     }
 
     private string BuildRealSlipLockDiagnosticsText()
     {
+        var continuousRuntime = _realPhprContinuousEffectsRuntime.GetSnapshot();
         var snapshot = _realSlipLockRouter.GetSnapshot();
         if (snapshot.RouteAttemptCount <= 0 && snapshot.LastResult is null)
         {
             return "none";
         }
 
-        return $"runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence {snapshot.Options.MinimumRouteInterval.TotalMilliseconds:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; attempts {snapshot.RouteAttemptCount:N0}; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {_realRoadHigherPrioritySuppressedCount:N0}; watchdog stops {snapshot.WatchdogStopCount:N0}; stop reason {snapshot.LastSlipLockStopReason}; last result {snapshot.LastResult?.Status.ToString() ?? "none"}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; start age {FormatTimestampAge(snapshot.LastSlipLockStartAtUtc)}; update age {FormatTimestampAge(snapshot.LastSlipLockUpdateAtUtc)}; stop age {FormatTimestampAge(snapshot.LastSlipLockStopAtUtc)}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: true)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: true)}";
+        return $"runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence {snapshot.Options.MinimumRouteInterval.TotalMilliseconds:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; attempts {snapshot.RouteAttemptCount:N0}; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {continuousRuntime.RoadHigherPrioritySuppressedCount:N0}; watchdog stops {snapshot.WatchdogStopCount:N0}; stop reason {snapshot.LastSlipLockStopReason}; last result {snapshot.LastResult?.Status.ToString() ?? "none"}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; start age {FormatTimestampAge(snapshot.LastSlipLockStartAtUtc)}; update age {FormatTimestampAge(snapshot.LastSlipLockUpdateAtUtc)}; stop age {FormatTimestampAge(snapshot.LastSlipLockStopAtUtc)}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: true)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: true)}";
     }
 
     private string BuildRealPhprGearPulseLatencyText()
@@ -6003,44 +6002,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<PHprSlipLockRoutingResult?> RouteRealSlipLockFromSnapshotAsync(HapticPipelineSnapshot pipelineSnapshot)
-    {
-        if (_routingRealSlipLock)
-        {
-            return null;
-        }
-
-        if (!_realSlipLockRouter.GetSnapshot().Options.IsEnabled)
-        {
-            await _realSlipLockRouter.StopAsync(
-                "P-HPR slip/lock stopped because routing is disabled.",
-                cancellationToken: CancellationToken.None);
-            return null;
-        }
-
-        if (!IsRealPhprPedalRoutingReady(pipelineSnapshot))
-        {
-            await _realSlipLockRouter.StopAsync(
-                "P-HPR slip/lock stopped because output readiness or slip/lock routing gates are not satisfied.",
-                cancellationToken: CancellationToken.None);
-            return null;
-        }
-
-        _routingRealSlipLock = true;
-        try
-        {
-            var result = await _realSlipLockRouter.RouteAsync(
-                pipelineSnapshot,
-                BuildRealSlipLockSafetyContext(pipelineSnapshot));
-            _lastRealSlipLockRoutingResult = result;
-            return result;
-        }
-        finally
-        {
-            _routingRealSlipLock = false;
-        }
-    }
-
     private bool IsRealPhprPedalRoutingReady(HapticPipelineSnapshot pipelineSnapshot)
     {
         return _realPhprOptions.DirectControlEnabled
@@ -6052,122 +6013,14 @@ public partial class MainWindow : Window
             && pipelineSnapshot.VehicleStateUpdateCount > 0;
     }
 
-    private async Task RouteRealRoadVibrationFromSnapshotAsync(
-        HapticPipelineSnapshot pipelineSnapshot,
-        bool higherPriorityPedalEffectRouted)
+    private PHprContinuousEffectsRuntimeInput BuildRealContinuousEffectsRuntimeInput()
     {
-        if (_routingRealRoadVibration)
-        {
-            Interlocked.Increment(ref _realRoadInFlightSuppressedCount);
-            return;
-        }
-
-        if (higherPriorityPedalEffectRouted)
-        {
-            Interlocked.Increment(ref _realRoadHigherPrioritySuppressedCount);
-            await _realRoadVibrationRouter.StopAsync(
-                "P-HPR road stopped because a higher-priority pedal effect routed.",
-                cancellationToken: CancellationToken.None);
-            return;
-        }
-
-        if (!_realRoadVibrationRouter.GetSnapshot().Options.IsEnabled
-            || !IsRealPhprPedalRoutingReady(pipelineSnapshot))
-        {
-            await _realRoadVibrationRouter.StopAsync(
-                "P-HPR road stopped because output readiness or road routing gates are not satisfied.",
-                cancellationToken: CancellationToken.None);
-            return;
-        }
-
-        _routingRealRoadVibration = true;
-        try
-        {
-            var result = await _realRoadVibrationRouter.RouteAsync(
-                pipelineSnapshot,
-                BuildRealRoadVibrationSafetyContext(pipelineSnapshot));
-            _lastRealRoadVibrationRoutingResult = result;
-        }
-        finally
-        {
-            _routingRealRoadVibration = false;
-        }
-    }
-
-    private void StartRealSlipLockRuntime()
-    {
-        if (_realSlipLockRuntimeTask is not null)
-        {
-            return;
-        }
-
-        _realSlipLockRuntimeTask = Task.Run(
-            () => RunRealSlipLockRuntimeAsync(_realSlipLockRuntimeCts.Token),
-            _realSlipLockRuntimeCts.Token);
-    }
-
-    private async Task RunRealSlipLockRuntimeAsync(CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
-        try
-        {
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-            {
-                var pipelineSnapshot = _hapticPipeline.GetSnapshot();
-                await RouteRealSlipLockFromSnapshotAsync(pipelineSnapshot).ConfigureAwait(false);
-                await _realSlipLockRouter.StopIfHoldExpiredAsync(
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-    }
-
-    private void StartRealRoadVibrationRuntime()
-    {
-        if (_realRoadVibrationRuntimeTask is not null)
-        {
-            return;
-        }
-
-        _realRoadVibrationRuntimeTask = Task.Run(
-            () => RunRealRoadVibrationRuntimeAsync(_realRoadVibrationRuntimeCts.Token),
-            _realRoadVibrationRuntimeCts.Token);
-    }
-
-    private async Task RunRealRoadVibrationRuntimeAsync(CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
-        try
-        {
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-            {
-                var pipelineSnapshot = _hapticPipeline.GetSnapshot();
-                var slipLockSnapshot = _realSlipLockRouter.GetSnapshot();
-                var higherPriorityPedalEffectRouted = _routingRealSlipLock
-                    || slipLockSnapshot.ActiveSlipLockModules != "none"
-                    || (_lastRealSlipLockRoutingResult?.WasRouted == true
-                        && DateTimeOffset.UtcNow - _lastRealSlipLockRoutingResult.RoutedAtUtc < TimeSpan.FromMilliseconds(150));
-                await RouteRealRoadVibrationFromSnapshotAsync(
-                        pipelineSnapshot,
-                        higherPriorityPedalEffectRouted)
-                    .ConfigureAwait(false);
-                await _realRoadVibrationRouter.StopIfHoldExpiredAsync(
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
+        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        return new PHprContinuousEffectsRuntimeInput(
+            pipelineSnapshot,
+            IsRealPhprPedalRoutingReady(pipelineSnapshot),
+            BuildRealRoadVibrationSafetyContext(pipelineSnapshot),
+            BuildRealSlipLockSafetyContext(pipelineSnapshot));
     }
 
     private void PaddleInputSource_InputChanged(object? sender, object e)
@@ -7045,36 +6898,17 @@ public partial class MainWindow : Window
         _telemetryReceiver.PacketReceived -= TelemetryReceiver_PacketReceived;
         _telemetryStatusTimer.Tick -= TelemetryStatusTimer_Tick;
         _telemetryStatusTimer.Stop();
-        _realSlipLockRuntimeCts.Cancel();
-        _realRoadVibrationRuntimeCts.Cancel();
-        if (_realSlipLockRuntimeTask is not null)
+        var continuousRuntimeStop = await _realPhprContinuousEffectsRuntime
+            .StopAsync(TimeSpan.FromSeconds(2))
+            .ConfigureAwait(false);
+        if (continuousRuntimeStop.SlipLockRuntimeTimedOut)
         {
-            try
-            {
-                await _realSlipLockRuntimeTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or TimeoutException)
-            {
-                if (ex is TimeoutException)
-                {
-                    shutdownExceptions.Add("slipLockRuntime:TimeoutException:slip/lock runtime did not stop within 2 seconds");
-                }
-            }
+            shutdownExceptions.Add("slipLockRuntime:TimeoutException:slip/lock runtime did not stop within 2 seconds");
         }
 
-        if (_realRoadVibrationRuntimeTask is not null)
+        if (continuousRuntimeStop.RoadRuntimeTimedOut)
         {
-            try
-            {
-                await _realRoadVibrationRuntimeTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or TimeoutException)
-            {
-                if (ex is TimeoutException)
-                {
-                    shutdownExceptions.Add("roadRuntime:TimeoutException:road runtime did not stop within 2 seconds");
-                }
-            }
+            shutdownExceptions.Add("roadRuntime:TimeoutException:road runtime did not stop within 2 seconds");
         }
 
         timersDisposed = true;
@@ -7122,6 +6956,16 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             shutdownExceptions.Add($"phprOutput:{ex.GetType().Name}:{ex.Message}");
+        }
+
+        try
+        {
+            await _realPhprContinuousEffectsRuntime.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2))
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            shutdownExceptions.Add($"phprContinuousRuntime:{ex.GetType().Name}:{ex.Message}");
         }
 
         try
