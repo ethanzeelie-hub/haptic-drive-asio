@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
@@ -11,6 +12,7 @@ public sealed class PHprPedalEffectsRouter
     private const uint MaximumTelemetryFrameLag = 120;
     private readonly object _gate = new();
     private readonly SafetyLimitedPhprOutputDevice _output;
+    private readonly SlipLockEvaluator _slipLockEvaluator = new();
     private readonly long[] _routeCounts = new long[EffectCount];
     private readonly long[] _safetyRejectedCounts = new long[EffectCount];
     private readonly long[] _intervalSuppressedCounts = new long[EffectCount];
@@ -319,11 +321,17 @@ public sealed class PHprPedalEffectsRouter
         VehicleState vehicleState,
         PHprPedalEffectsRouterOptions options)
     {
+        var slipLockEvaluation = _slipLockEvaluator.Evaluate(
+            SlipLockEvaluationInput.FromVehicleState(
+                vehicleState,
+                _slipLockEvaluator.Options,
+                options.WheelSlip.IsEnabled,
+                options.WheelLock.IsEnabled));
         return
         [
             EvaluateRoadVibration(vehicleState, options.RoadVibration),
-            EvaluateWheelSlip(vehicleState, options.WheelSlip),
-            EvaluateWheelLock(vehicleState, options.WheelLock)
+            EvaluateWheelSlip(options.WheelSlip, slipLockEvaluation),
+            EvaluateWheelLock(options.WheelLock, slipLockEvaluation)
         ];
     }
 
@@ -359,111 +367,51 @@ public sealed class PHprPedalEffectsRouter
     }
 
     private static EffectCandidate EvaluateWheelSlip(
-        VehicleState vehicleState,
-        PHprPedalEffectState state)
+        PHprPedalEffectState state,
+        SlipLockEvaluationResult evaluation)
     {
         if (!state.IsEnabled
-            || ShouldMuteForDrivingState(vehicleState)
-            || !IsFresh(vehicleState, vehicleState.Telemetry, MaximumTelemetryFrameLag)
-            || !IsFresh(vehicleState, vehicleState.MotionEx, MaximumTelemetryFrameLag))
+            || evaluation.DrivingStateMuted
+            || !evaluation.TelemetryFresh
+            || !evaluation.MotionExFresh)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.WheelSlip, state);
         }
 
-        var telemetry = vehicleState.Telemetry!.Value;
-        var motionEx = vehicleState.MotionEx!.Value;
-        var speedScale = SpeedScale(telemetry.SpeedKph, 8f, 90f);
-        if (speedScale <= 0f)
+        if (evaluation.WheelSlip.SuppressionReason == SlipLockSuppressionReason.BelowMinimumSpeed)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.WheelSlip, state);
         }
 
-        var slipIntensity = 0f;
-        for (var wheel = 0; wheel < 4; wheel++)
-        {
-            var ratio = SanitizeMagnitude(motionEx.WheelSlipRatio[wheel], 3f);
-            var angle = SanitizeMagnitude(motionEx.WheelSlipAngle[wheel], 2f);
-            var ratioAmount = AmountOverThreshold(ratio, 0.08f, 0.45f);
-            var angleAmount = AmountOverThreshold(angle, 0.08f, 0.45f);
-            slipIntensity = Math.Max(slipIntensity, Math.Max(ratioAmount, angleAmount));
-        }
-
-        var throttle = SanitizeUnit(telemetry.Throttle);
-        var brake = SanitizeUnit(telemetry.Brake);
-        if (throttle < 0.1f && brake < 0.1f)
-        {
-            slipIntensity *= 0.35f;
-        }
-
-        if (vehicleState.CarStatus?.Value.TractionControl is > 0 && throttle >= 0.1f)
-        {
-            slipIntensity *= 0.75f;
-        }
-
-        var intensity = Clamp(slipIntensity * speedScale, 0f, 1f);
+        var intensity = evaluation.WheelSlip.Intensity01;
         return intensity <= 0f
             ? EffectCandidate.Inactive(PHprPedalEffectKind.WheelSlip, state)
             : new EffectCandidate(PHprPedalEffectKind.WheelSlip, state, true, intensity);
     }
 
     private static EffectCandidate EvaluateWheelLock(
-        VehicleState vehicleState,
-        PHprPedalEffectState state)
+        PHprPedalEffectState state,
+        SlipLockEvaluationResult evaluation)
     {
         if (!state.IsEnabled
-            || ShouldMuteForDrivingState(vehicleState)
-            || !IsFresh(vehicleState, vehicleState.Telemetry, MaximumTelemetryFrameLag)
-            || !IsFresh(vehicleState, vehicleState.MotionEx, MaximumTelemetryFrameLag))
+            || evaluation.DrivingStateMuted
+            || !evaluation.TelemetryFresh
+            || !evaluation.MotionExFresh)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.WheelLock, state);
         }
 
-        var telemetry = vehicleState.Telemetry!.Value;
-        var motionEx = vehicleState.MotionEx!.Value;
-        var brake = SanitizeUnit(telemetry.Brake);
-        if (brake < 0.1f)
+        if (evaluation.WheelLock.SuppressionReason == SlipLockSuppressionReason.BelowBrakeThreshold)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.WheelLock, state);
         }
 
-        var speedScale = SpeedScale(telemetry.SpeedKph, 8f, 90f);
-        if (speedScale <= 0f)
+        if (evaluation.WheelLock.SuppressionReason == SlipLockSuppressionReason.BelowMinimumSpeed)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.WheelLock, state);
         }
 
-        var slipLock = 0f;
-        var minimumWheelSpeed = float.MaxValue;
-        for (var wheel = 0; wheel < 4; wheel++)
-        {
-            var ratio = SanitizeMagnitude(motionEx.WheelSlipRatio[wheel], 3f);
-            slipLock = Math.Max(slipLock, AmountOverThreshold(ratio, 0.35f, 0.45f));
-
-            var wheelSpeed = Math.Abs(motionEx.WheelSpeed[wheel]);
-            if (float.IsFinite(wheelSpeed))
-            {
-                minimumWheelSpeed = Math.Min(minimumWheelSpeed, wheelSpeed);
-            }
-        }
-
-        var speedMetersPerSecond = telemetry.SpeedKph / 3.6f;
-        var wheelLock = 0f;
-        if (speedMetersPerSecond > 0.1f && minimumWheelSpeed < float.MaxValue)
-        {
-            var wheelSpeedRatio = Clamp(minimumWheelSpeed / speedMetersPerSecond, 0f, 1f);
-            if (wheelSpeedRatio < 0.35f)
-            {
-                wheelLock = Clamp((0.35f - wheelSpeedRatio) / 0.35f, 0f, 1f);
-            }
-        }
-
-        var intensity = Math.Max(slipLock, wheelLock) * speedScale;
-        if (vehicleState.CarStatus?.Value.AntiLockBrakes is > 0)
-        {
-            intensity *= 0.75f;
-        }
-
-        intensity = Clamp(intensity, 0f, 1f);
+        var intensity = evaluation.WheelLock.Intensity01;
         return intensity <= 0f
             ? EffectCandidate.Inactive(PHprPedalEffectKind.WheelLock, state)
             : new EffectCandidate(PHprPedalEffectKind.WheelLock, state, true, intensity);
@@ -735,31 +683,6 @@ public sealed class PHprPedalEffectsRouter
         }
 
         return Clamp((speedKph - minimumSpeedKph) / (fullIntensitySpeedKph - minimumSpeedKph), 0f, 1f);
-    }
-
-    private static float SanitizeUnit(float value)
-    {
-        return float.IsFinite(value) ? Clamp(value, 0f, 1f) : 0f;
-    }
-
-    private static float SanitizeMagnitude(float value, float maximumMagnitude)
-    {
-        return float.IsFinite(value) ? Clamp(Math.Abs(value), 0f, maximumMagnitude) : 0f;
-    }
-
-    private static float AmountOverThreshold(float value, float threshold, float fullScale)
-    {
-        if (!float.IsFinite(value) || !float.IsFinite(threshold) || !float.IsFinite(fullScale) || fullScale <= threshold)
-        {
-            return 0f;
-        }
-
-        if (value <= threshold)
-        {
-            return 0f;
-        }
-
-        return Clamp((value - threshold) / (fullScale - threshold), 0f, 1f);
     }
 
     private static float Clamp(float value, float minimum, float maximum)

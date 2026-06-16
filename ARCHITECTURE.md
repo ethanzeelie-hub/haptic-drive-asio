@@ -1008,3 +1008,41 @@ Stage 19D does not change UI/XAML, paddle mappings, debounce defaults, left/righ
 Remaining extraction order:
 
 1. Stage 20 should introduce one shared slip/lock evaluator for BST-1 and P-HPR.
+
+## Stage 20 Shared Slip/Lock Evaluator
+
+Stage 20 introduces `SlipLockEvaluator` in `HapticDrive.Asio.Core.Haptics` together with `SlipLockEvaluationOptions`, `SlipLockEvaluationInput`, `SlipLockEvaluationResult`, `SlipLockSignalResult`, `SlipLockSuppressionReason`, and `SlipLockWheelContribution`.
+
+`HapticDrive.Asio.Core.Haptics` is the shared home because:
+
+- `HapticDrive.Asio.Audio` already references Core,
+- `HapticDrive.Actuation` already references Core,
+- Core still has no App, ASIO backend, HID output, or WPF dependency,
+- placing the evaluator in Core keeps the production graph acyclic while letting both BST-1 and P-HPR consume one deterministic model.
+
+The shared evaluator now owns:
+
+- driving-state mute and frame-freshness checks for slip/lock detection,
+- sanitized wheel slip ratio, slip angle, and wheel-speed extraction with preserved `RearLeft`, `RearRight`, `FrontLeft`, `FrontRight` order,
+- shared speed scaling plus slip/lock threshold math,
+- shared low-pedal, traction-control, and ABS attenuation,
+- normalized slip and lock active state, intensity, suppression reason, and wheel-contribution diagnostics.
+
+`SlipEffect` now consumes the shared evaluator for slip/lock detection and normalized intensity only. It still owns:
+
+- BST-1 audio amplitude/frequency/noise shaping,
+- dominant source choice between wheel slip and wheel lock,
+- response smoothing and deterministic sample generation,
+- mixer/safety handoff and BST-1-facing diagnostics wording.
+
+`PHprSlipLockRouter` now consumes the shared evaluator for direct P-HPR slip/lock detection and normalized intensity only. It still owns:
+
+- brake/throttle target-module mapping,
+- wheel-lock-above-wheel-slip priority,
+- minimum route interval, hold-timeout watchdog, and explicit stop commands,
+- gear-protection timing and road-yield interaction,
+- direct safety-context gating, command creation, HID-output handoff, and direct diagnostics wording.
+
+The older mock `PHprPedalEffectsRouter` also now consumes the same shared evaluator for wheel slip / wheel lock detection so replay-safe mock routing stays aligned with BST-1 and the real direct route.
+
+Stage 20 does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, direct gear-pulse tuning, road cadence, slip/lock runtime cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or persistence schema.

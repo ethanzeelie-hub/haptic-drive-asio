@@ -4,6 +4,7 @@ using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Safety;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Tests;
@@ -479,6 +480,41 @@ public sealed class HapticEffectTests
 
         Assert.True(Peak(ratio) > 0f);
         Assert.True(Peak(angle) > 0f);
+    }
+
+    [Fact]
+    public void SlipEffect_SnapshotIntensitiesMatchSharedEvaluator()
+    {
+        var effect = new SlipEffect();
+        var state = State(
+            speed: 120,
+            throttle: 0.8f,
+            brake: 0.8f,
+            wheelSlipRatio: Wheels(0.42f),
+            wheelSlipAngle: Wheels(0.12f),
+            wheelSpeed: Wheels(1f));
+        var evaluator = new SlipLockEvaluator(new SlipLockEvaluationOptions(
+            MinimumSpeedKph: SlipEffectOptions.Default.MinimumSpeedKph,
+            FullIntensitySpeedKph: SlipEffectOptions.Default.FullIntensitySpeedKph,
+            SlipRatioThreshold: SlipEffectOptions.Default.SlipRatioThreshold,
+            SlipRatioFullScale: SlipEffectOptions.Default.SlipRatioFullScale,
+            SlipAngleThresholdRadians: SlipEffectOptions.Default.SlipAngleThresholdRadians,
+            SlipAngleFullScaleRadians: SlipEffectOptions.Default.SlipAngleFullScaleRadians,
+            TriggerThrottle: SlipEffectOptions.Default.TriggerThrottle,
+            TriggerBrake: SlipEffectOptions.Default.TriggerBrake,
+            LowPedalInputMultiplier: SlipEffectOptions.Default.LowPedalInputMultiplier,
+            AssistedSlipMultiplier: SlipEffectOptions.Default.AssistedSlipMultiplier,
+            BrakeLockSlipRatioThreshold: SlipEffectOptions.Default.BrakeLockSlipRatioThreshold,
+            BrakeLockWheelSpeedRatioThreshold: SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold,
+            MaximumTelemetryFrameLag: SlipEffectOptions.Default.MaximumTelemetryFrameLag));
+        var evaluation = evaluator.Evaluate(SlipLockEvaluationInput.FromVehicleState(state, evaluator.Options));
+
+        effect.Update(state);
+
+        Assert.Equal(evaluation.WheelSlip.Intensity01, effect.Snapshot.CurrentSlipIntensity, precision: 6);
+        Assert.Equal(evaluation.WheelLock.Intensity01, effect.Snapshot.CurrentLockIntensity, precision: 6);
+        Assert.Equal(evaluation.MaximumSlipRatio, effect.Snapshot.CurrentSlipRatio, precision: 6);
+        Assert.Equal(evaluation.MaximumSlipAngleRadians, effect.Snapshot.CurrentSlipAngleRadians, precision: 6);
     }
 
     [Fact]

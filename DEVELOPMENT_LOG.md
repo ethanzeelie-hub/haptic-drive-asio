@@ -3286,3 +3286,43 @@ Self-review:
 - The temporary coordinator home is App-only but non-WPF by design. That is a deliberate stop point to avoid forcing concrete Windows direct-output and App-owned manual ASIO test dependencies into a broader runtime project.
 - The shared BST-1/P-HPR slip/lock evaluator still does not exist. That remains the explicit Stage 20 target.
 - No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. The stage is architecture/risk-reduction work only.
+
+## Stage 20 - Shared Slip/Lock Evaluator For BST-1 And P-HPR
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Replace the duplicated BST-1 and P-HPR slip/lock detection math with one shared, deterministic evaluator while preserving existing output-specific shaping, routing, safety, cadence, and user-facing behavior.
+
+Changes:
+
+- Re-checked the live Stage 19D baseline before coding. `SlipEffect.cs` and `PHprSlipLockRouter.cs` were both still evaluating driving-state mute, frame freshness, wheel slip ratio/angle thresholds, wheel-speed lock thresholds, speed scaling, low-pedal attenuation, TC attenuation, and ABS attenuation independently.
+- Added `SlipLockEvaluator` under `HapticDrive.Asio.Core.Haptics` together with `SlipLockEvaluationOptions`, `SlipLockEvaluationInput`, `SlipLockEvaluationResult`, `SlipLockSignalResult`, `SlipLockSuppressionReason`, and `SlipLockWheelContribution`.
+- Chose Core as the shared home because `HapticDrive.Asio.Audio -> HapticDrive.Asio.Core` and `HapticDrive.Actuation -> HapticDrive.Asio.Core` already exist, while Core still has no App, WPF, ASIO backend, or HID-output dependency.
+- Moved the shared slip/lock driving-state mute, frame-freshness, value sanitization, wheel-order-preserving extraction, speed-scale, threshold, and TC/ABS attenuation math out of `SlipEffect.cs`.
+- Refactored `SlipEffect.cs` to consume the shared evaluator for slip/lock detection and normalized intensity only while keeping BST-1 amplitude/frequency/noise shaping, dominant-source choice, response smoothing, sample generation, and snapshot wording in the audio layer.
+- Moved the shared slip/lock telemetry extraction and normalized intensity evaluation out of `PHprSlipLockRouter.cs`.
+- Refactored `PHprSlipLockRouter.cs` to consume the shared evaluator for direct slip/lock detection only while keeping direct safety-context gating, target-module mapping, per-module priority, minimum-route interval, gear-protection window, hold-timeout watchdog, explicit stop commands, road-yield interaction, command creation, and direct diagnostics wording in the router.
+- Also refactored the older mock-only `PHprPedalEffectsRouter.cs` to consume the same shared evaluator for wheel slip / wheel lock detection so BST-1, replay-safe mock P-HPR, and real direct P-HPR now share one slip/lock model.
+- Added Core-side evaluator tests for missing state, frame-lag freshness, low-speed suppression, normal no-slip/no-lock cases, active slip, active lock, TC/ABS attenuation, invalid-value sanitization, and wheel-order-preserving contribution diagnostics.
+- Added integration tests proving `SlipEffect`, `PHprSlipLockRouter`, and `PHprPedalEffectsRouter` expose intensities consistent with the shared evaluator, plus project-graph guardrails for Core, Audio, Actuation, Runtime, and the real output assembly.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the new shared evaluator boundary, the consumer changes, and the unchanged behavior guarantees.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 740 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 20 stayed focused on shared evaluation ownership. It intentionally did not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, direct gear-pulse tuning, gear routing, road cadence, slip/lock cadence, hold-timeout/watchdog durations, command-rate limiter behavior, parser layouts, or persistence schema.
+- `SlipEffect` still owns BST-1 sample rendering and audio-facing diagnostics semantics, while `PHprSlipLockRouter` still owns direct-routing cadence, priority, road-yield, stop behavior, and HID-output handoff.
+- The mock P-HPR slip/lock path now shares the same evaluator as the BST-1 and real direct paths, but this stage still does not attempt broader UI/runtime decomposition or MVVM work.
+- No physical BST-1 shaker feel claim, physical P-HPR slip/lock feel claim, safe physical gain claim, or latency claim is made here. Local validation and later tuning are still required.

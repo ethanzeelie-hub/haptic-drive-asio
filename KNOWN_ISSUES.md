@@ -693,3 +693,10 @@
 - `MainWindow.xaml.cs` still owns UI-only status/control updates, footer/status formatting, safety-context builders, and settings parsing around the coordinator. Stage 19D intentionally does not attempt a broader MVVM rewrite.
 - `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. Stage 20 should introduce the shared evaluator.
 - Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items. Stage 19D changes paddle-route ownership, tests, and docs only.
+
+## Stage 20
+
+- `SlipLockEvaluator` now centralizes the shared BST-1, mock P-HPR, and real direct P-HPR slip/lock freshness, sanitization, threshold, speed-scale, and TC/ABS attenuation logic in `HapticDrive.Asio.Core.Haptics`, so `SlipEffect`, `PHprPedalEffectsRouter`, and `PHprSlipLockRouter` no longer maintain separate copies of that math.
+- `MainWindow.xaml.cs` still owns broader UI-only settings/status formatting and shell orchestration around the non-UI coordinators. Stage 20 intentionally does not attempt MVVM or general WPF decomposition.
+- Stage 20 intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or parser layouts.
+- Physical BST-1 shaker feel, physical P-HPR slip/lock feel, safe physical gain, and mixed-output latency still require Ethan-local validation and later tuning.

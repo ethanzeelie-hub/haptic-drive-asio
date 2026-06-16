@@ -1,4 +1,5 @@
 using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.MockProtocol;
@@ -71,6 +72,23 @@ public sealed class PHprPedalEffectsRouterTests
         var command = Assert.Single(inner.CommandHistory);
         Assert.Equal(PHprModuleId.Brake, command.TargetModule);
         Assert.Equal(PHprCommandSource.WheelLock, command.Source);
+    }
+
+    [Fact]
+    public async Task SlipAndLockDiagnosticsMatchSharedEvaluator()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprPedalEffectsRouter(output, RoadDisabledOptions());
+        var state = CreateAllEffectsVehicleState();
+        var evaluation = new SlipLockEvaluator().Evaluate(SlipLockEvaluationInput.FromVehicleState(state));
+
+        var result = await router.RouteAsync(state, nowUtc: BaseTime);
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(result.WasRouted, result.Message);
+        Assert.Equal(evaluation.WheelSlip.Intensity01, snapshot.WheelSlip.Intensity01, precision: 6);
+        Assert.Equal(evaluation.WheelLock.Intensity01, snapshot.WheelLock.Intensity01, precision: 6);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
@@ -8,6 +9,7 @@ public sealed class SlipEffect : IHapticEffectSource
     private double _basePhase;
     private long _frameCursor;
     private float _smoothedAmplitude;
+    private readonly SlipLockEvaluator _slipLockEvaluator;
     private SlipEvaluation _evaluation = SlipEvaluation.Inactive("not evaluated");
 
     public SlipEffect()
@@ -18,6 +20,7 @@ public sealed class SlipEffect : IHapticEffectSource
     public SlipEffect(SlipEffectOptions options)
     {
         Options = options ?? throw new ArgumentNullException(nameof(options));
+        _slipLockEvaluator = new SlipLockEvaluator(CreateEvaluatorOptions(Options));
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
     }
 
@@ -39,7 +42,14 @@ public sealed class SlipEffect : IHapticEffectSource
     public void Update(VehicleState vehicleState)
     {
         ArgumentNullException.ThrowIfNull(vehicleState);
-        _evaluation = Evaluate(vehicleState, Options);
+        _evaluation = Evaluate(
+            _slipLockEvaluator.Evaluate(
+                SlipLockEvaluationInput.FromVehicleState(
+                    vehicleState,
+                    _slipLockEvaluator.Options,
+                    Options.WheelSlipEnabled,
+                    Options.WheelLockEnabled)),
+            Options);
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
     }
 
@@ -78,7 +88,9 @@ public sealed class SlipEffect : IHapticEffectSource
         return new HapticEffectRenderResult(Name, Options.IsEnabled, IsActive: peak > 0f, peak);
     }
 
-    private static SlipEvaluation Evaluate(VehicleState vehicleState, SlipEffectOptions options)
+    private static SlipEvaluation Evaluate(
+        SlipLockEvaluationResult signal,
+        SlipEffectOptions options)
     {
         if (!options.IsEnabled)
         {
@@ -90,52 +102,24 @@ public sealed class SlipEffect : IHapticEffectSource
             return SlipEvaluation.Inactive("slip and lock outputs disabled");
         }
 
-        if (VehicleStateEffectGuards.ShouldMuteForDrivingState(vehicleState))
+        if (signal.DrivingStateMuted)
         {
             return SlipEvaluation.Inactive("driving state muted");
         }
 
-        if (!VehicleStateEffectGuards.IsFresh(vehicleState, vehicleState.Telemetry, options.MaximumTelemetryFrameLag)
-            || !VehicleStateEffectGuards.IsFresh(vehicleState, vehicleState.MotionEx, options.MaximumTelemetryFrameLag))
+        if (!signal.TelemetryFresh || !signal.MotionExFresh)
         {
             return SlipEvaluation.Inactive("telemetry stale");
         }
 
-        var telemetry = vehicleState.Telemetry!.Value;
-        var motionEx = vehicleState.MotionEx!.Value;
-        var speedScale = HapticEffectMath.SpeedScale(
-            telemetry.SpeedKph,
-            options.MinimumSpeedKph,
-            options.FullIntensitySpeedKph);
+        var speedScale = signal.SpeedScale;
         if (speedScale <= 0f)
         {
             return SlipEvaluation.Inactive("below minimum speed");
         }
 
-        var throttle = VehicleStateEffectGuards.SanitizeUnit(telemetry.Throttle);
-        var brake = VehicleStateEffectGuards.SanitizeUnit(telemetry.Brake);
-        var slip = CalculateSlipSignal(motionEx, options);
-        var brakeLock = CalculateBrakeLockSignal(motionEx, telemetry.SpeedKph, brake, options);
-        var slipIntensity = slip.Intensity;
-        var lockIntensity = brakeLock.Intensity;
-
-        if (throttle < options.TriggerThrottle && brake < options.TriggerBrake)
-        {
-            slipIntensity *= HapticEffectMath.Clamp(options.LowPedalInputMultiplier, 0f, 1f);
-        }
-
-        if (vehicleState.CarStatus?.Value.TractionControl is > 0 && throttle >= options.TriggerThrottle)
-        {
-            slipIntensity *= HapticEffectMath.Clamp(options.AssistedSlipMultiplier, 0f, 1f);
-        }
-
-        if (vehicleState.CarStatus?.Value.AntiLockBrakes is > 0 && brake >= options.TriggerBrake)
-        {
-            lockIntensity *= HapticEffectMath.Clamp(options.AssistedSlipMultiplier, 0f, 1f);
-        }
-
-        slipIntensity = HapticEffectMath.Clamp(slipIntensity, 0f, 1f);
-        lockIntensity = HapticEffectMath.Clamp(lockIntensity, 0f, 1f);
+        var slipIntensity = signal.WheelSlip.Intensity01;
+        var lockIntensity = signal.WheelLock.Intensity01;
 
         var slipAmplitude = options.WheelSlipEnabled
             ? HapticEffectMath.Clamp(options.WheelSlipGain * speedScale * slipIntensity, 0f, options.MaximumAmplitude)
@@ -152,9 +136,9 @@ public sealed class SlipEffect : IHapticEffectSource
             {
                 SlipIntensity = slipIntensity,
                 LockIntensity = lockIntensity,
-                CurrentSlipRatio = slip.MaximumSlipRatio,
-                CurrentSlipAngleRadians = slip.MaximumSlipAngleRadians,
-                CurrentMinimumWheelSpeedRatio = brakeLock.MinimumWheelSpeedRatio
+                CurrentSlipRatio = signal.MaximumSlipRatio,
+                CurrentSlipAngleRadians = signal.MaximumSlipAngleRadians,
+                CurrentMinimumWheelSpeedRatio = GetCurrentMinimumWheelSpeedRatio(signal)
             };
         }
 
@@ -164,9 +148,9 @@ public sealed class SlipEffect : IHapticEffectSource
             WheelLockEnabled: options.WheelLockEnabled,
             SlipIntensity: slipIntensity,
             LockIntensity: lockIntensity,
-            CurrentSlipRatio: slip.MaximumSlipRatio,
-            CurrentSlipAngleRadians: slip.MaximumSlipAngleRadians,
-            CurrentMinimumWheelSpeedRatio: brakeLock.MinimumWheelSpeedRatio,
+            CurrentSlipRatio: signal.MaximumSlipRatio,
+            CurrentSlipAngleRadians: signal.MaximumSlipAngleRadians,
+            CurrentMinimumWheelSpeedRatio: GetCurrentMinimumWheelSpeedRatio(signal),
             CurrentFrequencyHz: SanitizeFrequency(lockDominant ? options.WheelLockFrequencyHz : options.WheelSlipFrequencyHz),
             CurrentNoiseAmount: HapticEffectMath.Clamp(lockDominant ? options.WheelLockNoiseAmount : options.WheelSlipNoiseAmount, 0f, 1f),
             CurrentAmplitude: currentAmplitude,
@@ -174,87 +158,34 @@ public sealed class SlipEffect : IHapticEffectSource
             ActiveReason: lockDominant ? "wheel lock active" : "wheel slip active");
     }
 
-    private static SlipSignalEvaluation CalculateSlipSignal(VehicleMotionExState motionEx, SlipEffectOptions options)
+    private static SlipLockEvaluationOptions CreateEvaluatorOptions(SlipEffectOptions options)
     {
-        var maximum = 0f;
-        var maximumRatio = 0f;
-        var maximumAngle = 0f;
-
-        for (var wheel = 0; wheel < 4; wheel++)
-        {
-            var ratio = VehicleStateEffectGuards.SanitizeFiniteMagnitude(motionEx.WheelSlipRatio[wheel], 3f);
-            var angle = VehicleStateEffectGuards.SanitizeFiniteMagnitude(motionEx.WheelSlipAngle[wheel], 2f);
-            maximumRatio = Math.Max(maximumRatio, ratio);
-            maximumAngle = Math.Max(maximumAngle, angle);
-            var ratioAmount = AmountOverThreshold(ratio, options.SlipRatioThreshold, options.SlipRatioFullScale);
-            var angleAmount = AmountOverThreshold(angle, options.SlipAngleThresholdRadians, options.SlipAngleFullScaleRadians);
-            maximum = Math.Max(maximum, Math.Max(ratioAmount, angleAmount));
-        }
-
-        return new SlipSignalEvaluation(maximumRatio, maximumAngle, maximum);
+        return new SlipLockEvaluationOptions(
+            MinimumSpeedKph: options.MinimumSpeedKph,
+            FullIntensitySpeedKph: options.FullIntensitySpeedKph,
+            SlipRatioThreshold: options.SlipRatioThreshold,
+            SlipRatioFullScale: options.SlipRatioFullScale,
+            SlipAngleThresholdRadians: options.SlipAngleThresholdRadians,
+            SlipAngleFullScaleRadians: options.SlipAngleFullScaleRadians,
+            TriggerThrottle: options.TriggerThrottle,
+            TriggerBrake: options.TriggerBrake,
+            LowPedalInputMultiplier: options.LowPedalInputMultiplier,
+            AssistedSlipMultiplier: options.AssistedSlipMultiplier,
+            BrakeLockSlipRatioThreshold: options.BrakeLockSlipRatioThreshold,
+            BrakeLockWheelSpeedRatioThreshold: options.BrakeLockWheelSpeedRatioThreshold,
+            MaximumTelemetryFrameLag: options.MaximumTelemetryFrameLag);
     }
 
-    private static BrakeLockSignalEvaluation CalculateBrakeLockSignal(
-        VehicleMotionExState motionEx,
-        ushort speedKph,
-        float brake,
-        SlipEffectOptions options)
+    private static float GetCurrentMinimumWheelSpeedRatio(SlipLockEvaluationResult signal)
     {
-        if (brake < options.TriggerBrake)
+        if (signal.WheelLock.SuppressionReason == SlipLockSuppressionReason.BelowBrakeThreshold)
         {
-            return new BrakeLockSignalEvaluation(MaximumSlipRatio: 0f, MinimumWheelSpeedRatio: 1f, Intensity: 0f);
+            return 1f;
         }
 
-        var slipLock = 0f;
-        var maximumSlipRatio = 0f;
-        var minimumWheelSpeed = float.MaxValue;
-        for (var wheel = 0; wheel < 4; wheel++)
-        {
-            var ratio = VehicleStateEffectGuards.SanitizeFiniteMagnitude(motionEx.WheelSlipRatio[wheel], 3f);
-            maximumSlipRatio = Math.Max(maximumSlipRatio, ratio);
-            slipLock = Math.Max(slipLock, AmountOverThreshold(ratio, options.BrakeLockSlipRatioThreshold, options.SlipRatioFullScale));
-
-            var wheelSpeed = Math.Abs(motionEx.WheelSpeed[wheel]);
-            if (float.IsFinite(wheelSpeed))
-            {
-                minimumWheelSpeed = Math.Min(minimumWheelSpeed, wheelSpeed);
-            }
-        }
-
-        var speedMetersPerSecond = speedKph / 3.6f;
-        var wheelLock = 0f;
-        var minimumWheelSpeedRatio = 1f;
-        if (speedMetersPerSecond > 0.1f && minimumWheelSpeed < float.MaxValue)
-        {
-            minimumWheelSpeedRatio = HapticEffectMath.Clamp(minimumWheelSpeed / speedMetersPerSecond, 0f, 1f);
-            if (minimumWheelSpeedRatio < options.BrakeLockWheelSpeedRatioThreshold)
-            {
-                wheelLock = HapticEffectMath.Clamp(
-                    (options.BrakeLockWheelSpeedRatioThreshold - minimumWheelSpeedRatio) / options.BrakeLockWheelSpeedRatioThreshold,
-                    0f,
-                    1f);
-            }
-        }
-
-        return new BrakeLockSignalEvaluation(
-            maximumSlipRatio,
-            minimumWheelSpeedRatio,
-            Math.Max(slipLock, wheelLock));
-    }
-
-    private static float AmountOverThreshold(float value, float threshold, float fullScale)
-    {
-        if (!float.IsFinite(value) || !float.IsFinite(threshold) || !float.IsFinite(fullScale) || fullScale <= threshold)
-        {
-            return 0f;
-        }
-
-        if (value <= threshold)
-        {
-            return 0f;
-        }
-
-        return HapticEffectMath.Clamp((value - threshold) / (fullScale - threshold), 0f, 1f);
+        return signal.HasMinimumWheelSpeedRatio
+            ? signal.MinimumWheelSpeedRatio
+            : 1f;
     }
 
     private static float SanitizeFrequency(float frequencyHz)
@@ -312,14 +243,4 @@ public sealed class SlipEffect : IHapticEffectSource
             ActiveSource: "None",
             ActiveReason: reason);
     }
-
-    private sealed record SlipSignalEvaluation(
-        float MaximumSlipRatio,
-        float MaximumSlipAngleRadians,
-        float Intensity);
-
-    private sealed record BrakeLockSignalEvaluation(
-        float MaximumSlipRatio,
-        float MinimumWheelSpeedRatio,
-        float Intensity);
 }

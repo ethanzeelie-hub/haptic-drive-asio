@@ -759,6 +759,7 @@ public sealed class PHprRealOutputTests
 
         Assert.DoesNotContain("HapticDrive.Asio.Audio", referenced);
         Assert.DoesNotContain("HapticDrive.Asio.Core", referenced);
+        Assert.DoesNotContain("HapticDrive.Asio.App", referenced);
     }
 
     [Fact]

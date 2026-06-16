@@ -1,4 +1,5 @@
 using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.MockProtocol;
@@ -69,6 +70,28 @@ public sealed class PHprSlipLockRouterTests
         Assert.Equal(PHprCommandSource.WheelLock, command.Source);
         Assert.True(command.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs);
         Assert.Equal("Brake", snapshot.ActiveSlipLockModules);
+    }
+
+    [Fact]
+    public async Task DiagnosticsIntensityMatchesSharedEvaluator()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+        var state = CreateAllEffectsVehicleState();
+        var evaluation = new SlipLockEvaluator().Evaluate(SlipLockEvaluationInput.FromVehicleState(state));
+
+        var result = await router.RouteAsync(state, PHprSafetyContext.DefaultMock, BaseTime);
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(result.WasRouted, result.Message);
+        Assert.Equal(evaluation.WheelSlip.Intensity01, snapshot.WheelSlip.LastIntensity01, precision: 6);
+        Assert.Equal(evaluation.WheelLock.Intensity01, snapshot.WheelLock.LastIntensity01, precision: 6);
+        Assert.Equal(evaluation.MaximumSlipRatio, (float)snapshot.WheelSlip.LastTelemetry!.MaximumSlipRatio, precision: 6);
+        Assert.Equal(evaluation.MaximumSlipAngleRadians, (float)snapshot.WheelSlip.LastTelemetry.MaximumSlipAngle, precision: 6);
     }
 
     [Fact]
