@@ -95,6 +95,16 @@ public sealed class AppThemeResourceTests
         Assert.Contains("RoadTextureSpeedReferenceSlider", effectsNames);
         Assert.Contains("RoadTextureSpeedFrequencyInfluenceSlider", effectsNames);
         Assert.Contains("RoadTextureGrainAmountSlider", effectsNames);
+        Assert.Contains("SlipWheelSlipEnabledCheckBox", effectsNames);
+        Assert.Contains("SlipWheelSlipGainSlider", effectsNames);
+        Assert.Contains("SlipWheelSlipFrequencySlider", effectsNames);
+        Assert.Contains("SlipWheelSlipNoiseSlider", effectsNames);
+        Assert.Contains("SlipThresholdSlider", effectsNames);
+        Assert.Contains("SlipWheelLockEnabledCheckBox", effectsNames);
+        Assert.Contains("SlipWheelLockGainSlider", effectsNames);
+        Assert.Contains("SlipWheelLockFrequencySlider", effectsNames);
+        Assert.Contains("SlipWheelLockNoiseSlider", effectsNames);
+        Assert.Contains("SlipWheelLockSensitivitySlider", effectsNames);
         Assert.DoesNotContain("RoadTextureEnabledCheckBox", effectsNames);
         Assert.Contains("Bst1PaddleGearPulseEnabledCheckBox", effectsNames);
         Assert.Contains("NormalPhprBrakeEnabledCheckBox", effectsNames);

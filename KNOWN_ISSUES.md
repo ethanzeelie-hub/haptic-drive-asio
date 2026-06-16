@@ -644,3 +644,10 @@
 - Paddle debounce now persists through the normal Devices-tab save path, but stale Windows controller identity changes can still require manual refresh/reselection of the mapped wheel input device.
 - BST-1 road speed/frequency/grain controls now expose more tuning headroom and carry the road speed reference through roughly F1 top-speed range, but final asphalt feel, safe gain, physical latency, and exact high-speed balance remain Ethan-local validation items on the real M-Audio/Fosi/Dayton chain.
 - Stage 18r-C intentionally does not change gear runtime timing, P-HPR HID/protocol/runtime, slip/lock tuning, or claim physical validation.
+
+## Stage 18r-D
+
+- BST-1 wheel slip and wheel lock now have separate normal tuning controls and profile fields, but they still share one software evaluator/render path. Final physical separation of feel, safe gain, and real-world balance remains Ethan-local validation on the real M-Audio/Fosi/Dayton chain.
+- Older combined slip profiles are migrated conservatively into the new split slip/lock settings, but Ethan may still want to revisit wheel-lock gain/frequency/roughness after loading a much older profile because only the legacy combined enabled/gain values can be inherited directly.
+- The new BST-1 slip/lock diagnostics explain current source, thresholds, and raw telemetry indicators, but they are software-side estimates and do not prove physical shaker output, latency, or tyre/ABS realism.
+- Stage 18r-D intentionally does not change P-HPR slip/lock routing, road tuning, gear timing, parser layouts, or claim physical validation.

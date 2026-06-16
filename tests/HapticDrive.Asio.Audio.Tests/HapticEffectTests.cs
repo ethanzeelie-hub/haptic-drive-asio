@@ -482,6 +482,28 @@ public sealed class HapticEffectTests
     }
 
     [Fact]
+    public void SlipEffect_UsesSlipTuningWhenWheelSlipDominates()
+    {
+        var options = SlipEffectOptions.Default with
+        {
+            WheelSlipFrequencyHz = 57f,
+            WheelSlipNoiseAmount = 0.42f,
+            WheelLockFrequencyHz = 71f,
+            WheelLockNoiseAmount = 0.15f
+        };
+        var effect = new SlipEffect(options);
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(speed: 90, throttle: 0.8f, wheelSlipRatio: Wheels(0.32f), wheelSlipAngle: Wheels(0.18f)));
+        effect.Render(buffer);
+
+        Assert.Equal("Wheel slip", effect.Snapshot.ActiveSource);
+        Assert.Equal(57f, effect.Snapshot.CurrentFrequencyHz, precision: 6);
+        Assert.Equal(0.42f, effect.Snapshot.CurrentNoiseAmount, precision: 6);
+        Assert.True(Peak(buffer) > 0f);
+    }
+
+    [Fact]
     public void SlipEffect_SuppressesVeryLowSpeedSlipNoise()
     {
         var buffer = RenderSlip(State(speed: 3, throttle: 1f, wheelSlipRatio: Wheels(1f), wheelSlipAngle: Wheels(1f)));
@@ -504,7 +526,32 @@ public sealed class HapticEffectTests
         effect.Render(buffer);
 
         Assert.True(effect.Snapshot.CurrentLockIntensity > 0f);
+        Assert.Equal("Wheel lock", effect.Snapshot.ActiveSource);
+        Assert.Equal(SlipEffectOptions.Default.WheelLockFrequencyHz, effect.Snapshot.CurrentFrequencyHz, precision: 6);
         Assert.True(Peak(buffer) > 0f);
+    }
+
+    [Fact]
+    public void SlipEffect_WheelLockCanBeDisabledIndependently()
+    {
+        var effect = new SlipEffect(SlipEffectOptions.Default with
+        {
+            WheelLockEnabled = false
+        });
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        effect.Update(State(
+            speed: 120,
+            brake: 0.8f,
+            wheelSlipRatio: Wheels(0f),
+            wheelSlipAngle: Wheels(0f),
+            wheelSpeed: Wheels(2f)));
+        var result = effect.Render(buffer);
+
+        Assert.False(result.IsActive);
+        Assert.False(effect.Snapshot.IsActive);
+        Assert.Equal("below thresholds", effect.Snapshot.ActiveReason);
+        AssertSilence(buffer);
     }
 
     [Fact]

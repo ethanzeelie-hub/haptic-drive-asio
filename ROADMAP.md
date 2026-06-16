@@ -77,6 +77,7 @@
 - Stage 18q-F: Road validation checklist and documentation complete.
 - Stage 18r-B: User settings persistence, defaults cleanup, UI safety simplification, P-HPR wording cleanup, and replay rename complete.
 - Stage 18r-C: BST-1 road speed/frequency/grain tuning controls and Devices-tab persistence hotfix complete.
+- Stage 18r-D: BST-1 wheel slip / wheel lock tuning controls and diagnostics complete.
 
 ## Planned Stages
 
@@ -125,6 +126,7 @@
 43. Stage 18q-F: Road validation checklist and documentation. Complete.
 44. Stage 18r-B: User settings persistence, defaults cleanup, UI safety simplification, P-HPR wording cleanup, and replay rename. Complete.
 45. Stage 18r-C: BST-1 road speed/frequency/grain tuning controls and Devices-tab persistence hotfix. Complete.
+46. Stage 18r-D: BST-1 wheel slip / wheel lock tuning controls and diagnostics. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -193,6 +195,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 18q-F updates the road validation guides, manual hardware checklist, roadmap, known issues, and development log for the Stage 18q-C/D/E behavior changes without claiming physical validation.
 - Stage 18r-B persists normal user tuning across launches through `default.hdprofile.json` and app settings, keeps hardware-energising runtime states out of persistence, raises BST-1 gain headroom to the full `0-100%` UI range, simplifies Routing / Mixer safety controls to output gain only with limiter/ceiling retained internally, cleans up P-HPR road/slip/lock wording, and adds guarded Rename Selected recording support without changing gear runtime behavior, ASIO backend behavior, P-HPR HID/runtime behavior, or road/slip DSP logic.
 - Stage 18r-C fixes the remaining safe Devices-tab persistence gaps by saving paddle debounce plus Arm ASIO readiness preference without auto-starting output, and extends BST-1 road tuning with low/high-speed frequency, speed-reference, speed-frequency influence, and grain controls while keeping one shared `RoadTextureSignal`, bounded intensity, and existing gear ducking/P-HPR separation.
+- Stage 18r-D keeps one shared BST-1 slip/lock evaluator but splits normal-user wheel-slip and wheel-lock tuning into independent enabled/gain/frequency/roughness controls, persists those new fields safely in audio profiles, migrates older combined slip profiles conservatively, and expands BST-1 slip/lock diagnostics without changing P-HPR slip/lock routing, road tuning, gear timing, parser layouts, or ASIO backend behavior.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

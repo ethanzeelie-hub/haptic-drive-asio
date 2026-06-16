@@ -11,7 +11,7 @@ Profiles include:
 - Format version.
 - Profile name.
 - Per-effect enabled state and per-output gain.
-- Selected existing effect parameters exposed by the UI, such as engine frequency bounds, gear/impact pulse duration, kerb base frequency, road texture speed gate, and slip ratio threshold.
+- Selected existing effect parameters exposed by the UI, such as engine frequency bounds, gear/impact pulse duration, kerb base frequency, road texture speed gate, and BST-1 slip/lock tuning including slip gain/frequency/roughness, lock gain/frequency/roughness, slip ratio threshold, and lock wheel-speed sensitivity.
 - Mixer master gain and normal mute.
 - Safety output gain. The persisted ceiling/limiter values are normalized back to the protected Stage 18r-B internal settings when profiles load.
 
@@ -72,6 +72,8 @@ The default directory is under the current user's local application data:
 Generated profile files are user data and should not be committed.
 
 The shell now auto-saves normal audio tuning changes back to `default.hdprofile.json`. Manual profile save/load still exists for explicit snapshots. The separate P-HPR profile remains a manual effect-preferences snapshot and does not re-arm direct output on launch.
+
+Older profiles that only stored one combined BST-1 slip enabled state, gain, and base frequency still load safely. Stage 18r-D maps those legacy values onto the new separate slip/lock fields conservatively and fills any newly missing lock/roughness fields from safe defaults.
 
 ## Validation
 

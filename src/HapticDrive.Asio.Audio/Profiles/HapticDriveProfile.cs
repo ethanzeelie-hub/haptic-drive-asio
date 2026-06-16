@@ -65,12 +65,20 @@ public sealed record HapticDriveProfile(
             },
             SlipEffectOptions.Default with
             {
-                IsEnabled = profile.Effects.Slip.IsEnabled,
-                Gain = profile.Effects.Slip.Gain,
-                BaseFrequencyHz = profile.Effects.Slip.BaseFrequencyHz,
+                IsEnabled = (profile.Effects.Slip.WheelSlipEnabled ?? profile.Effects.Slip.IsEnabled)
+                    || (profile.Effects.Slip.WheelLockEnabled ?? profile.Effects.Slip.IsEnabled),
+                WheelSlipEnabled = profile.Effects.Slip.WheelSlipEnabled ?? profile.Effects.Slip.IsEnabled,
+                WheelSlipGain = profile.Effects.Slip.Gain,
+                WheelSlipFrequencyHz = profile.Effects.Slip.BaseFrequencyHz,
+                WheelSlipNoiseAmount = profile.Effects.Slip.WheelSlipNoiseAmount ?? SlipEffectOptions.Default.WheelSlipNoiseAmount,
+                WheelLockEnabled = profile.Effects.Slip.WheelLockEnabled ?? profile.Effects.Slip.IsEnabled,
+                WheelLockGain = profile.Effects.Slip.WheelLockGain ?? profile.Effects.Slip.Gain,
+                WheelLockFrequencyHz = profile.Effects.Slip.WheelLockFrequencyHz ?? SlipEffectOptions.Default.WheelLockFrequencyHz,
+                WheelLockNoiseAmount = profile.Effects.Slip.WheelLockNoiseAmount ?? SlipEffectOptions.Default.WheelLockNoiseAmount,
                 MinimumSpeedKph = profile.Effects.Slip.MinimumSpeedKph,
                 SlipRatioThreshold = profile.Effects.Slip.SlipRatioThreshold,
-                SlipAngleThresholdRadians = profile.Effects.Slip.SlipAngleThresholdRadians
+                SlipAngleThresholdRadians = profile.Effects.Slip.SlipAngleThresholdRadians,
+                BrakeLockWheelSpeedRatioThreshold = profile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold
             });
     }
 
@@ -143,12 +151,21 @@ public sealed record HapticDriveProfile(
                     GrainAmount = effects.RoadTexture.Bst1GrainAmount
                 },
                 new SlipTuning(
-                    effects.Slip.IsEnabled,
-                    effects.Slip.Gain,
-                    effects.Slip.BaseFrequencyHz,
+                    effects.Slip.WheelSlipEnabled || effects.Slip.WheelLockEnabled,
+                    effects.Slip.WheelSlipGain,
+                    effects.Slip.WheelSlipFrequencyHz,
                     effects.Slip.MinimumSpeedKph,
                     effects.Slip.SlipRatioThreshold,
-                    effects.Slip.SlipAngleThresholdRadians)),
+                    effects.Slip.SlipAngleThresholdRadians)
+                {
+                    WheelSlipEnabled = effects.Slip.WheelSlipEnabled,
+                    WheelSlipNoiseAmount = effects.Slip.WheelSlipNoiseAmount,
+                    WheelLockEnabled = effects.Slip.WheelLockEnabled,
+                    WheelLockGain = effects.Slip.WheelLockGain,
+                    WheelLockFrequencyHz = effects.Slip.WheelLockFrequencyHz,
+                    WheelLockNoiseAmount = effects.Slip.WheelLockNoiseAmount,
+                    WheelLockWheelSpeedRatioThreshold = effects.Slip.BrakeLockWheelSpeedRatioThreshold
+                }),
             new HapticMixerTuning(mixer.MasterGain, mixer.IsMuted),
             new HapticSafetyTuning(
                 safety.OutputGain,
@@ -201,10 +218,19 @@ public sealed record HapticDriveProfile(
                 new SlipTuning(
                     IsEnabled: false,
                     Gain: 0.5f,
-                    effects.Slip.BaseFrequencyHz,
+                    effects.Slip.WheelSlipFrequencyHz,
                     effects.Slip.MinimumSpeedKph,
                     effects.Slip.SlipRatioThreshold,
-                    effects.Slip.SlipAngleThresholdRadians)),
+                    effects.Slip.SlipAngleThresholdRadians)
+                {
+                    WheelSlipEnabled = false,
+                    WheelSlipNoiseAmount = effects.Slip.WheelSlipNoiseAmount,
+                    WheelLockEnabled = false,
+                    WheelLockGain = 0.5f,
+                    WheelLockFrequencyHz = effects.Slip.WheelLockFrequencyHz,
+                    WheelLockNoiseAmount = effects.Slip.WheelLockNoiseAmount,
+                    WheelLockWheelSpeedRatioThreshold = effects.Slip.BrakeLockWheelSpeedRatioThreshold
+                }),
             new HapticMixerTuning(
                 AudioMixerSettings.Default.MasterGain,
                 AudioMixerSettings.Default.IsMuted),
@@ -273,7 +299,22 @@ public sealed record SlipTuning(
     float BaseFrequencyHz,
     float MinimumSpeedKph,
     float SlipRatioThreshold,
-    float SlipAngleThresholdRadians);
+    float SlipAngleThresholdRadians)
+{
+    public bool? WheelSlipEnabled { get; init; }
+
+    public float? WheelSlipNoiseAmount { get; init; }
+
+    public bool? WheelLockEnabled { get; init; }
+
+    public float? WheelLockGain { get; init; }
+
+    public float? WheelLockFrequencyHz { get; init; }
+
+    public float? WheelLockNoiseAmount { get; init; }
+
+    public float? WheelLockWheelSpeedRatioThreshold { get; init; }
+}
 
 public sealed record HapticMixerTuning(
     float MasterGain,
@@ -337,6 +378,15 @@ public static class HapticProfileValidator
             repaired = true;
             messages.Add("Safety tuning was missing; defaults were used.");
         }
+
+        var slipWheelSlipEnabled = effects.Slip?.WheelSlipEnabled
+            ?? effects.Slip?.IsEnabled
+            ?? defaultProfile.Effects.Slip.WheelSlipEnabled
+            ?? defaultProfile.Effects.Slip.IsEnabled;
+        var slipWheelLockEnabled = effects.Slip?.WheelLockEnabled
+            ?? effects.Slip?.IsEnabled
+            ?? defaultProfile.Effects.Slip.WheelLockEnabled
+            ?? defaultProfile.Effects.Slip.IsEnabled;
 
         var repairedEffects = new HapticEffectTuning(
             new EngineVibrationTuning(
@@ -438,12 +488,56 @@ public static class HapticProfileValidator
                     ref repaired)
             },
             new SlipTuning(
-                effects.Slip?.IsEnabled ?? defaultProfile.Effects.Slip.IsEnabled,
+                slipWheelSlipEnabled || slipWheelLockEnabled,
                 Clamp(effects.Slip?.Gain, 0f, 1f, defaultProfile.Effects.Slip.Gain, "slip gain", messages, ref repaired),
                 Clamp(effects.Slip?.BaseFrequencyHz, 5f, 120f, defaultProfile.Effects.Slip.BaseFrequencyHz, "slip base frequency", messages, ref repaired),
                 Clamp(effects.Slip?.MinimumSpeedKph, 0f, 120f, defaultProfile.Effects.Slip.MinimumSpeedKph, "slip minimum speed", messages, ref repaired),
                 Clamp(effects.Slip?.SlipRatioThreshold, 0.01f, 1f, defaultProfile.Effects.Slip.SlipRatioThreshold, "slip ratio threshold", messages, ref repaired),
-                Clamp(effects.Slip?.SlipAngleThresholdRadians, 0.01f, 1f, defaultProfile.Effects.Slip.SlipAngleThresholdRadians, "slip angle threshold", messages, ref repaired)));
+                Clamp(effects.Slip?.SlipAngleThresholdRadians, 0.01f, 1f, defaultProfile.Effects.Slip.SlipAngleThresholdRadians, "slip angle threshold", messages, ref repaired))
+            {
+                WheelSlipEnabled = slipWheelSlipEnabled,
+                WheelSlipNoiseAmount = Clamp(
+                    effects.Slip?.WheelSlipNoiseAmount,
+                    0f,
+                    1f,
+                    defaultProfile.Effects.Slip.WheelSlipNoiseAmount ?? SlipEffectOptions.Default.WheelSlipNoiseAmount,
+                    "slip roughness",
+                    messages,
+                    ref repaired),
+                WheelLockEnabled = slipWheelLockEnabled,
+                WheelLockGain = Clamp(
+                    effects.Slip?.WheelLockGain ?? effects.Slip?.Gain,
+                    0f,
+                    1f,
+                    defaultProfile.Effects.Slip.WheelLockGain ?? defaultProfile.Effects.Slip.Gain,
+                    "wheel lock gain",
+                    messages,
+                    ref repaired),
+                WheelLockFrequencyHz = Clamp(
+                    effects.Slip?.WheelLockFrequencyHz,
+                    5f,
+                    120f,
+                    defaultProfile.Effects.Slip.WheelLockFrequencyHz ?? SlipEffectOptions.Default.WheelLockFrequencyHz,
+                    "wheel lock frequency",
+                    messages,
+                    ref repaired),
+                WheelLockNoiseAmount = Clamp(
+                    effects.Slip?.WheelLockNoiseAmount,
+                    0f,
+                    1f,
+                    defaultProfile.Effects.Slip.WheelLockNoiseAmount ?? SlipEffectOptions.Default.WheelLockNoiseAmount,
+                    "wheel lock roughness",
+                    messages,
+                    ref repaired),
+                WheelLockWheelSpeedRatioThreshold = Clamp(
+                    effects.Slip?.WheelLockWheelSpeedRatioThreshold,
+                    0.05f,
+                    1f,
+                    defaultProfile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold,
+                    "wheel lock wheel-speed ratio threshold",
+                    messages,
+                    ref repaired)
+            });
 
         var repairedProfile = new HapticDriveProfile(
             HapticDriveProfile.CurrentVersion,

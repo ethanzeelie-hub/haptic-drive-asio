@@ -260,7 +260,22 @@ public sealed class RoadTextureDiagnosticsReportTests
             new KerbEffectSnapshot(false, false, null, "None", 0f, 0f, 0, 0f),
             new ImpactEffectSnapshot(false, false, null, null, 0f, 0, 0f),
             road,
-            new SlipEffectSnapshot(false, false, 0f, 0f, 0f, 0f, 0f),
+            new SlipEffectSnapshot(
+                IsEnabled: false,
+                WheelSlipEnabled: false,
+                WheelLockEnabled: false,
+                IsActive: false,
+                CurrentSlipIntensity: 0f,
+                CurrentLockIntensity: 0f,
+                CurrentSlipRatio: 0f,
+                CurrentSlipAngleRadians: 0f,
+                CurrentMinimumWheelSpeedRatio: 1f,
+                CurrentFrequencyHz: 0f,
+                CurrentNoiseAmount: 0f,
+                CurrentAmplitude: 0f,
+                ActiveSource: "None",
+                ActiveReason: "inactive",
+                PeakLevel: 0f),
             ActiveEffectCount: 1,
             PeakLevel: roadPeak);
         var output = new AudioOutputStatus(

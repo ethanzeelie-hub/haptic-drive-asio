@@ -90,16 +90,18 @@ Default assumptions:
 
 Slip is a continuous deterministic source covering Stage 13 slip, traction-loss, and minimal wheel-lock behavior.
 
+Stage 18r-D keeps one shared evaluator/render path but exposes separate BST-1 tuning for wheel slip and wheel lock so each can be enabled, gained, frequency-tuned, and roughness-tuned independently.
+
 Default assumptions:
 
-- Enabled by default with conservative gain `0.09`.
+- Enabled by default at the runtime-options layer with conservative wheel-slip gain `0.09` and wheel-lock gain `0.10`.
 - Wheel slip ratio and wheel slip angle determine slip intensity.
 - Speed below `8 km/h` suppresses output to avoid low-speed telemetry noise.
-- Throttle and brake thresholds are inspired by SimHub-style trigger controls. Stage 14 exposes a practical slip ratio threshold and conservative gain control; a full tyre/ABS tuning model remains deferred.
+- Throttle and brake thresholds are inspired by SimHub-style trigger controls. Stage 18r-D exposes a practical slip ratio threshold for slip and a wheel-speed-ratio sensitivity control for lock; a full tyre/ABS tuning model remains deferred.
 - TC and ABS state reduce intensity conservatively when active.
 - Brake-lock shaping uses brake input, high slip ratio, and wheel speed much lower than vehicle speed.
 - Invalid, missing, stale, NaN, infinity, negative, or unrealistic values are sanitized, bounded, or silenced.
-- Output uses `40 Hz` for slip and `30 Hz` for brake-lock shaping with an optional `50 Hz` component and deterministic roughness.
+- Output now defaults to `52 Hz` wheel slip with `18%` roughness and `68 Hz` wheel lock with `24%` roughness.
 
 Stage 13 does not implement a separate advanced ABS effect, advanced tyre model, or physical lock-up calibration.
 

@@ -31,6 +31,10 @@ public sealed class HapticProfileTests
         Assert.Equal(0.75f, profile.Effects.RoadTexture.SpeedFrequencyInfluence, precision: 6);
         Assert.Equal(0.18f, profile.Effects.RoadTexture.GrainAmount, precision: 6);
         Assert.False(profile.Effects.Slip.IsEnabled);
+        Assert.False(profile.Effects.Slip.WheelSlipEnabled ?? true);
+        Assert.False(profile.Effects.Slip.WheelLockEnabled ?? true);
+        Assert.Equal(0.5f, profile.Effects.Slip.Gain, precision: 6);
+        Assert.Equal(0.5f, profile.Effects.Slip.WheelLockGain ?? -1f, precision: 6);
         Assert.Equal(0.5f, profile.Effects.Engine.Gain, precision: 6);
         Assert.Equal(0.5f, profile.Effects.GearShift.Gain, precision: 6);
         Assert.Equal(0.5f, profile.Effects.Impact.Gain, precision: 6);
@@ -69,6 +73,20 @@ public sealed class HapticProfileTests
                     HighSpeedFrequencyHz = 72f,
                     SpeedFrequencyInfluence = 0.55f,
                     GrainAmount = 0.24f
+                },
+                Slip = HapticDriveProfile.Default.Effects.Slip with
+                {
+                    IsEnabled = true,
+                    Gain = 0.34f,
+                    BaseFrequencyHz = 58f,
+                    SlipRatioThreshold = 0.14f,
+                    WheelSlipEnabled = true,
+                    WheelSlipNoiseAmount = 0.28f,
+                    WheelLockEnabled = true,
+                    WheelLockGain = 0.46f,
+                    WheelLockFrequencyHz = 72f,
+                    WheelLockNoiseAmount = 0.35f,
+                    WheelLockWheelSpeedRatioThreshold = 0.22f
                 }
             },
             Mixer = HapticDriveProfile.Default.Mixer with
@@ -93,6 +111,15 @@ public sealed class HapticProfileTests
         Assert.Equal(72f, loadResult.Profile.Effects.RoadTexture.HighSpeedFrequencyHz, precision: 6);
         Assert.Equal(0.55f, loadResult.Profile.Effects.RoadTexture.SpeedFrequencyInfluence, precision: 6);
         Assert.Equal(0.24f, loadResult.Profile.Effects.RoadTexture.GrainAmount, precision: 6);
+        Assert.True(loadResult.Profile.Effects.Slip.WheelSlipEnabled ?? false);
+        Assert.True(loadResult.Profile.Effects.Slip.WheelLockEnabled ?? false);
+        Assert.Equal(0.34f, loadResult.Profile.Effects.Slip.Gain, precision: 6);
+        Assert.Equal(58f, loadResult.Profile.Effects.Slip.BaseFrequencyHz, precision: 6);
+        Assert.Equal(0.28f, loadResult.Profile.Effects.Slip.WheelSlipNoiseAmount ?? -1f, precision: 6);
+        Assert.Equal(0.46f, loadResult.Profile.Effects.Slip.WheelLockGain ?? -1f, precision: 6);
+        Assert.Equal(72f, loadResult.Profile.Effects.Slip.WheelLockFrequencyHz ?? -1f, precision: 6);
+        Assert.Equal(0.35f, loadResult.Profile.Effects.Slip.WheelLockNoiseAmount ?? -1f, precision: 6);
+        Assert.Equal(0.22f, loadResult.Profile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? -1f, precision: 6);
         Assert.Equal(0.45f, loadResult.Profile.Mixer.MasterGain, precision: 6);
         Assert.True(loadResult.Profile.Mixer.IsMuted);
     }
@@ -154,7 +181,12 @@ public sealed class HapticProfileTests
                 },
                 Slip = HapticDriveProfile.Default.Effects.Slip with
                 {
-                    SlipRatioThreshold = float.NaN
+                    SlipRatioThreshold = float.NaN,
+                    WheelSlipNoiseAmount = float.PositiveInfinity,
+                    WheelLockGain = -2f,
+                    WheelLockFrequencyHz = 999f,
+                    WheelLockNoiseAmount = float.NaN,
+                    WheelLockWheelSpeedRatioThreshold = 0f
                 }
             },
             Mixer = HapticDriveProfile.Default.Mixer with
@@ -177,6 +209,11 @@ public sealed class HapticProfileTests
         Assert.InRange(result.Profile.Effects.Engine.Gain, 0f, 1f);
         Assert.InRange(result.Profile.Effects.RoadTexture.Gain, 0f, 1f);
         Assert.Equal(HapticDriveProfile.Default.Effects.Slip.SlipRatioThreshold, result.Profile.Effects.Slip.SlipRatioThreshold);
+        Assert.Equal(HapticDriveProfile.Default.Effects.Slip.WheelSlipNoiseAmount, result.Profile.Effects.Slip.WheelSlipNoiseAmount);
+        Assert.Equal(0f, result.Profile.Effects.Slip.WheelLockGain ?? -1f, precision: 6);
+        Assert.Equal(120f, result.Profile.Effects.Slip.WheelLockFrequencyHz ?? -1f, precision: 6);
+        Assert.Equal(HapticDriveProfile.Default.Effects.Slip.WheelLockNoiseAmount, result.Profile.Effects.Slip.WheelLockNoiseAmount);
+        Assert.Equal(0.05f, result.Profile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? -1f, precision: 6);
         Assert.Equal(HapticDriveProfile.Default.Mixer.MasterGain, result.Profile.Mixer.MasterGain);
         Assert.Equal(1f, result.Profile.Safety.OutputGain, precision: 6);
         Assert.Equal(AudioSafetyProcessorOptions.DefaultOutputGainCeiling, result.Profile.Safety.OutputGainCeiling);
@@ -202,6 +239,35 @@ public sealed class HapticProfileTests
         Assert.Equal(1f, tunedProfile.Effects.RoadTexture.Gain, precision: 6);
         Assert.Equal(1f, tunedProfile.Effects.Slip.Gain, precision: 6);
         Assert.Equal(1f, tunedProfile.ToEffectOptions().RoadTexture.Gain, precision: 6);
+    }
+
+    [Fact]
+    public void SlipProfile_MigratesLegacyCombinedSettingsIntoSlipAndLockOutputs()
+    {
+        var legacySlip = new SlipTuning(
+            IsEnabled: true,
+            Gain: 0.37f,
+            BaseFrequencyHz: 54f,
+            MinimumSpeedKph: 8f,
+            SlipRatioThreshold: 0.12f,
+            SlipAngleThresholdRadians: 0.08f);
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with { Slip = legacySlip }
+        };
+
+        var validated = HapticProfileValidator.Validate(profile).Profile;
+        var options = validated.ToEffectOptions().Slip;
+
+        Assert.True(validated.Effects.Slip.WheelSlipEnabled ?? false);
+        Assert.True(validated.Effects.Slip.WheelLockEnabled ?? false);
+        Assert.True(options.IsEnabled);
+        Assert.True(options.WheelSlipEnabled);
+        Assert.True(options.WheelLockEnabled);
+        Assert.Equal(0.37f, options.WheelSlipGain, precision: 6);
+        Assert.Equal(0.37f, options.WheelLockGain, precision: 6);
+        Assert.Equal(54f, options.WheelSlipFrequencyHz, precision: 6);
+        Assert.Equal(SlipEffectOptions.Default.WheelLockFrequencyHz, options.WheelLockFrequencyHz, precision: 6);
     }
 
     [Fact]

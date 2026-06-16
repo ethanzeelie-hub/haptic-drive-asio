@@ -3077,3 +3077,35 @@ Self-review:
 - Gear runtime timing/logic was not intentionally changed.
 - P-HPR direct HID/protocol/runtime, slip/lock tuning, and ASIO backend behavior were not intentionally changed.
 - No physical validation, safe physical gain claim, shaker feel claim, or latency claim is made here. The new road controls are software starting points only.
+
+## Stage 18r-D - BST-1 Wheel Slip / Wheel Lock Tuning Controls And Diagnostics
+
+Date: 2026-06-16
+
+Status: Complete.
+
+Goal: Split the BST-1 wheel slip and wheel lock tuning path into separate normal-user controls with safe profile persistence, migration/clamping, and clearer diagnostics while leaving P-HPR slip/lock, road behavior, gear behavior, parser layouts, and ASIO backend behavior unchanged.
+
+Changes:
+
+- Kept one shared BST-1 slip/lock evaluator/render path but split its options into independent wheel-slip and wheel-lock enabled, gain, frequency, and roughness settings.
+- Extended the audio profile model and validator so the new slip/lock fields persist safely, clamp to conservative bounds, and migrate older combined slip profiles by inheriting legacy combined enabled/gain settings where appropriate.
+- Reworked the BST-1 Effects card to expose separate wheel-slip and wheel-lock controls plus user-facing slip ratio threshold and lock sensitivity tuning.
+- Expanded BST-1 slip/lock runtime status text and copied diagnostics to show active source, inactive reason, slip/lock intensities, raw slip ratio/angle, wheel-speed ratio, frequency, roughness, and peak.
+- Added fake-backed coverage for separate slip-vs-lock tuning behavior, profile round-trip/migration/clamping, updated Effects-page source-XAML expectations, and the widened slip snapshot used by road diagnostics tests.
+- Updated the haptic-effects and profiles/diagnostics docs for the new Stage 18r-D BST-1 slip/lock tuning model.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 684 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18r-D stayed within the requested BST-1 slip/lock tuning, persistence, diagnostics, tests, and docs scope.
+- The BST-1 path still uses one shared software evaluator, so separate slip and lock feel remain software tuning inputs rather than proof of final physical shaker behavior.
+- P-HPR slip/lock routing, direct HID/runtime behavior, road tuning, gear timing, parser fields, and ASIO backend behavior were not intentionally changed.
+- No physical validation, safe physical gain claim, shaker feel claim, or latency claim is made here.

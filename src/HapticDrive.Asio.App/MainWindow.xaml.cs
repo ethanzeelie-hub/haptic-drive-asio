@@ -4030,9 +4030,18 @@ public partial class MainWindow : Window
                 },
                 Slip = effects.Slip with
                 {
-                    IsEnabled = SlipEnabledCheckBox.IsChecked == true,
-                    Gain = (float)SlipGainSlider.Value,
-                    SlipRatioThreshold = (float)SlipThresholdSlider.Value
+                    IsEnabled = SlipWheelSlipEnabledCheckBox.IsChecked == true
+                        || SlipWheelLockEnabledCheckBox.IsChecked == true,
+                    Gain = (float)SlipWheelSlipGainSlider.Value,
+                    BaseFrequencyHz = (float)SlipWheelSlipFrequencySlider.Value,
+                    SlipRatioThreshold = (float)SlipThresholdSlider.Value,
+                    WheelSlipEnabled = SlipWheelSlipEnabledCheckBox.IsChecked == true,
+                    WheelSlipNoiseAmount = (float)SlipWheelSlipNoiseSlider.Value,
+                    WheelLockEnabled = SlipWheelLockEnabledCheckBox.IsChecked == true,
+                    WheelLockGain = (float)SlipWheelLockGainSlider.Value,
+                    WheelLockFrequencyHz = (float)SlipWheelLockFrequencySlider.Value,
+                    WheelLockNoiseAmount = (float)SlipWheelLockNoiseSlider.Value,
+                    WheelLockWheelSpeedRatioThreshold = (float)SlipWheelLockSensitivitySlider.Value
                 }
             },
             Mixer = _currentProfile.Mixer with
@@ -4089,8 +4098,15 @@ public partial class MainWindow : Window
         RoadTextureHighSpeedFrequencySlider.Value = safeProfile.Effects.RoadTexture.HighSpeedFrequencyHz;
         RoadTextureSpeedFrequencyInfluenceSlider.Value = safeProfile.Effects.RoadTexture.SpeedFrequencyInfluence;
         RoadTextureGrainAmountSlider.Value = safeProfile.Effects.RoadTexture.GrainAmount;
-        SlipEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.IsEnabled;
-        SlipGainSlider.Value = safeProfile.Effects.Slip.Gain;
+        SlipWheelSlipEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.WheelSlipEnabled ?? safeProfile.Effects.Slip.IsEnabled;
+        SlipWheelSlipGainSlider.Value = safeProfile.Effects.Slip.Gain;
+        SlipWheelSlipFrequencySlider.Value = safeProfile.Effects.Slip.BaseFrequencyHz;
+        SlipWheelSlipNoiseSlider.Value = safeProfile.Effects.Slip.WheelSlipNoiseAmount ?? SlipEffectOptions.Default.WheelSlipNoiseAmount;
+        SlipWheelLockEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.WheelLockEnabled ?? safeProfile.Effects.Slip.IsEnabled;
+        SlipWheelLockGainSlider.Value = safeProfile.Effects.Slip.WheelLockGain ?? safeProfile.Effects.Slip.Gain;
+        SlipWheelLockFrequencySlider.Value = safeProfile.Effects.Slip.WheelLockFrequencyHz ?? SlipEffectOptions.Default.WheelLockFrequencyHz;
+        SlipWheelLockNoiseSlider.Value = safeProfile.Effects.Slip.WheelLockNoiseAmount ?? SlipEffectOptions.Default.WheelLockNoiseAmount;
+        SlipWheelLockSensitivitySlider.Value = safeProfile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold;
         SlipThresholdSlider.Value = safeProfile.Effects.Slip.SlipRatioThreshold;
         MasterGainSlider.Value = safeProfile.Mixer.MasterGain;
         MixerMuteCheckBox.IsChecked = safeProfile.Mixer.IsMuted;
@@ -4117,7 +4133,13 @@ public partial class MainWindow : Window
         RoadTextureHighSpeedFrequencyValueText.Text = $"{profile.Effects.RoadTexture.HighSpeedFrequencyHz:0} Hz";
         RoadTextureSpeedFrequencyInfluenceValueText.Text = $"{profile.Effects.RoadTexture.SpeedFrequencyInfluence:P0}";
         RoadTextureGrainAmountValueText.Text = $"{profile.Effects.RoadTexture.GrainAmount:P0}";
-        SlipGainValueText.Text = $"{profile.Effects.Slip.Gain:P0}";
+        SlipWheelSlipGainValueText.Text = $"{profile.Effects.Slip.Gain:P0}";
+        SlipWheelSlipFrequencyValueText.Text = $"{profile.Effects.Slip.BaseFrequencyHz:0} Hz";
+        SlipWheelSlipNoiseValueText.Text = $"{(profile.Effects.Slip.WheelSlipNoiseAmount ?? SlipEffectOptions.Default.WheelSlipNoiseAmount):P0}";
+        SlipWheelLockGainValueText.Text = $"{(profile.Effects.Slip.WheelLockGain ?? profile.Effects.Slip.Gain):P0}";
+        SlipWheelLockFrequencyValueText.Text = $"{(profile.Effects.Slip.WheelLockFrequencyHz ?? SlipEffectOptions.Default.WheelLockFrequencyHz):0} Hz";
+        SlipWheelLockNoiseValueText.Text = $"{(profile.Effects.Slip.WheelLockNoiseAmount ?? SlipEffectOptions.Default.WheelLockNoiseAmount):P0}";
+        SlipWheelLockSensitivityValueText.Text = $"{(profile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold):0.00}";
         SlipThresholdValueText.Text = $"{profile.Effects.Slip.SlipRatioThreshold:0.00}";
         MasterGainValueText.Text = $"{profile.Mixer.MasterGain:P0}";
         SafetyOutputGainValueText.Text = $"{profile.Safety.OutputGain:P0}";
@@ -4702,7 +4724,7 @@ public partial class MainWindow : Window
         Bst1RoutingSummaryText.Text =
             $"Output mode {selectedOutputMode}; selected driver {_selectedAsioDriverName ?? "none"}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; readiness {BuildTrueAsioStatusText(manualAsio)}.";
         Bst1EffectsSummaryText.Text =
-            $"Effects: gear {FormatEnabledActive(_bst1PaddleGearPulseEnabled, effectSnapshot.GearShift.IsActive)}; road {FormatEnabledActive(effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive)}; engine {FormatEnabledActive(effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive)}; kerb {FormatEnabledActive(effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive)}; impact {FormatEnabledActive(effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive)}; slip/lock {FormatEnabledActive(effectSnapshot.Slip.IsEnabled, effectSnapshot.Slip.IsActive)}.";
+            $"Effects: gear {FormatEnabledActive(_bst1PaddleGearPulseEnabled, effectSnapshot.GearShift.IsActive)}; road {FormatEnabledActive(effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive)}; engine {FormatEnabledActive(effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive)}; kerb {FormatEnabledActive(effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive)}; impact {FormatEnabledActive(effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive)}; slip {FormatEnabledActive(effectSnapshot.Slip.WheelSlipEnabled, effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel slip", StringComparison.Ordinal))}; lock {FormatEnabledActive(effectSnapshot.Slip.WheelLockEnabled, effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel lock", StringComparison.Ordinal))}.";
 
         ConfigurePhprDirectRuntime();
         var directRuntime = _phprDirectRuntime.GetSnapshot();
@@ -5275,7 +5297,8 @@ public partial class MainWindow : Window
             $"VehicleState: {vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
             $"Recording: {(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
             $"Replay: {(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
-            $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
+            $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.WheelSlipEnabled}, lock {effectSnapshot.Slip.WheelLockEnabled}; overall slip/lock {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
+            $"BST-1 slip/lock: source {effectSnapshot.Slip.ActiveSource}; reason {effectSnapshot.Slip.ActiveReason}; slip intensity {effectSnapshot.Slip.CurrentSlipIntensity:0.00}; lock intensity {effectSnapshot.Slip.CurrentLockIntensity:0.00}; slip ratio {effectSnapshot.Slip.CurrentSlipRatio:0.00}; slip angle {effectSnapshot.Slip.CurrentSlipAngleRadians:0.00} rad; wheel-speed ratio {effectSnapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}; frequency {effectSnapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {effectSnapshot.Slip.CurrentNoiseAmount:P0}; peak {effectSnapshot.Slip.PeakLevel:0.000}.",
             $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
             roadDiagnosticLines[0],
             roadDiagnosticLines[1],
@@ -6640,11 +6663,13 @@ public partial class MainWindow : Window
             : $"{snapshot.RoadTexture.DominantSurfaceName}; shared signal {(sharedRoadSignalActive ? "active" : "idle")}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; speed {snapshot.RoadTexture.Signal.SpeedKph} km/h; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; grain {snapshot.RoadTexture.Signal.NoiseAmount:P0}; BST-1 peak {snapshot.RoadTexture.PeakLevel:0.000}.";
         RoadTextureEffectDefaultsText.Text = $"BST-1 / ASIO road output gain {options.RoadTexture.Gain:P0}; min {options.RoadTexture.MinimumSpeedKph:0} km/h; speed ref {options.RoadTexture.FullIntensitySpeedKph:0} km/h; {options.RoadTexture.Bst1LowSpeedFrequencyHz:0}-{options.RoadTexture.Bst1HighSpeedFrequencyHz:0} Hz; speed influence {options.RoadTexture.Bst1SpeedFrequencyInfluence:P0}; grain {options.RoadTexture.Bst1GrainAmount:P0}; shared signal {options.RoadTexture.IsEnabled}; BST-1 output {options.RoadTexture.Bst1OutputEnabled}.";
 
-        SlipEffectStateText.Text = snapshot.Slip.IsActive ? "Active" : "Idle";
-        SlipEffectDetailText.Text = snapshot.Slip.CurrentSlipIntensity <= 0f && snapshot.Slip.CurrentLockIntensity <= 0f
-            ? "Waiting for Motion Ex slip ratio / angle telemetry."
-            : $"Slip {snapshot.Slip.CurrentSlipIntensity:0.00}; lock {snapshot.Slip.CurrentLockIntensity:0.00}; {snapshot.Slip.CurrentFrequencyHz:0.0} Hz; peak {snapshot.Slip.PeakLevel:0.000}.";
-        SlipEffectDefaultsText.Text = $"Tuned gain {options.Slip.Gain:P0}; {options.Slip.BaseFrequencyHz:0} Hz slip; threshold {options.Slip.SlipRatioThreshold:0.00}; enabled {options.Slip.IsEnabled}.";
+        SlipEffectStateText.Text = snapshot.Slip.IsActive ? $"{snapshot.Slip.ActiveSource} active" : "Idle";
+        SlipEffectDetailText.Text = snapshot.Slip.CurrentSlipRatio <= 0f
+                                     && snapshot.Slip.CurrentSlipAngleRadians <= 0f
+                                     && Math.Abs(snapshot.Slip.CurrentMinimumWheelSpeedRatio - 1f) < 0.0001f
+            ? "Waiting for Motion Ex slip ratio / angle and wheel-speed telemetry."
+            : $"{snapshot.Slip.ActiveReason}; slip {snapshot.Slip.CurrentSlipIntensity:0.00} (ratio {snapshot.Slip.CurrentSlipRatio:0.00}, angle {snapshot.Slip.CurrentSlipAngleRadians:0.00} rad); lock {snapshot.Slip.CurrentLockIntensity:0.00} (wheel-speed ratio {snapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}); {snapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {snapshot.Slip.CurrentNoiseAmount:P0}; peak {snapshot.Slip.PeakLevel:0.000}.";
+        SlipEffectDefaultsText.Text = $"Slip {options.Slip.WheelSlipGain:P0} @ {options.Slip.WheelSlipFrequencyHz:0} Hz, roughness {options.Slip.WheelSlipNoiseAmount:P0}, threshold {options.Slip.SlipRatioThreshold:0.00}, enabled {options.Slip.WheelSlipEnabled}; lock {options.Slip.WheelLockGain:P0} @ {options.Slip.WheelLockFrequencyHz:0} Hz, roughness {options.Slip.WheelLockNoiseAmount:P0}, sensitivity {options.Slip.BrakeLockWheelSpeedRatioThreshold:0.00}, enabled {options.Slip.WheelLockEnabled}.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Effects" })
         {
