@@ -21,6 +21,8 @@ public sealed record PHprSlipLockRouterOptions
 
     public TimeSpan MinimumRouteInterval { get; init; } = TimeSpan.FromMilliseconds(100);
 
+    public TimeSpan HoldTimeout { get; init; } = TimeSpan.FromMilliseconds(350);
+
     public PHprSlipLockRouterOptions Normalize(PHprSafetyLimits? limits = null)
     {
         return this with
@@ -31,7 +33,10 @@ public sealed record PHprSlipLockRouterOptions
                 .Normalize(PHprPedalEffectKind.WheelLock, limits),
             MinimumRouteInterval = MinimumRouteInterval < TimeSpan.Zero
                 ? TimeSpan.Zero
-                : MinimumRouteInterval
+                : MinimumRouteInterval,
+            HoldTimeout = HoldTimeout < TimeSpan.Zero
+                ? TimeSpan.Zero
+                : HoldTimeout
         };
     }
 

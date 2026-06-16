@@ -161,7 +161,7 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.06d, loaded.RealPhprSlipLockRouting.WheelSlip.Strength01);
         Assert.Equal(35d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumFrequencyHz);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
-        Assert.Equal(70, loaded.RealPhprSlipLockRouting.WheelSlip.DurationMs);
+        Assert.Equal(PHprSlipLockEffectSettings.MinimumContinuousDurationMs, loaded.RealPhprSlipLockRouting.WheelSlip.DurationMs);
         Assert.False(loaded.RealPhprSlipLockRouting.WheelLock.IsEnabled);
         Assert.Equal(PHprGearPulseTarget.Throttle, loaded.RealPhprSlipLockRouting.WheelLock.TargetModule);
         Assert.DoesNotContain("DirectControlEnabled", json, StringComparison.Ordinal);
@@ -292,9 +292,9 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(PHprGearPulseTarget.Brake, loaded.RealPhprSlipLockRouting.WheelLock.TargetModule);
         Assert.Equal(0.04d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumStrength01);
         Assert.Equal(0.10d, loaded.RealPhprSlipLockRouting.WheelLock.Strength01);
-        Assert.Equal(40d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumFrequencyHz);
+        Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumFrequencyHz);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelLock.FrequencyHz);
-        Assert.Equal(10, loaded.RealPhprSlipLockRouting.WheelLock.DurationMs);
+        Assert.Equal(PHprSlipLockEffectSettings.MinimumContinuousDurationMs, loaded.RealPhprSlipLockRouting.WheelLock.DurationMs);
     }
 
     [Fact]

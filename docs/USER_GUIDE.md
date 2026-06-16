@@ -218,12 +218,18 @@ Real wheel slip and wheel lock routing is disabled by default.
 
 Wheel slip defaults to throttle. Wheel lock defaults to brake. Each effect can target brake, throttle, or both pedals and has independent strength, frequency, and duration settings.
 
+Stage 18r-E/F moves real P-HPR slip/lock onto a background bounded continuous cadence path instead of the older sparse UI-timer pulse behavior. The current software defaults use a `100 ms` cadence gate, `350 ms` hold timeout, and a minimum continuous duration clamp of `100 ms` so the route can update continuously while the effect stays active and stop explicitly when it does not.
+
+If slip/lock becomes inactive, telemetry goes stale, `DrivingArmed` falls false, coexistence blocks direct control, or a recent gear pulse enters the protection window, the app sends explicit P-HPR stop commands rather than letting the old short pulse trail off unpredictably.
+
 Priority is:
 
 1. instant gear pulse,
 2. wheel lock,
 3. wheel slip,
 4. road vibration.
+
+Real P-HPR road yields while real P-HPR slip/lock is actively holding a pedal module. BST-1 road/slip/lock behavior is unchanged by this stage.
 
 The ASIO/BST-1 slip and brake-lock effect remains separate.
 

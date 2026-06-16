@@ -1,6 +1,6 @@
 # Haptic Effects
 
-Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock. Stage 14 adds practical UI tuning and profile persistence for those existing effects. Stage 15 feeds live and replayed telemetry through those same effects, mixer, safety chain, and `NullAudioOutputDevice` in the first playable mock pipeline. Stage 17 moves live rendering into an output-owned path and adds stale telemetry mute before hardware validation. Stage 18o-B consolidates BST-1 and P-HPR road texture around one shared software road signal.
+Stage 13 implements the first six generated driving haptic effects: engine vibration, gear shift, kerb, impact, road texture, and slip / brake-lock. Stage 14 adds practical UI tuning and profile persistence for those existing effects. Stage 15 feeds live and replayed telemetry through those same effects, mixer, safety chain, and `NullAudioOutputDevice` in the first playable mock pipeline. Stage 17 moves live rendering into an output-owned path and adds stale telemetry mute before hardware validation. Stage 18o-B consolidates BST-1 and P-HPR road texture around one shared software road signal, and Stage 18r-E/F gives real P-HPR wheel slip / wheel lock their own bounded continuous cadence path.
 
 ## Source Data
 
@@ -91,6 +91,7 @@ Default assumptions:
 Slip is a continuous deterministic source covering Stage 13 slip, traction-loss, and minimal wheel-lock behavior.
 
 Stage 18r-D keeps one shared evaluator/render path but exposes separate BST-1 tuning for wheel slip and wheel lock so each can be enabled, gained, frequency-tuned, and roughness-tuned independently.
+Stage 18r-E/F keeps BST-1 unchanged but changes real P-HPR wheel slip / wheel lock from sparse UI-timer pulses to a background bounded continuous cadence model with explicit stop commands, hold-timeout watchdog protection, stale/DrivingArmed suppression, and targeted road-yield plus gear-protection behavior.
 
 Default assumptions:
 
@@ -102,6 +103,9 @@ Default assumptions:
 - Brake-lock shaping uses brake input, high slip ratio, and wheel speed much lower than vehicle speed.
 - Invalid, missing, stale, NaN, infinity, negative, or unrealistic values are sanitized, bounded, or silenced.
 - Output now defaults to `52 Hz` wheel slip with `18%` roughness and `68 Hz` wheel lock with `24%` roughness.
+- Real P-HPR wheel slip defaults to the throttle pedal with a `45-50 Hz`, `100 ms` minimum continuous duration window and `100 ms` cadence gate.
+- Real P-HPR wheel lock defaults to the brake pedal with a `50 Hz`, `100 ms` minimum continuous duration window and the same cadence/hold model.
+- Real P-HPR road yields while slip/lock is actively holding a pedal module, and accepted gear pulses briefly protect both routes without changing gear-pulse timing itself.
 
 Stage 13 does not implement a separate advanced ABS effect, advanced tyre model, or physical lock-up calibration.
 

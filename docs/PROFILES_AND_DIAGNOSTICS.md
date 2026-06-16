@@ -33,7 +33,7 @@ Stage 18r-B app settings are separate from profiles. App settings now persist:
 - Paddle input device, left/right mapping, and debounce.
 - BST-1 local paddle gear pulse enable/strength/frequency/duration mode.
 - Shift-intent settings.
-- Safe mock and normal P-HPR effect preferences already covered by the existing app-settings model.
+- Safe mock and normal P-HPR effect preferences already covered by the existing app-settings model, including the real P-HPR slip/lock target/min-max strength/min-max frequency/duration settings used by the Stage 18r-E/F continuous cadence model.
 
 App settings intentionally do not persist:
 
@@ -88,6 +88,7 @@ Profile loading and saving run through the same validator.
 - BST-1 effect gain sliders and stored gain values can now use the full `0.0-1.0` range.
 - Safety output gain remains normalized and bounded to `0.0-1.0`.
 - The normal-user-facing output ceiling control is removed; profile loads normalize the internal ceiling to `1.0` and keep the limiter enabled.
+- Real P-HPR slip/lock duration values are now clamped to the continuous-model minimum of `100 ms` and the existing direct-control safety maximum so invalid short pulse values cannot restore the old `50 ms` isolated-pulse feel.
 
 These are software safety bounds only. They are not physical shaker calibration and must not be treated as final safe gain.
 
@@ -111,5 +112,6 @@ Diagnostics include:
 - Output mode, hardware-required flag, manual-debug flag, and hardware-absent Null output state.
 - ASIO readiness, callback, drop, underrun, jitter, and selected driver/channel/armed state.
 - Runtime prerequisite and app-settings path.
+- Real P-HPR slip/lock runtime state, active modules, cadence/hold settings, routed/safety/stale/interval/command-rate/stop counts, gear-protection suppression count, active/inactive reason, raw telemetry inputs, computed intensity/strength/frequency/duration, and last start/update/stop age.
 
 Stage 18 adds a copyable diagnostics report. Diagnostics do not add heavy charting, long-term logs, live graphs, routing matrices, physical hardware calibration, or real WASAPI output.

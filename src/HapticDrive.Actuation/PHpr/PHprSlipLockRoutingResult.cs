@@ -17,7 +17,8 @@ public sealed record PHprSlipLockRoutingResult(
     string Message,
     IReadOnlyList<PHprSlipLockRoutingCommandResult> Commands,
     PHprOutputSnapshot? OutputSnapshot,
-    DateTimeOffset RoutedAtUtc)
+    DateTimeOffset RoutedAtUtc,
+    double Intensity01 = 0d)
 {
     public bool WasRouted => Commands.Any(command => command.WasRouted);
 }

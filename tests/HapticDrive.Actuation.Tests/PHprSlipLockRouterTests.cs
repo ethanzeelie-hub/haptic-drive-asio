@@ -25,6 +25,7 @@ public sealed class PHprSlipLockRouterTests
 
         Assert.Equal(PHprSlipLockRoutingStatus.IgnoredDisabled, result.Status);
         Assert.Empty(inner.CommandHistory);
+        Assert.Equal(1, router.GetSnapshot().RouteAttemptCount);
     }
 
     [Fact]
@@ -38,11 +39,14 @@ public sealed class PHprSlipLockRouterTests
             output.SetSafetyContext);
 
         var result = await router.RouteAsync(CreateSlipVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var snapshot = router.GetSnapshot();
 
         Assert.True(result.WasRouted, result.Message);
         var command = Assert.Single(inner.CommandHistory);
         Assert.Equal(PHprModuleId.Throttle, command.TargetModule);
         Assert.Equal(PHprCommandSource.WheelSlip, command.Source);
+        Assert.True(command.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs);
+        Assert.Equal("Throttle", snapshot.ActiveSlipLockModules);
         Assert.Contains(inner.FrameHistory, frame => frame.TargetModule == PHprModuleId.Throttle && frame.State == PHprMockProtocolState.Start);
     }
 
@@ -57,31 +61,14 @@ public sealed class PHprSlipLockRouterTests
             output.SetSafetyContext);
 
         var result = await router.RouteAsync(CreateLockVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var snapshot = router.GetSnapshot();
 
         Assert.True(result.WasRouted, result.Message);
         var command = Assert.Single(inner.CommandHistory);
         Assert.Equal(PHprModuleId.Brake, command.TargetModule);
         Assert.Equal(PHprCommandSource.WheelLock, command.Source);
-    }
-
-    [Fact]
-    public async Task EffectEnableFlagsSuppressIndividualEffects()
-    {
-        await using var inner = new MockPhprOutputDevice();
-        await using var output = new SafetyLimitedPhprOutputDevice(inner);
-        var router = new PHprSlipLockRouter(
-            output,
-            PHprSlipLockRouterOptions.EnabledDefault with
-            {
-                WheelSlip = PHprSlipLockEffectSettings.DefaultFor(PHprPedalEffectKind.WheelSlip) with { IsEnabled = false },
-                WheelLock = PHprSlipLockEffectSettings.DefaultFor(PHprPedalEffectKind.WheelLock) with { IsEnabled = false }
-            },
-            output.SetSafetyContext);
-
-        var result = await router.RouteAsync(CreateAllEffectsVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
-
-        Assert.Equal(PHprSlipLockRoutingStatus.IgnoredNoActiveEffect, result.Status);
-        Assert.Empty(inner.CommandHistory);
+        Assert.True(command.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs);
+        Assert.Equal("Brake", snapshot.ActiveSlipLockModules);
     }
 
     [Fact]
@@ -130,9 +117,8 @@ public sealed class PHprSlipLockRouterTests
         Assert.Contains(inner.CommandHistory, command => command.Source == PHprCommandSource.WheelLock && command.TargetModule == PHprModuleId.Throttle);
     }
 
-    [Theory]
-    [MemberData(nameof(BlockingContexts))]
-    public async Task SafetyContextBlocksSlipLockStartCommands(PHprSafetyContext context, PHprSafetyViolationCode expected)
+    [Fact]
+    public async Task SlipLockRoutesAtBoundedCadenceWithContinuousDurations()
     {
         await using var inner = new MockPhprOutputDevice();
         await using var output = new SafetyLimitedPhprOutputDevice(inner);
@@ -141,12 +127,169 @@ public sealed class PHprSlipLockRouterTests
             PHprSlipLockRouterOptions.EnabledDefault,
             output.SetSafetyContext);
 
-        var result = await router.RouteAsync(CreateAllEffectsVehicleState(), context, BaseTime);
+        var first = await router.RouteAsync(CreateAllEffectsVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var second = await router.RouteAsync(
+            CreateAllEffectsVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock,
+            BaseTime.AddMilliseconds(100));
+        var routedCommands = inner.CommandHistory
+            .Where(command => command.Source is PHprCommandSource.WheelSlip or PHprCommandSource.WheelLock && command.DurationMs > 0)
+            .ToArray();
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.True(second.WasRouted, second.Message);
+        Assert.Equal(4, routedCommands.Length);
+        Assert.All(routedCommands, command => Assert.True(command.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs));
+        Assert.Equal("Both", snapshot.ActiveSlipLockModules);
+        Assert.Equal("Active", snapshot.RuntimeState);
+        Assert.NotNull(snapshot.LastSlipLockUpdateAtUtc);
+        Assert.True(snapshot.RouteCount >= 4);
+    }
+
+    [Fact]
+    public async Task InactiveSlipLockSendsStop()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateSlipVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var inactive = await router.RouteAsync(
+            CreateInactiveVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock,
+            BaseTime.AddMilliseconds(120));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(PHprSlipLockRoutingStatus.IgnoredNoActiveEffect, inactive.Status);
+        Assert.Equal(1, snapshot.StopCommandCount);
+        Assert.Equal("none", snapshot.ActiveSlipLockModules);
+        Assert.Contains(inner.CommandHistory, command => command.Source == PHprCommandSource.WheelSlip && command.DurationMs == 0);
+    }
+
+    [Fact]
+    public async Task StaleTelemetryStopsActiveSlipLock()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateAllEffectsVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var stale = await router.RouteAsync(
+            CreateAllEffectsVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock with { TelemetryStale = true },
+            BaseTime.AddMilliseconds(120));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(PHprSlipLockRoutingStatus.IgnoredNoActiveEffect, stale.Status);
+        Assert.Equal(2, snapshot.StaleTelemetrySuppressedCount);
+        Assert.Equal(2, snapshot.StopCommandCount);
+        Assert.Equal("Idle", snapshot.RuntimeState);
+        Assert.Equal("none", snapshot.ActiveSlipLockModules);
+        Assert.Contains("stale", snapshot.LastSlipLockStopReason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DrivingArmedFalseStopsActiveSlipLock()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateLockVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var blocked = await router.RouteAsync(
+            CreateLockVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock with { DrivingArmed = false },
+            BaseTime.AddMilliseconds(120));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(PHprSlipLockRoutingStatus.IgnoredNoActiveEffect, blocked.Status);
+        Assert.Equal(1, snapshot.StopCommandCount);
+        Assert.Equal("none", snapshot.ActiveSlipLockModules);
+        Assert.Contains("DrivingArmed", snapshot.LastSlipLockStopReason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GearProtectionStopsActiveSlipLockBeforeSuppressingUpdates()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateAllEffectsVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        router.NotifyGearPulseAccepted(BaseTime.AddMilliseconds(100));
+        var suppressed = await router.RouteAsync(
+            CreateAllEffectsVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock,
+            BaseTime.AddMilliseconds(110));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(PHprSlipLockRoutingStatus.IgnoredNoActiveEffect, suppressed.Status);
+        Assert.Equal(1, snapshot.GearProtectionSuppressedCount);
+        Assert.Equal(2, snapshot.StopCommandCount);
+        Assert.Equal("none", snapshot.ActiveSlipLockModules);
+        Assert.Contains(inner.CommandHistory, command => command.DurationMs == 0);
+    }
+
+    [Fact]
+    public async Task HoldTimeoutWatchdogStopsActiveSlipLock()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateAllEffectsVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        await router.StopIfHoldExpiredAsync(BaseTime.AddMilliseconds(500));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(1, snapshot.WatchdogStopCount);
+        Assert.Equal(2, snapshot.StopCommandCount);
+        Assert.Equal("Idle", snapshot.RuntimeState);
+        Assert.Contains("hold timeout", snapshot.LastSlipLockStopReason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SafetyContextCanRejectStartCommands()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var result = await router.RouteAsync(
+            CreateAllEffectsVehicleState(),
+            PHprSafetyContext.DefaultMock with
+            {
+                BrakeModuleAvailable = false,
+                ThrottleModuleAvailable = false
+            },
+            BaseTime);
 
         Assert.Equal(PHprSlipLockRoutingStatus.RejectedBySafety, result.Status);
-        Assert.Equal(expected, output.SafetySnapshot.LastViolation?.Code);
-        Assert.Empty(inner.CommandHistory);
-        Assert.True(router.GetSnapshot().Effects.Sum(effect => effect.SafetyRejectedCount) > 0);
+        Assert.Equal(PHprSafetyViolationCode.ModuleUnavailable, output.SafetySnapshot.LastViolation?.Code);
+        Assert.True(router.GetSnapshot().SafetyRejectedCount > 0);
     }
 
     [Fact]
@@ -168,7 +311,44 @@ public sealed class PHprSlipLockRouterTests
         Assert.True(first.WasRouted, first.Message);
         Assert.Equal(PHprSlipLockRoutingStatus.IgnoredMinimumInterval, second.Status);
         Assert.Equal(2, inner.CommandHistory.Count);
-        Assert.True(router.GetSnapshot().Effects.Sum(effect => effect.IntervalSuppressedCount) > 0);
+        Assert.True(router.GetSnapshot().IntervalSuppressedCount > 0);
+    }
+
+    [Fact]
+    public async Task SafetyRejectionCountsCommandRateSuppression()
+    {
+        var limits = PHprSafetyLimits.Default with
+        {
+            MaxCommandsPerSecond = 1,
+            AllowRealDeviceWrites = false
+        };
+        await using var inner = new MockPhprOutputDevice(limits);
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault,
+            output.SetSafetyContext);
+
+        var result = await router.RouteAsync(CreateAllEffectsVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var snapshot = router.GetSnapshot();
+
+        Assert.Equal(PHprSlipLockRoutingStatus.Routed, result.Status);
+        Assert.Equal(1, snapshot.RouteCount);
+        Assert.Equal(1, snapshot.SafetyRejectedCount);
+        Assert.Equal(1, snapshot.CommandRateSuppressedCount);
+    }
+
+    [Fact]
+    public void DiagnosticsExposeContinuousSlipLockFields()
+    {
+        var snapshot = PHprSlipLockRouterOptions.EnabledDefault.Normalize();
+
+        Assert.Equal(TimeSpan.FromMilliseconds(100), snapshot.MinimumRouteInterval);
+        Assert.Equal(TimeSpan.FromMilliseconds(350), snapshot.HoldTimeout);
+        Assert.Equal(PHprGearPulseTarget.Throttle, snapshot.WheelSlip.TargetModule);
+        Assert.Equal(PHprGearPulseTarget.Brake, snapshot.WheelLock.TargetModule);
+        Assert.True(snapshot.WheelSlip.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs);
+        Assert.True(snapshot.WheelLock.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs);
     }
 
     [Fact]
@@ -193,12 +373,6 @@ public sealed class PHprSlipLockRouterTests
             .ToArray();
 
         Assert.DoesNotContain("IAudioOutputDevice", constructorParameterNames);
-    }
-
-    public static IEnumerable<object[]> BlockingContexts()
-    {
-        yield return [PHprSafetyContext.DefaultMock with { TelemetryStale = true }, PHprSafetyViolationCode.TelemetryStale];
-        yield return [PHprSafetyContext.DefaultMock with { DrivingArmed = false }, PHprSafetyViolationCode.DrivingNotArmed];
     }
 
     private static VehicleState CreateSlipVehicleState(uint frame = 1)
@@ -235,6 +409,18 @@ public sealed class PHprSlipLockRouterTests
             wheelSlipRatio: Wheels(0.42f),
             wheelSlipAngle: Wheels(0.12f),
             wheelSpeed: Wheels(1f));
+    }
+
+    private static VehicleState CreateInactiveVehicleState(uint frame = 1)
+    {
+        return CreateVehicleState(
+            frame,
+            speedKph: 120,
+            throttle: 0.02f,
+            brake: 0.02f,
+            wheelSlipRatio: Wheels(0.01f),
+            wheelSlipAngle: Wheels(0.01f),
+            wheelSpeed: Wheels(30f));
     }
 
     private static VehicleState CreateVehicleState(

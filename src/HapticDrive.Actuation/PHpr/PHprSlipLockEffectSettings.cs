@@ -4,6 +4,9 @@ namespace HapticDrive.Actuation.PHpr;
 
 public sealed record PHprSlipLockEffectSettings
 {
+    public const int MinimumContinuousDurationMs = 100;
+    public const int DefaultContinuousDurationMs = 120;
+
     public bool IsEnabled { get; init; } = true;
 
     public PHprGearPulseTarget TargetModule { get; init; } = PHprGearPulseTarget.Throttle;
@@ -14,25 +17,36 @@ public sealed record PHprSlipLockEffectSettings
 
     public double MinimumFrequencyHz { get; init; } = 45d;
 
-    public double FrequencyHz { get; init; } = 75d;
+    public double FrequencyHz { get; init; } = 50d;
 
-    public int DurationMs { get; init; } = 50;
+    public int DurationMs { get; init; } = DefaultContinuousDurationMs;
 
     public int Priority { get; init; } = PHprPedalEffectProfile.WheelSlipDefault.Priority;
 
     public static PHprSlipLockEffectSettings DefaultFor(PHprPedalEffectKind kind)
     {
-        var state = PHprPedalEffectState.DefaultFor(kind);
-        var profile = state.Profile;
-        return new PHprSlipLockEffectSettings
+        return kind switch
         {
-            TargetModule = state.TargetModule,
-            MinimumStrength01 = profile.MinimumStrength01,
-            Strength01 = profile.Strength01,
-            MinimumFrequencyHz = profile.MinimumFrequencyHz,
-            FrequencyHz = profile.FrequencyHz,
-            DurationMs = profile.DurationMs,
-            Priority = profile.Priority
+            PHprPedalEffectKind.WheelLock => new PHprSlipLockEffectSettings
+            {
+                TargetModule = PHprGearPulseTarget.Brake,
+                MinimumStrength01 = 0.04d,
+                Strength01 = 0.10d,
+                MinimumFrequencyHz = 50d,
+                FrequencyHz = 50d,
+                DurationMs = DefaultContinuousDurationMs,
+                Priority = PHprPedalEffectProfile.WheelLockDefault.Priority
+            },
+            _ => new PHprSlipLockEffectSettings
+            {
+                TargetModule = PHprGearPulseTarget.Throttle,
+                MinimumStrength01 = 0.03d,
+                Strength01 = 0.08d,
+                MinimumFrequencyHz = 45d,
+                FrequencyHz = 50d,
+                DurationMs = DefaultContinuousDurationMs,
+                Priority = PHprPedalEffectProfile.WheelSlipDefault.Priority
+            }
         };
     }
 
@@ -57,7 +71,7 @@ public sealed record PHprSlipLockEffectSettings
             Strength01 = Math.Max(minimumStrength, strength),
             MinimumFrequencyHz = Math.Min(minimumFrequency, frequency),
             FrequencyHz = Math.Max(minimumFrequency, frequency),
-            DurationMs = Math.Clamp(DurationMs, 10, safeLimits.MaxDurationMs),
+            DurationMs = Math.Clamp(DurationMs, MinimumContinuousDurationMs, safeLimits.MaxDurationMs),
             Priority = Math.Clamp(Priority, 0, 1_000)
         };
     }

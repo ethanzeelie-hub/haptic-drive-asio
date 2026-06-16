@@ -3109,3 +3109,36 @@ Self-review:
 - The BST-1 path still uses one shared software evaluator, so separate slip and lock feel remain software tuning inputs rather than proof of final physical shaker behavior.
 - P-HPR slip/lock routing, direct HID/runtime behavior, road tuning, gear timing, parser fields, and ASIO backend behavior were not intentionally changed.
 - No physical validation, safe physical gain claim, shaker feel claim, or latency claim is made here.
+
+## Stage 18r-E/F - P-HPR Wheel Slip / Wheel Lock Continuous Texture Model And Targeted Priority Validation
+
+Date: 2026-06-16
+
+Status: Complete.
+
+Goal: Replace the old real P-HPR slip/lock pulse-train feel with a bounded continuous cadence model, add the targeted diagnostics needed to validate slip/lock routing, and ensure P-HPR road yields while gear behavior remains protected and intentionally unchanged.
+
+Changes:
+
+- Reworked `PHprSlipLockRouter` from a short one-shot `50 ms` pulse path into a bounded continuous update model with a `100 ms` cadence gate, `350 ms` hold timeout, explicit stop commands, stale/DrivingArmed/emergency/coexistence suppression, gear-protection suppression, and per-effect runtime state.
+- Kept the existing direct P-HPR command protocol, report family, safety limiter, and HID writer path untouched. The new model still routes through the same direct-control stack and uses safe stop commands when slip/lock becomes inactive.
+- Moved real P-HPR slip/lock routing off the `500 ms` WPF telemetry status timer and onto its own background runtime loop, matching the road runtime pattern more closely and avoiding the previous pulse-gap-pulse-gap cadence.
+- Updated real P-HPR slip defaults to throttle-targeted continuous slip at `45-50 Hz` and real lock defaults to brake-targeted continuous lock at `50 Hz`, with the new minimum continuous duration clamp at `100 ms`. Existing persistence/profile paths continue to round-trip safely and clamp invalid values.
+- Expanded P-HPR slip/lock diagnostics with runtime state, active modules, cadence/hold settings, routed/safety/stale/interval/command-rate/stop counts, gear-protection suppression, stop reason, per-effect reason/intensity/strength/frequency/duration, raw telemetry inputs, and last start/update/stop age.
+- Tightened targeted priority behavior so real P-HPR road yields while slip/lock is actively holding a module, and accepted gear pulses now notify both road and slip/lock routers so gear remains protected without changing the gear route itself.
+- Updated fake-backed router/app-settings tests to cover continuous cadence, explicit stops, stale/DrivingArmed suppression, gear protection, watchdog behavior, command-rate reporting, and the new slip/lock duration defaults.
+- Updated roadmap/known-issues/user docs to record that BST-1 road/slip/lock behavior remains intentionally unchanged and that the new real P-HPR cadence values are still software starting points pending Ethan-local validation.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 690 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18r-E/F stayed within the requested real P-HPR slip/lock cadence, diagnostics, targeted road-yield/gear-protection validation, tests, and docs scope only.
+- BST-1 road, BST-1 slip/lock tuning, gear timing, direct HID/report bytes, parser layouts, and ASIO safety behavior were intentionally left unchanged.
+- No physical validation, safe physical gain claim, tyre realism claim, or latency claim is made here. The new real P-HPR slip/lock values are software starting points only.

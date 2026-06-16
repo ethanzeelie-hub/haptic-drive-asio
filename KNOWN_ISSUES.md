@@ -651,3 +651,11 @@
 - Older combined slip profiles are migrated conservatively into the new split slip/lock settings, but Ethan may still want to revisit wheel-lock gain/frequency/roughness after loading a much older profile because only the legacy combined enabled/gain values can be inherited directly.
 - The new BST-1 slip/lock diagnostics explain current source, thresholds, and raw telemetry indicators, but they are software-side estimates and do not prove physical shaker output, latency, or tyre/ABS realism.
 - Stage 18r-D intentionally does not change P-HPR slip/lock routing, road tuning, gear timing, parser layouts, or claim physical validation.
+
+## Stage 18r-E/F
+
+- Real P-HPR slip/lock now uses a bounded continuous cadence runtime with explicit stop commands and a hold-timeout watchdog, but physical tyre-scrub feel, safe gain, real pedal stop feel, and physical latency still require Ethan-local validation on the real brake/throttle modules.
+- The new real P-HPR slip/lock defaults are software-safe starting points only. They are clamped to the existing direct-control safety bounds and should not be treated as final physical tuning.
+- P-HPR road now yields while real P-HPR slip/lock is actively holding a module, and accepted gear pulses suppress both road and slip/lock briefly for protection, but the physical interaction between continuous road, slip/lock, and real pedal hardware still remains unvalidated.
+- Slip/lock diagnostics now report cadence, hold timeout, raw telemetry inputs, active/inactive reason, stop counts, stale suppression, command-rate suppression, and last start/update/stop age, but those are software-side observations and do not prove physical module behavior.
+- Stage 18r-E/F intentionally does not change BST-1 road/slip/lock tuning, gear timing, P-HPR HID/report bytes, direct writer transport, parser layouts, or claim physical validation.
