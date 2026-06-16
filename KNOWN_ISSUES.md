@@ -659,3 +659,12 @@
 - P-HPR road now yields while real P-HPR slip/lock is actively holding a module, and accepted gear pulses suppress both road and slip/lock briefly for protection, but the physical interaction between continuous road, slip/lock, and real pedal hardware still remains unvalidated.
 - Slip/lock diagnostics now report cadence, hold timeout, raw telemetry inputs, active/inactive reason, stop counts, stale suppression, command-rate suppression, and last start/update/stop age, but those are software-side observations and do not prove physical module behavior.
 - Stage 18r-E/F intentionally does not change BST-1 road/slip/lock tuning, gear timing, P-HPR HID/report bytes, direct writer transport, parser layouts, or claim physical validation.
+
+## Stage 19A
+
+- `MainWindow.xaml.cs` still owns real P-HPR continuous runtime startup and loop orchestration through `StartRealSlipLockRuntime` / `RunRealSlipLockRuntimeAsync` and `StartRealRoadVibrationRuntime` / `RunRealRoadVibrationRuntimeAsync`.
+- `MainWindow.xaml.cs` still owns GT Neo paddle event routing through `PaddleInputSource_PaddleInputReceived`.
+- `PHprDirectRuntime.cs` and `PhprDeviceCardPulseService.cs` still live in `HapticDrive.Asio.App`. Stage 19A intentionally does not move them directly into `HapticDrive.Asio.Runtime` because that would add `HapticDrive.Asio.Runtime -> HapticDrive.Actuation` while `HapticDrive.Actuation -> HapticDrive.Asio.Runtime` already exists.
+- `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. A shared evaluator remains later work.
+- Stage 19A adds project-graph guardrails and shared direct-pulse-path tests only. Continuous road/slip/lock loop extraction, paddle-routing extraction, and broader `MainWindow` decomposition remain future stages.
+- Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items; Stage 19A changes tests and architecture docs only.

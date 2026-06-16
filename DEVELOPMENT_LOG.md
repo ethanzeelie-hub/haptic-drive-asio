@@ -3142,3 +3142,35 @@ Self-review:
 - Stage 18r-E/F stayed within the requested real P-HPR slip/lock cadence, diagnostics, targeted road-yield/gear-protection validation, tests, and docs scope only.
 - BST-1 road, BST-1 slip/lock tuning, gear timing, direct HID/report bytes, parser layouts, and ASIO safety behavior were intentionally left unchanged.
 - No physical validation, safe physical gain claim, tyre realism claim, or latency claim is made here. The new real P-HPR slip/lock values are software starting points only.
+
+## Stage 19A - Runtime Ownership Guardrails And Extraction Plan
+
+Date: 2026-06-16
+
+Status: Complete.
+
+Goal: Verify the external Gemini architecture findings against the live repo, protect the current dependency direction with tests, and take only the lowest-risk extraction-preparation step without moving validated runtime code into the wrong project.
+
+Changes:
+
+- Verified the main Gemini findings against live code. `MainWindow.xaml.cs` still starts and owns the real P-HPR slip/lock loop in `StartRealSlipLockRuntime` / `RunRealSlipLockRuntimeAsync`, still starts and owns the real road loop in `StartRealRoadVibrationRuntime` / `RunRealRoadVibrationRuntimeAsync`, and still routes paddle input through `PaddleInputSource_PaddleInputReceived`.
+- Verified that `PHprDirectRuntime.cs` and `PhprDeviceCardPulseService.cs` remain in `HapticDrive.Asio.App`, and that both depend on non-UI P-HPR/input types plus the concrete `SimagicPhprOutputDevice`.
+- Verified that `SlipEffect` and `PHprSlipLockRouter` still duplicate the core slip/lock threshold and assisted-input attenuation logic, so a shared evaluator remains a later stage.
+- Confirmed the current production project graph is `HapticDrive.Asio.App -> HapticDrive.Asio.Runtime`, `HapticDrive.Asio.App -> HapticDrive.Actuation`, and `HapticDrive.Actuation -> HapticDrive.Asio.Runtime`. A direct move of `PHprDirectRuntime.cs` into `HapticDrive.Asio.Runtime` would require `HapticDrive.Asio.Runtime -> HapticDrive.Actuation` because the file currently consumes `PaddleGearBenchTestResult`, `PaddleGearBenchTestOptions`, and `PHprGearPulseTarget`, which would create a cycle.
+- Added project-graph guardrail tests in `HapticDrive.Asio.Runtime.Tests` that assert the runtime assembly does not reference the App assembly, the current App/Actuation/Runtime direction remains explicit, and the production project graph stays acyclic.
+- Added App-level guardrail tests proving manual brake and throttle direct pulses still route through the same validated `PhprDeviceCardPulseService` / `SimagicPhprOutputDevice` path as the direct bench workflow, and strengthened the bench success test to assert the same route name explicitly.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the verified findings, the reason Stage 19A stops at guardrails, and the recommended Stage 19B extraction order.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 695 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 19A intentionally did not move `PHprDirectRuntime.cs`, `PhprDeviceCardPulseService.cs`, the real road/slip/lock loop ownership, or paddle routing out of `MainWindow`.
+- UI layout/XAML, ASIO backend behavior, P-HPR HID protocol bytes, F1 25 parser offsets, gear pulse tuning, and road/slip/lock tuning were intentionally left unchanged.
+- No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. Stage 19A is guardrails and extraction planning only.

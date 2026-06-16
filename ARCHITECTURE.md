@@ -850,3 +850,40 @@ The command:
 - hides private HID paths in console output.
 
 Automated coverage uses a fake HID writer and does not open real devices. Prior skipped ASIO manual tests were converted into readiness/pending tests so full-suite output can be zero-skip while keeping physical ASIO/BST-1 and P-HPR actuation opt-in. This does not change the ASIO/BST-1 audio path and does not validate physical P-HPR behavior.
+
+## Stage 19A Runtime Ownership Guardrails
+
+Stage 19A verified the external architecture review against the live repository before moving any runtime code.
+
+Verified current ownership:
+
+- `MainWindow.xaml.cs` still starts and owns the real P-HPR slip/lock background task through `StartRealSlipLockRuntime` and `RunRealSlipLockRuntimeAsync`.
+- `MainWindow.xaml.cs` still starts and owns the real P-HPR road background task through `StartRealRoadVibrationRuntime` and `RunRealRoadVibrationRuntimeAsync`.
+- `MainWindow.xaml.cs` still routes GT Neo paddle input through `PaddleInputSource_PaddleInputReceived`.
+- `PHprDirectRuntime.cs` and `PhprDeviceCardPulseService.cs` are still compiled into `HapticDrive.Asio.App` even though they are non-UI runtime helpers.
+
+Current production project direction:
+
+- `HapticDrive.Asio.App` references `HapticDrive.Asio.Runtime`, `HapticDrive.Actuation`, `HapticDrive.Input.Abstractions`, `HapticDrive.Input.Windows`, `HapticDrive.Simagic.PHPR.Abstractions`, and `HapticDrive.Simagic.PHPR.Output.Windows`.
+- `HapticDrive.Actuation` references `HapticDrive.Asio.Runtime`, `HapticDrive.Input.Abstractions`, and `HapticDrive.Simagic.PHPR.Abstractions`.
+- `HapticDrive.Asio.Runtime` references `HapticDrive.Asio.Audio`, `HapticDrive.Asio.Core`, `HapticDrive.Asio.Recording`, and `HapticDrive.Asio.Telemetry.F1_25`.
+
+Stage 19A implication:
+
+- A direct move of `PHprDirectRuntime.cs` into `HapticDrive.Asio.Runtime` is not safe yet.
+- `PHprDirectRuntime.cs` currently depends on `HapticDrive.Actuation.PHpr` bench and target types including `PaddleGearBenchTestResult`, `PaddleGearBenchTestOptions`, and `PHprGearPulseTarget`.
+- Adding that dependency to `HapticDrive.Asio.Runtime` would create `HapticDrive.Actuation -> HapticDrive.Asio.Runtime -> HapticDrive.Actuation`.
+
+Stage 19A response:
+
+- keep validated runtime code in place,
+- add project-graph guardrail tests,
+- add explicit shared direct-pulse-path tests for manual brake/throttle pulses,
+- defer runtime extraction until the dependency direction is inverted or a narrow non-UI orchestration home exists.
+
+Recommended Stage 19B order:
+
+1. Extract or invert the actuation-owned bench and target contract surface that `PHprDirectRuntime` consumes today.
+2. Move continuous real road and slip/lock loop ownership out of `MainWindow`.
+3. Move paddle input routing ownership out of `MainWindow`.
+4. Introduce a shared slip/lock evaluator so BST-1 and P-HPR stop drifting apart.

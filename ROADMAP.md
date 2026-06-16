@@ -79,6 +79,7 @@
 - Stage 18r-C: BST-1 road speed/frequency/grain tuning controls and Devices-tab persistence hotfix complete.
 - Stage 18r-D: BST-1 wheel slip / wheel lock tuning controls and diagnostics complete.
 - Stage 18r-E/F: P-HPR wheel slip / wheel lock continuous texture model and targeted priority validation complete.
+- Stage 19A: Runtime ownership guardrails and extraction plan complete.
 
 ## Planned Stages
 
@@ -129,6 +130,8 @@
 45. Stage 18r-C: BST-1 road speed/frequency/grain tuning controls and Devices-tab persistence hotfix. Complete.
 46. Stage 18r-D: BST-1 wheel slip / wheel lock tuning controls and diagnostics. Complete.
 47. Stage 18r-E/F: P-HPR wheel slip / wheel lock continuous texture model and targeted priority validation. Complete.
+48. Stage 19A: Runtime ownership guardrails and extraction plan. Complete.
+49. Stage 19B: Runtime ownership dependency inversion and safe extraction. Planned.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -199,6 +202,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 18r-C fixes the remaining safe Devices-tab persistence gaps by saving paddle debounce plus Arm ASIO readiness preference without auto-starting output, and extends BST-1 road tuning with low/high-speed frequency, speed-reference, speed-frequency influence, and grain controls while keeping one shared `RoadTextureSignal`, bounded intensity, and existing gear ducking/P-HPR separation.
 - Stage 18r-D keeps one shared BST-1 slip/lock evaluator but splits normal-user wheel-slip and wheel-lock tuning into independent enabled/gain/frequency/roughness controls, persists those new fields safely in audio profiles, migrates older combined slip profiles conservatively, and expands BST-1 slip/lock diagnostics without changing P-HPR slip/lock routing, road tuning, gear timing, parser layouts, or ASIO backend behavior.
 - Stage 18r-E/F moves real P-HPR wheel slip and wheel lock onto their own bounded continuous cadence runtime with explicit stops, hold-timeout watchdog protection, richer slip/lock diagnostics, and targeted road-yield plus gear-protection validation. BST-1 road/slip/lock behavior, P-HPR HID/report bytes, and gear timing remain intentionally unchanged.
+- Stage 19A verifies the external runtime-ownership findings against the live code, confirms that `MainWindow` still owns the real P-HPR continuous loop startup and paddle routing, and adds project-graph plus shared direct-pulse-path guardrails instead of moving `PHprDirectRuntime.cs` directly into `HapticDrive.Asio.Runtime`. The direct move is blocked today because `HapticDrive.Actuation -> HapticDrive.Asio.Runtime` already exists while `PHprDirectRuntime.cs` still depends on `HapticDrive.Actuation.PHpr` bench and target types. Recommended Stage 19B is to invert or relocate that contract surface first, then extract non-UI runtime ownership out of the App layer without creating a cycle.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

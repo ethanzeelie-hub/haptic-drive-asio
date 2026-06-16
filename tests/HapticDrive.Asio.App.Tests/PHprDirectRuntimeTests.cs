@@ -49,6 +49,52 @@ public sealed class PHprDirectRuntimeTests
     }
 
     [Fact]
+    public async Task ManualBrakePulse_UsesValidatedSharedDirectPulsePath()
+    {
+        using var harness = new RuntimeHarness();
+        harness.Runtime.Configure(harness.ReadyEnvironment());
+        await harness.Runtime.InitializeStartupCleanupAsync();
+        harness.Writer.Clear();
+
+        var result = await harness.Runtime.SendManualPulseAsync(
+            PHprModuleId.Brake,
+            Card(durationMs: 40),
+            DirectSafetyContext());
+
+        Assert.True(result.Succeeded, result.CommandResult.Message);
+        Assert.Equal(PhprDeviceCardPulseService.RouteName, result.RouteName);
+        Assert.Equal(PHprModuleId.Brake, result.Command.TargetModule);
+        Assert.Single(harness.Writer.Reports);
+        Assert.Equal(PHprHidReportState.Start, harness.Writer.Reports[0].State);
+        Assert.Equal(PHprModuleId.Brake, harness.Writer.Reports[0].TargetModule);
+        Assert.True(harness.Output.GetDiagnostics().ActivePulse);
+        AssertSharedPulsePath(harness);
+    }
+
+    [Fact]
+    public async Task ManualThrottlePulse_UsesValidatedSharedDirectPulsePath()
+    {
+        using var harness = new RuntimeHarness();
+        harness.Runtime.Configure(harness.ReadyEnvironment());
+        await harness.Runtime.InitializeStartupCleanupAsync();
+        harness.Writer.Clear();
+
+        var result = await harness.Runtime.SendManualPulseAsync(
+            PHprModuleId.Throttle,
+            Card(durationMs: 40),
+            DirectSafetyContext());
+
+        Assert.True(result.Succeeded, result.CommandResult.Message);
+        Assert.Equal(PhprDeviceCardPulseService.RouteName, result.RouteName);
+        Assert.Equal(PHprModuleId.Throttle, result.Command.TargetModule);
+        Assert.Single(harness.Writer.Reports);
+        Assert.Equal(PHprHidReportState.Start, harness.Writer.Reports[0].State);
+        Assert.Equal(PHprModuleId.Throttle, harness.Writer.Reports[0].TargetModule);
+        Assert.True(harness.Output.GetDiagnostics().ActivePulse);
+        AssertSharedPulsePath(harness);
+    }
+
+    [Fact]
     public async Task BenchCreatesMarkerBeforeStartAndClearsAfterScheduledStop()
     {
         using var harness = new RuntimeHarness();
@@ -71,6 +117,7 @@ public sealed class PHprDirectRuntimeTests
             DirectSafetyContext());
 
         Assert.Contains("sent", message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(PhprDeviceCardPulseService.RouteName, message, StringComparison.Ordinal);
         Assert.True(harness.Store.Exists());
         Assert.Single(harness.Writer.Reports);
         Assert.Equal(PHprHidReportState.Start, harness.Writer.Reports[0].State);
@@ -515,6 +562,21 @@ public sealed class PHprDirectRuntimeTests
         }
 
         Assert.True(predicate(device.GetDiagnostics()), "Expected diagnostics predicate to become true.");
+    }
+
+    private static void AssertSharedPulsePath(RuntimeHarness harness)
+    {
+        var proof = harness.Runtime.GetSnapshot().SharedPathProof;
+
+        Assert.True(proof.IsProven);
+        Assert.Equal(harness.PulseService.InstanceId, proof.BlueButtonPulseServiceInstanceId);
+        Assert.Equal(harness.PulseService.InstanceId, proof.BenchPulseServiceInstanceId);
+        Assert.Equal(harness.PulseService.WriterInstanceId, proof.BlueButtonWriterInstanceId);
+        Assert.Equal(harness.PulseService.WriterInstanceId, proof.BenchWriterInstanceId);
+        Assert.Equal(harness.PulseService.EncoderInstanceId, proof.BlueButtonEncoderInstanceId);
+        Assert.Equal(harness.PulseService.EncoderInstanceId, proof.BenchEncoderInstanceId);
+        Assert.Equal(harness.PulseService.StopMethodId, proof.BlueButtonStopMethodId);
+        Assert.Equal(harness.PulseService.StopMethodId, proof.BenchStopMethodId);
     }
 
     private static async Task WaitForRecorderLineAsync(RuntimeHarness harness, string text)
