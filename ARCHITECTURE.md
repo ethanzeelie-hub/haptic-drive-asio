@@ -887,3 +887,38 @@ Recommended Stage 19B order:
 2. Move continuous real road and slip/lock loop ownership out of `MainWindow`.
 3. Move paddle input routing ownership out of `MainWindow`.
 4. Introduce a shared slip/lock evaluator so BST-1 and P-HPR stop drifting apart.
+
+## Stage 19B Runtime Dependency Inversion And Safe Direct Runtime Extraction
+
+Stage 19B removes the Stage 19A dependency-cycle blocker and takes the first safe non-UI runtime extraction step without changing P-HPR direct behaviour.
+
+Moved contract surface:
+
+- `PHprGearPulseTarget`
+- `PHprGearPulseProfile`
+- `PaddleGearBenchTestOutputMode`
+- `PaddleGearBenchTestOptions`
+- `PaddleGearBenchTestResult`
+
+These types now live under `HapticDrive.Simagic.PHPR.Abstractions.Routing`. They remain pure P-HPR routing and bench contracts rather than router/runtime behavior. `HapticDrive.Simagic.PHPR.Abstractions` now references `HapticDrive.Input.Abstractions` so `PaddleGearBenchTestResult` can continue carrying mapped paddle and accepted shift-intent facts without pulling those contracts back into App or Actuation.
+
+Safe runtime relocation result:
+
+- `PHprDirectRuntime.cs` moved out of `HapticDrive.Asio.App` into `HapticDrive.Simagic.PHPR.Output.Windows`.
+- `PhprDeviceCardPulseService.cs` moved out of `HapticDrive.Asio.App` into `HapticDrive.Simagic.PHPR.Output.Windows`.
+- `PaddleGearBenchDirectGate.cs` moved with them because it was a hidden non-UI direct-runtime dependency.
+
+Stage 19B intentionally does not move that runtime into `HapticDrive.Asio.Runtime`. `PHprDirectRuntime` depends on the concrete `SimagicPhprOutputDevice`, so moving it into the generic runtime layer would have forced `HapticDrive.Asio.Runtime` to depend on Windows HID direct-output code. `HapticDrive.Simagic.PHPR.Output.Windows` is the narrower non-UI home for that orchestration.
+
+Current production project direction after Stage 19B:
+
+- `HapticDrive.Asio.App` references `HapticDrive.Asio.Runtime`, `HapticDrive.Actuation`, `HapticDrive.Input.Abstractions`, `HapticDrive.Input.Windows`, `HapticDrive.Simagic.PHPR.Abstractions`, and `HapticDrive.Simagic.PHPR.Output.Windows`.
+- `HapticDrive.Actuation` references `HapticDrive.Asio.Runtime`, `HapticDrive.Input.Abstractions`, and `HapticDrive.Simagic.PHPR.Abstractions`.
+- `HapticDrive.Asio.Runtime` still references `HapticDrive.Asio.Audio`, `HapticDrive.Asio.Core`, `HapticDrive.Asio.Recording`, and `HapticDrive.Asio.Telemetry.F1_25` only.
+- `HapticDrive.Simagic.PHPR.Output.Windows` references `HapticDrive.Input.Abstractions` and `HapticDrive.Simagic.PHPR.Abstractions`, and does not reference `HapticDrive.Asio.App`.
+
+Remaining extraction order:
+
+1. Stage 19C should move continuous real road/slip/lock loop ownership out of `MainWindow`.
+2. Stage 19D should move paddle input routing ownership out of `MainWindow`.
+3. Stage 20 should introduce one shared slip/lock evaluator for BST-1 and P-HPR.

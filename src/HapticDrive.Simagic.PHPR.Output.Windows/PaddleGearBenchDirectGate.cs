@@ -1,9 +1,7 @@
-using HapticDrive.Actuation.PHpr;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
-using HapticDrive.Simagic.PHPR.Output.Windows;
 
-namespace HapticDrive.Asio.App;
+namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
 internal static class PaddleGearBenchDirectGate
 {

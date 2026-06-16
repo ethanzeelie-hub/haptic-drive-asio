@@ -1,6 +1,6 @@
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 
-namespace HapticDrive.Actuation.PHpr;
+namespace HapticDrive.Simagic.PHPR.Abstractions.Routing;
 
 public enum PHprGearPulseTarget
 {

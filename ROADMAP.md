@@ -80,6 +80,7 @@
 - Stage 18r-D: BST-1 wheel slip / wheel lock tuning controls and diagnostics complete.
 - Stage 18r-E/F: P-HPR wheel slip / wheel lock continuous texture model and targeted priority validation complete.
 - Stage 19A: Runtime ownership guardrails and extraction plan complete.
+- Stage 19B: Runtime ownership dependency inversion and safe extraction complete.
 
 ## Planned Stages
 
@@ -131,7 +132,10 @@
 46. Stage 18r-D: BST-1 wheel slip / wheel lock tuning controls and diagnostics. Complete.
 47. Stage 18r-E/F: P-HPR wheel slip / wheel lock continuous texture model and targeted priority validation. Complete.
 48. Stage 19A: Runtime ownership guardrails and extraction plan. Complete.
-49. Stage 19B: Runtime ownership dependency inversion and safe extraction. Planned.
+49. Stage 19B: Runtime ownership dependency inversion and safe extraction. Complete.
+50. Stage 19C: Extract continuous real road/slip/lock runtime ownership out of `MainWindow`. Planned.
+51. Stage 19D: Extract paddle input routing ownership out of `MainWindow`. Planned.
+52. Stage 20: Shared slip/lock evaluator for BST-1 and P-HPR. Planned.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -203,6 +207,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 18r-D keeps one shared BST-1 slip/lock evaluator but splits normal-user wheel-slip and wheel-lock tuning into independent enabled/gain/frequency/roughness controls, persists those new fields safely in audio profiles, migrates older combined slip profiles conservatively, and expands BST-1 slip/lock diagnostics without changing P-HPR slip/lock routing, road tuning, gear timing, parser layouts, or ASIO backend behavior.
 - Stage 18r-E/F moves real P-HPR wheel slip and wheel lock onto their own bounded continuous cadence runtime with explicit stops, hold-timeout watchdog protection, richer slip/lock diagnostics, and targeted road-yield plus gear-protection validation. BST-1 road/slip/lock behavior, P-HPR HID/report bytes, and gear timing remain intentionally unchanged.
 - Stage 19A verifies the external runtime-ownership findings against the live code, confirms that `MainWindow` still owns the real P-HPR continuous loop startup and paddle routing, and adds project-graph plus shared direct-pulse-path guardrails instead of moving `PHprDirectRuntime.cs` directly into `HapticDrive.Asio.Runtime`. The direct move is blocked today because `HapticDrive.Actuation -> HapticDrive.Asio.Runtime` already exists while `PHprDirectRuntime.cs` still depends on `HapticDrive.Actuation.PHpr` bench and target types. Recommended Stage 19B is to invert or relocate that contract surface first, then extract non-UI runtime ownership out of the App layer without creating a cycle.
+- Stage 19B moves the pure direct-runtime bench/target contracts into `HapticDrive.Simagic.PHPR.Abstractions.Routing`, then moves `PHprDirectRuntime.cs`, `PhprDeviceCardPulseService.cs`, and the hidden `PaddleGearBenchDirectGate.cs` helper out of `HapticDrive.Asio.App` into `HapticDrive.Simagic.PHPR.Output.Windows`. The stage intentionally does not move that runtime into `HapticDrive.Asio.Runtime`, because the direct runtime depends on concrete Windows P-HPR output code and should not pull that dependency into the generic runtime layer. Continuous road/slip/lock loop ownership remains Stage 19C, paddle input routing remains Stage 19D, and the shared BST-1/P-HPR slip/lock evaluator remains Stage 20.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

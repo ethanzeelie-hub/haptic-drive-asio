@@ -668,3 +668,12 @@
 - `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. A shared evaluator remains later work.
 - Stage 19A adds project-graph guardrails and shared direct-pulse-path tests only. Continuous road/slip/lock loop extraction, paddle-routing extraction, and broader `MainWindow` decomposition remain future stages.
 - Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items; Stage 19A changes tests and architecture docs only.
+
+## Stage 19B
+
+- `MainWindow.xaml.cs` still owns real P-HPR continuous runtime startup and loop orchestration through `StartRealSlipLockRuntime` / `RunRealSlipLockRuntimeAsync` and `StartRealRoadVibrationRuntime` / `RunRealRoadVibrationRuntimeAsync`. Stage 19C should extract those loops.
+- `MainWindow.xaml.cs` still owns GT Neo paddle event routing through `PaddleInputSource_PaddleInputReceived`. Stage 19D should extract that route.
+- `PHprGearPulseTarget`, `PHprGearPulseProfile`, `PaddleGearBenchTestOutputMode`, `PaddleGearBenchTestOptions`, and `PaddleGearBenchTestResult` now live in `HapticDrive.Simagic.PHPR.Abstractions.Routing` instead of `HapticDrive.Actuation.PHpr`.
+- `PHprDirectRuntime.cs`, `PhprDeviceCardPulseService.cs`, and `PaddleGearBenchDirectGate.cs` now live in `HapticDrive.Simagic.PHPR.Output.Windows` instead of `HapticDrive.Asio.App`. This reduces App-owned non-UI runtime code, but it does not yet remove `MainWindow` as the owner of the continuous road/slip/lock and paddle-entry workflows.
+- `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. Stage 20 should introduce the shared evaluator.
+- Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items. Stage 19B changes dependency direction, runtime ownership boundaries, tests, and docs only.

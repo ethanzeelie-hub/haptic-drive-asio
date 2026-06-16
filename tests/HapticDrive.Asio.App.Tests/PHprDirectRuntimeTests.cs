@@ -13,6 +13,22 @@ namespace HapticDrive.Asio.App.Tests;
 public sealed class PHprDirectRuntimeTests
 {
     [Fact]
+    public void DirectRuntimeTypes_LiveInOutputWindowsAssemblyOutsideApp()
+    {
+        Assert.Equal("HapticDrive.Simagic.PHPR.Output.Windows", typeof(PHprDirectRuntimeCoordinator).Assembly.GetName().Name);
+        Assert.Equal("HapticDrive.Simagic.PHPR.Output.Windows", typeof(PhprDeviceCardPulseService).Assembly.GetName().Name);
+        Assert.NotEqual("HapticDrive.Asio.App", typeof(PHprDirectRuntimeCoordinator).Assembly.GetName().Name);
+    }
+
+    [Fact]
+    public void BenchContractTypes_LiveInPhprAbstractionsAssembly()
+    {
+        Assert.Equal("HapticDrive.Simagic.PHPR.Abstractions", typeof(PaddleGearBenchTestOptions).Assembly.GetName().Name);
+        Assert.Equal("HapticDrive.Simagic.PHPR.Abstractions", typeof(PaddleGearBenchTestResult).Assembly.GetName().Name);
+        Assert.Equal("HapticDrive.Simagic.PHPR.Abstractions", typeof(PHprGearPulseTarget).Assembly.GetName().Name);
+    }
+
+    [Fact]
     public async Task StartupCleanupSendsStopReportsOnly()
     {
         using var harness = new RuntimeHarness();

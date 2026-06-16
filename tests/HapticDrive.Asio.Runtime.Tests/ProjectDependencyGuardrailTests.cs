@@ -22,9 +22,14 @@ public sealed class ProjectDependencyGuardrailTests
         var graph = LoadProductionProjectGraph();
 
         Assert.DoesNotContain("HapticDrive.Asio.App", graph["HapticDrive.Asio.Runtime"]);
+        Assert.DoesNotContain("HapticDrive.Actuation", graph["HapticDrive.Asio.Runtime"]);
+        Assert.DoesNotContain("HapticDrive.Asio.App", graph["HapticDrive.Simagic.PHPR.Abstractions"]);
+        Assert.DoesNotContain("HapticDrive.Asio.App", graph["HapticDrive.Simagic.PHPR.Output.Windows"]);
         Assert.Contains("HapticDrive.Asio.Runtime", graph["HapticDrive.Actuation"]);
         Assert.Contains("HapticDrive.Asio.Runtime", graph["HapticDrive.Asio.App"]);
         Assert.Contains("HapticDrive.Actuation", graph["HapticDrive.Asio.App"]);
+        Assert.Contains("HapticDrive.Simagic.PHPR.Abstractions", graph["HapticDrive.Actuation"]);
+        Assert.Contains("HapticDrive.Simagic.PHPR.Output.Windows", graph["HapticDrive.Asio.App"]);
     }
 
     [Fact]

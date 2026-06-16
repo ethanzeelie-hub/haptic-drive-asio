@@ -3174,3 +3174,39 @@ Self-review:
 - Stage 19A intentionally did not move `PHprDirectRuntime.cs`, `PhprDeviceCardPulseService.cs`, the real road/slip/lock loop ownership, or paddle routing out of `MainWindow`.
 - UI layout/XAML, ASIO backend behavior, P-HPR HID protocol bytes, F1 25 parser offsets, gear pulse tuning, and road/slip/lock tuning were intentionally left unchanged.
 - No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. Stage 19A is guardrails and extraction planning only.
+
+## Stage 19B - Runtime Ownership Dependency Inversion And Safe Direct Runtime Extraction
+
+Date: 2026-06-16
+
+Status: Complete.
+
+Goal: Remove the Stage 19A dependency-cycle blocker, preserve the validated direct P-HPR pulse path, and move the first safe non-UI direct runtime slice out of `HapticDrive.Asio.App` without pulling Windows HID output code into the generic runtime layer.
+
+Changes:
+
+- Re-checked the Stage 19A blocker against live code before moving anything. `PHprDirectRuntime.cs` consumed `PaddleGearBenchTestResult`, `PaddleGearBenchTestOptions`, and `PHprGearPulseTarget`, while `PHprDirectRuntime.cs` also depended on the concrete `SimagicPhprOutputDevice`. That made a direct move into `HapticDrive.Asio.Runtime` the wrong home even after contract inversion.
+- Moved the pure P-HPR routing/bench contract surface out of `HapticDrive.Actuation.PHpr` into `HapticDrive.Simagic.PHPR.Abstractions.Routing`: `PHprGearPulseTarget`, `PHprGearPulseProfile`, `PaddleGearBenchTestOutputMode`, `PaddleGearBenchTestOptions`, and `PaddleGearBenchTestResult`.
+- Added `HapticDrive.Input.Abstractions` as the only new dependency of `HapticDrive.Simagic.PHPR.Abstractions` so `PaddleGearBenchTestResult` can still carry mapped paddle and accepted shift-intent facts without forcing `HapticDrive.Asio.Runtime -> HapticDrive.Actuation`.
+- Moved `PHprDirectRuntime.cs` and `PhprDeviceCardPulseService.cs` out of `HapticDrive.Asio.App` into `HapticDrive.Simagic.PHPR.Output.Windows`, which is the narrower non-UI home for direct P-HPR orchestration because it already owns the concrete Windows HID output device.
+- Moved the hidden non-UI helper `PaddleGearBenchDirectGate.cs` with the direct runtime after the first post-move build exposed it as an App-only seam.
+- Added `InternalsVisibleTo` entries for `HapticDrive.Asio.App` and `HapticDrive.Asio.App.Tests` in `HapticDrive.Simagic.PHPR.Output.Windows`, and added small `GlobalUsings.cs` files in the affected production/test projects to keep namespace churn low after the contract move.
+- Updated the Stage 19A graph guardrails so Runtime still must not reference App or Actuation, the selected contract/runtime projects must not reference App, the graph remains acyclic, and App tests now prove the relocated direct runtime types and contract types live in the intended assemblies.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 19B dependency inversion result plus the remaining Stage 19C, Stage 19D, and Stage 20 targets.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 697 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 19B changed dependency direction and non-UI ownership only. It intentionally did not change UI/XAML, ASIO/BST-1 behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, F1 25 parser layouts, gear tuning, or road/slip/lock cadence.
+- `MainWindow.xaml.cs` still owns the continuous real road/slip/lock loops and the GT Neo paddle-entry event path. Those remain explicit next-stage work.
+- No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. The stage is architecture/risk-reduction work only.

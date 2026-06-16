@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\HapticDrive.Input.Abstractions\HapticDrive.Input.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>

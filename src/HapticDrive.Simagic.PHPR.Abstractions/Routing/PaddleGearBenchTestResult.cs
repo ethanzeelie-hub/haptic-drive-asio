@@ -1,7 +1,7 @@
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
 
-namespace HapticDrive.Actuation.PHpr;
+namespace HapticDrive.Simagic.PHPR.Abstractions.Routing;
 
 public sealed record PaddleGearBenchTestResult(
     bool Accepted,
