@@ -122,6 +122,22 @@ public sealed class AsioOutputReadinessTests
     }
 
     [Fact]
+    public async Task AsioOutputDevice_ArmedOpenDoesNotStartOutputUntilExplicitStart()
+    {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
+        await using var device = new AsioAudioOutputDevice(
+            new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]),
+            backend);
+
+        var openResult = await device.OpenAsync(ArmedConfiguration(channel: 1));
+
+        Assert.True(openResult.Succeeded, openResult.Message);
+        Assert.Equal(0, backend.StartCount);
+        Assert.False(backend.IsRunning);
+        Assert.Null(backend.LastSubmittedSamples);
+    }
+
+    [Fact]
     public async Task AsioOutputDevice_StartStopLifecycleWorksWithFakeBackend()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);

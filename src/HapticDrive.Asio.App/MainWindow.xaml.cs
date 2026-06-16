@@ -278,6 +278,7 @@ public partial class MainWindow : Window
         _selectedOutputKind = appSettings.PreferredOutputMode ?? AudioOutputDeviceKind.Null;
         _selectedAsioDriverName = appSettings.LastAsioDriverName;
         _selectedAsioOutputChannel = appSettings.LastAsioOutputChannel;
+        _asioArmed = appSettings.ArmAsioPreference;
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
         _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
         ApplyBst1PaddleGearPulseSetting(appSettings.Bst1PaddleGearPulse);
@@ -569,6 +570,7 @@ public partial class MainWindow : Window
         }
 
         _asioArmed = AsioArmCheckBox.IsChecked == true;
+        SaveAppSettings();
         if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
         {
             await RebuildHapticPipelineForOutputSelectionAsync(
@@ -1438,6 +1440,27 @@ public partial class MainWindow : Window
             _paddleInputSource.RefreshMapping(_paddleMapping);
             UpdatePaddleInputStatus();
         }
+    }
+
+    private void PaddleMappingControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_updatingPaddleInputUi)
+        {
+            return;
+        }
+
+        if (!TryBuildPaddleMappingFromControls(out var mapping, out var message))
+        {
+            PaddleInputStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return;
+        }
+
+        _paddleMapping = mapping;
+        _paddleInputSource.RefreshMapping(_paddleMapping);
+        SaveAppSettings();
+        UpdatePaddleInputStatus();
+        FooterStatusText.Text = "Paddle input mapping preferences saved.";
     }
 
     private async Task RebuildHapticPipelineForOutputSelectionAsync(string footerMessage)
@@ -3470,6 +3493,7 @@ public partial class MainWindow : Window
                 PreferredOutputMode = _selectedOutputKind,
                 LastAsioDriverName = _selectedAsioDriverName,
                 LastAsioOutputChannel = _selectedAsioOutputChannel,
+                ArmAsioPreference = _asioArmed,
                 ReplayTimingPreference = GetSelectedReplayTimingPreference(),
                 ForwardingDestinations = _forwardingDestinations.ToList(),
                 PaddleInputMapping = CreatePaddleMappingSetting(),
@@ -3997,7 +4021,12 @@ public partial class MainWindow : Window
                     IsEnabled = SharedRoadSignalEnabledCheckBox.IsChecked == true,
                     Bst1OutputEnabled = Bst1RoadOutputEnabledCheckBox.IsChecked == true,
                     Gain = (float)RoadTextureGainSlider.Value,
-                    MinimumSpeedKph = (float)RoadTextureMinimumSpeedSlider.Value
+                    MinimumSpeedKph = (float)RoadTextureMinimumSpeedSlider.Value,
+                    FullIntensitySpeedKph = (float)RoadTextureSpeedReferenceSlider.Value,
+                    LowSpeedFrequencyHz = (float)RoadTextureLowSpeedFrequencySlider.Value,
+                    HighSpeedFrequencyHz = (float)RoadTextureHighSpeedFrequencySlider.Value,
+                    SpeedFrequencyInfluence = (float)RoadTextureSpeedFrequencyInfluenceSlider.Value,
+                    GrainAmount = (float)RoadTextureGrainAmountSlider.Value
                 },
                 Slip = effects.Slip with
                 {
@@ -4055,6 +4084,11 @@ public partial class MainWindow : Window
         Bst1RoadOutputEnabledCheckBox.IsChecked = safeProfile.Effects.RoadTexture.Bst1OutputEnabled == true;
         RoadTextureGainSlider.Value = safeProfile.Effects.RoadTexture.Gain;
         RoadTextureMinimumSpeedSlider.Value = safeProfile.Effects.RoadTexture.MinimumSpeedKph;
+        RoadTextureSpeedReferenceSlider.Value = safeProfile.Effects.RoadTexture.FullIntensitySpeedKph;
+        RoadTextureLowSpeedFrequencySlider.Value = safeProfile.Effects.RoadTexture.LowSpeedFrequencyHz;
+        RoadTextureHighSpeedFrequencySlider.Value = safeProfile.Effects.RoadTexture.HighSpeedFrequencyHz;
+        RoadTextureSpeedFrequencyInfluenceSlider.Value = safeProfile.Effects.RoadTexture.SpeedFrequencyInfluence;
+        RoadTextureGrainAmountSlider.Value = safeProfile.Effects.RoadTexture.GrainAmount;
         SlipEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.IsEnabled;
         SlipGainSlider.Value = safeProfile.Effects.Slip.Gain;
         SlipThresholdSlider.Value = safeProfile.Effects.Slip.SlipRatioThreshold;
@@ -4078,6 +4112,11 @@ public partial class MainWindow : Window
         ImpactDurationValueText.Text = $"{profile.Effects.Impact.PulseDurationMilliseconds} ms";
         RoadTextureGainValueText.Text = $"{profile.Effects.RoadTexture.Gain:P0}";
         RoadTextureMinimumSpeedValueText.Text = $"{profile.Effects.RoadTexture.MinimumSpeedKph:0} km/h";
+        RoadTextureSpeedReferenceValueText.Text = $"{profile.Effects.RoadTexture.FullIntensitySpeedKph:0} km/h";
+        RoadTextureLowSpeedFrequencyValueText.Text = $"{profile.Effects.RoadTexture.LowSpeedFrequencyHz:0} Hz";
+        RoadTextureHighSpeedFrequencyValueText.Text = $"{profile.Effects.RoadTexture.HighSpeedFrequencyHz:0} Hz";
+        RoadTextureSpeedFrequencyInfluenceValueText.Text = $"{profile.Effects.RoadTexture.SpeedFrequencyInfluence:P0}";
+        RoadTextureGrainAmountValueText.Text = $"{profile.Effects.RoadTexture.GrainAmount:P0}";
         SlipGainValueText.Text = $"{profile.Effects.Slip.Gain:P0}";
         SlipThresholdValueText.Text = $"{profile.Effects.Slip.SlipRatioThreshold:0.00}";
         MasterGainValueText.Text = $"{profile.Mixer.MasterGain:P0}";
@@ -4733,11 +4772,11 @@ public partial class MainWindow : Window
         ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; manual save/load snapshot for shift intent, mock gear/pedal effects, and real gear/road/slip/lock preferences. Startup restore uses app settings for safe P-HPR preferences; direct enable/arm/device and paddle bench state remain runtime-only.";
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
-            : "Profile values are clamped to the current Stage 18r-B software ranges on load and save.";
+            : "Profile values are clamped to the current Stage 18r-C software ranges on load and save.";
         var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
         var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Saved output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; forwarding destinations {_forwardingDestinations.Count}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}. BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} at {_bst1PaddleGearStrengthPercent:0}% / {_bst1PaddleGearFrequencyHz:0.#} Hz / {GetEffectiveBst1PaddleGearDurationMs()} ms. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Haptics running, emergency mute, ASIO armed state, direct enable/arm/private device, paddle bench enable, and manual ASIO test active state are not saved. {_settingsError ?? ""}".Trim();
+        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Saved output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; forwarding destinations {_forwardingDestinations.Count}. Saved ASIO driver {_selectedAsioDriverName ?? "none"}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; Arm ASIO preference {_asioArmed}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}, debounce {_paddleMapping.DebounceDuration.TotalMilliseconds:0} ms. BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} at {_bst1PaddleGearStrengthPercent:0}% / {_bst1PaddleGearFrequencyHz:0.#} Hz / {GetEffectiveBst1PaddleGearDurationMs()} ms. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Haptics running, emergency mute, active pulses, pending stops, direct enable/arm/private device, paddle bench enable, and manual ASIO test active state are not saved. {_settingsError ?? ""}".Trim();
         SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
@@ -4748,7 +4787,7 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
         {
-            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; haptics running, ASIO armed state, and direct-output enable/arm/device state are never persisted.";
+            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; ASIO ready/arm preference can persist without starting output, while haptics running and direct-output enable/arm/device runtime states remain non-persistent.";
         }
     }
 
@@ -5275,7 +5314,7 @@ public partial class MainWindow : Window
             $"Manual ASIO Hardware Test: {BuildManualAsioHardwareTestDiagnosticsText()}",
             $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}; BST-1 local gear {( _bst1PaddleGearPulseEnabled ? "enabled" : "disabled") } {_bst1PaddleGearStrengthPercent:0}% {_bst1PaddleGearFrequencyHz:0.#} Hz {GetEffectiveBst1PaddleGearDurationMs()} ms; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; ASIO armed state, haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted."
+            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted Arm ASIO preference {_asioArmed}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)} debounce {_paddleMapping.DebounceDuration.TotalMilliseconds:0} ms; BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} {_bst1PaddleGearStrengthPercent:0}% {_bst1PaddleGearFrequencyHz:0.#} Hz {GetEffectiveBst1PaddleGearDurationMs()} ms; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted."
         };
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
@@ -5705,18 +5744,19 @@ public partial class MainWindow : Window
                 && !_asioVisibilitySnapshot.DriverNames.Contains(_selectedAsioDriverName, StringComparer.OrdinalIgnoreCase))
             {
                 _selectedAsioDriverName = null;
-                message = "Saved ASIO output selection restored, but the saved driver is unavailable. Select a driver and arm ASIO manually before starting haptics.";
+                _asioArmed = false;
+                message = "Saved ASIO output selection restored, but the saved driver is unavailable. Select a driver and review Arm ASIO before starting haptics.";
             }
             else if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
             {
-                message = "Saved ASIO output selection restored. ASIO remains disarmed until you arm it manually.";
+                message = _asioArmed
+                    ? "Saved ASIO output selection and Arm ASIO readiness restored without starting haptics or output."
+                    : "Saved ASIO output selection restored. ASIO remains disarmed until you arm it manually.";
             }
             else
             {
                 message = $"Saved output selection restored: {_selectedOutputKind}.";
             }
-
-            _asioArmed = false;
         }
         else
         {
@@ -6593,12 +6633,12 @@ public partial class MainWindow : Window
         ImpactEffectDefaultsText.Text = $"Tuned gain {options.Impact.Gain:P0}; {options.Impact.PulseFrequencyHz:0} Hz; {options.Impact.PulseDuration.TotalMilliseconds:0} ms; enabled {options.Impact.IsEnabled}.";
 
         var sharedRoadSignalActive = snapshot.RoadTexture.Signal.IsActive;
-        SharedRoadSignalStatusText.Text = $"Shared road signal {(options.RoadTexture.IsEnabled ? "enabled" : "disabled")}; output {snapshot.RoadTexture.Signal.OutputIntensity:0.000}; gear ducking {snapshot.RoadTexture.Signal.GearDuckingActive}.";
+        SharedRoadSignalStatusText.Text = $"Shared road signal {(options.RoadTexture.IsEnabled ? "enabled" : "disabled")}; output {snapshot.RoadTexture.Signal.OutputIntensity:0.000}; speed scale {snapshot.RoadTexture.Signal.SpeedScale:0.000}; gear ducking {snapshot.RoadTexture.Signal.GearDuckingActive}.";
         RoadTextureEffectStateText.Text = snapshot.RoadTexture.IsActive ? "BST-1 active" : "Idle";
         RoadTextureEffectDetailText.Text = snapshot.RoadTexture.DominantSurfaceTypeId is null
             ? "Waiting for speed and surface telemetry."
-            : $"{snapshot.RoadTexture.DominantSurfaceName}; shared signal {(sharedRoadSignalActive ? "active" : "idle")}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; BST-1 peak {snapshot.RoadTexture.PeakLevel:0.000}.";
-        RoadTextureEffectDefaultsText.Text = $"BST-1 / ASIO road output gain {options.RoadTexture.Gain:P0}; {options.RoadTexture.MinimumSpeedKph:0}-{options.RoadTexture.FullIntensitySpeedKph:0} km/h; shared signal {options.RoadTexture.IsEnabled}; BST-1 output {options.RoadTexture.Bst1OutputEnabled}.";
+            : $"{snapshot.RoadTexture.DominantSurfaceName}; shared signal {(sharedRoadSignalActive ? "active" : "idle")}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; speed {snapshot.RoadTexture.Signal.SpeedKph} km/h; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; grain {snapshot.RoadTexture.Signal.NoiseAmount:P0}; BST-1 peak {snapshot.RoadTexture.PeakLevel:0.000}.";
+        RoadTextureEffectDefaultsText.Text = $"BST-1 / ASIO road output gain {options.RoadTexture.Gain:P0}; min {options.RoadTexture.MinimumSpeedKph:0} km/h; speed ref {options.RoadTexture.FullIntensitySpeedKph:0} km/h; {options.RoadTexture.Bst1LowSpeedFrequencyHz:0}-{options.RoadTexture.Bst1HighSpeedFrequencyHz:0} Hz; speed influence {options.RoadTexture.Bst1SpeedFrequencyInfluence:P0}; grain {options.RoadTexture.Bst1GrainAmount:P0}; shared signal {options.RoadTexture.IsEnabled}; BST-1 output {options.RoadTexture.Bst1OutputEnabled}.";
 
         SlipEffectStateText.Text = snapshot.Slip.IsActive ? "Active" : "Idle";
         SlipEffectDetailText.Text = snapshot.Slip.CurrentSlipIntensity <= 0f && snapshot.Slip.CurrentLockIntensity <= 0f

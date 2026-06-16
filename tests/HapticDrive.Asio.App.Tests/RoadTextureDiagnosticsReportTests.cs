@@ -37,9 +37,13 @@ public sealed class RoadTextureDiagnosticsReportTests
         Assert.Contains("raw", line);
         Assert.Contains("smoothed", line);
         Assert.Contains("output", line);
+        Assert.Contains("speed reference", line);
+        Assert.Contains("grain/noise", line);
         Assert.True(snapshot.RawIntensity > 0f);
         Assert.True(snapshot.SmoothedIntensity > 0f);
         Assert.True(snapshot.OutputIntensity > 0f);
+        Assert.True(snapshot.Bst1SpeedReferenceKph > 0f);
+        Assert.True(snapshot.NoiseAmount > 0f);
     }
 
     [Fact]

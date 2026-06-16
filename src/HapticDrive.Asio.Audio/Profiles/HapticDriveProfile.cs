@@ -57,7 +57,11 @@ public sealed record HapticDriveProfile(
                 Bst1OutputEnabled = profile.Effects.RoadTexture.Bst1OutputEnabled ?? profile.Effects.RoadTexture.IsEnabled,
                 Gain = profile.Effects.RoadTexture.Gain,
                 MinimumSpeedKph = profile.Effects.RoadTexture.MinimumSpeedKph,
-                FullIntensitySpeedKph = profile.Effects.RoadTexture.FullIntensitySpeedKph
+                FullIntensitySpeedKph = profile.Effects.RoadTexture.FullIntensitySpeedKph,
+                Bst1LowSpeedFrequencyHz = profile.Effects.RoadTexture.LowSpeedFrequencyHz,
+                Bst1HighSpeedFrequencyHz = profile.Effects.RoadTexture.HighSpeedFrequencyHz,
+                Bst1SpeedFrequencyInfluence = profile.Effects.RoadTexture.SpeedFrequencyInfluence,
+                Bst1GrainAmount = profile.Effects.RoadTexture.GrainAmount
             },
             SlipEffectOptions.Default with
             {
@@ -132,7 +136,11 @@ public sealed record HapticDriveProfile(
                     effects.RoadTexture.MinimumSpeedKph,
                     effects.RoadTexture.FullIntensitySpeedKph)
                 {
-                    Bst1OutputEnabled = effects.RoadTexture.Bst1OutputEnabled
+                    Bst1OutputEnabled = effects.RoadTexture.Bst1OutputEnabled,
+                    LowSpeedFrequencyHz = effects.RoadTexture.Bst1LowSpeedFrequencyHz,
+                    HighSpeedFrequencyHz = effects.RoadTexture.Bst1HighSpeedFrequencyHz,
+                    SpeedFrequencyInfluence = effects.RoadTexture.Bst1SpeedFrequencyInfluence,
+                    GrainAmount = effects.RoadTexture.Bst1GrainAmount
                 },
                 new SlipTuning(
                     effects.Slip.IsEnabled,
@@ -184,7 +192,11 @@ public sealed record HapticDriveProfile(
                     effects.RoadTexture.MinimumSpeedKph,
                     effects.RoadTexture.FullIntensitySpeedKph)
                 {
-                    Bst1OutputEnabled = true
+                    Bst1OutputEnabled = true,
+                    LowSpeedFrequencyHz = effects.RoadTexture.Bst1LowSpeedFrequencyHz,
+                    HighSpeedFrequencyHz = effects.RoadTexture.Bst1HighSpeedFrequencyHz,
+                    SpeedFrequencyInfluence = effects.RoadTexture.Bst1SpeedFrequencyInfluence,
+                    GrainAmount = effects.RoadTexture.Bst1GrainAmount
                 },
                 new SlipTuning(
                     IsEnabled: false,
@@ -245,6 +257,14 @@ public sealed record RoadTextureTuning(
     float FullIntensitySpeedKph)
 {
     public bool? Bst1OutputEnabled { get; init; }
+
+    public float LowSpeedFrequencyHz { get; init; } = RoadTextureEffectOptions.Default.Bst1LowSpeedFrequencyHz;
+
+    public float HighSpeedFrequencyHz { get; init; } = RoadTextureEffectOptions.Default.Bst1HighSpeedFrequencyHz;
+
+    public float SpeedFrequencyInfluence { get; init; } = RoadTextureEffectOptions.Default.Bst1SpeedFrequencyInfluence;
+
+    public float GrainAmount { get; init; } = RoadTextureEffectOptions.Default.Bst1GrainAmount;
 }
 
 public sealed record SlipTuning(
@@ -359,10 +379,10 @@ public static class HapticProfileValidator
                 Clamp(effects.RoadTexture?.Gain, 0f, 1f, defaultProfile.Effects.RoadTexture.Gain, "BST-1 / ASIO road output gain", messages, ref repaired),
                 Clamp(effects.RoadTexture?.MinimumSpeedKph, 0f, 80f, defaultProfile.Effects.RoadTexture.MinimumSpeedKph, "road texture minimum speed", messages, ref repaired),
                 ClampAtLeast(
-                    Clamp(effects.RoadTexture?.FullIntensitySpeedKph, 20f, 300f, defaultProfile.Effects.RoadTexture.FullIntensitySpeedKph, "road texture full-intensity speed", messages, ref repaired),
+                    Clamp(effects.RoadTexture?.FullIntensitySpeedKph, 20f, 360f, defaultProfile.Effects.RoadTexture.FullIntensitySpeedKph, "road texture speed reference", messages, ref repaired),
                     minimum: Clamp(effects.RoadTexture?.MinimumSpeedKph, 0f, 80f, defaultProfile.Effects.RoadTexture.MinimumSpeedKph, "road texture minimum speed", messages, ref repaired),
                     fallback: defaultProfile.Effects.RoadTexture.FullIntensitySpeedKph,
-                    "road texture full-intensity speed",
+                    "road texture speed reference",
                     messages,
                     ref repaired))
             {
@@ -370,6 +390,52 @@ public static class HapticProfileValidator
                     ?? effects.RoadTexture?.IsEnabled
                     ?? defaultProfile.Effects.RoadTexture.Bst1OutputEnabled
                     ?? defaultProfile.Effects.RoadTexture.IsEnabled
+                ,
+                LowSpeedFrequencyHz = Clamp(
+                    effects.RoadTexture?.LowSpeedFrequencyHz,
+                    20f,
+                    70f,
+                    defaultProfile.Effects.RoadTexture.LowSpeedFrequencyHz,
+                    "road texture low-speed frequency",
+                    messages,
+                    ref repaired),
+                HighSpeedFrequencyHz = ClampAtLeast(
+                    Clamp(
+                        effects.RoadTexture?.HighSpeedFrequencyHz,
+                        30f,
+                        90f,
+                        defaultProfile.Effects.RoadTexture.HighSpeedFrequencyHz,
+                        "road texture high-speed frequency",
+                        messages,
+                        ref repaired),
+                    minimum: Clamp(
+                        effects.RoadTexture?.LowSpeedFrequencyHz,
+                        20f,
+                        70f,
+                        defaultProfile.Effects.RoadTexture.LowSpeedFrequencyHz,
+                        "road texture low-speed frequency",
+                        messages,
+                        ref repaired),
+                    fallback: defaultProfile.Effects.RoadTexture.HighSpeedFrequencyHz,
+                    "road texture high-speed frequency",
+                    messages,
+                    ref repaired),
+                SpeedFrequencyInfluence = Clamp(
+                    effects.RoadTexture?.SpeedFrequencyInfluence,
+                    0f,
+                    1f,
+                    defaultProfile.Effects.RoadTexture.SpeedFrequencyInfluence,
+                    "road texture speed-frequency influence",
+                    messages,
+                    ref repaired),
+                GrainAmount = Clamp(
+                    effects.RoadTexture?.GrainAmount,
+                    0f,
+                    0.6f,
+                    defaultProfile.Effects.RoadTexture.GrainAmount,
+                    "road texture grain amount",
+                    messages,
+                    ref repaired)
             },
             new SlipTuning(
                 effects.Slip?.IsEnabled ?? defaultProfile.Effects.Slip.IsEnabled,

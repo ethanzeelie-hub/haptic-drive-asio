@@ -87,6 +87,40 @@ public sealed class RoadTextureEvaluatorTests
     }
 
     [Fact]
+    public void RoadSpeedCurveAndFrequencyContinueChangingPastOneHundredSixtyKph()
+    {
+        var evaluator = new RoadTextureEvaluator();
+
+        var medium = evaluator.Evaluate(State(speedKph: 160, surfaceType: 0), Context());
+        var fast = evaluator.Evaluate(
+            State(speedKph: 300, surfaceType: 0, frame: 2),
+            Context(now: BaseTime.AddMilliseconds(16)));
+
+        Assert.True(fast.SpeedScale > medium.SpeedScale);
+        Assert.True(fast.Bst1FrequencyHz > medium.Bst1FrequencyHz);
+        Assert.True(fast.NoiseAmount > medium.NoiseAmount);
+    }
+
+    [Fact]
+    public void RoadSpeedCurveSupportsLowMediumAndHighF1RangeWithoutUnboundedIntensity()
+    {
+        var evaluator = new RoadTextureEvaluator();
+
+        var low = evaluator.Evaluate(State(speedKph: 40, surfaceType: 4), Context());
+        var medium = evaluator.Evaluate(
+            State(speedKph: 160, surfaceType: 4, frame: 2),
+            Context(now: BaseTime.AddMilliseconds(16)));
+        var high = evaluator.Evaluate(
+            State(speedKph: 330, surfaceType: 4, frame: 3),
+            Context(now: BaseTime.AddMilliseconds(32)));
+
+        Assert.True(low.SpeedScale > 0f);
+        Assert.True(medium.SpeedScale > low.SpeedScale);
+        Assert.True(high.SpeedScale > medium.SpeedScale);
+        Assert.InRange(high.OutputIntensity, 0f, RoadTextureEvaluatorOptions.Default.MaximumIntensity);
+    }
+
+    [Fact]
     public void SurfaceTypeChangesClassAndBaseGain()
     {
         var tarmacEvaluator = new RoadTextureEvaluator();

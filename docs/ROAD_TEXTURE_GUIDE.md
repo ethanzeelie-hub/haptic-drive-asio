@@ -37,7 +37,7 @@ This is software arbitration only. Final mixed-output priority, safe gain, physi
 
 Stage 18q-B adds road diagnostics and a local flight recorder only. It does not tune BST-1 road gain, raise UI gain caps, change P-HPR road cadence, redesign P-HPR road into a continuous model, or change gear pulse logic.
 
-Advanced / Diagnostics now reports the shared road signal with telemetry freshness, cached driving state, speed scale, surface IDs/class/name/mix, roughness contribution components, raw intensity, smoothed intensity, output intensity, BST-1/P-HPR frequency hints, gear-ducking state, ducking gain, and suppression reason.
+Advanced / Diagnostics now reports the shared road signal with telemetry freshness, cached driving state, speed scale, speed reference, surface IDs/class/name/mix, roughness contribution components, raw intensity, smoothed intensity, output intensity, BST-1/P-HPR frequency hints, BST-1 grain/noise amount, gear-ducking state, ducking gain, and suppression reason.
 
 The same diagnostics report includes BST-1 road proof:
 
@@ -78,3 +78,20 @@ Stage 18q-E changes P-HPR road from sparse pulse-style routing to a bounded cade
 P-HPR road remains lower priority than gear, wheel slip, and wheel lock. Gear ducking can stop/suppress road so gear pulses keep command budget and tactile priority. Stop, Stop All, Emergency Stop, emergency mute, command-rate safety, direct-control readiness, coexistence gates, stale telemetry gates, and app shutdown cleanup remain safety boundaries.
 
 The road flight recorder now includes shared/output switch state, P-HPR runtime state, cadence, hold timeout, active modules, last road start/update/stop age, road stop reason, stop command count, watchdog stops, and command-rate suppression counters. Use these fields during local validation; they are not physical proof by themselves.
+
+## Stage 18r-C BST-1 Road Tuning
+
+Stage 18r-C keeps the shared evaluator/signal architecture and extends only the BST-1 road tuning side:
+
+- low-speed BST-1 frequency;
+- high-speed BST-1 frequency;
+- speed reference up to the F1 range around `330 km/h`;
+- speed-frequency influence;
+- grain / texture amount;
+- existing BST-1 / ASIO road output gain.
+
+The shared minimum-speed gate remains in Shared / Global Effect Settings. The new BST-1 road controls live in the BST-1 Road Texture card and auto-save through the normal audio profile.
+
+Road speed no longer needs to feel "finished" by `160 km/h`. The evaluator keeps intensity bounded and gear ducking intact, while the BST-1 texture changes more through frequency and grain than through raw amplitude alone. P-HPR road still consumes the same shared signal and remains on its separate routing/runtime path.
+
+These values are starting points only. They do not claim final physical asphalt feel, safe physical gain, physical latency, or exact high-speed tuning until Ethan validates the real hardware chain locally.

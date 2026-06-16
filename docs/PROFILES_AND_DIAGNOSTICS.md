@@ -39,12 +39,19 @@ App settings intentionally do not persist:
 
 - Haptics running state.
 - Emergency mute or emergency-stop state as a desired startup setting.
-- ASIO armed state.
 - Manual ASIO hardware test active state.
 - Direct P-HPR enable/arm/private device state.
 - Active pulses, pending stops, or bench-active state.
 - Flight-recorder history, mock history, or diagnostic counters.
 - Physical calibration or physical validation results.
+
+App settings do persist the safe ASIO/output readiness preferences:
+
+- selected output mode;
+- selected ASIO driver;
+- selected ASIO channel;
+- Arm ASIO readiness preference;
+- paddle mapping and debounce.
 
 ## JSON Format
 

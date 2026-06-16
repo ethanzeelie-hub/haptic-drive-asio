@@ -18,6 +18,8 @@ The ASIO/BST-1 path is separate from Simagic P-HPR output. ASIO uses the audio e
 
 Channel 1 is the locally validated BST-1 ASIO output channel. Physical Dayton BST-1 safe gain, latency, and final feel/tuning remain local validation items.
 
+The selected output mode, ASIO driver, ASIO channel, and Arm ASIO readiness preference can persist across launches. Restoring that readiness state does not start haptics, start the ASIO stream, or emit output on launch.
+
 Windows Sound Settings visibility does not prove ASIO usage. `ASIO READY` means the selected/armed/channel/error gates are ready while the stream can still be stopped. `ASIO ACTIVE` appears only while the stream and callback are actually active. Detailed callback, submitted/dropped frame, last manual-pulse proof, last gear-pulse proof, and error diagnostics live under Advanced / Diagnostics.
 
 ## Manual BST-1 ASIO Pulse
@@ -50,6 +52,19 @@ Controls:
 - selected ASIO channel, with channel `1` locally validated.
 
 This bench path does not wait for F1 telemetry gear-change confirmation and does not require Start Haptics. Live driving effects still use their normal haptics and telemetry gates.
+
+## BST-1 Road Texture
+
+Use Effects `BST-1 Seat Shaker -> Road Texture` to tune:
+
+- BST-1 / ASIO road output gain,
+- low-speed frequency,
+- high-speed frequency,
+- speed reference,
+- speed-frequency influence,
+- grain / texture amount.
+
+The shared minimum-speed gate remains under `Shared / Global Effect Settings`. Stage 18r-C keeps road intensity bounded so gear pulses stay readable, while road speed changes the BST-1 feel more through frequency and grain than through raw strength alone. These controls are starting points only and still require local hardware validation for final asphalt feel.
 
 ## F1 25 Telemetry
 
@@ -242,13 +257,14 @@ Normal audio tuning changes also auto-save to `default.hdprofile.json`, so the n
 Profiles do not save:
 
 - emergency mute,
-- ASIO armed state,
 - haptics running state,
 - direct-control enablement,
 - direct-control arming,
 - selected private P-HPR HID path,
 - emergency-stop latch,
 - command/write history.
+
+Safe app settings outside the audio profile still persist selected output mode, ASIO driver/channel, Arm ASIO readiness preference, replay mode, paddle mapping/debounce, and other normal device preferences without restoring unsafe runtime-active output state.
 
 Loading a P-HPR profile applies safe effect preferences while preserving runtime-only arm/device state.
 

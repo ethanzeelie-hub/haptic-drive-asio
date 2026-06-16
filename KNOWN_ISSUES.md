@@ -167,7 +167,7 @@
 ## Stage 18
 
 - The final pre-shaker software package is implemented: launch/runtime prerequisite handling, app settings persistence, UDP forwarding destination UI, recordings library UI, selected replay, packet-ID diagnostics, and copyable diagnostics reports are now available.
-- App settings are separate from haptic profiles and persist theme, forwarding destinations, and last ASIO driver/channel only. ASIO armed state, haptic running state, emergency mute, and physical calibration are not persisted.
+- App settings are separate from haptic profiles and persist theme, forwarding destinations, safe output selection, and normal device preferences. They still must not restore haptic running state, emergency mute, direct-output runtime state, or physical calibration.
 - Stage 18 follow-up adds `Manual ASIO Bass Shaker Test` for deliberate short 40/50 Hz ASIO pulses through the selected real ASIO output. It requires ASIO Output mode, M-Audio / M-Track driver selection, arming, haptics running, emergency mute clear, normal mute off, and a valid selected output channel. The existing Null synthetic benchmark remains unchanged.
 - Stage 18 follow-up adds `Paddle Gear Bench Test` for local GT Neo paddle validation without recent telemetry. Enable/arm are runtime-only, mapped paddles are still required, mock output sends no HID reports, and direct output is blocked unless all strict P-HPR direct gates are green.
 - UDP forwarding now supports IP addresses, `localhost`, and DNS hostnames. Obvious enabled loopback to the local listener port `20778` is blocked in the UI.
@@ -633,7 +633,14 @@
 ## Stage 18r-B
 
 - Normal audio tuning now auto-saves to `default.hdprofile.json`, so deliberate temporary experimentation can persist unless the user loads/resets another profile. This is intentional for sim-style workflow but still means the default profile is the live working profile.
-- Safe output selection, replay mode, and BST-1 local paddle gear settings now persist across launches, but ASIO armed state, haptics running, emergency mute, direct P-HPR enable/arm/private-device state, active pulses, pending stops, and bench-active state remain runtime-only and must be re-established deliberately.
+- Safe output selection, replay mode, BST-1 local paddle gear settings, and paddle mapping persist across launches. Haptics running, emergency mute, direct P-HPR enable/arm/private-device state, active pulses, pending stops, and bench-active state remain runtime-only and must be re-established deliberately.
 - Routing / Mixer no longer exposes the conservative ceiling or limiter toggle as normal-user controls. Advanced diagnostics and runtime summaries still need to be used if deeper safety-chain inspection is required.
 - Rename Selected blocks overwrite and active-recording output, but it remains a single deliberate action rather than a confirmation dialog or in-place list editing workflow.
 - Physical shaker feel, safe physical gain, physical latency, and final road/slip/lock tuning remain Ethan-local validation items. Stage 18r-B changes persistence/defaults/UI language only and does not claim physical validation.
+
+## Stage 18r-C
+
+- Arm ASIO can now persist as a safe readiness preference alongside saved ASIO driver/channel selection, but restoring that preference still must not start haptics, start the ASIO stream, or emit output on launch.
+- Paddle debounce now persists through the normal Devices-tab save path, but stale Windows controller identity changes can still require manual refresh/reselection of the mapped wheel input device.
+- BST-1 road speed/frequency/grain controls now expose more tuning headroom and carry the road speed reference through roughly F1 top-speed range, but final asphalt feel, safe gain, physical latency, and exact high-speed balance remain Ethan-local validation items on the real M-Audio/Fosi/Dayton chain.
+- Stage 18r-C intentionally does not change gear runtime timing, P-HPR HID/protocol/runtime, slip/lock tuning, or claim physical validation.

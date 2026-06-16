@@ -104,12 +104,13 @@ public sealed class RoadTextureEvaluator
         }
 
         var telemetry = vehicleState.Telemetry!.Value;
-        var speedScale = SpeedScale(telemetry.SpeedKph, options.MinimumSpeedKph, options.FullIntensitySpeedKph);
-        if (speedScale <= 0f)
+        var speedProgress = SpeedProgress(telemetry.SpeedKph, options.MinimumSpeedKph, options.FullIntensitySpeedKph);
+        if (speedProgress <= 0f)
         {
             return StoreSuppressed(now, "below road minimum speed", options, context, vehicleState);
         }
 
+        var speedScale = SpeedScale(speedProgress);
         var surface = EvaluateSurface(telemetry.SurfaceTypeIds, options);
         if (surface.SurfaceMix <= 0f)
         {
@@ -117,6 +118,8 @@ public sealed class RoadTextureEvaluator
         }
 
         var motion = EvaluateMotion(vehicleState, options);
+        var bst1FrequencyHz = EvaluateBst1Frequency(surface.Bst1FrequencyHz, speedProgress, options);
+        var noiseAmount = EvaluateNoiseAmount(surface.NoiseAmount, speedProgress, motion.RoughnessMetric, options);
         var rawIntensity = Clamp(
             (surface.SurfaceMix + (motion.RoughnessMetric * options.RoughnessContribution)) * speedScale,
             0f,
@@ -157,10 +160,10 @@ public sealed class RoadTextureEvaluator
             motion.WheelVertForceContribution,
             motion.VerticalGContribution,
             motion.RoughnessMetric,
-            surface.FrequencyHintHz,
-            surface.Bst1FrequencyHz,
+            (bst1FrequencyHz + surface.PHprFrequencyHz) * 0.5f,
+            bst1FrequencyHz,
             surface.PHprFrequencyHz,
-            surface.NoiseAmount,
+            noiseAmount,
             gearDuckingActive,
             duckingGain,
             SuppressedReason: outputIntensity > 0f ? null : "road intensity zero");
@@ -399,7 +402,7 @@ public sealed class RoadTextureEvaluator
             && nowUtc - lastGearPulseAtUtc.Value <= duckingWindow;
     }
 
-    private static float SpeedScale(float speedKph, float minimumSpeedKph, float fullSpeedKph)
+    private static float SpeedProgress(float speedKph, float minimumSpeedKph, float fullSpeedKph)
     {
         if (!float.IsFinite(speedKph) || speedKph <= minimumSpeedKph)
         {
@@ -412,6 +415,49 @@ public sealed class RoadTextureEvaluator
         }
 
         return Clamp((speedKph - minimumSpeedKph) / (fullSpeedKph - minimumSpeedKph), 0f, 1f);
+    }
+
+    private static float SpeedScale(float speedProgress)
+    {
+        var clamped = Clamp(speedProgress, 0f, 1f);
+        if (clamped <= 0f)
+        {
+            return 0f;
+        }
+
+        return Clamp((0.35f * clamped) + (0.65f * MathF.Sqrt(clamped)), 0f, 1f);
+    }
+
+    private static float EvaluateBst1Frequency(
+        float surfaceFrequencyHz,
+        float speedProgress,
+        RoadTextureEvaluatorOptions options)
+    {
+        var speedTunedFrequency = Interpolate(
+            options.Bst1LowSpeedFrequencyHz,
+            options.Bst1HighSpeedFrequencyHz,
+            speedProgress);
+        return Clamp(
+            Interpolate(surfaceFrequencyHz, speedTunedFrequency, options.Bst1SpeedFrequencyInfluence),
+            15f,
+            90f);
+    }
+
+    private static float EvaluateNoiseAmount(
+        float baseNoiseAmount,
+        float speedProgress,
+        float roughnessMetric,
+        RoadTextureEvaluatorOptions options)
+    {
+        var speedDrivenNoise = options.Bst1GrainAmount * (0.25f + (0.75f * Clamp(speedProgress, 0f, 1f)));
+        var roughnessBoost = Clamp(roughnessMetric * 0.12f, 0f, 0.12f);
+        return Clamp(baseNoiseAmount + speedDrivenNoise + roughnessBoost, 0f, 0.85f);
+    }
+
+    private static float Interpolate(float start, float end, float amount)
+    {
+        var clamped = Clamp(amount, 0f, 1f);
+        return start + ((end - start) * clamped);
     }
 
     private static float Clamp(float value, float minimum, float maximum)

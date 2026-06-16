@@ -390,6 +390,8 @@ internal sealed record AppSettings
 
     public int? LastAsioOutputChannel { get; init; }
 
+    public bool ArmAsioPreference { get; init; }
+
     public ReplayTimingPreference ReplayTimingPreference { get; init; } = ReplayTimingPreference.RealTime;
 
     public List<ForwardingDestinationSetting> ForwardingDestinations { get; init; } = [];

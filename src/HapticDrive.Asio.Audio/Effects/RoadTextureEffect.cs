@@ -9,6 +9,8 @@ public sealed class RoadTextureEffect : IHapticEffectSource
     private readonly RoadTextureEvaluator _evaluator;
     private double _basePhase;
     private long _frameCursor;
+    private int _grainHoldFramesRemaining;
+    private float _heldNoiseSample;
     private DateTimeOffset? _lastGearPulseAtUtc;
     private RoadTextureSignal _signal;
 
@@ -37,6 +39,8 @@ public sealed class RoadTextureEffect : IHapticEffectSource
     {
         _basePhase = 0.0;
         _frameCursor = 0;
+        _grainHoldFramesRemaining = 0;
+        _heldNoiseSample = 0f;
         _lastGearPulseAtUtc = null;
         _evaluator.Reset();
         _signal = RoadTextureSignal.Inactive(DateTimeOffset.UtcNow, "reset");
@@ -79,6 +83,9 @@ public sealed class RoadTextureEffect : IHapticEffectSource
             : 0f;
         var noiseAmount = HapticEffectMath.Clamp(_signal.NoiseAmount, 0f, 1f);
         var toneAmount = 1f - noiseAmount;
+        var grainDensityHz = Math.Max(
+            6f,
+            frequencyHz * (0.70f + (_signal.SpeedScale * 1.50f) + (noiseAmount * 0.80f)));
         var amplitude = HapticEffectMath.Clamp(
             _signal.OutputIntensity * Options.Gain,
             0f,
@@ -87,14 +94,23 @@ public sealed class RoadTextureEffect : IHapticEffectSource
         for (var frame = 0; frame < destination.FrameCount; frame++)
         {
             var tone = Math.Sin(_basePhase) * toneAmount;
-            var noise = HapticEffectMath.DeterministicSignedUnitNoise(
-                _frameCursor,
-                _signal.SurfaceTypeIds.RearLeft) * noiseAmount;
+            if (_grainHoldFramesRemaining <= 0)
+            {
+                _heldNoiseSample = (float)HapticEffectMath.DeterministicSignedUnitNoise(
+                    _frameCursor,
+                    _signal.SurfaceTypeIds.RearLeft);
+                _grainHoldFramesRemaining = Math.Max(
+                    1,
+                    (int)Math.Round(destination.SampleRate / Math.Max(1f, grainDensityHz)));
+            }
+
+            var noise = _heldNoiseSample * noiseAmount;
             var sample = (float)((tone + noise) * amplitude);
             HapticEffectMath.WriteMonoFrame(destination, frame, sample);
 
             _basePhase = HapticEffectMath.AdvancePhase(_basePhase, frequencyHz, destination.SampleRate);
             _frameCursor++;
+            _grainHoldFramesRemaining--;
         }
 
         var peak = HapticEffectMath.CalculatePeak(destination);

@@ -13,7 +13,7 @@ namespace HapticDrive.Asio.Audio.Tests;
 public sealed class HapticProfileTests
 {
     [Fact]
-    public void DefaultProfile_UsesStage18rBCurrentRigDefaults()
+    public void DefaultProfile_UsesStage18rCCurrentRigDefaults()
     {
         var profile = HapticDriveProfile.Default;
 
@@ -25,6 +25,11 @@ public sealed class HapticProfileTests
         Assert.True(profile.Effects.RoadTexture.IsEnabled);
         Assert.True(profile.Effects.RoadTexture.Bst1OutputEnabled);
         Assert.Equal(1f, profile.Effects.RoadTexture.Gain, precision: 6);
+        Assert.Equal(330f, profile.Effects.RoadTexture.FullIntensitySpeedKph, precision: 6);
+        Assert.Equal(40f, profile.Effects.RoadTexture.LowSpeedFrequencyHz, precision: 6);
+        Assert.Equal(68f, profile.Effects.RoadTexture.HighSpeedFrequencyHz, precision: 6);
+        Assert.Equal(0.75f, profile.Effects.RoadTexture.SpeedFrequencyInfluence, precision: 6);
+        Assert.Equal(0.18f, profile.Effects.RoadTexture.GrainAmount, precision: 6);
         Assert.False(profile.Effects.Slip.IsEnabled);
         Assert.Equal(0.5f, profile.Effects.Engine.Gain, precision: 6);
         Assert.Equal(0.5f, profile.Effects.GearShift.Gain, precision: 6);
@@ -56,6 +61,14 @@ public sealed class HapticProfileTests
                 {
                     Gain = 0.22f,
                     PulseDurationMilliseconds = 120
+                },
+                RoadTexture = HapticDriveProfile.Default.Effects.RoadTexture with
+                {
+                    FullIntensitySpeedKph = 320f,
+                    LowSpeedFrequencyHz = 38f,
+                    HighSpeedFrequencyHz = 72f,
+                    SpeedFrequencyInfluence = 0.55f,
+                    GrainAmount = 0.24f
                 }
             },
             Mixer = HapticDriveProfile.Default.Mixer with
@@ -75,6 +88,11 @@ public sealed class HapticProfileTests
         Assert.False(loadResult.Profile.Effects.Engine.IsEnabled);
         Assert.Equal(0.12f, loadResult.Profile.Effects.Engine.Gain, precision: 6);
         Assert.Equal(120, loadResult.Profile.Effects.GearShift.PulseDurationMilliseconds);
+        Assert.Equal(320f, loadResult.Profile.Effects.RoadTexture.FullIntensitySpeedKph, precision: 6);
+        Assert.Equal(38f, loadResult.Profile.Effects.RoadTexture.LowSpeedFrequencyHz, precision: 6);
+        Assert.Equal(72f, loadResult.Profile.Effects.RoadTexture.HighSpeedFrequencyHz, precision: 6);
+        Assert.Equal(0.55f, loadResult.Profile.Effects.RoadTexture.SpeedFrequencyInfluence, precision: 6);
+        Assert.Equal(0.24f, loadResult.Profile.Effects.RoadTexture.GrainAmount, precision: 6);
         Assert.Equal(0.45f, loadResult.Profile.Mixer.MasterGain, precision: 6);
         Assert.True(loadResult.Profile.Mixer.IsMuted);
     }
@@ -203,6 +221,10 @@ public sealed class HapticProfileTests
 
         Assert.True(validated.Effects.RoadTexture.IsEnabled);
         Assert.True(validated.Effects.RoadTexture.Bst1OutputEnabled);
+        Assert.Equal(HapticDriveProfile.Default.Effects.RoadTexture.LowSpeedFrequencyHz, validated.Effects.RoadTexture.LowSpeedFrequencyHz);
+        Assert.Equal(HapticDriveProfile.Default.Effects.RoadTexture.HighSpeedFrequencyHz, validated.Effects.RoadTexture.HighSpeedFrequencyHz);
+        Assert.Equal(HapticDriveProfile.Default.Effects.RoadTexture.SpeedFrequencyInfluence, validated.Effects.RoadTexture.SpeedFrequencyInfluence);
+        Assert.Equal(HapticDriveProfile.Default.Effects.RoadTexture.GrainAmount, validated.Effects.RoadTexture.GrainAmount);
         Assert.True(validated.ToEffectOptions().RoadTexture.IsEnabled);
         Assert.True(validated.ToEffectOptions().RoadTexture.Bst1OutputEnabled);
     }
@@ -228,6 +250,60 @@ public sealed class HapticProfileTests
         Assert.True(options.IsEnabled);
         Assert.False(options.Bst1OutputEnabled);
         Assert.Equal(0.75f, options.Gain, precision: 6);
+    }
+
+    [Fact]
+    public void RoadTextureProfile_MapsNewFrequencySpeedAndGrainFields()
+    {
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                RoadTexture = HapticDriveProfile.Default.Effects.RoadTexture with
+                {
+                    FullIntensitySpeedKph = 330f,
+                    LowSpeedFrequencyHz = 36f,
+                    HighSpeedFrequencyHz = 74f,
+                    SpeedFrequencyInfluence = 0.65f,
+                    GrainAmount = 0.30f
+                }
+            }
+        };
+
+        var options = profile.ToEffectOptions().RoadTexture;
+
+        Assert.Equal(330f, options.FullIntensitySpeedKph, precision: 6);
+        Assert.Equal(36f, options.Bst1LowSpeedFrequencyHz, precision: 6);
+        Assert.Equal(74f, options.Bst1HighSpeedFrequencyHz, precision: 6);
+        Assert.Equal(0.65f, options.Bst1SpeedFrequencyInfluence, precision: 6);
+        Assert.Equal(0.30f, options.Bst1GrainAmount, precision: 6);
+    }
+
+    [Fact]
+    public void RoadTextureProfile_ClampsNewFrequencySpeedAndGrainFieldsSafely()
+    {
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                RoadTexture = HapticDriveProfile.Default.Effects.RoadTexture with
+                {
+                    FullIntensitySpeedKph = 999f,
+                    LowSpeedFrequencyHz = 99f,
+                    HighSpeedFrequencyHz = 10f,
+                    SpeedFrequencyInfluence = 5f,
+                    GrainAmount = -1f
+                }
+            }
+        };
+
+        var validated = HapticProfileValidator.Validate(profile).Profile.Effects.RoadTexture;
+
+        Assert.Equal(360f, validated.FullIntensitySpeedKph, precision: 6);
+        Assert.Equal(70f, validated.LowSpeedFrequencyHz, precision: 6);
+        Assert.Equal(70f, validated.HighSpeedFrequencyHz, precision: 6);
+        Assert.Equal(1f, validated.SpeedFrequencyInfluence, precision: 6);
+        Assert.Equal(0f, validated.GrainAmount, precision: 6);
     }
 
     [Fact]

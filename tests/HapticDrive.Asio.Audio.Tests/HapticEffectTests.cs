@@ -285,6 +285,23 @@ public sealed class HapticEffectTests
     }
 
     [Fact]
+    public void RoadTextureEffect_SpeedChangesFrequencyAndGrainBeyondOneHundredSixtyKph()
+    {
+        var mediumEffect = new RoadTextureEffect();
+        var highEffect = new RoadTextureEffect();
+        var buffer = AudioSampleBuffer.Allocate(EffectFormat);
+
+        mediumEffect.Update(State(speed: 160, surfaceTypeIds: Wheels<byte>(0)));
+        mediumEffect.Render(buffer);
+        highEffect.Update(State(speed: 300, surfaceTypeIds: Wheels<byte>(0)));
+        highEffect.Render(buffer);
+
+        Assert.True(highEffect.Snapshot.CurrentFrequencyHz > mediumEffect.Snapshot.CurrentFrequencyHz);
+        Assert.True(highEffect.Snapshot.Signal.NoiseAmount > mediumEffect.Snapshot.Signal.NoiseAmount);
+        Assert.True(highEffect.Snapshot.Signal.SpeedScale > mediumEffect.Snapshot.Signal.SpeedScale);
+    }
+
+    [Fact]
     public void RoadTextureEffect_GearPulseDucksSharedSignal()
     {
         var normalEffect = new RoadTextureEffect();

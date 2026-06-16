@@ -2,6 +2,7 @@ using System.IO;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.App;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Asio.Runtime.Pipeline;
 
 namespace HapticDrive.Asio.App.Tests;
@@ -307,7 +308,16 @@ public sealed class AppSettingsStoreTests
             PreferredOutputMode = AudioOutputDeviceKind.Asio,
             LastAsioDriverName = "M-Audio Test Driver",
             LastAsioOutputChannel = 1,
+            ArmAsioPreference = true,
             ReplayTimingPreference = ReplayTimingPreference.FastDebug,
+            PaddleInputMapping = new PaddleInputMappingSetting
+            {
+                SelectedDeviceId = "wheel-1",
+                SelectedMethod = InputDiscoveryMethod.WindowsGameController,
+                LeftPaddleButtonId = 14,
+                RightPaddleButtonId = 13,
+                DebounceMilliseconds = 6
+            },
             Bst1PaddleGearPulse = new Bst1PaddleGearPulseSetting
             {
                 IsEnabled = true,
@@ -323,7 +333,12 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(AudioOutputDeviceKind.Asio, loaded.PreferredOutputMode);
         Assert.Equal("M-Audio Test Driver", loaded.LastAsioDriverName);
         Assert.Equal(1, loaded.LastAsioOutputChannel);
+        Assert.True(loaded.ArmAsioPreference);
         Assert.Equal(ReplayTimingPreference.FastDebug, loaded.ReplayTimingPreference);
+        Assert.Equal("wheel-1", loaded.PaddleInputMapping.SelectedDeviceId);
+        Assert.Equal(14, loaded.PaddleInputMapping.LeftPaddleButtonId);
+        Assert.Equal(13, loaded.PaddleInputMapping.RightPaddleButtonId);
+        Assert.Equal(6, loaded.PaddleInputMapping.DebounceMilliseconds);
         Assert.True(loaded.Bst1PaddleGearPulse.IsEnabled);
         Assert.Equal(55f, loaded.Bst1PaddleGearPulse.StrengthPercent, precision: 6);
         Assert.Equal(62.5f, loaded.Bst1PaddleGearPulse.FrequencyHz, precision: 6);
@@ -370,6 +385,7 @@ public sealed class AppSettingsStoreTests
         Assert.True(loaded.UseLightTheme);
         Assert.Equal("Existing Driver", loaded.LastAsioDriverName);
         Assert.Null(loaded.PreferredOutputMode);
+        Assert.False(loaded.ArmAsioPreference);
         Assert.Equal(ReplayTimingPreference.RealTime, loaded.ReplayTimingPreference);
         Assert.True(loaded.Bst1PaddleGearPulse.IsEnabled);
         Assert.Equal(50f, loaded.Bst1PaddleGearPulse.StrengthPercent, precision: 6);
@@ -388,11 +404,13 @@ public sealed class AppSettingsStoreTests
         store.Save(new AppSettings
         {
             PreferredOutputMode = AudioOutputDeviceKind.Asio,
+            ArmAsioPreference = true,
             Bst1PaddleGearPulse = new Bst1PaddleGearPulseSetting { IsEnabled = true }
         });
 
         var json = File.ReadAllText(path);
 
+        Assert.Contains("ArmAsioPreference", json, StringComparison.Ordinal);
         Assert.DoesNotContain("AsioArmed", json, StringComparison.Ordinal);
         Assert.DoesNotContain("HapticsStarted", json, StringComparison.Ordinal);
         Assert.DoesNotContain("EmergencyMute", json, StringComparison.Ordinal);

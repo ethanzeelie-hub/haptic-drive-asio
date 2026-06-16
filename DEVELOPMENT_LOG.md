@@ -3044,3 +3044,36 @@ Self-review:
 - Stage 18r-B stayed within persistence/defaults/UI wording/recording-library scope.
 - Gear runtime behavior was not intentionally changed.
 - No physical validation, safe physical gain claim, shaker feel claim, or latency claim is made here.
+
+## Stage 18r-C - BST-1 Road Speed/Frequency/Grain Tuning Controls And Devices-Tab Persistence Hotfix
+
+Date: 2026-06-16
+
+Status: Complete.
+
+Goal: Fix the remaining safe Devices-tab persistence gaps from Stage 18r-B and extend BST-1 road texture so speed affects the road feel more clearly through frequency and grain while preserving the shared road signal architecture, gear ducking, and P-HPR separation.
+
+Changes:
+
+- Persisted the remaining safe Devices-tab preferences: Arm ASIO readiness, selected ASIO driver/channel, and paddle debounce now round-trip through app settings without restoring haptics-running or other live output state.
+- Added a normal LostFocus save path for left/right paddle button mapping and debounce so text edits commit without requiring a different control change first.
+- Startup restore now keeps a saved Arm ASIO readiness preference only as readiness. Restoring that preference does not start haptics, start the ASIO stream, or emit output.
+- Extended the road profile/options model with BST-1 low-speed frequency, high-speed frequency, speed-frequency influence, grain amount, and a `330 km/h` default speed reference while preserving compatibility with older profiles that lack the new fields.
+- Reworked the shared road evaluator so road speed continues to change usefully beyond `160 km/h` through a bounded nonlinear speed scale plus speed-driven BST-1 frequency and grain changes, while gear ducking and telemetry/stale gating remain intact.
+- Updated the BST-1 Road Texture card with user-facing controls for low-speed frequency, high-speed frequency, speed reference, speed-frequency influence, and grain amount. Existing BST-1 road gain and shared minimum-speed gate remain in place.
+- Updated diagnostics, roadmap, known issues, the road texture guide, user guide, hardware-absent/profile docs, and related fake-backed tests for the new road tuning fields and safe Arm ASIO persistence behavior.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 681 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 18r-C stayed within the requested scope: BST-1 road tuning plus the minor safe Devices-tab persistence hotfix only.
+- Gear runtime timing/logic was not intentionally changed.
+- P-HPR direct HID/protocol/runtime, slip/lock tuning, and ASIO backend behavior were not intentionally changed.
+- No physical validation, safe physical gain claim, shaker feel claim, or latency claim is made here. The new road controls are software starting points only.

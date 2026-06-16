@@ -23,7 +23,7 @@ Hardware-absent mode is the default development and automated-test posture even 
 - Output-owned rendering has replaced the WPF haptic render timer for the live pipeline.
 - Stale telemetry wall-clock mute prevents old live telemetry from continuing to drive effects indefinitely.
 - Stage 18 adds a launch wrapper/script that sets `DOTNET_ROOT` to the repo-local .NET 8 runtime and checks for `Microsoft.WindowsDesktop.App 8.x` before starting the WPF executable.
-- Stage 18 app settings persist theme, forwarding destinations, and last ASIO driver/channel selection, but never persist ASIO armed state or haptic auto-start.
+- Stage 18 app settings persist theme, forwarding destinations, safe output readiness preferences, and last ASIO driver/channel selection. Stage 18r-C also allows Arm ASIO readiness preference to persist without permitting haptic auto-start or startup output.
 - Stage 18 forwarding and recording-library UI work without shaker hardware and do not require ASIO output.
 - Stage 18 follow-up adds a manual-only ASIO hardware test that can energize the selected real ASIO output with short 40/50 Hz pulses after explicit ASIO selection, arming, and Start Haptics. Automated tests still use fake ASIO backends or Null output.
 

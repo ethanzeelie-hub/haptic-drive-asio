@@ -90,6 +90,11 @@ public sealed class AppThemeResourceTests
         Assert.Contains("NormalPhprGearDurationTextBox", effectsNames);
         Assert.Contains("SharedRoadSignalEnabledCheckBox", effectsNames);
         Assert.Contains("Bst1RoadOutputEnabledCheckBox", effectsNames);
+        Assert.Contains("RoadTextureLowSpeedFrequencySlider", effectsNames);
+        Assert.Contains("RoadTextureHighSpeedFrequencySlider", effectsNames);
+        Assert.Contains("RoadTextureSpeedReferenceSlider", effectsNames);
+        Assert.Contains("RoadTextureSpeedFrequencyInfluenceSlider", effectsNames);
+        Assert.Contains("RoadTextureGrainAmountSlider", effectsNames);
         Assert.DoesNotContain("RoadTextureEnabledCheckBox", effectsNames);
         Assert.Contains("Bst1PaddleGearPulseEnabledCheckBox", effectsNames);
         Assert.Contains("NormalPhprBrakeEnabledCheckBox", effectsNames);
@@ -145,6 +150,12 @@ public sealed class AppThemeResourceTests
         Assert.Contains("LeftPaddleButtonTextBox", devicesNames);
         Assert.Contains("RightPaddleButtonTextBox", devicesNames);
         Assert.Contains("PaddleDebounceTextBox", devicesNames);
+        Assert.Contains(
+            devicesPanel
+                .Descendants()
+                .Where(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "PaddleDebounceTextBox")
+                .Select(element => element.Attribute("LostFocus")?.Value),
+            value => string.Equals(value, "PaddleMappingControl_LostFocus", StringComparison.Ordinal));
 
         Assert.Contains(
             devicesText,
