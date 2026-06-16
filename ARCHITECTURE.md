@@ -965,3 +965,46 @@ Remaining extraction order:
 
 1. Stage 19D should move paddle input routing ownership out of `MainWindow`.
 2. Stage 20 should introduce one shared slip/lock evaluator for BST-1 and P-HPR.
+
+## Stage 19D Paddle Input Routing Extraction
+
+Stage 19D moves the remaining paddle input routing orchestration out of `MainWindow.xaml.cs` while preserving the same mapped-paddle, bench, direct-runtime, and BST-1 local gear behavior.
+
+New coordinator:
+
+- `PaddleInputRoutingCoordinator`
+- project: `HapticDrive.Asio.App`
+- namespace: `HapticDrive.Asio.App`
+
+The coordinator owns:
+
+- runtime handling of `WheelPaddleInputEvent` from the existing paddle input source,
+- `ShiftIntentProcessor` evaluation for accepted live shift routing,
+- paddle gear bench evaluation through `PaddleGearBenchTestController`,
+- accepted live-shift notification into `_hapticPipeline`, `_realRoadVibrationRouter`, and `_realSlipLockRouter`,
+- accepted live-shift routing into mock P-HPR gear and real direct P-HPR gear paths,
+- accepted bench routing into mock/direct P-HPR bench paths and optional BST-1 local manual ASIO test injection,
+- safe exception recovery through `IPHprDirectRuntime.HandlePaddleInputExceptionAsync`.
+
+`MainWindow.xaml.cs` now stays a thin consumer for this slice:
+
+- it constructs the coordinator,
+- supplies current mapping, BST-1 bench settings, direct-runtime configuration, and safety-context delegates,
+- forwards `PaddleInputReceived` events into the coordinator,
+- performs the UI-thread status refresh and footer text update after each handled event,
+- keeps UI-only text/status formatting and settings-control parsing.
+
+What intentionally stayed in `MainWindow`:
+
+- WPF status/control updates and footer text formatting,
+- settings/control parsing such as `ApplyPhprPedalsNormalOptionsFromControlsAsync`,
+- safety-context builders tied to current App/output state,
+- UI diagnostics fields such as `_lastRealPhprGearPulseRoutingResult` and `_lastBst1PaddleGearPulseMessage`.
+
+Stage 19D keeps the coordinator inside `HapticDrive.Asio.App` on purpose. The live route crosses `ShiftIntentProcessor`, mock P-HPR gear routing, real direct P-HPR gear routing, `PaddleGearBenchTestController`, `IPHprDirectRuntime`, and `HapticPipelineCoordinator.StartManualAsioHardwareTestAsync`. Forcing that coordinator into `HapticDrive.Actuation` or `HapticDrive.Asio.Runtime` today would either widen the internal `IPHprDirectRuntime` surface or pull concrete Windows direct-output / App-specific ASIO test dependencies into a broader runtime layer. Stage 19D therefore uses a temporary non-WPF App service boundary instead of a bad project-direction move.
+
+Stage 19D does not change UI/XAML, paddle mappings, debounce defaults, left/right paddle semantics, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, direct gear-pulse tuning, latest-press-wins retrigger semantics, BST-1 local pulse timing/strength/frequency/duration, parser layouts, or continuous road/slip/lock runtime behavior.
+
+Remaining extraction order:
+
+1. Stage 20 should introduce one shared slip/lock evaluator for BST-1 and P-HPR.

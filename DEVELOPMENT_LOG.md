@@ -3248,3 +3248,41 @@ Self-review:
 - GT Neo paddle input routing still enters through `MainWindow.xaml.cs`. That remains the explicit Stage 19D target.
 - The shared BST-1/P-HPR slip/lock evaluator still does not exist. That remains the explicit Stage 20 target.
 - No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. The stage is architecture/risk-reduction work only.
+
+## Stage 19D - Extract Paddle Input Routing Ownership Out Of MainWindow
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Move the remaining paddle input routing orchestration out of `MainWindow.xaml.cs` into a non-UI coordinator/service boundary while preserving the same mapped paddle, direct bench, real direct gear, and BST-1 local gear behavior.
+
+Changes:
+
+- Re-checked the live Stage 19C baseline before moving anything. `MainWindow.xaml.cs` still owned the substantive `PaddleInputSource_PaddleInputReceived` body plus the `RoutePaddleGearBenchAsync`, `RoutePaddleGearBenchMockAsync`, `RouteBst1PaddleGearBenchAsync`, `RoutePaddleGearBenchDirectAsync`, and paddle-input exception recovery helpers.
+- Confirmed the live route crosses both P-HPR and BST-1/ASIO local gear paths. The method evaluated `ShiftIntentProcessor`, evaluated `PaddleGearBenchTestController`, notified accepted gear pulses into `_hapticPipeline` plus the real road/slip routers, routed accepted live events into mock and real direct P-HPR gear paths, routed accepted bench events into mock/direct P-HPR bench paths and optional BST-1 manual ASIO injection, and performed safe recovery through `IPHprDirectRuntime`.
+- Added `PaddleInputRoutingCoordinator` in `HapticDrive.Asio.App` together with narrow non-UI dependency/result records. The coordinator owns paddle-event runtime handling, bench branching, accepted live-shift notifications, direct/mock route calls, optional BST-1 manual ASIO injection, and exception recovery.
+- Kept the coordinator inside `HapticDrive.Asio.App` intentionally. The live route still depends on internal `IPHprDirectRuntime` plus App-owned `HapticPipelineCoordinator.StartManualAsioHardwareTestAsync`, so forcing it into `HapticDrive.Actuation` or `HapticDrive.Asio.Runtime` today would create a worse dependency direction or require widening the internal direct-runtime surface.
+- Reduced `MainWindow.xaml.cs` to a thin consumer for this slice: it now constructs the coordinator, forwards `PaddleInputReceived` events into it, supplies current mapping/BST-1/direct-runtime/safety delegates, and performs UI-thread status refresh plus footer formatting from coordinator results.
+- Removed the old paddle bench routing helper methods and the old paddle-input exception helper from `MainWindow.xaml.cs`. UI-only helpers such as status updates, footer formatting, settings parsing, and safety-context builders intentionally stayed in `MainWindow`.
+- Added App-side coordinator tests covering no-startup-route behavior, left/right accepted live routes, disabled direct bench, disabled BST-1 bench, accepted direct bench routing into the existing shared direct runtime path, safe capture of route exceptions, stop-all recovery for direct-bench failures, and UI-update recovery with `stopAllIfPulseMayHaveStarted: false`.
+- Added App-side guardrails proving the temporary App coordinator has no WPF/control references in source and that `MainWindow.xaml.cs` no longer declares the old substantive paddle bench helper methods.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 19D extraction result, the temporary App-home rationale, and the remaining Stage 20 target.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 724 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 19D moved paddle routing ownership only. It intentionally did not change UI/XAML, paddle mappings, debounce defaults, left/right semantics, ASIO/BST-1 behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, direct gear-pulse tuning, latest-press-wins retrigger semantics, parser layouts, continuous road/slip/lock runtime behavior, or coexistence semantics.
+- The temporary coordinator home is App-only but non-WPF by design. That is a deliberate stop point to avoid forcing concrete Windows direct-output and App-owned manual ASIO test dependencies into a broader runtime project.
+- The shared BST-1/P-HPR slip/lock evaluator still does not exist. That remains the explicit Stage 20 target.
+- No physical validation, safe physical gain claim, pedal feel claim, or latency claim is made here. The stage is architecture/risk-reduction work only.

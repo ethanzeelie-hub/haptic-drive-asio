@@ -685,3 +685,11 @@
 - `MainWindow.xaml.cs` still owns UI-only settings reads/writes, diagnostics/status formatting, and startup/shutdown orchestration around the coordinator and output device. Stage 19C intentionally does not attempt a broader MVVM rewrite.
 - `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. Stage 20 should introduce the shared evaluator.
 - Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items. Stage 19C changes continuous loop ownership, tests, and docs only.
+
+## Stage 19D
+
+- `PaddleInputRoutingCoordinator` now owns the non-UI runtime response to mapped paddle input events, so `MainWindow.xaml.cs` no longer declares the old bench-routing helper methods or the substantive `PaddleInputSource_PaddleInputReceived` body.
+- The coordinator intentionally remains in `HapticDrive.Asio.App` for now because the live route still spans internal `IPHprDirectRuntime` APIs plus App-owned BST-1 manual ASIO test injection. Stage 19D avoids a worse dependency move by using a non-WPF App service boundary instead of forcing that route into `HapticDrive.Actuation` or `HapticDrive.Asio.Runtime`.
+- `MainWindow.xaml.cs` still owns UI-only status/control updates, footer/status formatting, safety-context builders, and settings parsing around the coordinator. Stage 19D intentionally does not attempt a broader MVVM rewrite.
+- `SlipEffect` and `PHprSlipLockRouter` still duplicate core slip/lock threshold and attenuation logic. Stage 20 should introduce the shared evaluator.
+- Physical P-HPR behavior, safe gain, physical latency, and mixed-output feel remain Ethan-local validation items. Stage 19D changes paddle-route ownership, tests, and docs only.

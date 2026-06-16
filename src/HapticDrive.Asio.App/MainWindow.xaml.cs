@@ -62,6 +62,7 @@ public partial class MainWindow : Window
     private readonly PHprRoadVibrationRouter _realRoadVibrationRouter;
     private readonly PHprSlipLockRouter _realSlipLockRouter;
     private readonly PHprContinuousEffectsRuntimeCoordinator _realPhprContinuousEffectsRuntime;
+    private readonly PaddleInputRoutingCoordinator _paddleInputRoutingCoordinator;
     private readonly PHprManualValidationResultExporter _phprValidationExporter = new();
     private readonly PHprHidOpenCheckRunner _phprHidOpenCheckRunner = new();
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
@@ -317,6 +318,36 @@ public partial class MainWindow : Window
             CreateMockPedalEffectsRouterOptions(appSettings.MockPedalEffectsRouting));
         LoadPersistedAudioProfile();
         _hapticPipeline = CreatePipelineForSelectedOutput();
+        _paddleInputRoutingCoordinator = new PaddleInputRoutingCoordinator(
+            _shiftIntentProcessor,
+            _paddleGearBenchTestController,
+            _phprDirectRuntime,
+            new PaddleInputRoutingCoordinatorDependencies(
+                GetPaddleMapping,
+                NotifyAcceptedGearPulse,
+                (shiftIntentEvent, cancellationToken) => _mockGearPulseRouter.RouteAsync(
+                    shiftIntentEvent,
+                    BuildMockGearPulseSafetyContext(shiftIntentEvent),
+                    cancellationToken),
+                (shiftIntentEvent, cancellationToken) => _realPhprGearPulseRouter.RouteAsync(
+                    shiftIntentEvent,
+                    BuildRealGearPulseSafetyContext(shiftIntentEvent),
+                    cancellationToken),
+                (shiftIntentEvent, routeOptions, cancellationToken) => _mockGearPulseRouter.RouteAsync(
+                    shiftIntentEvent,
+                    routeOptions,
+                    BuildPaddleGearBenchMockSafetyContext(),
+                    cancellationToken),
+                BuildBst1PaddleGearPulseRouteSettings,
+                (request, cancellationToken) => _hapticPipeline.StartManualAsioHardwareTestAsync(
+                    request,
+                    cancellationToken),
+                ApplyPhprPedalsNormalOptionsFromControlsAsync,
+                ConfigurePhprDirectRuntime,
+                _paddleInputSource.GetPaddleSnapshot,
+                GetDeviceCardPulseSettings,
+                BuildPaddleGearBenchDirectSafetyContext,
+                WritePaddleGearBenchCrashLog));
 
         _updatingOutputUi = true;
         _updatingTuningUi = true;
@@ -6025,7 +6056,7 @@ public partial class MainWindow : Window
 
     private void PaddleInputSource_InputChanged(object? sender, object e)
     {
-        _ = RunOnUiSafelyAsync("paddle-input-status-refresh", stopAllIfPulseMayHaveStarted: false, () =>
+        _ = RunOnUiSafelyAsync("paddle-input-status-refresh", () =>
         {
             UpdatePaddleInputStatus();
             UpdateDiagnosticsStatus();
@@ -6034,145 +6065,8 @@ public partial class MainWindow : Window
 
     private async void PaddleInputSource_PaddleInputReceived(object? sender, WheelPaddleInputEvent e)
     {
-        var stopAllIfPulseMayHaveStarted = false;
-        try
-        {
-            var result = _shiftIntentProcessor.HandlePaddleInput(e);
-            PHprGearPulseRoutingResult? routingResult = null;
-            PHprDirectGearPulseRoutingResult? realRoutingResult = null;
-            var benchResult = _paddleGearBenchTestController.HandlePaddleInput(e, _paddleMapping);
-            string? benchRoutingMessage = null;
-            if (result.WasAccepted && result.ShiftIntentEvent is not null)
-            {
-                _hapticPipeline.NotifyLocalGearPulseAccepted(result.ShiftIntentEvent.AcceptedAtUtc ?? result.ShiftIntentEvent.TimestampUtc);
-                _realRoadVibrationRouter.NotifyGearPulseAccepted(result.ShiftIntentEvent.AcceptedAtUtc ?? result.ShiftIntentEvent.TimestampUtc);
-                _realSlipLockRouter.NotifyGearPulseAccepted(result.ShiftIntentEvent.AcceptedAtUtc ?? result.ShiftIntentEvent.TimestampUtc);
-                routingResult = await _mockGearPulseRouter.RouteAsync(
-                    result.ShiftIntentEvent,
-                    BuildMockGearPulseSafetyContext(result.ShiftIntentEvent));
-                realRoutingResult = await _realPhprGearPulseRouter.RouteAsync(
-                    result.ShiftIntentEvent,
-                    BuildRealGearPulseSafetyContext(result.ShiftIntentEvent));
-            }
-
-            if (benchResult.Accepted && benchResult.ShiftIntentEvent is not null)
-            {
-                stopAllIfPulseMayHaveStarted =
-                    benchResult.Options.Normalize().OutputMode == PaddleGearBenchTestOutputMode.Direct;
-                benchRoutingMessage = await RoutePaddleGearBenchAsync(benchResult);
-            }
-
-            await RunOnUiAsync(() =>
-            {
-                if (realRoutingResult is not null)
-                {
-                    _lastRealPhprGearPulseRoutingResult = realRoutingResult;
-                }
-
-                UpdateShiftIntentStatus();
-                UpdatePaddleGearBenchStatus();
-                UpdateRealPhprDirectControlStatus();
-                UpdatePhprValidationStatus();
-                UpdateMockGearPulseStatus();
-                UpdateMockPedalEffectsStatus();
-                UpdateDiagnosticsStatus();
-
-                var realMessage = realRoutingResult is not null
-                    && (_realPhprOptions.DirectControlEnabled || realRoutingResult.Routed)
-                        ? $" {realRoutingResult.Message}"
-                        : string.Empty;
-                FooterStatusText.Text = routingResult is null
-                    ? $"{result.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}"
-                    : $"{result.Message} {routingResult.Message}{realMessage}{FormatBenchRoutingFooter(benchResult, benchRoutingMessage)}";
-            });
-        }
-        catch (Exception ex)
-        {
-            await HandlePaddleInputEventExceptionAsync(
-                "paddle-input-event-exception",
-                ex,
-                stopAllIfPulseMayHaveStarted);
-        }
-    }
-
-    private async Task<string> RoutePaddleGearBenchAsync(PaddleGearBenchTestResult benchResult)
-    {
-        var options = benchResult.Options.Normalize();
-        if (benchResult.ShiftIntentEvent is null)
-        {
-            _paddleGearBenchTestController.RecordOutputStatus("No bench shift event was available.");
-            return "Bench routing skipped: no bench shift event was available.";
-        }
-
-        if (options.OutputMode == PaddleGearBenchTestOutputMode.Mock)
-        {
-            var bst1Task = RouteBst1PaddleGearBenchAsync(benchResult);
-            var phprTask = RoutePaddleGearBenchMockAsync(benchResult, options);
-            await Task.WhenAll(phprTask, bst1Task);
-            var message = $"{phprTask.Result} {bst1Task.Result}".Trim();
-            _paddleGearBenchTestController.RecordOutputStatus(message);
-            return message;
-        }
-
-        var directTask = RoutePaddleGearBenchDirectAsync(benchResult, options);
-        var bstTask = RouteBst1PaddleGearBenchAsync(benchResult);
-        await Task.WhenAll(directTask, bstTask);
-        var directMessage = $"{directTask.Result} {bstTask.Result}".Trim();
-        _paddleGearBenchTestController.RecordOutputStatus(directMessage);
-        return directMessage;
-    }
-
-    private async Task<string> RoutePaddleGearBenchMockAsync(
-        PaddleGearBenchTestResult benchResult,
-        PaddleGearBenchTestOptions options)
-    {
-        var routeOptions = new PHprGearPulseRouterOptions
-        {
-            IsEnabled = true,
-            TargetModule = options.TargetModule,
-            Profile = options.Profile
-        }.Normalize();
-        var result = await _mockGearPulseRouter.RouteAsync(
-            benchResult.ShiftIntentEvent!,
-            routeOptions,
-            BuildPaddleGearBenchMockSafetyContext());
-        return $"Bench Mock: {result.Message}";
-    }
-
-    private async Task<string> RouteBst1PaddleGearBenchAsync(PaddleGearBenchTestResult benchResult)
-    {
-        if (!_bst1PaddleGearPulseEnabled)
-        {
-            _lastBst1PaddleGearPulseMessage = "BST-1 paddle gear pulse is disabled.";
-            return "BST-1 paddle pulse skipped: disabled.";
-        }
-
-        if (benchResult is not { Accepted: true, ShiftIntentEvent: not null })
-        {
-            _lastBst1PaddleGearPulseMessage = "BST-1 paddle pulse skipped: bench event was not accepted.";
-            return "BST-1 paddle pulse skipped: bench event was not accepted.";
-        }
-
-        var durationMs = GetEffectiveBst1PaddleGearDurationMs();
-        var durationMode = _bst1PaddleGearSyncDuration ? "sync" : "custom";
-        var request = new ManualAsioHardwareTestRequest(
-            _bst1PaddleGearFrequencyHz,
-            TimeSpan.FromMilliseconds(durationMs),
-            _bst1PaddleGearStrengthPercent / 100f,
-            _bst1OutputTrimPercent / 100f,
-            Source: "paddle gear bench",
-            DurationMode: durationMode,
-            AcceptedPaddleEventSequence: benchResult.PaddleEvent.SequenceNumber,
-            PaddleSide: benchResult.PaddleEvent.PaddleSide.ToString(),
-            PaddleButtonId: benchResult.PaddleEvent.ButtonId,
-            AcceptedGearPulseId: benchResult.ShiftIntentEvent.SequenceNumber);
-        var result = await _hapticPipeline.StartManualAsioHardwareTestAsync(request);
-        _lastBst1PaddleGearPulseMessage = result.Succeeded
-            ? $"Paddle gear BST-1 pulse accepted on ASIO channel {result.Snapshot.SelectedOutputChannel}; {durationMode} duration {durationMs:N0} ms."
-            : $"Paddle gear BST-1 pulse blocked: {result.Snapshot.BlockedReason ?? result.Message}";
-        return result.Succeeded
-            ? _lastBst1PaddleGearPulseMessage
-            : _lastBst1PaddleGearPulseMessage;
+        var result = await _paddleInputRoutingCoordinator.HandleAsync(e);
+        await RunOnUiSafelyAsync("paddle-input-route-status-refresh", () => ApplyPaddleInputRoutingUiUpdate(result));
     }
 
     private int GetEffectiveBst1PaddleGearDurationMs()
@@ -6181,28 +6075,6 @@ public partial class MainWindow : Window
             _bst1PaddleGearSyncDuration,
             _sharedPhprGearPulseDurationMs,
             _bst1PaddleGearCustomDurationMs);
-    }
-
-    private async Task<string> RoutePaddleGearBenchDirectAsync(
-        PaddleGearBenchTestResult benchResult,
-        PaddleGearBenchTestOptions options)
-    {
-        if (!await ApplyPhprPedalsNormalOptionsFromControlsAsync(
-                "P-HPR pedal settings applied for Paddle Gear Bench Test."))
-        {
-            return "Bench Direct blocked: Devices-tab pedal card settings are invalid.";
-        }
-
-        ConfigurePhprDirectRuntime();
-        var message = await _phprDirectRuntime.RouteBenchAsync(
-            benchResult,
-            options,
-            _paddleInputSource.GetPaddleSnapshot(),
-            GetDeviceCardPulseSettings,
-            BuildPaddleGearBenchDirectSafetyContext());
-        UpdateRealPhprDirectControlStatus();
-        UpdatePhprValidationStatus();
-        return message;
     }
 
     private bool BeginInvokeOnUiIfRequired(Action action)
@@ -6221,7 +6093,6 @@ public partial class MainWindow : Window
 
     private async Task RunOnUiSafelyAsync(
         string reason,
-        bool stopAllIfPulseMayHaveStarted,
         Action action)
     {
         try
@@ -6230,44 +6101,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            await HandlePaddleInputEventExceptionAsync(reason, ex, stopAllIfPulseMayHaveStarted);
-        }
-    }
-
-    private async Task HandlePaddleInputEventExceptionAsync(
-        string reason,
-        Exception exception,
-        bool stopAllIfPulseMayHaveStarted)
-    {
-        try
-        {
-            await _phprDirectRuntime.HandlePaddleInputExceptionAsync(
-                reason,
-                exception,
-                stopAllIfPulseMayHaveStarted);
-        }
-        catch
-        {
-            WritePaddleGearBenchCrashLog($"{reason}-recovery-failed", exception);
-        }
-
-        try
-        {
-            await RunOnUiAsync(() =>
-            {
-                UpdatePaddleGearBenchStatus();
-                UpdateRealPhprDirectControlStatus();
-                UpdatePhprValidationStatus();
-                UpdateDiagnosticsStatus();
-                FooterStatusText.Text = "Paddle input routing failed safely; P-HPR Stop All recovery was attempted when needed.";
-            });
-        }
-        catch (Exception uiException)
-        {
-            await _phprDirectRuntime.HandlePaddleInputExceptionAsync(
-                $"{reason}-status-update-failed",
-                uiException,
-                stopAllIfPulseMayHaveStarted: false);
+            await _paddleInputRoutingCoordinator.HandleUiUpdateExceptionAsync(reason, ex);
         }
     }
 
@@ -6286,20 +6120,6 @@ public partial class MainWindow : Window
         return moduleId == PHprModuleId.Throttle
             ? _realPhprOptions.ThrottleGearPulse
             : _realPhprOptions.BrakeGearPulse;
-    }
-
-    private static string FormatBenchRoutingFooter(
-        PaddleGearBenchTestResult benchResult,
-        string? routingMessage)
-    {
-        if (benchResult.Accepted)
-        {
-            return string.IsNullOrWhiteSpace(routingMessage)
-                ? " Bench event accepted."
-                : $" {routingMessage}";
-        }
-
-        return $" {benchResult.Message}";
     }
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
@@ -6331,6 +6151,98 @@ public partial class MainWindow : Window
         _drivingArmedStateService.UpdateFromPipelineSnapshot(snapshot);
         _shiftIntentProcessor.UpdateFromPipelineSnapshot(snapshot);
         return snapshot;
+    }
+
+    private WheelPaddleMapping GetPaddleMapping()
+    {
+        return _paddleMapping;
+    }
+
+    private void NotifyAcceptedGearPulse(DateTimeOffset acceptedAtUtc)
+    {
+        _hapticPipeline.NotifyLocalGearPulseAccepted(acceptedAtUtc);
+        _realRoadVibrationRouter.NotifyGearPulseAccepted(acceptedAtUtc);
+        _realSlipLockRouter.NotifyGearPulseAccepted(acceptedAtUtc);
+    }
+
+    private Bst1PaddleGearPulseRouteSettings BuildBst1PaddleGearPulseRouteSettings()
+    {
+        return new Bst1PaddleGearPulseRouteSettings(
+            _bst1PaddleGearPulseEnabled,
+            _bst1PaddleGearStrengthPercent,
+            _bst1OutputTrimPercent,
+            _bst1PaddleGearFrequencyHz,
+            GetEffectiveBst1PaddleGearDurationMs(),
+            _bst1PaddleGearSyncDuration ? "sync" : "custom");
+    }
+
+    private void ApplyPaddleInputRoutingUiUpdate(PaddleInputRoutingHandleResult result)
+    {
+        if (result.RealRoutingResult is not null)
+        {
+            _lastRealPhprGearPulseRoutingResult = result.RealRoutingResult;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Bst1PaddleGearPulseMessage))
+        {
+            _lastBst1PaddleGearPulseMessage = result.Bst1PaddleGearPulseMessage;
+        }
+
+        if (result.FailedSafely)
+        {
+            UpdatePaddleGearBenchStatus();
+            UpdateRealPhprDirectControlStatus();
+            UpdatePhprValidationStatus();
+            UpdateDiagnosticsStatus();
+            FooterStatusText.Text = "Paddle input routing failed safely; P-HPR Stop All recovery was attempted when needed.";
+            return;
+        }
+
+        UpdateShiftIntentStatus();
+        UpdatePaddleGearBenchStatus();
+        UpdateRealPhprDirectControlStatus();
+        UpdatePhprValidationStatus();
+        UpdateMockGearPulseStatus();
+        UpdateMockPedalEffectsStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = BuildPaddleInputFooterStatusText(result);
+    }
+
+    private string BuildPaddleInputFooterStatusText(PaddleInputRoutingHandleResult result)
+    {
+        var shiftIntentResult = result.ShiftIntentResult;
+        if (shiftIntentResult is null)
+        {
+            return "Paddle input routing completed without a shift-intent result.";
+        }
+
+        var realRoutingResult = result.RealRoutingResult;
+        var realMessage = realRoutingResult is not null
+            && (_realPhprOptions.DirectControlEnabled || realRoutingResult.Routed)
+                ? $" {realRoutingResult.Message}"
+                : string.Empty;
+        return result.MockRoutingResult is null
+            ? $"{shiftIntentResult.Message}{realMessage}{FormatBenchRoutingFooter(result.BenchResult, result.BenchRoutingMessage)}"
+            : $"{shiftIntentResult.Message} {result.MockRoutingResult.Message}{realMessage}{FormatBenchRoutingFooter(result.BenchResult, result.BenchRoutingMessage)}";
+    }
+
+    private static string FormatBenchRoutingFooter(
+        PaddleGearBenchTestResult? benchResult,
+        string? routingMessage)
+    {
+        if (benchResult is null)
+        {
+            return string.Empty;
+        }
+
+        if (benchResult.Accepted)
+        {
+            return string.IsNullOrWhiteSpace(routingMessage)
+                ? " Bench event accepted."
+                : $" {routingMessage}";
+        }
+
+        return $" {benchResult.Message}";
     }
 
     private PHprSafetyContext BuildMockGearPulseSafetyContext(ShiftIntentEvent shiftIntentEvent)
