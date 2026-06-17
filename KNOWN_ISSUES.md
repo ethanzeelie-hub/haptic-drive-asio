@@ -815,3 +815,12 @@
 - Stage 21L intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 22A
+
+- Stage 22A is intentionally a practical post-Gemini feel/tuning pass, not another architecture-cleanup stage. The existing continuous real P-HPR slip/lock runtime ownership, direct-output ownership, startup/shutdown behavior, and safety/lifecycle boundaries remain where Stage 21L left them.
+- Real P-HPR wheel slip and wheel lock now expose independent normal-user texture cadence controls, but physical feel still requires Ethan's local validation. The repo can prove cadence parsing, persistence, routing, clamping, suppression, and diagnostics; it cannot prove final pedal feel without the real hardware chain.
+- The new tighter defaults (`70 ms` throttle slip, `60 ms` brake lock) are software retunes only. They are not claims of final safe gain, final physical texture, or final preferred cadence across different pedal mounting, footwear, or rig setups.
+- The existing command-rate limiter and direct-control safety limiter remain in force. If a chosen cadence is more aggressive than the effective hardware safety window, the limiter may cap or reject updates; diagnostics now expose the configured cadence plus command-rate suppression counts, but they do not claim physical saturation behavior.
+- Normal real slip/lock workflow now relies on the visible brake-lock and throttle-slip effect checkboxes rather than a separate normal routing-enabled checkbox. Advanced min/max/target/duration controls still exist, so future tuning changes must keep those normal/advanced surfaces aligned.
+- No ASIO/BST-1 road/slip/lock behavior changed, no P-HPR HID/report bytes changed, and no startup output or direct-control auto-arm behavior changed in this stage.

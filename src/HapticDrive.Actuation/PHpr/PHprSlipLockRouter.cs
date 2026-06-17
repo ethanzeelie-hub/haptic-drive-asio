@@ -602,7 +602,11 @@ public sealed class PHprSlipLockRouter
                     continue;
                 }
 
-                if (IsWithinMinimumInterval(candidate.Kind, module, options.MinimumRouteInterval, nowUtc))
+                if (IsWithinMinimumInterval(
+                        candidate.Kind,
+                        module,
+                        TimeSpan.FromMilliseconds(candidate.Settings.TextureCadenceMs),
+                        nowUtc))
                 {
                     intervalSuppressed = true;
                     IncrementIntervalSuppressed(candidate.Kind);

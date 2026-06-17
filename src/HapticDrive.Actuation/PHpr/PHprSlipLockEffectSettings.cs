@@ -4,6 +4,10 @@ namespace HapticDrive.Actuation.PHpr;
 
 public sealed record PHprSlipLockEffectSettings
 {
+    public const int MinimumTextureCadenceMs = 40;
+    public const int MaximumTextureCadenceMs = 200;
+    public const int DefaultTextureCadenceMs = 70;
+    public const int DefaultWheelLockTextureCadenceMs = 60;
     public const int MinimumContinuousDurationMs = 100;
     public const int DefaultContinuousDurationMs = 120;
 
@@ -18,6 +22,8 @@ public sealed record PHprSlipLockEffectSettings
     public double MinimumFrequencyHz { get; init; } = 45d;
 
     public double FrequencyHz { get; init; } = 50d;
+
+    public int TextureCadenceMs { get; init; }
 
     public int DurationMs { get; init; } = DefaultContinuousDurationMs;
 
@@ -34,6 +40,7 @@ public sealed record PHprSlipLockEffectSettings
                 Strength01 = 0.10d,
                 MinimumFrequencyHz = 50d,
                 FrequencyHz = 50d,
+                TextureCadenceMs = DefaultWheelLockTextureCadenceMs,
                 DurationMs = DefaultContinuousDurationMs,
                 Priority = PHprPedalEffectProfile.WheelLockDefault.Priority
             },
@@ -44,6 +51,7 @@ public sealed record PHprSlipLockEffectSettings
                 Strength01 = 0.08d,
                 MinimumFrequencyHz = 45d,
                 FrequencyHz = 50d,
+                TextureCadenceMs = DefaultTextureCadenceMs,
                 DurationMs = DefaultContinuousDurationMs,
                 Priority = PHprPedalEffectProfile.WheelSlipDefault.Priority
             }
@@ -71,6 +79,9 @@ public sealed record PHprSlipLockEffectSettings
             Strength01 = Math.Max(minimumStrength, strength),
             MinimumFrequencyHz = Math.Min(minimumFrequency, frequency),
             FrequencyHz = Math.Max(minimumFrequency, frequency),
+            TextureCadenceMs = TextureCadenceMs is >= MinimumTextureCadenceMs and <= MaximumTextureCadenceMs
+                ? TextureCadenceMs
+                : defaults.TextureCadenceMs,
             DurationMs = Math.Clamp(DurationMs, MinimumContinuousDurationMs, safeLimits.MaxDurationMs),
             Priority = Math.Clamp(Priority, 0, 1_000)
         };

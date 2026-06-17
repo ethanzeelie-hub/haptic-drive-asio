@@ -861,13 +861,8 @@
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold"
                                                    Text="Wheel Lock" />
-                                        <CheckBox x:Name="RealSlipLockEnabledCheckBox"
-                                                  Margin="0,10,0,0"
-                                                  Checked="RealPhprDirectControlCheckBox_Changed"
-                                                  Unchecked="RealPhprDirectControlCheckBox_Changed"
-                                                  Content="Wheel slip / lock routing enabled" />
                                         <CheckBox x:Name="RealLockEnabledCheckBox"
-                                                  Margin="0,8,0,0"
+                                                  Margin="0,10,0,0"
                                                   Checked="RealPhprDirectControlCheckBox_Changed"
                                                   Unchecked="RealPhprDirectControlCheckBox_Changed"
                                                   Content="Brake wheel lock enabled" />
@@ -881,8 +876,18 @@
                                                      Style="{StaticResource FieldTextBoxStyle}"
                                                      LostFocus="RealPhprDirectControl_LostFocus" />
                                         </WrapPanel>
+                                        <WrapPanel Margin="0,0,0,0">
+                                            <TextBlock Margin="0,4,6,8"
+                                                       Style="{StaticResource MutedTextBlockStyle}"
+                                                       Text="Texture cadence ms" />
+                                            <TextBox x:Name="RealLockCadenceTextBox"
+                                                     Width="72"
+                                                     Margin="0,0,8,8"
+                                                     Style="{StaticResource FieldTextBoxStyle}"
+                                                     LostFocus="RealPhprDirectControl_LostFocus" />
+                                        </WrapPanel>
                                         <TextBlock Style="{StaticResource MutedTextBlockStyle}"
-                                                   Text="Frequency range and target remain in Advanced." />
+                                                   Text="Lower cadence gives a tighter/faster lock texture. Frequency range, duration, and target remain in Advanced." />
                                     </StackPanel>
                                 </Border>
                             </UniformGrid>
@@ -990,8 +995,18 @@
                                                      Style="{StaticResource FieldTextBoxStyle}"
                                                      LostFocus="RealPhprDirectControl_LostFocus" />
                                         </WrapPanel>
+                                        <WrapPanel Margin="0,0,0,0">
+                                            <TextBlock Margin="0,4,6,8"
+                                                       Style="{StaticResource MutedTextBlockStyle}"
+                                                       Text="Texture cadence ms" />
+                                            <TextBox x:Name="RealSlipCadenceTextBox"
+                                                     Width="72"
+                                                     Margin="0,0,8,8"
+                                                     Style="{StaticResource FieldTextBoxStyle}"
+                                                     LostFocus="RealPhprDirectControl_LostFocus" />
+                                        </WrapPanel>
                                         <TextBlock Style="{StaticResource MutedTextBlockStyle}"
-                                                   Text="Frequency range and target remain in Advanced." />
+                                                   Text="Lower cadence gives a tighter/faster slip texture. Frequency range, duration, and target remain in Advanced." />
                                     </StackPanel>
                                 </Border>
                             </UniformGrid>

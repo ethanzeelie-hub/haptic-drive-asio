@@ -96,6 +96,7 @@ public sealed class AppSettingsSnapshotBuilderTests
                     Strength01 = 0.06d,
                     MinimumFrequencyHz = 35d,
                     FrequencyHz = 50d,
+                    TextureCadenceMs = 65,
                     DurationMs = 70
                 }
             }
@@ -123,6 +124,7 @@ public sealed class AppSettingsSnapshotBuilderTests
         Assert.False(snapshot.RealPhprOutputOptions.Selector.IsSelected);
         Assert.True(snapshot.RealRoadVibrationRouterOptions.IsEnabled);
         Assert.True(snapshot.RealSlipLockRouterOptions.IsEnabled);
+        Assert.Equal(65, snapshot.RealSlipLockRouterOptions.WheelSlip.TextureCadenceMs);
     }
 
     [Fact]
@@ -223,6 +225,7 @@ public sealed class AppSettingsSnapshotBuilderTests
                     Strength01 = 0.06d,
                     MinimumFrequencyHz = 35d,
                     FrequencyHz = 50d,
+                    TextureCadenceMs = 65,
                     DurationMs = 70
                 }
             }));
@@ -241,6 +244,7 @@ public sealed class AppSettingsSnapshotBuilderTests
         Assert.Equal(13, settings.PaddleInputMapping.RightPaddleButtonId);
         Assert.Equal(6, settings.PaddleInputMapping.DebounceMilliseconds);
         Assert.Equal(0.07d, settings.RealPhprGearPulseRouting.Brake.Strength01);
+        Assert.Equal(65, settings.RealPhprSlipLockRouting.WheelSlip.TextureCadenceMs);
         Assert.DoesNotContain("DirectControlEnabled", json, StringComparison.Ordinal);
         Assert.DoesNotContain("DirectControlArmed", json, StringComparison.Ordinal);
         Assert.DoesNotContain("private-device-path", json, StringComparison.Ordinal);

@@ -1803,3 +1803,48 @@ Stage 21M:
 - If a later cleanup is still desired, it should be optional docs-only release-note consolidation rather than another implementation stage.
 
 Stage 21L does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+
+## Stage 22A Post-Gemini P-HPR Slip/Lock Feel Retune
+
+Stage 22A happens after Stage 21L closed the Gemini review stream. It is a practical feel/tuning stage, not another architecture-cleanup stage.
+
+The real slip/lock path remains:
+
+```text
+F1 25 telemetry / latest VehicleState
+-> cached DrivingArmed/Menu Safe state
+-> PHprSlipLockRouter
+-> SimagicPhprOutputDevice gates
+-> PHprSafetyLimiter
+-> SimHubF1EcRealReportEncoder
+-> IPhprHidReportWriter
+```
+
+Stage 22A keeps that ownership unchanged and retunes only the existing slip/lock settings seam:
+
+- real wheel slip and wheel lock now carry independent `TextureCadenceMs` settings in addition to target, min/max strength, min/max frequency, and duration;
+- the router now uses each effect's own cadence instead of one shared 100 ms slip/lock route interval, while the hold-timeout watchdog, explicit stop behavior, gear-priority protection, road-yield behavior, and direct-output safety gates stay unchanged;
+- the normal Effects UI keeps only the brake wheel-lock and throttle wheel-slip checkboxes for real slip/lock enablement, and overall real slip/lock routing now follows those visible per-effect toggles instead of a separate normal-workflow master checkbox;
+- normal users can now tune per-effect texture cadence directly, while advanced min/max strength, min/max frequency, target, and duration controls remain in Advanced diagnostics.
+
+Stage 22A default feel retune:
+
+- throttle wheel slip default texture cadence: `70 ms`;
+- brake wheel lock default texture cadence: `60 ms`;
+- continuous slip/lock duration remains `120 ms`.
+
+This shifts the default feel toward tighter continuous texture without changing:
+
+- ASIO/BST-1 behavior,
+- P-HPR HID/report bytes,
+- report ID `0xF1`,
+- FeatureReport transport,
+- command encoding,
+- F1 25 parser layouts,
+- replay timing,
+- `.hdrec` format,
+- startup output behavior,
+- direct-control auto-enable/auto-arm behavior,
+- runtime ownership boundaries introduced in Stages 19-21.
+
+If a user selects an aggressive cadence, Stage 22A still relies on the existing `PHprSafetyLimiter` and command-rate limiter rather than bypassing them. Diagnostics now surface the configured slip/lock cadence per effect alongside existing command-rate suppression counters. Physical feel remains Ethan-local validation work.

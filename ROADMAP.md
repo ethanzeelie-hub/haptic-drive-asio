@@ -93,6 +93,10 @@
 - Stage 21G: Startup/readiness orchestration audit and safe no-output startup planner extraction complete.
 - Stage 21H: Shutdown/cleanup ordering audit and stop-only lifecycle planner extraction complete.
 - Stage 21I: Safety-context builder audit and pure snapshot extraction complete.
+- Stage 21J: Stop All / Emergency Stop ownership audit complete.
+- Stage 21K: Start Haptics / Emergency Mute ownership audit complete.
+- Stage 21L: Final residual MainWindow orchestration audit complete.
+- Stage 22A: Post-Gemini P-HPR slip/lock feel retune and user controls complete.
 
 ## Planned Stages
 
@@ -157,6 +161,11 @@
 59. Stage 21G: Startup/readiness orchestration audit and safe no-output startup planner extraction. Complete.
 60. Stage 21H: Shutdown/cleanup ordering audit and stop-only lifecycle planner extraction. Complete.
 61. Stage 21I: Safety-context builder audit and pure snapshot extraction. Complete.
+62. Stage 21J: Stop All / Emergency Stop ownership audit. Complete.
+63. Stage 21K: Start Haptics / Emergency Mute ownership audit. Complete.
+64. Stage 21L: Final residual MainWindow orchestration audit. Complete.
+65. Stage 22A: Post-Gemini P-HPR slip/lock feel retune and user controls. Complete.
+66. Stage 22B: Local hardware validation and slip/lock fine-tune guidance. Planned.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -244,6 +253,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 21J re-audits Stop All / Emergency Stop ownership and finds no worthwhile pure extraction beyond guardrails. `MainWindow` still owns mock and real emergency-stop execution, direct-runtime Stop All, startup cleanup invocation, shutdown cleanup execution, bench block reset, and the surrounding WPF status/diagnostic refresh fan-out. The safe outcome is stronger guardrail coverage plus documentation, not a broad lifecycle coordinator. Recommended Stage 21K is a separate Start Haptics / Emergency Mute ownership audit rather than mixing those controls into Stop All handling.
 - Stage 21K re-audits Start Haptics / Emergency Mute ownership and extracts only `HapticsControlStatePresenter` in `HapticDrive.Asio.App` for pure button/state/readiness presentation metadata. `MainWindow` still owns actual `_hapticPipeline.StartAsync()` / `_hapticPipeline.StopAsync()` execution, actual `_hapticPipeline.SetEmergencyMuteAsync(...)` and `_testBench.EmergencyMute` mutation, startup cleanup invocation, shutdown cleanup execution, and all Stop All / Emergency Stop ownership. Recommended Stage 21L is a final residual `MainWindow` orchestration audit to decide whether the Gemini review stream is complete or whether one last tiny dashboard/status presenter is still justified.
 - Stage 21L performs the final residual `MainWindow` orchestration audit and closes the Gemini review stream without forcing another extraction. The remaining `MainWindow` code is now deliberately concentrated around WPF assignment/binding, event entry points, startup/shutdown sequencing, runtime snapshot gathering, and execution-heavy lifecycle/safety work. One final aggregate guardrail proves the Stage 21 helper set stays pure while `MainWindow` keeps the real execution-heavy entry points visible. Stage 21M is not required; if ever needed, it should be limited to optional docs-only release-note cleanup.
+- Stage 22A happens after the Gemini review stream is closed and deliberately stays out of architecture cleanup. It retunes real P-HPR wheel slip and wheel lock feel by introducing independent per-effect texture cadence settings, tightening the default cadence to `70 ms` for throttle slip and `60 ms` for brake lock, and exposing those cadence controls in the normal Effects workflow alongside the existing per-effect enable toggles. The continuous runtime/coordinator, safety limiter, command-rate limiter, startup behavior, ASIO/BST-1 behavior, and P-HPR report/protocol bytes remain unchanged. Recommended Stage 22B is Ethan-local hardware validation plus fine-tune guidance, or extra cadence diagnostics only if local testing shows the current visibility is insufficient.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

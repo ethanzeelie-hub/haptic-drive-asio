@@ -329,6 +329,7 @@ internal sealed class AppSettingsStore
             Strength01 = setting.Strength01,
             MinimumFrequencyHz = setting.MinimumFrequencyHz,
             FrequencyHz = setting.FrequencyHz,
+            TextureCadenceMs = setting.TextureCadenceMs,
             DurationMs = setting.DurationMs
         }.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
 
@@ -340,6 +341,7 @@ internal sealed class AppSettingsStore
             Strength01 = normalized.Strength01,
             MinimumFrequencyHz = normalized.MinimumFrequencyHz,
             FrequencyHz = normalized.FrequencyHz,
+            TextureCadenceMs = normalized.TextureCadenceMs,
             DurationMs = normalized.DurationMs
         };
     }
@@ -580,6 +582,8 @@ internal sealed record RealPhprSlipLockEffectSetting
 
     public double FrequencyHz { get; init; } = 75d;
 
+    public int TextureCadenceMs { get; init; }
+
     public int DurationMs { get; init; } = 50;
 
     public static RealPhprSlipLockEffectSetting DefaultFor(PHprPedalEffectKind kind)
@@ -600,6 +604,7 @@ internal sealed record RealPhprSlipLockEffectSetting
             Strength01 = normalized.Strength01,
             MinimumFrequencyHz = normalized.MinimumFrequencyHz,
             FrequencyHz = normalized.FrequencyHz,
+            TextureCadenceMs = normalized.TextureCadenceMs,
             DurationMs = normalized.DurationMs
         };
     }

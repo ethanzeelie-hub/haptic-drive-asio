@@ -24,6 +24,18 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public void RealPhprSlipLockDefaultsUseTighterTextureCadencePerPedal()
+    {
+        var wheelSlip = AppSettings.Default.RealPhprSlipLockRouting.WheelSlip;
+        var wheelLock = AppSettings.Default.RealPhprSlipLockRouting.WheelLock;
+
+        Assert.Equal(70, wheelSlip.TextureCadenceMs);
+        Assert.Equal(60, wheelLock.TextureCadenceMs);
+        Assert.Equal(PHprSlipLockEffectSettings.DefaultContinuousDurationMs, wheelSlip.DurationMs);
+        Assert.Equal(PHprSlipLockEffectSettings.DefaultContinuousDurationMs, wheelLock.DurationMs);
+    }
+
+    [Fact]
     public void RealPhprGearPulseSettingsPersistWithoutUnsafeDirectControlState()
     {
         using var directory = new TempDirectory();
@@ -136,6 +148,7 @@ public sealed class AppSettingsStoreTests
                     Strength01 = 0.06d,
                     MinimumFrequencyHz = 35d,
                     FrequencyHz = 50d,
+                    TextureCadenceMs = 65,
                     DurationMs = 70
                 },
                 WheelLock = new RealPhprSlipLockEffectSetting
@@ -146,6 +159,7 @@ public sealed class AppSettingsStoreTests
                     Strength01 = 0.08d,
                     MinimumFrequencyHz = 50d,
                     FrequencyHz = 50d,
+                    TextureCadenceMs = 55,
                     DurationMs = 60
                 }
             }
@@ -161,12 +175,53 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(0.06d, loaded.RealPhprSlipLockRouting.WheelSlip.Strength01);
         Assert.Equal(35d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumFrequencyHz);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
+        Assert.Equal(65, loaded.RealPhprSlipLockRouting.WheelSlip.TextureCadenceMs);
         Assert.Equal(PHprSlipLockEffectSettings.MinimumContinuousDurationMs, loaded.RealPhprSlipLockRouting.WheelSlip.DurationMs);
         Assert.False(loaded.RealPhprSlipLockRouting.WheelLock.IsEnabled);
         Assert.Equal(PHprGearPulseTarget.Throttle, loaded.RealPhprSlipLockRouting.WheelLock.TargetModule);
+        Assert.Equal(55, loaded.RealPhprSlipLockRouting.WheelLock.TextureCadenceMs);
         Assert.DoesNotContain("DirectControlEnabled", json, StringComparison.Ordinal);
         Assert.DoesNotContain("DirectControlArmed", json, StringComparison.Ordinal);
         Assert.DoesNotContain("DevicePath", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RealPhprSlipLockSettingsLoadLegacyProfilesWithoutCadenceFields()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        File.WriteAllText(
+            path,
+            """
+            {
+              "RealPhprSlipLockRouting": {
+                "IsEnabled": true,
+                "WheelSlip": {
+                  "IsEnabled": true,
+                  "TargetModule": 1,
+                  "MinimumStrength01": 0.02,
+                  "Strength01": 0.06,
+                  "MinimumFrequencyHz": 35,
+                  "FrequencyHz": 50,
+                  "DurationMs": 120
+                },
+                "WheelLock": {
+                  "IsEnabled": true,
+                  "TargetModule": 0,
+                  "MinimumStrength01": 0.04,
+                  "Strength01": 0.10,
+                  "MinimumFrequencyHz": 50,
+                  "FrequencyHz": 50,
+                  "DurationMs": 120
+                }
+              }
+            }
+            """);
+
+        var loaded = new AppSettingsStore(path).Load();
+
+        Assert.Equal(70, loaded.RealPhprSlipLockRouting.WheelSlip.TextureCadenceMs);
+        Assert.Equal(60, loaded.RealPhprSlipLockRouting.WheelLock.TextureCadenceMs);
     }
 
     [Fact]
@@ -267,6 +322,7 @@ public sealed class AppSettingsStoreTests
                     Strength01 = 10d,
                     MinimumFrequencyHz = 10_000d,
                     FrequencyHz = 12_000d,
+                    TextureCadenceMs = 999,
                     DurationMs = 10_000
                 },
                 WheelLock = new RealPhprSlipLockEffectSetting
@@ -275,6 +331,7 @@ public sealed class AppSettingsStoreTests
                     Strength01 = double.NaN,
                     MinimumFrequencyHz = double.NaN,
                     FrequencyHz = double.NaN,
+                    TextureCadenceMs = -5,
                     DurationMs = -5
                 }
             }
@@ -288,12 +345,14 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(1.0d, loaded.RealPhprSlipLockRouting.WheelSlip.Strength01);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelSlip.MinimumFrequencyHz);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelSlip.FrequencyHz);
+        Assert.Equal(70, loaded.RealPhprSlipLockRouting.WheelSlip.TextureCadenceMs);
         Assert.Equal(1_000, loaded.RealPhprSlipLockRouting.WheelSlip.DurationMs);
         Assert.Equal(PHprGearPulseTarget.Brake, loaded.RealPhprSlipLockRouting.WheelLock.TargetModule);
         Assert.Equal(0.04d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumStrength01);
         Assert.Equal(0.10d, loaded.RealPhprSlipLockRouting.WheelLock.Strength01);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelLock.MinimumFrequencyHz);
         Assert.Equal(50d, loaded.RealPhprSlipLockRouting.WheelLock.FrequencyHz);
+        Assert.Equal(60, loaded.RealPhprSlipLockRouting.WheelLock.TextureCadenceMs);
         Assert.Equal(PHprSlipLockEffectSettings.MinimumContinuousDurationMs, loaded.RealPhprSlipLockRouting.WheelLock.DurationMs);
     }
 

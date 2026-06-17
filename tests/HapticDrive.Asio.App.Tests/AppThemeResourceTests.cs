@@ -112,7 +112,10 @@ public sealed class AppThemeResourceTests
         Assert.Contains("RealRoadBrakeStrengthTextBox", effectsNames);
         Assert.Contains("RealRoadThrottleStrengthTextBox", effectsNames);
         Assert.Contains("RealLockStrengthTextBox", effectsNames);
+        Assert.Contains("RealLockCadenceTextBox", effectsNames);
         Assert.Contains("RealSlipStrengthTextBox", effectsNames);
+        Assert.Contains("RealSlipCadenceTextBox", effectsNames);
+        Assert.DoesNotContain("RealSlipLockEnabledCheckBox", effectsNames);
 
         var devicesPanelNames = GetXNameValues(FindElementByXName(mainWindowXaml, "DevicesPanel"));
         Assert.DoesNotContain("NormalPhprGearDurationTextBox", devicesPanelNames);

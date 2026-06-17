@@ -93,12 +93,29 @@ internal static class PhprUiValueConverter
         out int durationMs,
         out string message)
     {
+        return TryParseDurationMs(
+            text,
+            label,
+            MinimumDurationMs,
+            MaximumDurationMs,
+            out durationMs,
+            out message);
+    }
+
+    public static bool TryParseDurationMs(
+        string text,
+        string label,
+        int minimumDurationMs,
+        int maximumDurationMs,
+        out int durationMs,
+        out string message)
+    {
         durationMs = 0;
         if (!int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            || parsed < MinimumDurationMs
-            || parsed > MaximumDurationMs)
+            || parsed < minimumDurationMs
+            || parsed > maximumDurationMs)
         {
-            message = $"{label} duration must be between 10 and 1000 ms.";
+            message = $"{label} duration must be between {minimumDurationMs} and {maximumDurationMs} ms.";
             return false;
         }
 

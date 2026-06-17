@@ -183,13 +183,13 @@ public sealed class ControlSettingsSnapshotBuilderTests
         var slipBuilt = ControlSettingsSnapshotBuilder.TryBuildRealSlipLockEffectSettings(
             "Wheel slip",
             PHprPedalEffectKind.WheelSlip,
-            new RealSlipLockEffectControlInputs(true, PHprGearPulseTarget.Brake, "2", "6", "35", "50", "70"),
+            new RealSlipLockEffectControlInputs(true, PHprGearPulseTarget.Brake, "2", "6", "35", "50", "65", "70"),
             out var slip,
             out _);
         var lockBuilt = ControlSettingsSnapshotBuilder.TryBuildRealSlipLockEffectSettings(
             "Wheel lock",
             PHprPedalEffectKind.WheelLock,
-            new RealSlipLockEffectControlInputs(false, PHprGearPulseTarget.Throttle, "4", "10", "50", "50", "60"),
+            new RealSlipLockEffectControlInputs(false, PHprGearPulseTarget.Throttle, "4", "10", "50", "50", "55", "60"),
             out var wheelLock,
             out _);
         var slipLockOptionsBuilt = ControlSettingsSnapshotBuilder.TryBuildRealSlipLockOptions(
@@ -224,6 +224,8 @@ public sealed class ControlSettingsSnapshotBuilderTests
         Assert.True(slipLock.IsEnabled);
         Assert.Equal(PHprGearPulseTarget.Brake, slipLock.WheelSlip.TargetModule);
         Assert.Equal(PHprGearPulseTarget.Throttle, slipLock.WheelLock.TargetModule);
+        Assert.Equal(65, slipLock.WheelSlip.TextureCadenceMs);
+        Assert.Equal(55, slipLock.WheelLock.TextureCadenceMs);
 
         var values = ControlSettingsSnapshotBuilder.BuildRealPhprControlValues(direct, road, slipLock);
         Assert.Equal("7", values.BrakeGearPulse.StrengthText);
@@ -231,6 +233,7 @@ public sealed class ControlSettingsSnapshotBuilderTests
         Assert.Equal("60", values.BrakeGearPulse.DurationText);
         Assert.Equal("2", values.BrakeRoadVibration.MinimumStrengthText);
         Assert.Equal(PHprGearPulseTarget.Brake, values.WheelSlip.TargetModule);
+        Assert.Equal("65", values.WheelSlip.TextureCadenceText);
     }
 
     [Fact]

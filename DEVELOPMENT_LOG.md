@@ -3809,3 +3809,54 @@ Self-review:
 - Stage 21L intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, emergency-stop physical response claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 22A - Post-Gemini P-HPR Slip/Lock Feel Retune and User Controls
+
+Date: 2026-06-18
+
+Status: Complete.
+
+Goal: Improve real P-HPR wheel slip and wheel lock feel by tightening the effective continuous texture spacing and exposing safe normal-user slip/lock cadence controls after the Gemini cleanup stream was already closed by Stage 21L.
+
+Changes:
+
+- Re-audited the existing real P-HPR slip/lock path before coding. Confirmed that the "too spaced apart" feel came from the Stage 18r-E/F continuous model still sharing one deterministic `PHprSlipLockRouterOptions.MinimumRouteInterval` cadence for both effects while duration already stayed continuous.
+- Confirmed that the low-risk seam was the existing `PHprSlipLockEffectSettings` / app-settings / normal-effects UI path rather than any runtime ownership move. Stage 22A intentionally does not resume Gemini architecture cleanup.
+- Added independent `TextureCadenceMs` to real P-HPR wheel slip and wheel lock settings in `PHprSlipLockEffectSettings` with safe defaults and safe repair behavior.
+- Retuned default real P-HPR cadence toward tighter continuous texture:
+  - throttle wheel slip default cadence `70 ms`,
+  - brake wheel lock default cadence `60 ms`,
+  - continuous duration still `120 ms`.
+- Updated `PHprSlipLockRouter` so real slip and real lock each use their own configured cadence when evaluating deterministic interval suppression instead of one shared 100 ms route interval for both effects.
+- Added safe cadence parsing, formatting, hydration, and persistence through:
+  - `ControlSettingsSnapshotBuilder`,
+  - `AppSettingsStore`,
+  - `AppSettingsSnapshotBuilder`,
+  - existing real P-HPR app-settings/profile-safe record types.
+- Added normal user-facing real P-HPR cadence controls in the Effects page:
+  - `RealSlipCadenceTextBox`,
+  - `RealLockCadenceTextBox`.
+- Removed the separate normal-workflow slip/lock routing checkbox and made the real slip/lock route follow the visible brake wheel-lock and throttle wheel-slip effect checkboxes directly.
+- Kept advanced real P-HPR min/max strength, min/max frequency, target, and duration controls in Advanced diagnostics; no low-level protocol or HID controls were added to the normal workflow.
+- Updated real slip/lock diagnostics text to show configured per-effect cadence alongside existing command-rate and interval-suppression counters.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` to document that Stage 22A is a post-Gemini feel/tuning stage, not another architecture stage.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 814 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 22A intentionally stays inside the existing real slip/lock settings and routing seam. It does not move runtime ownership, direct-output ownership, startup/shutdown ownership, Stop All / Emergency Stop ownership, or Start Haptics / Emergency Mute ownership.
+- The real slip/lock feel retune is software-only. It proves safer/tighter cadence plumbing, persistence, diagnostics, and suppression behavior, but it does not claim final physical feel.
+- Existing limiter behavior remains intact. Tight cadence requests still pass through the existing command-rate limiter and safety limiter rather than bypassing them.
+- `MainWindow.xaml.cs` line count moved from 5494 to 5497 in this stage because the safe change was small UI/control plumbing, not another orchestration extraction.
+- Stage 22A intentionally does not change ASIO/BST-1 behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, F1 25 parser layouts, replay timing, `.hdrec` format, startup output behavior, or auto-enable/auto-arm direct-control behavior.
+- Ethan still needs local hardware validation for final brake wheel-lock feel, throttle wheel-slip feel, preferred cadence ranges, and any further practical retune guidance in a follow-up Stage 22B.

@@ -2050,6 +2050,7 @@ public partial class MainWindow : Window
                     StrengthText: RealSlipStrengthTextBox.Text,
                     MinimumFrequencyText: RealSlipMinFrequencyTextBox.Text,
                     FrequencyText: RealSlipFrequencyTextBox.Text,
+                    TextureCadenceText: RealSlipCadenceTextBox.Text,
                     DurationText: RealSlipDurationTextBox.Text),
                 out var slip,
                 out message)
@@ -2063,6 +2064,7 @@ public partial class MainWindow : Window
                     StrengthText: RealLockStrengthTextBox.Text,
                     MinimumFrequencyText: RealLockMinFrequencyTextBox.Text,
                     FrequencyText: RealLockFrequencyTextBox.Text,
+                    TextureCadenceText: RealLockCadenceTextBox.Text,
                     DurationText: RealLockDurationTextBox.Text),
                 out var wheelLock,
                 out message))
@@ -2071,7 +2073,7 @@ public partial class MainWindow : Window
         }
 
         return ControlSettingsSnapshotBuilder.TryBuildRealSlipLockOptions(
-            RealSlipLockEnabledCheckBox.IsChecked == true,
+            RealSlipEnabledCheckBox.IsChecked == true || RealLockEnabledCheckBox.IsChecked == true,
             _realSlipLockOptions,
             slip,
             wheelLock,
@@ -2229,13 +2231,13 @@ public partial class MainWindow : Window
         RealRoadThrottleMinFrequencyTextBox.Text = values.ThrottleRoadVibration.MinimumFrequencyText;
         RealRoadThrottleFrequencyTextBox.Text = values.ThrottleRoadVibration.FrequencyText;
         RealRoadThrottleDurationTextBox.Text = values.ThrottleRoadVibration.DurationText;
-        RealSlipLockEnabledCheckBox.IsChecked = values.RealSlipLockEnabled;
         RealSlipEnabledCheckBox.IsChecked = values.WheelSlip.IsEnabled;
         RealSlipTargetComboBox.SelectedItem = values.WheelSlip.TargetModule;
         RealSlipMinStrengthTextBox.Text = values.WheelSlip.MinimumStrengthText;
         RealSlipStrengthTextBox.Text = values.WheelSlip.StrengthText;
         RealSlipMinFrequencyTextBox.Text = values.WheelSlip.MinimumFrequencyText;
         RealSlipFrequencyTextBox.Text = values.WheelSlip.FrequencyText;
+        RealSlipCadenceTextBox.Text = values.WheelSlip.TextureCadenceText;
         RealSlipDurationTextBox.Text = values.WheelSlip.DurationText;
         RealLockEnabledCheckBox.IsChecked = values.WheelLock.IsEnabled;
         RealLockTargetComboBox.SelectedItem = values.WheelLock.TargetModule;
@@ -2243,6 +2245,7 @@ public partial class MainWindow : Window
         RealLockStrengthTextBox.Text = values.WheelLock.StrengthText;
         RealLockMinFrequencyTextBox.Text = values.WheelLock.MinimumFrequencyText;
         RealLockFrequencyTextBox.Text = values.WheelLock.FrequencyText;
+        RealLockCadenceTextBox.Text = values.WheelLock.TextureCadenceText;
         RealLockDurationTextBox.Text = values.WheelLock.DurationText;
         _updatingRealPhprDirectControlUi = false;
         ConfigureRealPhprOutputFromControls("Real P-HPR direct control initialized; startup auto-selection runs after load.", saveSafeSettings: false);
@@ -4625,7 +4628,7 @@ public partial class MainWindow : Window
         }
 
         var lastResult = snapshot.LastResult;
-        return $"{lastResult?.Status.ToString() ?? "none"}; runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence {snapshot.Options.MinimumRouteInterval.TotalMilliseconds:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {continuousRuntime.RoadHigherPrioritySuppressedCount:N0}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: false)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: false)}; at {FormatTimestamp(lastResult?.RoutedAtUtc ?? snapshot.LastRouteAttemptAtUtc)}";
+        return $"{lastResult?.Status.ToString() ?? "none"}; runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence slip/lock {snapshot.Options.WheelSlip.TextureCadenceMs:0}/{snapshot.Options.WheelLock.TextureCadenceMs:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {continuousRuntime.RoadHigherPrioritySuppressedCount:N0}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: false)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: false)}; at {FormatTimestamp(lastResult?.RoutedAtUtc ?? snapshot.LastRouteAttemptAtUtc)}";
     }
 
     private string BuildRealSlipLockDiagnosticsText()
@@ -4637,7 +4640,7 @@ public partial class MainWindow : Window
             return "none";
         }
 
-        return $"runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence {snapshot.Options.MinimumRouteInterval.TotalMilliseconds:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; attempts {snapshot.RouteAttemptCount:N0}; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {continuousRuntime.RoadHigherPrioritySuppressedCount:N0}; watchdog stops {snapshot.WatchdogStopCount:N0}; stop reason {snapshot.LastSlipLockStopReason}; last result {snapshot.LastResult?.Status.ToString() ?? "none"}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; start age {FormatTimestampAge(snapshot.LastSlipLockStartAtUtc)}; update age {FormatTimestampAge(snapshot.LastSlipLockUpdateAtUtc)}; stop age {FormatTimestampAge(snapshot.LastSlipLockStopAtUtc)}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: true)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: true)}";
+        return $"runtime {snapshot.RuntimeState}; active {snapshot.ActiveSlipLockModules}; cadence slip/lock {snapshot.Options.WheelSlip.TextureCadenceMs:0}/{snapshot.Options.WheelLock.TextureCadenceMs:0} ms; hold {snapshot.Options.HoldTimeout.TotalMilliseconds:0} ms; attempts {snapshot.RouteAttemptCount:N0}; routed {snapshot.RouteCount:N0}; safety rejected {snapshot.SafetyRejectedCount:N0}; interval suppressed {snapshot.IntervalSuppressedCount:N0}; stale {snapshot.StaleTelemetrySuppressedCount:N0}; command-rate {snapshot.CommandRateSuppressedCount:N0}; stops {snapshot.StopCommandCount:N0}; gear protected {snapshot.GearProtectionSuppressedCount:N0}; road yield {continuousRuntime.RoadHigherPrioritySuppressedCount:N0}; watchdog stops {snapshot.WatchdogStopCount:N0}; stop reason {snapshot.LastSlipLockStopReason}; last result {snapshot.LastResult?.Status.ToString() ?? "none"}; last target {snapshot.LastTargetModule?.ToString() ?? "none"}; start age {FormatTimestampAge(snapshot.LastSlipLockStartAtUtc)}; update age {FormatTimestampAge(snapshot.LastSlipLockUpdateAtUtc)}; stop age {FormatTimestampAge(snapshot.LastSlipLockStopAtUtc)}; slip {FormatRealSlipLockEffectDiagnostics(snapshot.WheelSlip, includeTelemetry: true)}; lock {FormatRealSlipLockEffectDiagnostics(snapshot.WheelLock, includeTelemetry: true)}";
     }
 
     private string BuildRealPhprGearPulseLatencyText()
@@ -4801,7 +4804,7 @@ public partial class MainWindow : Window
         PHprSlipLockEffectSettings settings)
     {
         var normalized = settings.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        return $"{(normalized.IsEnabled ? "on" : "off")} target {normalized.TargetModule}; strength {PhprUiValueConverter.FormatPercent(normalized.MinimumStrength01)}-{PhprUiValueConverter.FormatPercent(normalized.Strength01)}%; freq {PhprUiValueConverter.FormatFrequency(normalized.MinimumFrequencyHz)}-{PhprUiValueConverter.FormatFrequency(normalized.FrequencyHz)} Hz; duration {normalized.DurationMs} ms";
+        return $"{(normalized.IsEnabled ? "on" : "off")} target {normalized.TargetModule}; strength {PhprUiValueConverter.FormatPercent(normalized.MinimumStrength01)}-{PhprUiValueConverter.FormatPercent(normalized.Strength01)}%; freq {PhprUiValueConverter.FormatFrequency(normalized.MinimumFrequencyHz)}-{PhprUiValueConverter.FormatFrequency(normalized.FrequencyHz)} Hz; cadence {normalized.TextureCadenceMs} ms; duration {normalized.DurationMs} ms";
     }
 
     private static string FormatRealSlipLockEffectDiagnostics(
@@ -4812,7 +4815,7 @@ public partial class MainWindow : Window
         var telemetry = includeTelemetry
             ? $"; raw {FormatRealSlipLockTelemetry(diagnostics.Kind, diagnostics.LastTelemetry)}"
             : string.Empty;
-        return $"{diagnostics.Kind}: active {diagnostics.LastActive}; reason {diagnostics.LastReason}; target {target}; intensity {diagnostics.LastIntensity01:0.###}; strength {PhprUiValueConverter.FormatPercent(diagnostics.LastComputedStrength01)}%; freq {PhprUiValueConverter.FormatFrequency(diagnostics.LastComputedFrequencyHz)} Hz; duration {diagnostics.LastCommandDurationMs:N0} ms; below tactile {diagnostics.LastBelowTactileThreshold}; routed {diagnostics.RouteCount:N0}; safety rejected {diagnostics.SafetyRejectedCount:N0}; interval suppressed {diagnostics.IntervalSuppressedCount:N0}; stale {diagnostics.StaleTelemetrySuppressedCount:N0}; command-rate {diagnostics.CommandRateSuppressedCount:N0}; stops {diagnostics.StopCommandCount:N0}; start age {FormatTimestampAge(diagnostics.LastStartAtUtc)}; update age {FormatTimestampAge(diagnostics.LastUpdateAtUtc)}; stop age {FormatTimestampAge(diagnostics.LastStopAtUtc)}{telemetry}";
+        return $"{diagnostics.Kind}: active {diagnostics.LastActive}; reason {diagnostics.LastReason}; target {target}; intensity {diagnostics.LastIntensity01:0.###}; strength {PhprUiValueConverter.FormatPercent(diagnostics.LastComputedStrength01)}%; freq {PhprUiValueConverter.FormatFrequency(diagnostics.LastComputedFrequencyHz)} Hz; cadence {diagnostics.Settings.TextureCadenceMs:N0} ms; duration {diagnostics.LastCommandDurationMs:N0} ms; below tactile {diagnostics.LastBelowTactileThreshold}; routed {diagnostics.RouteCount:N0}; safety rejected {diagnostics.SafetyRejectedCount:N0}; interval suppressed {diagnostics.IntervalSuppressedCount:N0}; stale {diagnostics.StaleTelemetrySuppressedCount:N0}; command-rate {diagnostics.CommandRateSuppressedCount:N0}; stops {diagnostics.StopCommandCount:N0}; start age {FormatTimestampAge(diagnostics.LastStartAtUtc)}; update age {FormatTimestampAge(diagnostics.LastUpdateAtUtc)}; stop age {FormatTimestampAge(diagnostics.LastStopAtUtc)}{telemetry}";
     }
 
     private static string FormatRealSlipLockTelemetry(

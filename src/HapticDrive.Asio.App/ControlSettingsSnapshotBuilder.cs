@@ -75,6 +75,7 @@ internal sealed record RealSlipLockEffectControlInputs(
     string StrengthText,
     string MinimumFrequencyText,
     string FrequencyText,
+    string TextureCadenceText,
     string DurationText);
 
 internal sealed record RealPhprDirectControlInputs(
@@ -171,6 +172,7 @@ internal sealed record SlipLockEffectControlValues(
     string StrengthText,
     string MinimumFrequencyText,
     string FrequencyText,
+    string TextureCadenceText,
     string DurationText);
 
 internal sealed record PedalEffectControlValues(
@@ -799,6 +801,13 @@ internal static class ControlSettingsSnapshotBuilder
         }
 
         if (!PhprUiValueConverter.TryParseDurationMs(
+                inputs.TextureCadenceText,
+                $"{label} texture cadence",
+                PHprSlipLockEffectSettings.MinimumTextureCadenceMs,
+                PHprSlipLockEffectSettings.MaximumTextureCadenceMs,
+                out var textureCadenceMs,
+                out message)
+            || !PhprUiValueConverter.TryParseDurationMs(
                 inputs.DurationText,
                 label,
                 out var duration,
@@ -815,6 +824,7 @@ internal static class ControlSettingsSnapshotBuilder
             Strength01 = strength,
             MinimumFrequencyHz = minimumFrequency,
             FrequencyHz = frequency,
+            TextureCadenceMs = textureCadenceMs,
             DurationMs = duration
         }.Normalize(kind, ControlSafetyLimits);
         message = $"{label} real P-HPR slip/lock settings ready.";
@@ -833,6 +843,7 @@ internal static class ControlSettingsSnapshotBuilder
             StrengthText: PhprUiValueConverter.FormatPercent(normalized.Strength01),
             MinimumFrequencyText: PhprUiValueConverter.FormatFrequency(normalized.MinimumFrequencyHz),
             FrequencyText: PhprUiValueConverter.FormatFrequency(normalized.FrequencyHz),
+            TextureCadenceText: normalized.TextureCadenceMs.ToString(CultureInfo.InvariantCulture),
             DurationText: normalized.DurationMs.ToString(CultureInfo.InvariantCulture));
     }
 

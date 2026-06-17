@@ -291,11 +291,13 @@ internal static class AppSettingsSnapshotBuilder
 
     public static PHprSlipLockRouterOptions CreateRealSlipLockRouterOptions(RealPhprSlipLockRoutingSetting setting)
     {
+        var wheelSlip = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelSlip, setting.WheelSlip);
+        var wheelLock = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelLock, setting.WheelLock);
         return PHprSlipLockRouterOptions.Disabled with
         {
-            IsEnabled = setting.IsEnabled,
-            WheelSlip = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelSlip, setting.WheelSlip),
-            WheelLock = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelLock, setting.WheelLock)
+            IsEnabled = wheelSlip.IsEnabled || wheelLock.IsEnabled,
+            WheelSlip = wheelSlip,
+            WheelLock = wheelLock
         };
     }
 
@@ -304,7 +306,7 @@ internal static class AppSettingsSnapshotBuilder
         var normalized = options.Normalize(SettingsSafetyLimits);
         return new RealPhprSlipLockRoutingSetting
         {
-            IsEnabled = normalized.IsEnabled,
+            IsEnabled = normalized.WheelSlip.IsEnabled || normalized.WheelLock.IsEnabled,
             WheelSlip = RealPhprSlipLockEffectSetting.From(PHprPedalEffectKind.WheelSlip, normalized.WheelSlip),
             WheelLock = RealPhprSlipLockEffectSetting.From(PHprPedalEffectKind.WheelLock, normalized.WheelLock)
         };
@@ -346,6 +348,7 @@ internal static class AppSettingsSnapshotBuilder
             Strength01 = setting.Strength01,
             MinimumFrequencyHz = setting.MinimumFrequencyHz,
             FrequencyHz = setting.FrequencyHz,
+            TextureCadenceMs = setting.TextureCadenceMs,
             DurationMs = setting.DurationMs
         }.Normalize(kind, SettingsSafetyLimits);
     }

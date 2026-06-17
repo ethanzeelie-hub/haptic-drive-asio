@@ -141,6 +141,43 @@ public sealed class PHprSlipLockRouterTests
     }
 
     [Fact]
+    public async Task SlipAndLockCadenceRemainIndependentPerPedal()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault with
+            {
+                WheelSlip = PHprSlipLockEffectSettings.DefaultFor(PHprPedalEffectKind.WheelSlip) with
+                {
+                    TextureCadenceMs = 80
+                },
+                WheelLock = PHprSlipLockEffectSettings.DefaultFor(PHprPedalEffectKind.WheelLock) with
+                {
+                    TextureCadenceMs = 50
+                }
+            },
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateAllEffectsVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var second = await router.RouteAsync(
+            CreateAllEffectsVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock,
+            BaseTime.AddMilliseconds(60));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.True(second.WasRouted, second.Message);
+        Assert.Equal(3, inner.CommandHistory.Count);
+        Assert.Single(second.Commands);
+        Assert.Equal(PHprPedalEffectKind.WheelLock, second.Commands[0].Kind);
+        Assert.Equal(1, snapshot.WheelSlip.IntervalSuppressedCount);
+        Assert.Equal(2, snapshot.WheelLock.RouteCount);
+        Assert.Equal(1, snapshot.WheelSlip.RouteCount);
+    }
+
+    [Fact]
     public async Task SlipLockRoutesAtBoundedCadenceWithContinuousDurations()
     {
         await using var inner = new MockPhprOutputDevice();
@@ -362,6 +399,43 @@ public sealed class PHprSlipLockRouterTests
     }
 
     [Fact]
+    public async Task AggressiveCadenceStillRespectsCommandRateLimiter()
+    {
+        var limits = PHprSafetyLimits.Default with
+        {
+            MaxCommandsPerSecond = 1,
+            AllowRealDeviceWrites = false
+        };
+        await using var inner = new MockPhprOutputDevice(limits);
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprSlipLockRouter(
+            output,
+            PHprSlipLockRouterOptions.EnabledDefault with
+            {
+                WheelLock = PHprSlipLockEffectSettings.DefaultFor(PHprPedalEffectKind.WheelLock) with
+                {
+                    IsEnabled = false
+                },
+                WheelSlip = PHprSlipLockEffectSettings.DefaultFor(PHprPedalEffectKind.WheelSlip) with
+                {
+                    TextureCadenceMs = PHprSlipLockEffectSettings.MinimumTextureCadenceMs
+                }
+            },
+            output.SetSafetyContext);
+
+        var first = await router.RouteAsync(CreateSlipVehicleState(), PHprSafetyContext.DefaultMock, BaseTime);
+        var second = await router.RouteAsync(
+            CreateSlipVehicleState(frame: 2),
+            PHprSafetyContext.DefaultMock,
+            BaseTime.AddMilliseconds(PHprSlipLockEffectSettings.MinimumTextureCadenceMs + 5));
+        var snapshot = router.GetSnapshot();
+
+        Assert.True(first.WasRouted, first.Message);
+        Assert.Equal(PHprSlipLockRoutingStatus.RejectedBySafety, second.Status);
+        Assert.True(snapshot.CommandRateSuppressedCount > 0);
+    }
+
+    [Fact]
     public void DiagnosticsExposeContinuousSlipLockFields()
     {
         var snapshot = PHprSlipLockRouterOptions.EnabledDefault.Normalize();
@@ -370,6 +444,8 @@ public sealed class PHprSlipLockRouterTests
         Assert.Equal(TimeSpan.FromMilliseconds(350), snapshot.HoldTimeout);
         Assert.Equal(PHprGearPulseTarget.Throttle, snapshot.WheelSlip.TargetModule);
         Assert.Equal(PHprGearPulseTarget.Brake, snapshot.WheelLock.TargetModule);
+        Assert.Equal(70, snapshot.WheelSlip.TextureCadenceMs);
+        Assert.Equal(60, snapshot.WheelLock.TextureCadenceMs);
         Assert.True(snapshot.WheelSlip.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs);
         Assert.True(snapshot.WheelLock.DurationMs >= PHprSlipLockEffectSettings.MinimumContinuousDurationMs);
     }
