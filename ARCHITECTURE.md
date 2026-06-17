@@ -1700,3 +1700,106 @@ Recommended Stage 21L:
 3. Do not combine MVVM, ASIO lifecycle relocation, direct runtime relocation, Stop All / Emergency Stop execution, Start Haptics execution, and Emergency Mute execution into one stage.
 
 Stage 21K does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21L Final Residual MainWindow Orchestration Audit
+
+Stage 21L performs the final residual `MainWindow.xaml.cs` orchestration audit after Stages 21A through 21K and closes the Gemini review stream without forcing another extraction.
+
+Audit result:
+
+- the remaining shell methods are now dominated by direct WPF assignment/binding, event-handler entry points, startup/load wiring, shutdown cleanup execution, runtime snapshot gathering, and execution-heavy lifecycle/safety work,
+- the remaining status-style methods such as device, telemetry, mixer, profile, and page-status updates still mix runtime snapshot reads, page-selection branching, direct WPF writes, and follow-on updater fan-out, so they are not clean final presenter seams,
+- there is no remaining single pure dashboard/footer/status extraction that is both meaningful and lower-risk than simply documenting the residual ownership clearly,
+- the correct final outcome is closure documentation plus one aggregate guardrail proving the extracted Stage 21 helper set stays pure while `MainWindow` keeps the execution-heavy entry points visible.
+
+No Stage 21L code extraction:
+
+- Stage 21L intentionally stays audit/guardrail/documentation-only.
+- No new presenter/planner/builder is introduced.
+
+Remaining `MainWindow.xaml.cs` responsibility map:
+
+- intentional WPF assignment / control binding:
+  - direct `Text` / `Content` / `IsEnabled` / `ToolTip` / `ItemsSource` assignment for shell controls,
+  - page-specific `PageStatusText` assignment based on the selected navigation page,
+  - UI list and combo-box population, selection reflection, and shell visibility toggles.
+- event wiring and handler entry points:
+  - click/change/selection handlers,
+  - telemetry timer tick entry,
+  - window lifecycle entry points such as closing/closed.
+- lifecycle orchestration:
+  - startup load/readiness sequencing,
+  - output-selection pipeline rebuild flow,
+  - shutdown cleanup sequencing and exception capture.
+- hardware/runtime execution:
+  - `_hapticPipeline.StartAsync()` / `_hapticPipeline.StopAsync()`,
+  - `_hapticPipeline.SetEmergencyMuteAsync(...)`,
+  - direct pulse/test-bench/manual ASIO execution paths,
+  - direct runtime configure/open-check/stop/start entry points.
+- safety-critical execution:
+  - Stop All / Emergency Stop handlers,
+  - startup cleanup invocation,
+  - shutdown cleanup execution,
+  - direct-output readiness and recovery entry points.
+- profile/settings file lifecycle:
+  - explicit load/save/reset orchestration and related user-triggered status flow.
+- runtime snapshot gathering:
+  - pipeline, output, telemetry receiver, test bench, direct runtime, router, and diagnostics snapshot collection to feed the extracted presenters and status builders.
+- acceptable residual code-behind:
+  - shell coordination that is necessarily WPF-anchored or execution-heavy and no longer obviously benefits from another pure extraction.
+
+New Stage 21L protection:
+
+- `GeminiReviewClosureGuardrailTests`
+
+The final closure guardrail proves:
+
+- the Stage 21 helper set (`PhprWorkflowStatusPresenter`, `DiagnosticsStatusPresenter`, `AppSettingsSnapshotBuilder`, `ControlSettingsSnapshotBuilder`, `AudioProfileControlSnapshotBuilder`, `LocalGearReadinessPresenter`, `StartupReadinessPlanner`, `ShutdownCleanupPlanner`, `SafetyContextSnapshotBuilder`, and `HapticsControlStatePresenter`) remains free of WPF references and execution-heavy lifecycle/hardware ownership,
+- `MainWindow.xaml.cs` still visibly owns Start Haptics / Stop Haptics execution, Emergency Mute execution, Stop All / Emergency Stop execution, startup cleanup invocation, telemetry/timer startup, and shutdown cleanup execution.
+
+Gemini review closure matrix:
+
+| Gemini concern | Current result | Notes |
+| --- | --- | --- |
+| `MainWindow.xaml.cs` as a WPF God Object | Partially mitigated | The file is still large, but most deterministic workflow/diagnostics/settings/readiness/status shaping has been extracted. The remaining code is largely deliberate shell orchestration. |
+| P-HPR background loops owned by UI | Fixed | Stage 19C moved continuous real road/slip/lock loop ownership out of `MainWindow`. |
+| `PHprDirectRuntime` in App | Fixed | Stage 19B moved direct runtime ownership out of `HapticDrive.Asio.App`. |
+| Paddle input routing in `MainWindow` | Fixed | Stage 19D moved the substantive routing body into `PaddleInputRoutingCoordinator`. |
+| Duplicate slip/lock evaluation | Fixed | Stage 20 introduced shared slip/lock evaluation for BST-1 and P-HPR. |
+| Debug-harness UI / product-readiness concerns | Partially mitigated | Status/workflow/readiness/presentation seams were extracted, but the app still intentionally carries advanced diagnostics and validation surfaces in WPF. |
+| Stop All / Emergency Stop safety visibility | Guarded | Stage 21J kept execution visible in `MainWindow` and added explicit guardrails. |
+| Start Haptics / Emergency Mute visibility | Guarded | Stage 21K kept execution visible in `MainWindow` and extracted only pure presentation. |
+| Remaining `MainWindow` residual responsibilities | Deliberately deferred | Residual shell orchestration remains in code-behind because it is lifecycle-heavy, WPF-bound, or safety-critical. |
+| Items deliberately deferred | Deliberately deferred | No MVVM rewrite, no broad lifecycle relocation, no hidden runtime ownership transfer, and no hardware-behavior claims are made in this stream. |
+
+Why the remaining `MainWindow` ownership is acceptable:
+
+- the high-risk runtime ownership findings from the Gemini review were already addressed in the earlier stages,
+- the remaining shell code is now mostly coordinator glue between WPF controls, snapshot reads, and explicit lifecycle/safety entry points,
+- hiding that residue behind extra wrappers would reduce visibility more than it would reduce risk,
+- the current guardrails make the intended boundary explicit and testable.
+
+Behavior explicitly not changed by Stage 21L:
+
+- no startup BST-1 output,
+- no startup P-HPR output,
+- no auto-start haptics,
+- no auto-start ASIO,
+- no auto-enable or auto-arm P-HPR direct control,
+- no Start Haptics / Stop Haptics execution move,
+- no Emergency Mute execution move,
+- no Stop All / Emergency Stop execution move,
+- no startup-cleanup execution move out of `PHprDirectRuntime`,
+- no shutdown-cleanup execution move out of `MainWindow`,
+- no ASIO/BST-1 backend behavior change,
+- no P-HPR HID/report byte change,
+- no report ID `0xF1` change,
+- no FeatureReport transport change,
+- no command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout, command-rate-limiter, safety-limit, parser-layout, replay-timing, schema, or privacy/redaction change.
+
+Stage 21M:
+
+- Stage 21M is not required.
+- If a later cleanup is still desired, it should be optional docs-only release-note consolidation rather than another implementation stage.
+
+Stage 21L does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.

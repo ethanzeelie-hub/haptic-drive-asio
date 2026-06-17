@@ -803,3 +803,15 @@
 - Stage 21K intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21L
+
+- Stage 21L intentionally stays audit/guardrail/documentation-only. The final residual `MainWindow.xaml.cs` responsibilities are now dominated by acceptable WPF assignment/binding, event handler entry points, startup/shutdown sequencing, runtime snapshot gathering, and execution-heavy lifecycle/safety work rather than another obviously pure presentation seam.
+- No final dashboard/footer/status extraction was forced because the remaining update methods mix WPF writes, page-selection branching, runtime snapshot reads, and follow-on updater fan-out. Splitting them further would add indirection without materially reducing ownership risk.
+- Added `GeminiReviewClosureGuardrailTests` to prove the final Stage 21 helper set remains free of WPF/hardware/lifecycle execution references while `MainWindow.xaml.cs` still visibly owns the execution-heavy entry points for startup, shutdown, Start Haptics / Stop Haptics, Emergency Mute, and Stop All / Emergency Stop.
+- The Gemini review stream is considered complete enough to close: direct runtime ownership, continuous P-HPR loop ownership, paddle routing ownership, duplicated slip/lock evaluation, and the major pure presentation/settings/readiness seams have all been addressed or deliberately guarded.
+- Remaining `MainWindow` ownership is deliberate residual shell orchestration, not an unreviewed blind spot. It stays acceptable until or unless a future user-driven feature creates a new clearly pure seam.
+- Stage 21M is not required. If later desired, it should be optional docs-only release-note cleanup rather than another implementation stage.
+- Stage 21L intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.

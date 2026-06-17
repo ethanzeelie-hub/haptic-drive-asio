@@ -3770,3 +3770,42 @@ Self-review:
 - Stage 21K intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, emergency-stop physical response claim, or latency claim is made here. Local validation is still required later.
+
+Goal: Perform the final residual `MainWindow.xaml.cs` orchestration audit after Stages 21A through 21K, decide whether the Gemini review stream needs one last tiny pure extraction, and otherwise close the stream with documentation and guardrails.
+
+Changes:
+
+- Re-audited the live Stage 21K baseline before coding. `MainWindow.xaml.cs` was 5494 lines and the remaining responsibilities were concentrated around direct WPF assignment/binding, event-handler entry points, startup/load wiring, shutdown cleanup execution, runtime snapshot gathering, and execution-heavy lifecycle/safety work.
+- Reviewed the extracted Stage 21 helper set and the existing Stage 21 guardrail tests to verify that the prior pure seams remain pure and that execution-heavy ownership still stays visible in `MainWindow.xaml.cs`.
+- Re-classified the remaining shell responsibilities into intentional WPF binding, handler entry points, lifecycle orchestration, runtime/hardware execution, safety-critical execution, profile/settings file lifecycle, runtime snapshot gathering, and acceptable residual code-behind.
+- Confirmed that the remaining dashboard/device/telemetry/profile/effect status methods are not worthwhile final presenter seams because they still mix runtime snapshot reads, direct WPF assignment, page-selection branching, and updater fan-out.
+- Intentionally did not add a Stage 21L presenter/planner/builder. The safe outcome for the final Gemini closure gate is audit/guardrail/documentation-only rather than forcing another cosmetic extraction.
+- Added `tests/HapticDrive.Asio.App.Tests/GeminiReviewClosureGuardrailTests.cs` to prove the final Stage 21 helper set stays free of WPF and execution-heavy lifecycle/hardware ownership while `MainWindow.xaml.cs` still visibly owns:
+  - Start Haptics / Stop Haptics execution,
+  - Emergency Mute execution,
+  - Stop All / Emergency Stop execution,
+  - startup cleanup invocation,
+  - telemetry/timer startup,
+  - shutdown cleanup execution.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21L audit result, the Gemini closure matrix, the deliberately retained `MainWindow` responsibilities, and the conclusion that Stage 21M is not required.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 808 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21L intentionally does not add another presenter because the remaining `MainWindow.xaml.cs` residue is orchestration-heavy rather than a neglected pure mapping seam.
+- The Gemini review stream is complete enough to close: the major runtime-ownership and duplication findings were fixed, the presentation/settings/readiness seams were extracted where safe, and the safety/lifecycle residues are now deliberately guarded rather than merely left behind.
+- Actual Start Haptics / Stop Haptics execution, Emergency Mute execution, Stop All / Emergency Stop execution, startup cleanup, and shutdown cleanup all stayed visible and unchanged.
+- `MainWindow.xaml.cs` line count remained 5494 in this stage because Stage 21L was a completion gate, not a line-count chase.
+- Stage 21L intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, emergency-stop physical response claim, or latency claim is made here. Local validation is still required later.
