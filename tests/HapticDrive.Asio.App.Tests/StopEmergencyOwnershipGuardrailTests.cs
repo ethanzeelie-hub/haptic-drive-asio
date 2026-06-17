@@ -36,6 +36,7 @@ public sealed class StopEmergencyOwnershipGuardrailTests
         var repositoryRoot = FindRepositoryRoot();
         var extractedSources = new[]
         {
+            Path.Combine(repositoryRoot, "src", "HapticDrive.Asio.App", "HapticsControlStatePresenter.cs"),
             Path.Combine(repositoryRoot, "src", "HapticDrive.Asio.App", "StartupReadinessPlanner.cs"),
             Path.Combine(repositoryRoot, "src", "HapticDrive.Asio.App", "ShutdownCleanupPlanner.cs"),
             Path.Combine(repositoryRoot, "src", "HapticDrive.Asio.App", "SafetyContextSnapshotBuilder.cs")

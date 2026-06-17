@@ -3730,3 +3730,43 @@ Self-review:
 - `MainWindow.xaml.cs` line count remained 5502 in this stage because the correct outcome was stronger ownership proof, not cosmetic file-size reduction.
 - Stage 21J intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, emergency-stop physical response claim, or latency claim is made here. Local validation is still required later.
+
+Goal: Audit the remaining Start Haptics / Stop Haptics / Emergency Mute ownership in `MainWindow.xaml.cs` and extract only a truly pure control-state presentation seam while leaving start/stop/mute execution, startup cleanup, shutdown cleanup, and Stop All / Emergency Stop ownership unchanged.
+
+Changes:
+
+- Re-audited the live Stage 21J baseline before coding. `MainWindow.xaml.cs` was 5502 lines and still owned the global Start Haptics / Stop Haptics button flow, Emergency Mute mutation flow, output-selection rebuild reset path, telemetry-timer haptics-state updates, startup cleanup invocation, shutdown cleanup execution, and Stop All / Emergency Stop ownership.
+- Confirmed that actual `_hapticPipeline.StartAsync()` / `_hapticPipeline.StopAsync()` execution is still output-capable and must remain explicit in `MainWindow.xaml.cs`.
+- Confirmed that actual Emergency Mute execution must remain explicit in `MainWindow.xaml.cs` because it mutates `_emergencyMuted`, calls `_hapticPipeline.SetEmergencyMuteAsync(...)`, mirrors state into `_testBench.EmergencyMute`, and may trigger test-bench buffer refresh work.
+- Identified the safe Stage 21K seam as pure control-state/status shaping from already-gathered immutable inputs: Start/Stop button text, Emergency Mute button text, `HapticsStateText`, and read-only start-readiness metadata.
+- Added `src/HapticDrive.Asio.App/HapticsControlStatePresenter.cs` with immutable `HapticsControlStateSnapshot`, `HapticsControlStatePresentation`, and supporting display/mute/readiness enums.
+- Moved deterministic Start/Stop button text, Emergency Mute button text, and `HapticsStateText` shaping out of `MainWindow.xaml.cs` into `HapticsControlStatePresenter`.
+- Added read-only readiness metadata to distinguish running, Null output, unavailable output, unarmed hardware, faulted output, and ready-to-start states for tests/documentation without moving any start execution.
+- Replaced inline `StartStopButton.Content`, `EmergencyMuteButton.Content`, and `HapticsStateText.Text` ownership in `MainWindow.xaml.cs` with one presenter-backed `UpdateHapticsControlState(...)` method that gathers the existing runtime snapshot and applies presentation results.
+- Intentionally kept `_hapticPipeline.StartAsync()` / `_hapticPipeline.StopAsync()` execution, `_hapticPipeline.SetEmergencyMuteAsync(...)`, `_testBench.EmergencyMute` mutation, startup cleanup invocation, shutdown cleanup execution, and Stop All / Emergency Stop execution in `MainWindow.xaml.cs`.
+- Added `tests/HapticDrive.Asio.App.Tests/HapticsControlStatePresenterTests.cs` covering stopped/unmuted, active/unmuted, active/emergency-muted, stopped/emergency-muted, normal mute versus emergency mute metadata, output unavailable, ASIO selected but not ready, ASIO selected and ready, telemetry-stale mute, and deterministic output.
+- Added `tests/HapticDrive.Asio.App.Tests/HapticsControlStatePresenterGuardrailTests.cs` proving the new helper stays free of WPF, ASIO/audio start-stop, mute execution, HID/report, startup/shutdown cleanup, and Stop All / Emergency Stop ownership while `MainWindow.xaml.cs` keeps start/stop/mute execution inline.
+- Updated `tests/HapticDrive.Asio.App.Tests/StopEmergencyOwnershipGuardrailTests.cs` so the new presenter is also covered by the pure-helper no-stop/no-emergency guardrail set.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21K audit result, extracted boundary, explicit ownership retained in `MainWindow`, and the recommended Stage 21L follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 808 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21K extracted only the deterministic control-state presentation layer. It did not move any real start/stop or mute execution.
+- Actual Start Haptics / Stop Haptics execution stayed visible and unchanged in `MainWindow.xaml.cs`.
+- Actual Emergency Mute execution stayed visible and unchanged in `MainWindow.xaml.cs`.
+- Stop All / Emergency Stop execution stayed visible and unchanged, startup cleanup remained explicit and unchanged in `PHprDirectRuntime`, and shutdown cleanup execution remained explicit and unchanged in `MainWindow.xaml.cs`.
+- `MainWindow.xaml.cs` line count moved from 5502 to 5494 in this stage because the safe reduction came from removing duplicated control-text/state shaping, not from relocating lifecycle ownership.
+- Stage 21K intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, emergency-stop physical response claim, or latency claim is made here. Local validation is still required later.

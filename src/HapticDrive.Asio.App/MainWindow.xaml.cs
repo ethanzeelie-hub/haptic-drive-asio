@@ -1490,7 +1490,6 @@ public partial class MainWindow : Window
         }
 
         _hapticsStarted = false;
-        StartStopButton.Content = "Start Haptics";
 
         var previousPipeline = _hapticPipeline;
         _hapticPipeline = CreatePipelineForSelectedOutput();
@@ -1499,10 +1498,10 @@ public partial class MainWindow : Window
         var hydrationMessage = await HydrateSelectedOutputReadinessAsync();
 
         await RefreshAsioReadinessDiagnosticsAsync();
-        RefreshDrivingArmedAndShiftIntentTelemetry();
-        UpdateHapticsStateText();
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+        UpdateHapticsControlState(pipelineSnapshot);
         UpdateRecordingStatus();
-        UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
+        UpdateOutputStatus(pipelineSnapshot.Output);
         UpdateManualAsioHardwareTestStatus();
         UpdateDeviceStatus();
         UpdateDiagnosticsStatus();
@@ -2755,13 +2754,12 @@ public partial class MainWindow : Window
         }
 
         _hapticsStarted = !_hapticsStarted;
-        StartStopButton.Content = _hapticsStarted ? "Stop Haptics" : "Start Haptics";
-        UpdateHapticsStateText();
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+        UpdateHapticsControlState(pipelineSnapshot);
         FooterStatusText.Text = _hapticsStarted
             ? "Haptics started with output-owned low-latency rendering; Null output remains the default unless ASIO was selected, routed, and armed."
             : "Haptics stopped";
-        RefreshDrivingArmedAndShiftIntentTelemetry();
-        UpdateOutputStatus(result.OutputResult?.Status ?? _hapticPipeline.GetSnapshot().Output);
+        UpdateOutputStatus(result.OutputResult?.Status ?? pipelineSnapshot.Output);
         UpdateManualAsioHardwareTestStatus();
         UpdateEffectStatus();
         UpdateShiftIntentStatus();
@@ -2972,8 +2970,8 @@ public partial class MainWindow : Window
         _emergencyMuted = !_emergencyMuted;
         var pipelineMuteResult = await _hapticPipeline.SetEmergencyMuteAsync(_emergencyMuted);
         _testBench.EmergencyMute = _emergencyMuted;
-        EmergencyMuteButton.Content = _emergencyMuted ? "Clear Mute" : "Emergency Mute";
-        UpdateHapticsStateText();
+        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+        UpdateHapticsControlState(pipelineSnapshot);
 
         if (_hapticsStarted && !pipelineMuteResult.Succeeded)
         {
@@ -3001,31 +2999,21 @@ public partial class MainWindow : Window
         UpdateManualAsioHardwareTestStatus();
     }
 
-    private void UpdateHapticsStateText()
+    private void UpdateHapticsControlState(HapticPipelineSnapshot? pipelineSnapshot = null)
     {
-        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
-
-        if (_emergencyMuted)
-        {
-            HapticsStateText.Text = "Emergency muted";
-            return;
-        }
-
-        if (!pipelineSnapshot.IsRunning)
-        {
-            HapticsStateText.Text = "Stopped";
-            return;
-        }
-
-        if (pipelineSnapshot.TelemetryTimedOutMuted)
-        {
-            HapticsStateText.Text = "Telemetry stale mute";
-            return;
-        }
-
-        HapticsStateText.Text = pipelineSnapshot.Audio is null
-            ? "Mixer idle"
-            : $"{pipelineSnapshot.Effects.ActiveEffectCount} effect(s); peak {pipelineSnapshot.Audio.OutputPeakLevel:0.000}";
+        pipelineSnapshot ??= RefreshDrivingArmedAndShiftIntentTelemetry();
+        var presentation = HapticsControlStatePresenter.Build(new HapticsControlStateSnapshot(
+            HapticsStarted: _hapticsStarted,
+            PipelineRunning: pipelineSnapshot.IsRunning,
+            EmergencyMuteActive: _emergencyMuted,
+            NormalMuteActive: pipelineSnapshot.IsMuted,
+            TelemetryTimedOutMuted: pipelineSnapshot.TelemetryTimedOutMuted,
+            ActiveEffectCount: pipelineSnapshot.Effects.ActiveEffectCount,
+            OutputPeakLevel: pipelineSnapshot.Audio?.OutputPeakLevel,
+            OutputStatus: pipelineSnapshot.Output));
+        StartStopButton.Content = presentation.StartStopButtonText;
+        EmergencyMuteButton.Content = presentation.EmergencyMuteButtonText;
+        HapticsStateText.Text = presentation.HapticsStateText;
     }
 
     private void ThemeButton_Click(object sender, RoutedEventArgs e)
@@ -4991,7 +4979,7 @@ public partial class MainWindow : Window
         await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
         RecordRoadTextureFlightRecorder(pipelineSnapshot);
         UpdateTelemetryStatus();
-        UpdateHapticsStateText();
+        UpdateHapticsControlState(pipelineSnapshot);
         UpdateMixerStatus();
         UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
         UpdateManualAsioHardwareTestStatus();

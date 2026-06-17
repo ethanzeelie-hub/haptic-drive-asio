@@ -792,3 +792,14 @@
 - The next worthwhile step is a dedicated Stage 21K Start Haptics / Emergency Mute ownership audit instead of mixing those adjacent controls into Stop All / Emergency Stop work.
 - Stage 21J intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21K
+
+- `MainWindow.xaml.cs` still remains the owner of actual Start Haptics / Stop Haptics execution, actual Emergency Mute execution, mixer/safety mute mutation, startup cleanup invocation, shutdown cleanup execution, and all Stop All / Emergency Stop ownership.
+- Stage 21K extracts only `HapticsControlStatePresenter`, which now owns deterministic Start/Stop button text, Emergency Mute button text, `HapticsStateText` state text, and read-only start-readiness metadata from already-gathered immutable inputs.
+- Actual `_hapticPipeline.StartAsync()` / `_hapticPipeline.StopAsync()` execution stayed visible in `MainWindow`, actual `_hapticPipeline.SetEmergencyMuteAsync(...)` plus `_testBench.EmergencyMute` mutation stayed visible in `MainWindow`, and Stop All / Emergency Stop execution stayed unchanged.
+- Added `HapticsControlStatePresenterTests` and `HapticsControlStatePresenterGuardrailTests` so the new helper stays free of WPF, ASIO/audio start-stop, mute execution, HID/report, startup-cleanup, shutdown-cleanup, and Stop All / Emergency Stop ownership while `MainWindow` keeps those call sites explicit.
+- The next worthwhile step is a final Stage 21L residual `MainWindow` orchestration audit to decide whether the Gemini review stream is complete enough or whether one last small dashboard/status presenter extraction is still justified.
+- Stage 21K intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- No startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.

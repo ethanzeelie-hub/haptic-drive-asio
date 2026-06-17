@@ -1623,3 +1623,80 @@ Recommended Stage 21K:
 2. If any seam exists there, keep it limited to pure status/message planning and leave real start/stop/mute execution in `MainWindow`.
 
 Stage 21J does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21K Start Haptics / Emergency Mute Ownership Audit
+
+Stage 21K re-audits only the remaining Start Haptics / Stop Haptics / Emergency Mute ownership in `MainWindow.xaml.cs` and extracts one narrow pure presentation seam without moving any real execution.
+
+Audit result:
+
+- the actual Start Haptics / Stop Haptics handler still executes live `_hapticPipeline.StartAsync()` / `_hapticPipeline.StopAsync()` calls and remains output-capable, so that path is not safe to hide behind a broad coordinator,
+- the actual Emergency Mute handler still mutates `_emergencyMuted`, calls `_hapticPipeline.SetEmergencyMuteAsync(...)`, mirrors that state into `_testBench.EmergencyMute`, and may trigger test-bench buffer refresh work, so mute execution must remain explicit,
+- the safe seam is the deterministic control presentation layer around Start/Stop button text, Emergency Mute button text, the `HapticsStateText` label, and read-only start-readiness metadata derived from already-gathered snapshot values,
+- Stop All / Emergency Stop execution, startup cleanup, and shutdown cleanup remain adjacent lifecycle/safety boundaries and stay intentionally untouched.
+
+New App-only non-WPF control-state boundary:
+
+- `HapticsControlStatePresenter`
+- supporting records/enums `HapticsControlStateSnapshot`, `HapticsControlStatePresentation`, `HapticsDisplayState`, `HapticsMuteState`, and `HapticsStartReadinessState`
+
+The extracted boundary now owns:
+
+- deterministic Start/Stop button text selection from current haptics-running intent,
+- deterministic Emergency Mute button text selection from current emergency-mute state,
+- deterministic `HapticsStateText` shaping for stopped, emergency-muted, telemetry-stale-muted, mixer-idle, and active-effects states,
+- read-only mute classification metadata that distinguishes normal mute, emergency mute, and telemetry-stale mute for tests/documentation,
+- read-only start-readiness classification and text for running, Null output, unavailable output, unarmed hardware, faulted output, and ready-to-start states.
+
+`HapticsControlStatePresenter` intentionally does not own:
+
+- WPF controls, `Dispatcher`, or routed-event ownership,
+- audio output open/start/stop calls,
+- haptic pipeline start/stop calls,
+- audio buffer submission,
+- mixer or safety mutation,
+- emergency-mute flag mutation,
+- telemetry receiver or timer start/stop,
+- HID writer open/write/close calls,
+- P-HPR start/stop report emission,
+- direct-control enable/arm mutation,
+- Stop All execution,
+- Emergency Stop execution,
+- startup cleanup execution,
+- shutdown cleanup execution.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- `StartStopButton_Click`,
+- `EmergencyMuteButton_Click`,
+- `_hapticPipeline.StartAsync()` / `_hapticPipeline.StopAsync()` execution,
+- `_hapticPipeline.SetEmergencyMuteAsync(...)` execution,
+- `_testBench.EmergencyMute` mutation and test-bench refresh work,
+- output-status refresh and related diagnostics fan-out,
+- Stop All / Emergency Stop execution,
+- `InitializeStartupCleanupAsync()` invocation,
+- shutdown cleanup execution from `ShutdownCleanupPlanner.BuildAppShutdownPlan()`.
+
+Protected behavior after Stage 21K:
+
+- actual Start Haptics / Stop Haptics execution stayed visible and unchanged in `MainWindow`,
+- actual Emergency Mute execution stayed visible and unchanged in `MainWindow`,
+- Stop All / Emergency Stop execution stayed visible and unchanged,
+- startup cleanup remained explicit and unchanged in `PHprDirectRuntime`,
+- shutdown cleanup execution remained explicit and unchanged in `MainWindow`,
+- no startup BST-1 output, startup P-HPR output, auto-start haptics, auto-start ASIO, auto-enable P-HPR direct control, or auto-arm P-HPR direct control was introduced,
+- no ASIO/P-HPR report, protocol, tuning, schema, parser, replay, or privacy behavior changed.
+
+Why the extraction stops here:
+
+- the safe move was the presentation-only layer, not the start/stop/mute handlers themselves,
+- pushing further would start mixing pure control text/state shaping with output-capable runtime execution, mute mutation, or broader lifecycle ownership,
+- the remaining `MainWindow` residue is now mostly orchestration and safety ownership rather than another obviously pure control seam.
+
+Recommended Stage 21L:
+
+1. Run one final residual `MainWindow` orchestration audit after Stages 21A-21K.
+2. Decide whether the Gemini review stream is complete enough or whether one last small dashboard/status presenter extraction is still justified.
+3. Do not combine MVVM, ASIO lifecycle relocation, direct runtime relocation, Stop All / Emergency Stop execution, Start Haptics execution, and Emergency Mute execution into one stage.
+
+Stage 21K does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
