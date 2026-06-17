@@ -3446,3 +3446,43 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 7043 to 6834 in this stage. The drop comes mostly from removing the large in-window settings conversion block while keeping behavior unchanged.
 - Stage 21C intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21D - Control Settings Parsing And Hydration-Application Extraction
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Extract the remaining pure control-to-settings parsing, clamp/default shaping, and settings-to-plain-control-values hydration helpers out of `MainWindow.xaml.cs` into a testable App-layer boundary while leaving direct WPF reads/writes, runtime configure calls, lifecycle, and safety ownership unchanged.
+
+Changes:
+
+- Re-audited the live Stage 21C baseline before coding. `MainWindow.xaml.cs` was 6834 lines and still owned replay timing selection mapping, forwarding editor validation, paddle mapping parsing, mock routing parsing, real P-HPR control parsing, BST-1 manual/local pulse parsing, and several pure control-value formatting helpers.
+- Confirmed the safe extraction target was not startup/shutdown, profile lifecycle, local gear test readiness, runtime configure calls, Stop All / Emergency Stop handlers, or safety-context construction. The low-risk seam was the primitive parsing and control-value formatting that could be expressed with plain records.
+- Added `ControlSettingsSnapshotBuilder` and supporting records in `src/HapticDrive.Asio.App/ControlSettingsSnapshotBuilder.cs`.
+- Moved pure replay timing mapping, shift-intent option construction, forwarding editor validation, paddle mapping parsing, mock gear/pedal routing parsing, normal P-HPR gear parsing, real direct-control report/selector parsing, real road/slip-lock parsing, BST-1 manual pulse parsing, and BST-1 local gear parsing out of `MainWindow.xaml.cs`.
+- Moved the corresponding plain control-value formatting for paddle mapping, paddle bench settings, mock routing, real P-HPR controls, normal P-HPR controls, and BST-1 control hydration out of `MainWindow.xaml.cs`.
+- Reduced `MainWindow.xaml.cs` to reading WPF primitives, passing them into `ControlSettingsSnapshotBuilder`, assigning the returned values back to WPF controls, and invoking the existing runtime/profile configure paths.
+- Intentionally kept ComboBox item population, direct WPF writes, local gear test readiness, runtime/device/router `Configure(...)` calls, startup/shutdown sequencing, profile lifecycle, and safety-context builders in `MainWindow.xaml.cs`.
+- Added `ControlSettingsSnapshotBuilderTests` for representative replay/forwarding, paddle mapping, mock routing, real P-HPR option parsing, and BST-1 parsing/hydration equivalence.
+- Added `ControlSettingsSnapshotBuilderGuardrailTests` to prove the new builder stays free of WPF and hardware/runtime calls and that `MainWindow.xaml.cs` now routes the moved parsing/application logic through the new builder path.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21D extraction result, the remaining deferred control seams, the App-home rationale, and the recommended Stage 21E follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 763 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21D intentionally avoided MVVM and lifecycle extraction. It moved only deterministic parsing/formatting seams and kept hardware/runtime ownership obvious in `MainWindow.xaml.cs`.
+- `MainWindow.xaml.cs` remains large after this stage because it still owns direct WPF reads/writes, candidate/item-list binding, profile lifecycle, local gear test readiness, startup/shutdown sequencing, safety-context builders, and runtime/output configure calls. Those remain better Stage 21E+ targets than forcing them into this control-parsing stage.
+- `MainWindow.xaml.cs` line count moved from 6834 to 6152 in this stage. Most of that drop comes from removing the large WPF-bound parsing and formatting helpers while preserving behavior.
+- Stage 21D intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.

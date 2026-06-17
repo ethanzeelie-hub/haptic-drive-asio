@@ -1208,3 +1208,52 @@ Recommended Stage 21D:
 2. Re-audit startup/shutdown sequencing and safety-context construction only after those smaller settings seams stabilize.
 
 Stage 21C does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21D Control Settings Parsing Extraction
+
+Stage 21D takes the remaining low-risk control parsing and control-value hydration helpers out of `MainWindow.xaml.cs` without attempting MVVM or changing runtime/lifecycle ownership.
+
+New App-only non-WPF control-settings boundary:
+
+- `ControlSettingsSnapshotBuilder`
+- supporting records in `ControlSettingsSnapshotBuilder.cs`
+
+The extracted boundary now owns:
+
+- primitive control parsing for replay timing, paddle mapping, forwarding destination editor values, shift-intent selection, mock gear routing, mock pedal-effect routing, normal P-HPR gear pulse controls, real direct-control selection/report fields, real road/slip-lock effect controls, BST-1 manual pulse controls, and BST-1 local gear controls,
+- clamp/default/normalization shaping for those parsed inputs into typed App/runtime option snapshots,
+- plain control-value formatting plans for paddle mapping, paddle bench controls, mock routing controls, real P-HPR controls, normal P-HPR controls, and BST-1 controls.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- direct WPF reads and writes,
+- ComboBox item population and selection against live candidate/item lists,
+- event wiring,
+- router/device/runtime `Configure(...)` calls,
+- local gear test readiness evaluation,
+- profile lifecycle,
+- startup/shutdown sequencing,
+- safety-context builders,
+- ASIO start/stop ownership,
+- P-HPR runtime coordination and direct-output hardware ownership.
+
+What remains deferred after Stage 21D:
+
+- broad audio-profile control parsing/application in `BuildProfileFromControls()` / `ApplyProfileToControls()`,
+- forwarding-list selection/editor wiring,
+- local gear test readiness/status orchestration,
+- startup/readiness hydration orchestration,
+- any lifecycle, Stop All / Emergency Stop, or safety-context extraction.
+
+Why this stays in App:
+
+- these builders still bridge WPF shell primitives and App-owned typed settings/options,
+- they do not belong in Core, Audio, Runtime, Actuation, Input, or the Windows P-HPR output assembly,
+- keeping them App-local improves testability without hiding the hardware/runtime call sites.
+
+Recommended Stage 21E:
+
+1. Extract the remaining pure audio-profile control parsing/application helpers if we still want more `MainWindow` reduction before lifecycle work.
+2. Only after those seams settle, re-audit startup/shutdown and safety-context construction for a higher-risk follow-up stage.
+
+Stage 21D does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.

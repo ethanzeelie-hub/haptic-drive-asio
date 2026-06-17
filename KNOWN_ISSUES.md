@@ -726,3 +726,12 @@
 - Replay timing still has some direct WPF control reads in `MainWindow.xaml.cs`, and other settings-application helpers still live there. Stage 21D should target those remaining pure parsing/hydration helpers before any startup/shutdown or safety-context extraction.
 - Stage 21C intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21D
+
+- `MainWindow.xaml.cs` still remains the dominant App-shell file and still owns direct WPF reads/writes, candidate/item-list binding, startup/load wiring, shutdown/dispose ordering, profile lifecycle, local gear test readiness, safety-context construction, general status/dashboard updates, and live snapshot gathering.
+- Stage 21D extracts the remaining pure primitive control parsing, clamp/default shaping, and plain control-value hydration plans into `ControlSettingsSnapshotBuilder`. That reduces `MainWindow` ownership of non-WPF control mapping logic, but it intentionally does not claim a broad MVVM decomposition.
+- Replay timing, paddle mapping, forwarding editor validation, mock routing, real P-HPR safe option parsing, and BST-1 manual/local pulse parsing now flow through the App-layer builder without introducing hardware access or startup output.
+- The larger remaining control-heavy seam is still the audio-profile control parsing/application path in `BuildProfileFromControls()` / `ApplyProfileToControls()`. Stage 21E should target that before any startup/shutdown or safety-context extraction if more `MainWindow` reduction is still worth the risk.
+- Stage 21D intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.

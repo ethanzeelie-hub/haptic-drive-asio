@@ -376,7 +376,7 @@ public partial class MainWindow : Window
         RealPhprReportTransportComboBox.ItemsSource = _realPhprReportTransportOptions;
         RealPhprReportTransportComboBox.SelectedItem = PHprHidReportTransport.OutputReport;
         ReplayTimingModeComboBox.ItemsSource = _replayTimingModeOptions;
-        ReplayTimingModeComboBox.SelectedItem = GetReplayTimingModeOption(appSettings.ReplayTimingPreference);
+        ReplayTimingModeComboBox.SelectedItem = ControlSettingsSnapshotBuilder.GetReplayTimingModeOption(appSettings.ReplayTimingPreference);
         ReplayTimingModeHelpText.Text = GetSelectedReplayTimingMode().HelpText;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
@@ -1233,14 +1233,9 @@ public partial class MainWindow : Window
 
     private void ApplyShiftIntentOptionsFromControls(string footerMessage)
     {
-        var mode = ShiftIntentModeComboBox.SelectedItem is ShiftIntentMode selectedMode
-            ? selectedMode
-            : ShiftIntentMode.InstantPaddleOnly;
-        _shiftIntentProcessor.Configure(new ShiftIntentProcessorOptions
-        {
-            IsEnabled = ShiftIntentEnabledCheckBox.IsChecked == true,
-            Mode = mode
-        });
+        _shiftIntentProcessor.Configure(ControlSettingsSnapshotBuilder.BuildShiftIntentOptions(new ShiftIntentControlInputs(
+            IsEnabled: ShiftIntentEnabledCheckBox.IsChecked == true,
+            SelectedMode: ShiftIntentModeComboBox.SelectedItem is ShiftIntentMode selectedMode ? selectedMode : null)));
         SaveAppSettings();
         UpdateShiftIntentStatus();
         UpdateDiagnosticsStatus();
@@ -1654,60 +1649,14 @@ public partial class MainWindow : Window
         out ForwardingDestinationSetting setting,
         out string message)
     {
-        setting = new ForwardingDestinationSetting();
-        var host = ForwardingHostTextBox.Text.Trim();
-        var name = ForwardingNameTextBox.Text.Trim();
-
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            message = "Forwarding host or IP address is required.";
-            return false;
-        }
-
-        if (!int.TryParse(ForwardingPortTextBox.Text.Trim(), out var port) || port is < 1 or > 65_535)
-        {
-            message = "Forwarding port must be between 1 and 65535.";
-            return false;
-        }
-
-        if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
-        {
-            message = "Forwarding host must be a valid DNS name, localhost, IPv4 address, or IPv6 address.";
-            return false;
-        }
-
-        var enabled = ForwardingEnabledCheckBox.IsChecked == true;
-        if (enabled && IsObviousUdpLoopback(host, port))
-        {
-            message = $"Forwarding to {host}:{port} would loop back to the local listener port and is blocked.";
-            return false;
-        }
-
-        setting = new ForwardingDestinationSetting
-        {
-            Name = string.IsNullOrWhiteSpace(name) ? $"{host}:{port}" : name,
-            Host = host,
-            Port = port,
-            Enabled = enabled
-        };
-        message = "Forwarding destination ready.";
-        return true;
-    }
-
-    private static bool IsObviousUdpLoopback(string host, int port)
-    {
-        if (port != UdpTelemetryReceiverOptions.DefaultPort)
-        {
-            return false;
-        }
-
-        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return IPAddress.TryParse(host, out var address)
-            && IPAddress.IsLoopback(address);
+        return ControlSettingsSnapshotBuilder.TryBuildForwardingDestinationSetting(
+            new ForwardingDestinationControlInputs(
+                NameText: ForwardingNameTextBox.Text,
+                HostText: ForwardingHostTextBox.Text,
+                PortText: ForwardingPortTextBox.Text,
+                Enabled: ForwardingEnabledCheckBox.IsChecked == true),
+            out setting,
+            out message);
     }
 
     private void RefreshForwardingDestinationItems()
@@ -1898,7 +1847,8 @@ public partial class MainWindow : Window
 
         var previousUpdating = _updatingRealPhprDirectControlUi;
         _updatingRealPhprDirectControlUi = true;
-        var selector = item.Candidate.ToSelector(ParseOptionalReportIdOrNull(RealPhprReportIdTextBox.Text));
+        var selector = item.Candidate.ToSelector(
+            ControlSettingsSnapshotBuilder.ParseOptionalReportIdOrNull(RealPhprReportIdTextBox.Text));
         RealPhprInterfaceTextBox.Text = selector.InterfaceName;
         RealPhprReportIdTextBox.Text = selector.ReportId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         RealPhprReportLengthTextBox.Text = selector.ReportLength.ToString(CultureInfo.InvariantCulture);
@@ -1924,10 +1874,11 @@ public partial class MainWindow : Window
 
     private void ApplyPaddleMappingToControls()
     {
+        var values = ControlSettingsSnapshotBuilder.BuildPaddleMappingControlValues(_paddleMapping);
         _updatingPaddleInputUi = true;
-        LeftPaddleButtonTextBox.Text = _paddleMapping.LeftPaddleButtonId?.ToString() ?? "";
-        RightPaddleButtonTextBox.Text = _paddleMapping.RightPaddleButtonId?.ToString() ?? "";
-        PaddleDebounceTextBox.Text = ((int)_paddleMapping.DebounceDuration.TotalMilliseconds).ToString();
+        LeftPaddleButtonTextBox.Text = values.LeftButtonText;
+        RightPaddleButtonTextBox.Text = values.RightButtonText;
+        PaddleDebounceTextBox.Text = values.DebounceText;
         _updatingPaddleInputUi = false;
         UpdatePaddleDeviceSelectionItems();
         UpdatePaddleInputStatus();
@@ -1935,207 +1886,99 @@ public partial class MainWindow : Window
 
     private bool TryBuildPaddleMappingFromControls(out WheelPaddleMapping mapping, out string message)
     {
-        mapping = _paddleMapping;
-        if (!TryParseOptionalButtonId(LeftPaddleButtonTextBox.Text, out var leftButtonId, out message))
-        {
-            return false;
-        }
-
-        if (!TryParseOptionalButtonId(RightPaddleButtonTextBox.Text, out var rightButtonId, out message))
-        {
-            return false;
-        }
-
-        if (!int.TryParse(PaddleDebounceTextBox.Text.Trim(), out var debounceMilliseconds)
-            || debounceMilliseconds is < 0 or > 250)
-        {
-            message = "Paddle debounce must be between 0 and 250 ms.";
-            return false;
-        }
-
-        mapping = new WheelPaddleMapping
-        {
-            SelectedDeviceId = (PaddleInputDeviceComboBox.SelectedItem as PaddleDeviceListItem)?.Selection.DeviceId
-                ?? _paddleMapping.SelectedDeviceId,
-            SelectedMethod = InputDiscoveryMethod.WindowsGameController,
-            LeftPaddleButtonId = leftButtonId,
-            RightPaddleButtonId = rightButtonId,
-            DebounceDuration = TimeSpan.FromMilliseconds(debounceMilliseconds)
-        }.Normalize();
-        message = "Paddle input mapping ready.";
-        return true;
+        return ControlSettingsSnapshotBuilder.TryBuildPaddleMapping(
+            new PaddleMappingControlInputs(
+                SelectedDeviceId: (PaddleInputDeviceComboBox.SelectedItem as PaddleDeviceListItem)?.Selection.DeviceId,
+                FallbackSelectedDeviceId: _paddleMapping.SelectedDeviceId,
+                LeftButtonText: LeftPaddleButtonTextBox.Text,
+                RightButtonText: RightPaddleButtonTextBox.Text,
+                DebounceText: PaddleDebounceTextBox.Text),
+            out mapping,
+            out message);
     }
 
     private bool TryBuildMockGearPulseOptionsFromControls(
         out PHprGearPulseRouterOptions options,
         out string message)
     {
-        var current = _mockGearPulseRouter.GetSnapshot().Options;
-        options = current;
-
-        if (!PhprUiValueConverter.TryParseStrengthPercent(
-                MockGearPulseStrengthTextBox.Text,
-                "Mock P-HPR",
-                out var strength,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseFrequencyHz(
-                MockGearPulseFrequencyTextBox.Text,
-                "Mock P-HPR",
-                out var frequency,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseDurationMs(
-                MockGearPulseDurationTextBox.Text,
-                "Mock P-HPR",
-                out var duration,
-                out message))
-        {
-            return false;
-        }
-
-        var target = MockGearPulseTargetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
-            ? selectedTarget
-            : PHprGearPulseTarget.Both;
-        options = new PHprGearPulseRouterOptions
-        {
-            IsEnabled = MockGearPulseEnabledCheckBox.IsChecked == true,
-            TargetModule = target,
-            Profile = PHprGearPulseProfile.Default with
-            {
-                Strength01 = strength,
-                FrequencyHz = frequency,
-                DurationMs = duration
-            }
-        }.Normalize();
-        message = "Mock P-HPR gear pulse routing ready.";
-        return true;
+        return ControlSettingsSnapshotBuilder.TryBuildMockGearPulseOptions(
+            new MockGearPulseControlInputs(
+                IsEnabled: MockGearPulseEnabledCheckBox.IsChecked == true,
+                TargetModule: MockGearPulseTargetComboBox.SelectedItem is PHprGearPulseTarget mockTarget ? mockTarget : null,
+                StrengthText: MockGearPulseStrengthTextBox.Text,
+                FrequencyText: MockGearPulseFrequencyTextBox.Text,
+                DurationText: MockGearPulseDurationTextBox.Text),
+            _mockGearPulseRouter.GetSnapshot().Options,
+            out options,
+            out message);
     }
 
     private bool TryBuildPaddleGearBenchOptionsFromControls(
         out PaddleGearBenchTestOptions options,
         out string message)
     {
-        var current = _paddleGearBenchTestController.GetSnapshot().Options;
-        options = current;
-
-        var target = PaddleGearBenchTargetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
-            ? selectedTarget
-            : PHprGearPulseTarget.Both;
-        var sourceSettings = target == PHprGearPulseTarget.Throttle
-            ? _realPhprOptions.ThrottleGearPulse
-            : _realPhprOptions.BrakeGearPulse;
-        var sharedDurationMs = Bst1GearPulseDurationSync.NormalizeGearDuration(_sharedPhprGearPulseDurationMs);
-        options = new PaddleGearBenchTestOptions
-        {
-            IsEnabled = PaddleGearBenchEnabledCheckBox.IsChecked == true,
-            IsArmed = PaddleGearBenchEnabledCheckBox.IsChecked == true,
-            OutputMode = PaddleGearBenchTestOutputMode.Direct,
-            TargetModule = target,
-            Profile = PHprGearPulseProfile.Default with
-            {
-                Strength01 = sourceSettings.Strength01,
-                FrequencyHz = sourceSettings.FrequencyHz,
-                DurationMs = sharedDurationMs
-            }
-        }.Normalize();
-        message = "Paddle Gear Bench Test options ready.";
-        return true;
+        return ControlSettingsSnapshotBuilder.TryBuildPaddleGearBenchOptions(
+            new PaddleGearBenchControlInputs(
+                IsEnabled: PaddleGearBenchEnabledCheckBox.IsChecked == true,
+                TargetModule: PaddleGearBenchTargetComboBox.SelectedItem is PHprGearPulseTarget benchTarget ? benchTarget : null,
+                BrakeSourceSettings: _realPhprOptions.BrakeGearPulse,
+                ThrottleSourceSettings: _realPhprOptions.ThrottleGearPulse,
+                SharedDurationMs: _sharedPhprGearPulseDurationMs),
+            out options,
+            out message);
     }
 
     private bool TryBuildMockPedalEffectsOptionsFromControls(
         out PHprPedalEffectsRouterOptions options,
         out string message)
     {
-        var current = _mockPedalEffectsRouter.GetSnapshot().Options;
-        options = current;
-
-        if (!TryBuildPedalEffectState(
-                PHprPedalEffectKind.RoadVibration,
-                RoadPedalEffectEnabledCheckBox,
-                RoadPedalEffectTargetComboBox,
-                RoadPedalEffectStrengthTextBox,
-                RoadPedalEffectFrequencyTextBox,
-                RoadPedalEffectDurationTextBox,
-                out var road,
-                out message)
-            || !TryBuildPedalEffectState(
-                PHprPedalEffectKind.WheelSlip,
-                SlipPedalEffectEnabledCheckBox,
-                SlipPedalEffectTargetComboBox,
-                SlipPedalEffectStrengthTextBox,
-                SlipPedalEffectFrequencyTextBox,
-                SlipPedalEffectDurationTextBox,
-                out var slip,
-                out message)
-            || !TryBuildPedalEffectState(
-                PHprPedalEffectKind.WheelLock,
-                LockPedalEffectEnabledCheckBox,
-                LockPedalEffectTargetComboBox,
-                LockPedalEffectStrengthTextBox,
-                LockPedalEffectFrequencyTextBox,
-                LockPedalEffectDurationTextBox,
-                out var wheelLock,
-                out message))
-        {
-            return false;
-        }
-
-        options = current with
-        {
-            IsEnabled = MockPedalEffectsEnabledCheckBox.IsChecked == true,
-            RoadVibration = road,
-            WheelSlip = slip,
-            WheelLock = wheelLock
-        };
-        options = options.Normalize();
-        message = "Mock P-HPR pedal effects routing ready.";
-        return true;
+        return ControlSettingsSnapshotBuilder.TryBuildMockPedalEffectsOptions(
+            new MockPedalEffectsControlInputs(
+                IsEnabled: MockPedalEffectsEnabledCheckBox.IsChecked == true,
+                RoadVibration: new PhprPedalEffectControlInputs(
+                    IsEnabled: RoadPedalEffectEnabledCheckBox.IsChecked == true,
+                    TargetModule: RoadPedalEffectTargetComboBox.SelectedItem is PHprGearPulseTarget roadTarget ? roadTarget : null,
+                    StrengthText: RoadPedalEffectStrengthTextBox.Text,
+                    FrequencyText: RoadPedalEffectFrequencyTextBox.Text,
+                    DurationText: RoadPedalEffectDurationTextBox.Text),
+                WheelSlip: new PhprPedalEffectControlInputs(
+                    IsEnabled: SlipPedalEffectEnabledCheckBox.IsChecked == true,
+                    TargetModule: SlipPedalEffectTargetComboBox.SelectedItem is PHprGearPulseTarget slipTarget ? slipTarget : null,
+                    StrengthText: SlipPedalEffectStrengthTextBox.Text,
+                    FrequencyText: SlipPedalEffectFrequencyTextBox.Text,
+                    DurationText: SlipPedalEffectDurationTextBox.Text),
+                WheelLock: new PhprPedalEffectControlInputs(
+                    IsEnabled: LockPedalEffectEnabledCheckBox.IsChecked == true,
+                    TargetModule: LockPedalEffectTargetComboBox.SelectedItem is PHprGearPulseTarget lockTarget ? lockTarget : null,
+                    StrengthText: LockPedalEffectStrengthTextBox.Text,
+                    FrequencyText: LockPedalEffectFrequencyTextBox.Text,
+                    DurationText: LockPedalEffectDurationTextBox.Text)),
+            _mockPedalEffectsRouter.GetSnapshot().Options,
+            out options,
+            out message);
     }
 
     private bool TryBuildRealPhprOptionsFromControls(
         out PHprRealOutputOptions options,
         out string message)
     {
-        var current = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        options = current;
-
-        if (!TryParseOptionalReportId(RealPhprReportIdTextBox.Text, out var reportId, out message))
-        {
-            return false;
-        }
-
-        if (!int.TryParse(RealPhprReportLengthTextBox.Text.Trim(), out var reportLength)
-            || reportLength is < 1 or > 1_024)
-        {
-            message = "Real P-HPR report length must be a whole number from 1 to 1024 bytes.";
-            return false;
-        }
-
-        var transport = RealPhprReportTransportComboBox.SelectedItem is PHprHidReportTransport selectedTransport
-            ? selectedTransport
-            : PHprHidReportTransport.OutputReport;
-
+        options = _realPhprOptions;
         if (!TryApplySharedPhprGearPulseDurationFromControls(out var sharedDurationMs, out message)
             || !TryBuildNormalPhprGearPulseSettings(
                 "Brake",
-                NormalPhprBrakeEnabledCheckBox,
-                NormalPhprBrakeStrengthTextBox,
-                NormalPhprBrakeFrequencyTextBox,
+                new NormalPhprGearPulseControlInputs(
+                    IsEnabled: NormalPhprBrakeEnabledCheckBox.IsChecked == true,
+                    StrengthText: NormalPhprBrakeStrengthTextBox.Text,
+                    FrequencyText: NormalPhprBrakeFrequencyTextBox.Text),
                 sharedDurationMs,
                 out var brake,
                 out message)
             || !TryBuildNormalPhprGearPulseSettings(
                 "Throttle",
-                NormalPhprThrottleEnabledCheckBox,
-                NormalPhprThrottleStrengthTextBox,
-                NormalPhprThrottleFrequencyTextBox,
+                new NormalPhprGearPulseControlInputs(
+                    IsEnabled: NormalPhprThrottleEnabledCheckBox.IsChecked == true,
+                    StrengthText: NormalPhprThrottleStrengthTextBox.Text,
+                    FrequencyText: NormalPhprThrottleFrequencyTextBox.Text),
                 sharedDurationMs,
                 out var throttle,
                 out message))
@@ -2143,465 +1986,108 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var directEnabled = RealPhprDirectControlEnabledCheckBox.IsChecked == true;
-        var directArmed = directEnabled;
-        var selectedCandidate = RealPhprCandidateComboBox.SelectedItem as PhprDirectOutputCandidateListItem;
-        var selector = selectedCandidate?.Candidate.ToSelector(reportId, transport) ?? PHprHidDeviceSelector.None;
-        selector = selector with
-        {
-            ReportId = reportId ?? selector.ReportId,
-            ReportLength = reportLength,
-            Transport = transport,
-            InterfaceName = string.IsNullOrWhiteSpace(RealPhprInterfaceTextBox.Text)
-                ? selector.InterfaceName
-                : RealPhprInterfaceTextBox.Text.Trim()
-        };
-        var normalizedSelector = selector.Normalize();
-        var previousSelector = current.Selector.Normalize();
-        var candidateSourceMethod = selectedCandidate?.Candidate.SourceMethod ?? PHprDirectOutputCandidateSourceMethod.Unknown;
-        var candidateIsRawInputOnly = selectedCandidate?.Candidate.IsRawInputOnly ?? false;
-        var candidateHasOpenableHidPath = selectedCandidate?.Candidate.HasOpenableHidPath ?? false;
-        var candidateOutputReportCapabilityKnown = selectedCandidate?.Candidate.HasKnownOutputReportCapability ?? false;
-        var candidateFeatureReportCapabilityKnown = selectedCandidate?.Candidate.HasKnownFeatureReportCapability ?? false;
-        var reportShape = PHprHidReportShapeValidator.Validate(selectedCandidate?.Candidate, normalizedSelector);
-        var openCheckStillSameSelector = current.OpenCheckAttempted
-            && SelectorMatchesForOpenCheck(previousSelector, normalizedSelector)
-            && current.CandidateSourceMethod == candidateSourceMethod
-            && current.CandidateIsRawInputOnly == candidateIsRawInputOnly
-            && current.CandidateHasOpenableHidPath == candidateHasOpenableHidPath
-            && current.CandidateOutputReportCapabilityKnown == candidateOutputReportCapabilityKnown
-            && current.CandidateFeatureReportCapabilityKnown == candidateFeatureReportCapabilityKnown;
-        options = current with
-        {
-            DirectControlEnabled = directEnabled,
-            DirectControlArmed = directArmed,
-            DirectControlApprovalConfirmed = directEnabled,
-            CandidateSourceMethod = candidateSourceMethod,
-            CandidateIsRawInputOnly = candidateIsRawInputOnly,
-            CandidateHasOpenableHidPath = candidateHasOpenableHidPath,
-            CandidateOutputReportCapabilityKnown = candidateOutputReportCapabilityKnown,
-            CandidateFeatureReportCapabilityKnown = candidateFeatureReportCapabilityKnown,
-            ReportShapeValidationAttempted = reportShape.Attempted,
-            ReportShapeValidationSucceeded = reportShape.Succeeded,
-            ReportShapeValidationFailed = reportShape.Failed,
-            ReportShapeValidationMessage = reportShape.Message,
-            OpenCheckAttempted = openCheckStillSameSelector && current.OpenCheckAttempted,
-            OpenCheckSucceeded = openCheckStillSameSelector && current.OpenCheckSucceeded,
-            OpenCheckFailed = openCheckStillSameSelector && current.OpenCheckFailed,
-            OpenCheckSanitizedErrorCategory = openCheckStillSameSelector ? current.OpenCheckSanitizedErrorCategory : null,
-            Selector = normalizedSelector,
-            BrakeGearPulse = brake,
-            ThrottleGearPulse = throttle
-        };
-        options = options.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        message = "Real P-HPR direct-control options ready for this session only.";
-        return true;
+        return ControlSettingsSnapshotBuilder.TryBuildRealPhprOutputOptions(
+            new RealPhprDirectControlInputs(
+                DirectControlEnabled: RealPhprDirectControlEnabledCheckBox.IsChecked == true,
+                ReportIdText: RealPhprReportIdTextBox.Text,
+                ReportLengthText: RealPhprReportLengthTextBox.Text,
+                Transport: RealPhprReportTransportComboBox.SelectedItem is PHprHidReportTransport transport ? transport : null,
+                InterfaceText: RealPhprInterfaceTextBox.Text,
+                SelectedCandidate: (RealPhprCandidateComboBox.SelectedItem as PhprDirectOutputCandidateListItem)?.Candidate),
+            _realPhprOptions,
+            brake,
+            throttle,
+            out options,
+            out message);
     }
 
     private bool TryBuildRealRoadVibrationOptionsFromControls(
         out PHprRoadVibrationRouterOptions options,
         out string message)
     {
-        var current = _realRoadVibrationOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        options = current;
-
+        options = _realRoadVibrationOptions;
         if (!TryBuildRealRoadVibrationPedalSettings(
                 "Brake road",
-                RealRoadBrakeEnabledCheckBox,
-                RealRoadBrakeMinStrengthTextBox,
-                RealRoadBrakeStrengthTextBox,
-                RealRoadBrakeMinFrequencyTextBox,
-                RealRoadBrakeFrequencyTextBox,
-                RealRoadBrakeDurationTextBox,
+                new RealRoadVibrationPedalControlInputs(
+                    IsEnabled: RealRoadBrakeEnabledCheckBox.IsChecked == true,
+                    MinimumStrengthText: RealRoadBrakeMinStrengthTextBox.Text,
+                    StrengthText: RealRoadBrakeStrengthTextBox.Text,
+                    MinimumFrequencyText: RealRoadBrakeMinFrequencyTextBox.Text,
+                    FrequencyText: RealRoadBrakeFrequencyTextBox.Text,
+                    DurationText: RealRoadBrakeDurationTextBox.Text),
                 out var brake,
                 out message)
             || !TryBuildRealRoadVibrationPedalSettings(
                 "Throttle road",
-                RealRoadThrottleEnabledCheckBox,
-                RealRoadThrottleMinStrengthTextBox,
-                RealRoadThrottleStrengthTextBox,
-                RealRoadThrottleMinFrequencyTextBox,
-                RealRoadThrottleFrequencyTextBox,
-                RealRoadThrottleDurationTextBox,
+                new RealRoadVibrationPedalControlInputs(
+                    IsEnabled: RealRoadThrottleEnabledCheckBox.IsChecked == true,
+                    MinimumStrengthText: RealRoadThrottleMinStrengthTextBox.Text,
+                    StrengthText: RealRoadThrottleStrengthTextBox.Text,
+                    MinimumFrequencyText: RealRoadThrottleMinFrequencyTextBox.Text,
+                    FrequencyText: RealRoadThrottleFrequencyTextBox.Text,
+                    DurationText: RealRoadThrottleDurationTextBox.Text),
                 out var throttle,
                 out message))
         {
             return false;
         }
 
-        options = current with
-        {
-            IsEnabled = RealRoadVibrationEnabledCheckBox.IsChecked == true,
-            Brake = brake,
-            Throttle = throttle
-        };
-        options = options.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        message = "Real P-HPR road-vibration options ready.";
-        return true;
+        return ControlSettingsSnapshotBuilder.TryBuildRealRoadVibrationOptions(
+            RealRoadVibrationEnabledCheckBox.IsChecked == true,
+            _realRoadVibrationOptions,
+            brake,
+            throttle,
+            out options,
+            out message);
     }
 
     private bool TryBuildRealSlipLockOptionsFromControls(
         out PHprSlipLockRouterOptions options,
         out string message)
     {
-        var current = _realSlipLockOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        options = current;
-
+        options = _realSlipLockOptions;
         if (!TryBuildRealSlipLockEffectSettings(
                 "Wheel slip",
                 PHprPedalEffectKind.WheelSlip,
-                RealSlipEnabledCheckBox,
-                RealSlipTargetComboBox,
-                RealSlipMinStrengthTextBox,
-                RealSlipStrengthTextBox,
-                RealSlipMinFrequencyTextBox,
-                RealSlipFrequencyTextBox,
-                RealSlipDurationTextBox,
+                new RealSlipLockEffectControlInputs(
+                    IsEnabled: RealSlipEnabledCheckBox.IsChecked == true,
+                    TargetModule: RealSlipTargetComboBox.SelectedItem is PHprGearPulseTarget realSlipTarget ? realSlipTarget : null,
+                    MinimumStrengthText: RealSlipMinStrengthTextBox.Text,
+                    StrengthText: RealSlipStrengthTextBox.Text,
+                    MinimumFrequencyText: RealSlipMinFrequencyTextBox.Text,
+                    FrequencyText: RealSlipFrequencyTextBox.Text,
+                    DurationText: RealSlipDurationTextBox.Text),
                 out var slip,
                 out message)
             || !TryBuildRealSlipLockEffectSettings(
                 "Wheel lock",
                 PHprPedalEffectKind.WheelLock,
-                RealLockEnabledCheckBox,
-                RealLockTargetComboBox,
-                RealLockMinStrengthTextBox,
-                RealLockStrengthTextBox,
-                RealLockMinFrequencyTextBox,
-                RealLockFrequencyTextBox,
-                RealLockDurationTextBox,
+                new RealSlipLockEffectControlInputs(
+                    IsEnabled: RealLockEnabledCheckBox.IsChecked == true,
+                    TargetModule: RealLockTargetComboBox.SelectedItem is PHprGearPulseTarget realLockTarget ? realLockTarget : null,
+                    MinimumStrengthText: RealLockMinStrengthTextBox.Text,
+                    StrengthText: RealLockStrengthTextBox.Text,
+                    MinimumFrequencyText: RealLockMinFrequencyTextBox.Text,
+                    FrequencyText: RealLockFrequencyTextBox.Text,
+                    DurationText: RealLockDurationTextBox.Text),
                 out var wheelLock,
                 out message))
         {
             return false;
         }
 
-        options = current with
-        {
-            IsEnabled = RealSlipLockEnabledCheckBox.IsChecked == true,
-            WheelSlip = slip,
-            WheelLock = wheelLock
-        };
-        options = options.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        message = "Real P-HPR slip/lock options ready.";
-        return true;
-    }
-
-    private static bool TryBuildRealGearPulseSettings(
-        string label,
-        CheckBox enabledCheckBox,
-        TextBox strengthTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox,
-        out PHprRealGearPulseSettings settings,
-        out string message)
-    {
-        settings = PHprRealGearPulseSettings.Default;
-
-        if (!PhprUiValueConverter.TryParseStrengthPercent(
-                strengthTextBox.Text,
-                $"{label} real P-HPR",
-                out var strength,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseFrequencyHz(
-                frequencyTextBox.Text,
-                $"{label} real P-HPR",
-                out var frequency,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseDurationMs(
-                durationTextBox.Text,
-                $"{label} real P-HPR",
-                out var duration,
-                out message))
-        {
-            return false;
-        }
-
-        settings = new PHprRealGearPulseSettings
-        {
-            IsEnabled = enabledCheckBox.IsChecked == true,
-            Strength01 = strength,
-            FrequencyHz = frequency,
-            DurationMs = duration
-        }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        message = $"{label} real P-HPR pulse settings ready.";
-        return true;
-    }
-
-    private static bool TryBuildRealRoadVibrationPedalSettings(
-        string label,
-        CheckBox enabledCheckBox,
-        TextBox minimumStrengthTextBox,
-        TextBox strengthTextBox,
-        TextBox minimumFrequencyTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox,
-        out PHprRoadVibrationPedalSettings settings,
-        out string message)
-    {
-        settings = PHprRoadVibrationPedalSettings.Default;
-
-        if (!PhprUiValueConverter.TryParseStrengthPercent(
-                minimumStrengthTextBox.Text,
-                $"{label} minimum",
-                out var minimumStrength,
-                out message)
-            || !PhprUiValueConverter.TryParseStrengthPercent(
-                strengthTextBox.Text,
-                $"{label} maximum",
-                out var strength,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseFrequencyHz(
-                minimumFrequencyTextBox.Text,
-                $"{label} minimum",
-                out var minimumFrequency,
-                out message)
-            || !PhprUiValueConverter.TryParseFrequencyHz(
-                frequencyTextBox.Text,
-                $"{label} maximum",
-                out var frequency,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseDurationMs(
-                durationTextBox.Text,
-                label,
-                out var duration,
-                out message))
-        {
-            return false;
-        }
-
-        settings = new PHprRoadVibrationPedalSettings
-        {
-            IsEnabled = enabledCheckBox.IsChecked == true,
-            MinimumStrength01 = minimumStrength,
-            Strength01 = strength,
-            MinimumFrequencyHz = minimumFrequency,
-            FrequencyHz = frequency,
-            DurationMs = duration
-        }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        message = $"{label} real P-HPR road settings ready.";
-        return true;
-    }
-
-    private static bool TryBuildRealSlipLockEffectSettings(
-        string label,
-        PHprPedalEffectKind kind,
-        CheckBox enabledCheckBox,
-        ComboBox targetComboBox,
-        TextBox minimumStrengthTextBox,
-        TextBox strengthTextBox,
-        TextBox minimumFrequencyTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox,
-        out PHprSlipLockEffectSettings settings,
-        out string message)
-    {
-        settings = PHprSlipLockEffectSettings.DefaultFor(kind);
-
-        var target = targetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
-            ? selectedTarget
-            : settings.TargetModule;
-
-        if (!PhprUiValueConverter.TryParseStrengthPercent(
-                minimumStrengthTextBox.Text,
-                $"{label} minimum",
-                out var minimumStrength,
-                out message)
-            || !PhprUiValueConverter.TryParseStrengthPercent(
-                strengthTextBox.Text,
-                $"{label} maximum",
-                out var strength,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseFrequencyHz(
-                minimumFrequencyTextBox.Text,
-                $"{label} minimum",
-                out var minimumFrequency,
-                out message)
-            || !PhprUiValueConverter.TryParseFrequencyHz(
-                frequencyTextBox.Text,
-                $"{label} maximum",
-                out var frequency,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseDurationMs(
-                durationTextBox.Text,
-                label,
-                out var duration,
-                out message))
-        {
-            return false;
-        }
-
-        settings = new PHprSlipLockEffectSettings
-        {
-            IsEnabled = enabledCheckBox.IsChecked == true,
-            TargetModule = target,
-            MinimumStrength01 = minimumStrength,
-            Strength01 = strength,
-            MinimumFrequencyHz = minimumFrequency,
-            FrequencyHz = frequency,
-            DurationMs = duration
-        }.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        message = $"{label} real P-HPR slip/lock settings ready.";
-        return true;
-    }
-
-    private static bool TryParseOptionalReportId(string text, out byte? reportId, out string message)
-    {
-        reportId = null;
-        var trimmed = text.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            message = "No report ID selected.";
-            return true;
-        }
-
-        var style = NumberStyles.Integer;
-        var valueText = trimmed;
-        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            style = NumberStyles.HexNumber;
-            valueText = trimmed[2..];
-        }
-        else if (trimmed.Any(char.IsAsciiHexDigit) && trimmed.Any(char.IsAsciiLetter))
-        {
-            style = NumberStyles.HexNumber;
-        }
-
-        if (!byte.TryParse(valueText, style, CultureInfo.InvariantCulture, out var parsed))
-        {
-            message = "Real P-HPR report ID must be blank, 0-255, 0xF1, or F1.";
-            return false;
-        }
-
-        reportId = parsed;
-        message = "Report ID ready.";
-        return true;
-    }
-
-    private static byte? ParseOptionalReportIdOrNull(string text)
-    {
-        return TryParseOptionalReportId(text, out var reportId, out _)
-            ? reportId
-            : null;
+        return ControlSettingsSnapshotBuilder.TryBuildRealSlipLockOptions(
+            RealSlipLockEnabledCheckBox.IsChecked == true,
+            _realSlipLockOptions,
+            slip,
+            wheelLock,
+            out options,
+            out message);
     }
 
     private static string FormatReportId(byte? reportId)
     {
         return reportId is null ? "none" : $"0x{reportId.Value:X2} ({reportId.Value.ToString(CultureInfo.InvariantCulture)})";
-    }
-
-    private static bool SelectorMatchesForOpenCheck(
-        PHprHidDeviceSelector previous,
-        PHprHidDeviceSelector current)
-    {
-        return string.Equals(previous.DevicePath, current.DevicePath, StringComparison.Ordinal)
-            && previous.ReportId == current.ReportId
-            && previous.ReportLength == current.ReportLength
-            && previous.Transport == current.Transport;
-    }
-
-    private static bool TryBuildPedalEffectState(
-        PHprPedalEffectKind kind,
-        CheckBox enabledCheckBox,
-        ComboBox targetComboBox,
-        TextBox strengthTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox,
-        out PHprPedalEffectState state,
-        out string message)
-    {
-        var defaults = PHprPedalEffectState.DefaultFor(kind);
-        state = defaults;
-        var label = FormatPedalEffectKind(kind);
-
-        if (!PhprUiValueConverter.TryParseStrengthPercent(
-                strengthTextBox.Text,
-                label,
-                out var strength,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseFrequencyHz(
-                frequencyTextBox.Text,
-                label,
-                out var frequency,
-                out message))
-        {
-            return false;
-        }
-
-        if (!PhprUiValueConverter.TryParseDurationMs(
-                durationTextBox.Text,
-                label,
-                out var duration,
-                out message))
-        {
-            return false;
-        }
-
-        var target = targetComboBox.SelectedItem is PHprGearPulseTarget selectedTarget
-            ? selectedTarget
-            : defaults.TargetModule;
-        state = defaults with
-        {
-            IsEnabled = enabledCheckBox.IsChecked == true,
-            TargetModule = target,
-            Profile = defaults.Profile with
-            {
-                Strength01 = strength,
-                FrequencyHz = frequency,
-                DurationMs = duration
-            }
-        };
-        state = state.Normalize(kind);
-        message = $"{label} pedal effect ready.";
-        return true;
-    }
-
-    private static bool TryParseOptionalButtonId(string text, out int? buttonId, out string message)
-    {
-        buttonId = null;
-        var trimmed = text.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            message = "Button is unmapped.";
-            return true;
-        }
-
-        if (!int.TryParse(trimmed, out var parsed) || parsed is < 1 or > 128)
-        {
-            message = "Paddle button IDs must be whole numbers from 1 to 128.";
-            return false;
-        }
-
-        buttonId = parsed;
-        message = "Button mapped.";
-        return true;
     }
 
     private void AssignPaddleFromLastChangedButton(PaddleSide side)
@@ -2648,16 +2134,20 @@ public partial class MainWindow : Window
     private void ApplyPaddleGearBenchSettingsToControls()
     {
         var snapshot = _paddleGearBenchTestController.GetSnapshot();
+        var values = ControlSettingsSnapshotBuilder.BuildPaddleGearBenchControlValues(
+            snapshot.Options,
+            _localGearTestModeEnabled,
+            _localGearTestAutoStartListener);
         _updatingPaddleGearBenchUi = true;
-        PaddleGearBenchEnabledCheckBox.IsChecked = snapshot.Options.IsEnabled;
-        PaddleGearBenchArmCheckBox.IsChecked = snapshot.Options.IsArmed;
-        PaddleGearBenchTargetComboBox.SelectedItem = snapshot.Options.TargetModule;
-        PaddleGearBenchOutputModeComboBox.SelectedItem = snapshot.Options.OutputMode;
-        PaddleGearBenchStrengthTextBox.Text = PhprUiValueConverter.FormatPercent(snapshot.Options.Profile.Strength01);
-        PaddleGearBenchFrequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(snapshot.Options.Profile.FrequencyHz);
-        PaddleGearBenchDurationTextBox.Text = snapshot.Options.Profile.DurationMs.ToString(CultureInfo.InvariantCulture);
-        LocalGearTestModeCheckBox.IsChecked = _localGearTestModeEnabled;
-        LocalGearTestAutoStartListenerCheckBox.IsChecked = _localGearTestAutoStartListener;
+        PaddleGearBenchEnabledCheckBox.IsChecked = values.IsEnabled;
+        PaddleGearBenchArmCheckBox.IsChecked = values.IsArmed;
+        PaddleGearBenchTargetComboBox.SelectedItem = values.TargetModule;
+        PaddleGearBenchOutputModeComboBox.SelectedItem = values.OutputMode;
+        PaddleGearBenchStrengthTextBox.Text = values.StrengthText;
+        PaddleGearBenchFrequencyTextBox.Text = values.FrequencyText;
+        PaddleGearBenchDurationTextBox.Text = values.DurationText;
+        LocalGearTestModeCheckBox.IsChecked = values.LocalGearTestModeEnabled;
+        LocalGearTestAutoStartListenerCheckBox.IsChecked = values.LocalGearTestAutoStartListener;
         _updatingPaddleGearBenchUi = false;
         UpdateLocalGearTestStatus();
         UpdatePaddleGearBenchStatus();
@@ -2666,12 +2156,13 @@ public partial class MainWindow : Window
     private void ApplyMockGearPulseSettingsToControls()
     {
         var snapshot = _mockGearPulseRouter.GetSnapshot();
+        var values = ControlSettingsSnapshotBuilder.BuildMockGearPulseControlValues(snapshot.Options);
         _updatingMockGearPulseUi = true;
-        MockGearPulseEnabledCheckBox.IsChecked = snapshot.Options.IsEnabled;
-        MockGearPulseTargetComboBox.SelectedItem = snapshot.Options.TargetModule;
-        MockGearPulseStrengthTextBox.Text = PhprUiValueConverter.FormatPercent(snapshot.Options.Profile.Strength01);
-        MockGearPulseFrequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(snapshot.Options.Profile.FrequencyHz);
-        MockGearPulseDurationTextBox.Text = snapshot.Options.Profile.DurationMs.ToString(CultureInfo.InvariantCulture);
+        MockGearPulseEnabledCheckBox.IsChecked = values.IsEnabled;
+        MockGearPulseTargetComboBox.SelectedItem = values.TargetModule;
+        MockGearPulseStrengthTextBox.Text = values.StrengthText;
+        MockGearPulseFrequencyTextBox.Text = values.FrequencyText;
+        MockGearPulseDurationTextBox.Text = values.DurationText;
         _updatingMockGearPulseUi = false;
         UpdateMockGearPulseStatus();
     }
@@ -2679,103 +2170,86 @@ public partial class MainWindow : Window
     private void ApplyMockPedalEffectsSettingsToControls()
     {
         var snapshot = _mockPedalEffectsRouter.GetSnapshot();
+        var values = ControlSettingsSnapshotBuilder.BuildMockPedalEffectsControlValues(snapshot.Options);
         _updatingMockPedalEffectsUi = true;
-        MockPedalEffectsEnabledCheckBox.IsChecked = snapshot.Options.IsEnabled;
-        ApplyPedalEffectStateToControls(
-            snapshot.Options.RoadVibration,
-            RoadPedalEffectEnabledCheckBox,
-            RoadPedalEffectTargetComboBox,
-            RoadPedalEffectStrengthTextBox,
-            RoadPedalEffectFrequencyTextBox,
-            RoadPedalEffectDurationTextBox);
-        ApplyPedalEffectStateToControls(
-            snapshot.Options.WheelSlip,
-            SlipPedalEffectEnabledCheckBox,
-            SlipPedalEffectTargetComboBox,
-            SlipPedalEffectStrengthTextBox,
-            SlipPedalEffectFrequencyTextBox,
-            SlipPedalEffectDurationTextBox);
-        ApplyPedalEffectStateToControls(
-            snapshot.Options.WheelLock,
-            LockPedalEffectEnabledCheckBox,
-            LockPedalEffectTargetComboBox,
-            LockPedalEffectStrengthTextBox,
-            LockPedalEffectFrequencyTextBox,
-            LockPedalEffectDurationTextBox);
+        MockPedalEffectsEnabledCheckBox.IsChecked = values.IsEnabled;
+        RoadPedalEffectEnabledCheckBox.IsChecked = values.RoadVibration.IsEnabled;
+        RoadPedalEffectTargetComboBox.SelectedItem = values.RoadVibration.TargetModule;
+        RoadPedalEffectStrengthTextBox.Text = values.RoadVibration.StrengthText;
+        RoadPedalEffectFrequencyTextBox.Text = values.RoadVibration.FrequencyText;
+        RoadPedalEffectDurationTextBox.Text = values.RoadVibration.DurationText;
+        SlipPedalEffectEnabledCheckBox.IsChecked = values.WheelSlip.IsEnabled;
+        SlipPedalEffectTargetComboBox.SelectedItem = values.WheelSlip.TargetModule;
+        SlipPedalEffectStrengthTextBox.Text = values.WheelSlip.StrengthText;
+        SlipPedalEffectFrequencyTextBox.Text = values.WheelSlip.FrequencyText;
+        SlipPedalEffectDurationTextBox.Text = values.WheelSlip.DurationText;
+        LockPedalEffectEnabledCheckBox.IsChecked = values.WheelLock.IsEnabled;
+        LockPedalEffectTargetComboBox.SelectedItem = values.WheelLock.TargetModule;
+        LockPedalEffectStrengthTextBox.Text = values.WheelLock.StrengthText;
+        LockPedalEffectFrequencyTextBox.Text = values.WheelLock.FrequencyText;
+        LockPedalEffectDurationTextBox.Text = values.WheelLock.DurationText;
         _updatingMockPedalEffectsUi = false;
         UpdateMockPedalEffectsStatus();
     }
 
     private void ApplyRealPhprOptionsToControls()
     {
+        var values = ControlSettingsSnapshotBuilder.BuildRealPhprControlValues(
+            _realPhprOptions,
+            _realRoadVibrationOptions,
+            _realSlipLockOptions);
         var options = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
         _updatingRealPhprDirectControlUi = true;
-        RealPhprDirectControlEnabledCheckBox.IsChecked = options.DirectControlEnabled;
-        RealPhprDirectControlArmCheckBox.IsChecked = options.DirectControlArmed;
+        RealPhprDirectControlEnabledCheckBox.IsChecked = values.DirectControlEnabled;
+        RealPhprDirectControlArmCheckBox.IsChecked = values.DirectControlArmed;
         RealPhprCandidateComboBox.ItemsSource = _realPhprCandidateItems;
         RealPhprCandidateComboBox.DisplayMemberPath = nameof(PhprDirectOutputCandidateListItem.DisplayText);
         RealPhprCandidateComboBox.SelectedItem = _realPhprCandidateItems.FirstOrDefault(item =>
             options.Selector.IsSelected
             && string.Equals(item.Candidate.DevicePath, options.Selector.DevicePath, StringComparison.Ordinal));
-        RealPhprInterfaceTextBox.Text = options.Selector.InterfaceName;
-        RealPhprReportIdTextBox.Text = options.Selector.ReportId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-        RealPhprReportLengthTextBox.Text = options.Selector.ReportLength.ToString(CultureInfo.InvariantCulture);
+        RealPhprInterfaceTextBox.Text = values.InterfaceText;
+        RealPhprReportIdTextBox.Text = values.ReportIdText;
+        RealPhprReportLengthTextBox.Text = values.ReportLengthText;
         RealPhprReportTransportComboBox.ItemsSource = _realPhprReportTransportOptions;
-        RealPhprReportTransportComboBox.SelectedItem = options.Selector.Transport;
+        RealPhprReportTransportComboBox.SelectedItem = values.ReportTransport;
         RealPhprApprovalPhraseTextBox.Text = string.Empty;
         RealPhprCandidatePickerStatusText.Text = "Direct-output candidates have not been refreshed. Private HID paths are kept in memory only after refresh.";
-        ApplyRealGearPulseSettingsToControls(
-            options.BrakeGearPulse,
-            RealPhprBrakeEnabledCheckBox,
-            RealPhprBrakeStrengthTextBox,
-            RealPhprBrakeFrequencyTextBox,
-            RealPhprBrakeDurationTextBox);
-        ApplyRealGearPulseSettingsToControls(
-            options.ThrottleGearPulse,
-            RealPhprThrottleEnabledCheckBox,
-            RealPhprThrottleStrengthTextBox,
-            RealPhprThrottleFrequencyTextBox,
-            RealPhprThrottleDurationTextBox);
-        var roadOptions = _realRoadVibrationOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        RealRoadVibrationEnabledCheckBox.IsChecked = roadOptions.IsEnabled;
-        ApplyRealRoadVibrationSettingsToControls(
-            roadOptions.Brake,
-            RealRoadBrakeEnabledCheckBox,
-            RealRoadBrakeMinStrengthTextBox,
-            RealRoadBrakeStrengthTextBox,
-            RealRoadBrakeMinFrequencyTextBox,
-            RealRoadBrakeFrequencyTextBox,
-            RealRoadBrakeDurationTextBox);
-        ApplyRealRoadVibrationSettingsToControls(
-            roadOptions.Throttle,
-            RealRoadThrottleEnabledCheckBox,
-            RealRoadThrottleMinStrengthTextBox,
-            RealRoadThrottleStrengthTextBox,
-            RealRoadThrottleMinFrequencyTextBox,
-            RealRoadThrottleFrequencyTextBox,
-            RealRoadThrottleDurationTextBox);
-        var slipLockOptions = _realSlipLockOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        RealSlipLockEnabledCheckBox.IsChecked = slipLockOptions.IsEnabled;
-        ApplyRealSlipLockSettingsToControls(
-            PHprPedalEffectKind.WheelSlip,
-            slipLockOptions.WheelSlip,
-            RealSlipEnabledCheckBox,
-            RealSlipTargetComboBox,
-            RealSlipMinStrengthTextBox,
-            RealSlipStrengthTextBox,
-            RealSlipMinFrequencyTextBox,
-            RealSlipFrequencyTextBox,
-            RealSlipDurationTextBox);
-        ApplyRealSlipLockSettingsToControls(
-            PHprPedalEffectKind.WheelLock,
-            slipLockOptions.WheelLock,
-            RealLockEnabledCheckBox,
-            RealLockTargetComboBox,
-            RealLockMinStrengthTextBox,
-            RealLockStrengthTextBox,
-            RealLockMinFrequencyTextBox,
-            RealLockFrequencyTextBox,
-            RealLockDurationTextBox);
+        RealPhprBrakeEnabledCheckBox.IsChecked = values.BrakeGearPulse.IsEnabled;
+        RealPhprBrakeStrengthTextBox.Text = values.BrakeGearPulse.StrengthText;
+        RealPhprBrakeFrequencyTextBox.Text = values.BrakeGearPulse.FrequencyText;
+        RealPhprBrakeDurationTextBox.Text = values.BrakeGearPulse.DurationText;
+        RealPhprThrottleEnabledCheckBox.IsChecked = values.ThrottleGearPulse.IsEnabled;
+        RealPhprThrottleStrengthTextBox.Text = values.ThrottleGearPulse.StrengthText;
+        RealPhprThrottleFrequencyTextBox.Text = values.ThrottleGearPulse.FrequencyText;
+        RealPhprThrottleDurationTextBox.Text = values.ThrottleGearPulse.DurationText;
+        RealRoadVibrationEnabledCheckBox.IsChecked = values.RealRoadVibrationEnabled;
+        RealRoadBrakeEnabledCheckBox.IsChecked = values.BrakeRoadVibration.IsEnabled;
+        RealRoadBrakeMinStrengthTextBox.Text = values.BrakeRoadVibration.MinimumStrengthText;
+        RealRoadBrakeStrengthTextBox.Text = values.BrakeRoadVibration.StrengthText;
+        RealRoadBrakeMinFrequencyTextBox.Text = values.BrakeRoadVibration.MinimumFrequencyText;
+        RealRoadBrakeFrequencyTextBox.Text = values.BrakeRoadVibration.FrequencyText;
+        RealRoadBrakeDurationTextBox.Text = values.BrakeRoadVibration.DurationText;
+        RealRoadThrottleEnabledCheckBox.IsChecked = values.ThrottleRoadVibration.IsEnabled;
+        RealRoadThrottleMinStrengthTextBox.Text = values.ThrottleRoadVibration.MinimumStrengthText;
+        RealRoadThrottleStrengthTextBox.Text = values.ThrottleRoadVibration.StrengthText;
+        RealRoadThrottleMinFrequencyTextBox.Text = values.ThrottleRoadVibration.MinimumFrequencyText;
+        RealRoadThrottleFrequencyTextBox.Text = values.ThrottleRoadVibration.FrequencyText;
+        RealRoadThrottleDurationTextBox.Text = values.ThrottleRoadVibration.DurationText;
+        RealSlipLockEnabledCheckBox.IsChecked = values.RealSlipLockEnabled;
+        RealSlipEnabledCheckBox.IsChecked = values.WheelSlip.IsEnabled;
+        RealSlipTargetComboBox.SelectedItem = values.WheelSlip.TargetModule;
+        RealSlipMinStrengthTextBox.Text = values.WheelSlip.MinimumStrengthText;
+        RealSlipStrengthTextBox.Text = values.WheelSlip.StrengthText;
+        RealSlipMinFrequencyTextBox.Text = values.WheelSlip.MinimumFrequencyText;
+        RealSlipFrequencyTextBox.Text = values.WheelSlip.FrequencyText;
+        RealSlipDurationTextBox.Text = values.WheelSlip.DurationText;
+        RealLockEnabledCheckBox.IsChecked = values.WheelLock.IsEnabled;
+        RealLockTargetComboBox.SelectedItem = values.WheelLock.TargetModule;
+        RealLockMinStrengthTextBox.Text = values.WheelLock.MinimumStrengthText;
+        RealLockStrengthTextBox.Text = values.WheelLock.StrengthText;
+        RealLockMinFrequencyTextBox.Text = values.WheelLock.MinimumFrequencyText;
+        RealLockFrequencyTextBox.Text = values.WheelLock.FrequencyText;
+        RealLockDurationTextBox.Text = values.WheelLock.DurationText;
         _updatingRealPhprDirectControlUi = false;
         ConfigureRealPhprOutputFromControls("Real P-HPR direct control initialized; startup auto-selection runs after load.", saveSafeSettings: false);
     }
@@ -2815,22 +2289,19 @@ public partial class MainWindow : Window
         _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.ResolveSharedDuration(
             options.BrakeGearPulse,
             options.ThrottleGearPulse);
+        var values = ControlSettingsSnapshotBuilder.BuildNormalPhprPedalsControlValues(options, _sharedPhprGearPulseDurationMs);
         _updatingPhprPedalsUi = true;
         PhprPedalsMasterEnableCheckBox.IsChecked = mode != PhprPedalsMode.Disabled;
         PhprPedalsModeComboBox.SelectedItem = _phprPedalsModeOptions.First(option => option.Mode == mode);
-        SyncSharedPhprGearPulseDurationControls(_sharedPhprGearPulseDurationMs);
-        ApplyRealGearPulseSettingsToControls(
-            Bst1GearPulseDurationSync.WithSharedDuration(options.BrakeGearPulse, _sharedPhprGearPulseDurationMs),
-            NormalPhprBrakeEnabledCheckBox,
-            NormalPhprBrakeStrengthTextBox,
-            NormalPhprBrakeFrequencyTextBox,
-            NormalPhprBrakeDurationTextBox);
-        ApplyRealGearPulseSettingsToControls(
-            Bst1GearPulseDurationSync.WithSharedDuration(options.ThrottleGearPulse, _sharedPhprGearPulseDurationMs),
-            NormalPhprThrottleEnabledCheckBox,
-            NormalPhprThrottleStrengthTextBox,
-            NormalPhprThrottleFrequencyTextBox,
-            NormalPhprThrottleDurationTextBox);
+        SyncSharedPhprGearPulseDurationControls(values.SharedDurationMs);
+        NormalPhprBrakeEnabledCheckBox.IsChecked = values.BrakeGearPulse.IsEnabled;
+        NormalPhprBrakeStrengthTextBox.Text = values.BrakeGearPulse.StrengthText;
+        NormalPhprBrakeFrequencyTextBox.Text = values.BrakeGearPulse.FrequencyText;
+        NormalPhprBrakeDurationTextBox.Text = values.BrakeGearPulse.DurationText;
+        NormalPhprThrottleEnabledCheckBox.IsChecked = values.ThrottleGearPulse.IsEnabled;
+        NormalPhprThrottleStrengthTextBox.Text = values.ThrottleGearPulse.StrengthText;
+        NormalPhprThrottleFrequencyTextBox.Text = values.ThrottleGearPulse.FrequencyText;
+        NormalPhprThrottleDurationTextBox.Text = values.ThrottleGearPulse.DurationText;
         _updatingPhprPedalsUi = false;
         UpdatePhprPedalsStatus();
     }
@@ -2840,17 +2311,19 @@ public partial class MainWindow : Window
         if (!TryApplySharedPhprGearPulseDurationFromControls(out var sharedDurationMs, out var message)
             || !TryBuildNormalPhprGearPulseSettings(
                 "Brake",
-                NormalPhprBrakeEnabledCheckBox,
-                NormalPhprBrakeStrengthTextBox,
-                NormalPhprBrakeFrequencyTextBox,
+                new NormalPhprGearPulseControlInputs(
+                    IsEnabled: NormalPhprBrakeEnabledCheckBox.IsChecked == true,
+                    StrengthText: NormalPhprBrakeStrengthTextBox.Text,
+                    FrequencyText: NormalPhprBrakeFrequencyTextBox.Text),
                 sharedDurationMs,
                 out var brake,
                 out message)
             || !TryBuildNormalPhprGearPulseSettings(
                 "Throttle",
-                NormalPhprThrottleEnabledCheckBox,
-                NormalPhprThrottleStrengthTextBox,
-                NormalPhprThrottleFrequencyTextBox,
+                new NormalPhprGearPulseControlInputs(
+                    IsEnabled: NormalPhprThrottleEnabledCheckBox.IsChecked == true,
+                    StrengthText: NormalPhprThrottleStrengthTextBox.Text,
+                    FrequencyText: NormalPhprThrottleFrequencyTextBox.Text),
                 sharedDurationMs,
                 out var throttle,
                 out message))
@@ -2887,18 +2360,18 @@ public partial class MainWindow : Window
         _updatingRealPhprDirectControlUi = true;
         RealPhprDirectControlEnabledCheckBox.IsChecked = _realPhprOptions.DirectControlEnabled;
         RealPhprDirectControlArmCheckBox.IsChecked = _realPhprOptions.DirectControlEnabled;
-        ApplyRealGearPulseSettingsToControls(
-            _realPhprOptions.BrakeGearPulse,
-            RealPhprBrakeEnabledCheckBox,
-            RealPhprBrakeStrengthTextBox,
-            RealPhprBrakeFrequencyTextBox,
-            RealPhprBrakeDurationTextBox);
-        ApplyRealGearPulseSettingsToControls(
-            _realPhprOptions.ThrottleGearPulse,
-            RealPhprThrottleEnabledCheckBox,
-            RealPhprThrottleStrengthTextBox,
-            RealPhprThrottleFrequencyTextBox,
-            RealPhprThrottleDurationTextBox);
+        var directValues = ControlSettingsSnapshotBuilder.BuildRealPhprControlValues(
+            _realPhprOptions,
+            _realRoadVibrationOptions,
+            _realSlipLockOptions);
+        RealPhprBrakeEnabledCheckBox.IsChecked = directValues.BrakeGearPulse.IsEnabled;
+        RealPhprBrakeStrengthTextBox.Text = directValues.BrakeGearPulse.StrengthText;
+        RealPhprBrakeFrequencyTextBox.Text = directValues.BrakeGearPulse.FrequencyText;
+        RealPhprBrakeDurationTextBox.Text = directValues.BrakeGearPulse.DurationText;
+        RealPhprThrottleEnabledCheckBox.IsChecked = directValues.ThrottleGearPulse.IsEnabled;
+        RealPhprThrottleStrengthTextBox.Text = directValues.ThrottleGearPulse.StrengthText;
+        RealPhprThrottleFrequencyTextBox.Text = directValues.ThrottleGearPulse.FrequencyText;
+        RealPhprThrottleDurationTextBox.Text = directValues.ThrottleGearPulse.DurationText;
         _updatingRealPhprDirectControlUi = false;
 
         SaveAppSettings();
@@ -2913,16 +2386,14 @@ public partial class MainWindow : Window
 
     private bool TryApplySharedPhprGearPulseDurationFromControls(out int durationMs, out string message)
     {
-        if (!PhprUiValueConverter.TryParseDurationMs(
+        if (!ControlSettingsSnapshotBuilder.TryBuildSharedPhprGearPulseDuration(
                 NormalPhprGearDurationTextBox.Text,
-                "P-HPR gear pulse",
                 out durationMs,
                 out message))
         {
             return false;
         }
 
-        durationMs = Bst1GearPulseDurationSync.NormalizeGearDuration(durationMs);
         _sharedPhprGearPulseDurationMs = durationMs;
         SyncSharedPhprGearPulseDurationControls(durationMs);
         message = "Shared P-HPR gear pulse duration ready.";
@@ -2950,37 +2421,45 @@ public partial class MainWindow : Window
 
     private static bool TryBuildNormalPhprGearPulseSettings(
         string label,
-        CheckBox enabledCheckBox,
-        TextBox strengthTextBox,
-        TextBox frequencyTextBox,
+        NormalPhprGearPulseControlInputs inputs,
         int durationMs,
         out PHprRealGearPulseSettings settings,
         out string message)
     {
-        settings = PHprRealGearPulseSettings.Default;
-        if (!PhprUiValueConverter.TryParseStrengthPercent(
-                strengthTextBox.Text,
-                $"{label} P-HPR",
-                out var strength,
-                out message)
-            || !PhprUiValueConverter.TryParseFrequencyHz(
-                frequencyTextBox.Text,
-                $"{label} P-HPR",
-                out var frequency,
-                out message))
-        {
-            return false;
-        }
+        return ControlSettingsSnapshotBuilder.TryBuildNormalPhprGearPulseSettings(
+            label,
+            inputs,
+            durationMs,
+            out settings,
+            out message);
+    }
 
-        settings = new PHprRealGearPulseSettings
-        {
-            IsEnabled = enabledCheckBox.IsChecked == true,
-            Strength01 = strength,
-            FrequencyHz = frequency,
-            DurationMs = durationMs
-        }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        message = $"{label} P-HPR pulse ready.";
-        return true;
+    private static bool TryBuildRealRoadVibrationPedalSettings(
+        string label,
+        RealRoadVibrationPedalControlInputs inputs,
+        out PHprRoadVibrationPedalSettings settings,
+        out string message)
+    {
+        return ControlSettingsSnapshotBuilder.TryBuildRealRoadVibrationPedalSettings(
+            label,
+            inputs,
+            out settings,
+            out message);
+    }
+
+    private static bool TryBuildRealSlipLockEffectSettings(
+        string label,
+        PHprPedalEffectKind kind,
+        RealSlipLockEffectControlInputs inputs,
+        out PHprSlipLockEffectSettings settings,
+        out string message)
+    {
+        return ControlSettingsSnapshotBuilder.TryBuildRealSlipLockEffectSettings(
+            label,
+            kind,
+            inputs,
+            out settings,
+            out message);
     }
 
     private PhprPedalsMode GetSelectedPhprPedalsMode()
@@ -3202,74 +2681,6 @@ public partial class MainWindow : Window
         return TryGetDirectPhprPulseReady(moduleId, out var message)
             ? "Send a manually gated direct P-HPR pulse."
             : $"Direct mode blocked: {message}.";
-    }
-
-    private static void ApplyRealGearPulseSettingsToControls(
-        PHprRealGearPulseSettings settings,
-        CheckBox enabledCheckBox,
-        TextBox strengthTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox)
-    {
-        var normalized = settings.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        enabledCheckBox.IsChecked = normalized.IsEnabled;
-        strengthTextBox.Text = PhprUiValueConverter.FormatPercent(normalized.Strength01);
-        frequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(normalized.FrequencyHz);
-        durationTextBox.Text = normalized.DurationMs.ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static void ApplyRealRoadVibrationSettingsToControls(
-        PHprRoadVibrationPedalSettings settings,
-        CheckBox enabledCheckBox,
-        TextBox minimumStrengthTextBox,
-        TextBox strengthTextBox,
-        TextBox minimumFrequencyTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox)
-    {
-        var normalized = settings.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        enabledCheckBox.IsChecked = normalized.IsEnabled;
-        minimumStrengthTextBox.Text = PhprUiValueConverter.FormatPercent(normalized.MinimumStrength01);
-        strengthTextBox.Text = PhprUiValueConverter.FormatPercent(normalized.Strength01);
-        minimumFrequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(normalized.MinimumFrequencyHz);
-        frequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(normalized.FrequencyHz);
-        durationTextBox.Text = normalized.DurationMs.ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static void ApplyRealSlipLockSettingsToControls(
-        PHprPedalEffectKind kind,
-        PHprSlipLockEffectSettings settings,
-        CheckBox enabledCheckBox,
-        ComboBox targetComboBox,
-        TextBox minimumStrengthTextBox,
-        TextBox strengthTextBox,
-        TextBox minimumFrequencyTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox)
-    {
-        var normalized = settings.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        enabledCheckBox.IsChecked = normalized.IsEnabled;
-        targetComboBox.SelectedItem = normalized.TargetModule;
-        minimumStrengthTextBox.Text = PhprUiValueConverter.FormatPercent(normalized.MinimumStrength01);
-        strengthTextBox.Text = PhprUiValueConverter.FormatPercent(normalized.Strength01);
-        minimumFrequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(normalized.MinimumFrequencyHz);
-        frequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(normalized.FrequencyHz);
-        durationTextBox.Text = normalized.DurationMs.ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static void ApplyPedalEffectStateToControls(
-        PHprPedalEffectState state,
-        CheckBox enabledCheckBox,
-        ComboBox targetComboBox,
-        TextBox strengthTextBox,
-        TextBox frequencyTextBox,
-        TextBox durationTextBox)
-    {
-        enabledCheckBox.IsChecked = state.IsEnabled;
-        targetComboBox.SelectedItem = state.TargetModule;
-        strengthTextBox.Text = PhprUiValueConverter.FormatPercent(state.Profile.Strength01);
-        frequencyTextBox.Text = PhprUiValueConverter.FormatFrequency(state.Profile.FrequencyHz);
-        durationTextBox.Text = state.Profile.DurationMs.ToString(CultureInfo.InvariantCulture);
     }
 
     private void SaveAppSettings()
@@ -4273,59 +3684,53 @@ public partial class MainWindow : Window
 
     private void ApplyBst1PulseSettingsToControls()
     {
+        var values = ControlSettingsSnapshotBuilder.BuildBst1PulseControlValues(
+            _manualBst1StrengthPercent,
+            _bst1OutputTrimPercent,
+            _manualBst1FrequencyHz,
+            _manualBst1DurationMs,
+            _bst1PaddleGearPulseEnabled,
+            _bst1PaddleGearStrengthPercent,
+            _bst1PaddleGearFrequencyHz,
+            _bst1PaddleGearSyncDuration,
+            _sharedPhprGearPulseDurationMs,
+            _bst1PaddleGearCustomDurationMs,
+            GetEffectiveBst1PaddleGearDurationMs());
         _updatingBst1PulseUi = true;
-        ManualBst1StrengthTextBox.Text = _manualBst1StrengthPercent.ToString("0", CultureInfo.InvariantCulture);
-        Bst1OutputTrimTextBox.Text = _bst1OutputTrimPercent.ToString("0", CultureInfo.InvariantCulture);
-        ManualBst1FrequencyTextBox.Text = _manualBst1FrequencyHz.ToString("0.#", CultureInfo.InvariantCulture);
-        ManualBst1DurationTextBox.Text = _manualBst1DurationMs.ToString(CultureInfo.InvariantCulture);
-        Bst1PaddleGearPulseEnabledCheckBox.IsChecked = _bst1PaddleGearPulseEnabled;
-        Bst1PaddleGearStrengthTextBox.Text = _bst1PaddleGearStrengthPercent.ToString("0", CultureInfo.InvariantCulture);
-        Bst1PaddleGearFrequencyTextBox.Text = _bst1PaddleGearFrequencyHz.ToString("0.#", CultureInfo.InvariantCulture);
-        Bst1PaddleGearSyncDurationCheckBox.IsChecked = _bst1PaddleGearSyncDuration;
-        Bst1PaddleGearDurationTextBox.Text = (_bst1PaddleGearSyncDuration
-                ? _sharedPhprGearPulseDurationMs
-                : _bst1PaddleGearCustomDurationMs)
-            .ToString(CultureInfo.InvariantCulture);
-        Bst1PaddleGearDurationTextBox.IsEnabled = !_bst1PaddleGearSyncDuration;
-        Bst1PaddleGearEffectiveDurationText.Text =
-            $"Effective duration: {GetEffectiveBst1PaddleGearDurationMs()} ms ({(_bst1PaddleGearSyncDuration ? "sync" : "custom")}); P-HPR gear {_sharedPhprGearPulseDurationMs} ms; custom BST-1 {_bst1PaddleGearCustomDurationMs} ms.";
+        ManualBst1StrengthTextBox.Text = values.ManualStrengthText;
+        Bst1OutputTrimTextBox.Text = values.OutputTrimText;
+        ManualBst1FrequencyTextBox.Text = values.ManualFrequencyText;
+        ManualBst1DurationTextBox.Text = values.ManualDurationText;
+        Bst1PaddleGearPulseEnabledCheckBox.IsChecked = values.PaddleGearPulseEnabled;
+        Bst1PaddleGearStrengthTextBox.Text = values.PaddleGearStrengthText;
+        Bst1PaddleGearFrequencyTextBox.Text = values.PaddleGearFrequencyText;
+        Bst1PaddleGearSyncDurationCheckBox.IsChecked = values.PaddleGearSyncDuration;
+        Bst1PaddleGearDurationTextBox.Text = values.PaddleGearDurationText;
+        Bst1PaddleGearDurationTextBox.IsEnabled = values.PaddleGearDurationEnabled;
+        Bst1PaddleGearEffectiveDurationText.Text = values.PaddleGearEffectiveDurationText;
         _updatingBst1PulseUi = false;
     }
 
     private bool ApplyManualBst1SettingsFromControls(string footerMessage)
     {
-        if (!TryParsePercent(ManualBst1StrengthTextBox.Text, out var strengthPercent, out var message))
+        if (!ControlSettingsSnapshotBuilder.TryBuildBst1ManualPulseSettings(
+                new Bst1ManualPulseControlInputs(
+                    StrengthText: ManualBst1StrengthTextBox.Text,
+                    OutputTrimText: Bst1OutputTrimTextBox.Text,
+                    FrequencyText: ManualBst1FrequencyTextBox.Text,
+                    DurationText: ManualBst1DurationTextBox.Text),
+                out var settings,
+                out var message))
         {
             ManualAsioHardwareStatusText.Text = message;
             FooterStatusText.Text = message;
             return false;
         }
 
-        if (!TryParseBst1OutputTrim(Bst1OutputTrimTextBox.Text, out var outputTrimPercent, out message))
-        {
-            ManualAsioHardwareStatusText.Text = message;
-            FooterStatusText.Text = message;
-            return false;
-        }
-
-        if (!TryParseBst1Frequency(ManualBst1FrequencyTextBox.Text, out var frequencyHz, out message))
-        {
-            ManualAsioHardwareStatusText.Text = message;
-            FooterStatusText.Text = message;
-            return false;
-        }
-
-        if (!TryParseBst1Duration(ManualBst1DurationTextBox.Text, out var durationMs, out message))
-        {
-            ManualAsioHardwareStatusText.Text = message;
-            FooterStatusText.Text = message;
-            return false;
-        }
-
-        _manualBst1StrengthPercent = strengthPercent;
-        _bst1OutputTrimPercent = outputTrimPercent;
-        _manualBst1FrequencyHz = frequencyHz;
-        _manualBst1DurationMs = durationMs;
+        _manualBst1StrengthPercent = settings.StrengthPercent;
+        _bst1OutputTrimPercent = settings.OutputTrimPercent;
+        _manualBst1FrequencyHz = settings.FrequencyHz;
+        _manualBst1DurationMs = settings.DurationMs;
         ApplyBst1PulseSettingsToControls();
         UpdateManualAsioHardwareTestStatus();
         FooterStatusText.Text = footerMessage;
@@ -4334,111 +3739,32 @@ public partial class MainWindow : Window
 
     private bool ApplyBst1PaddleGearPulseSettingsFromControls(string footerMessage)
     {
-        if (!TryParsePercent(Bst1PaddleGearStrengthTextBox.Text, out var strengthPercent, out var message))
+        if (!ControlSettingsSnapshotBuilder.TryBuildBst1PaddleGearPulseSettings(
+                new Bst1PaddleGearPulseControlInputs(
+                    IsEnabled: Bst1PaddleGearPulseEnabledCheckBox.IsChecked == true,
+                    StrengthText: Bst1PaddleGearStrengthTextBox.Text,
+                    FrequencyText: Bst1PaddleGearFrequencyTextBox.Text,
+                    UseSharedDuration: Bst1PaddleGearSyncDurationCheckBox.IsChecked == true,
+                    DurationText: Bst1PaddleGearDurationTextBox.Text,
+                    ExistingCustomDurationMs: _bst1PaddleGearCustomDurationMs),
+                out var settings,
+                out var message))
         {
             ManualAsioHardwareStatusText.Text = message;
             FooterStatusText.Text = message;
             return false;
         }
 
-        if (!TryParseBst1Frequency(Bst1PaddleGearFrequencyTextBox.Text, out var frequencyHz, out message))
-        {
-            ManualAsioHardwareStatusText.Text = message;
-            FooterStatusText.Text = message;
-            return false;
-        }
-
-        var syncDuration = Bst1PaddleGearSyncDurationCheckBox.IsChecked == true;
-        var durationText = syncDuration
-            ? _bst1PaddleGearCustomDurationMs.ToString(CultureInfo.InvariantCulture)
-            : Bst1PaddleGearDurationTextBox.Text;
-        if (!TryParseBst1Duration(durationText, out var durationMs, out message))
-        {
-            ManualAsioHardwareStatusText.Text = message;
-            FooterStatusText.Text = message;
-            return false;
-        }
-
-        _bst1PaddleGearPulseEnabled = Bst1PaddleGearPulseEnabledCheckBox.IsChecked == true;
-        _bst1PaddleGearStrengthPercent = strengthPercent;
-        _bst1PaddleGearFrequencyHz = frequencyHz;
-        _bst1PaddleGearSyncDuration = syncDuration;
-        _bst1PaddleGearCustomDurationMs = durationMs;
-        _lastBst1PaddleGearPulseMessage = _bst1PaddleGearPulseEnabled
-            ? "BST-1 paddle gear pulse enabled for accepted bench Pressed events."
-            : "BST-1 paddle gear pulse is disabled.";
+        _bst1PaddleGearPulseEnabled = settings.IsEnabled;
+        _bst1PaddleGearStrengthPercent = settings.StrengthPercent;
+        _bst1PaddleGearFrequencyHz = settings.FrequencyHz;
+        _bst1PaddleGearSyncDuration = settings.UseSharedDuration;
+        _bst1PaddleGearCustomDurationMs = settings.CustomDurationMs;
+        _lastBst1PaddleGearPulseMessage = settings.StatusMessage;
         ApplyBst1PulseSettingsToControls();
         SaveAppSettings();
         UpdateManualAsioHardwareTestStatus();
         FooterStatusText.Text = footerMessage;
-        return true;
-    }
-
-    private static bool TryParsePercent(string text, out float value, out string message)
-    {
-        if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-            || !float.IsFinite(value))
-        {
-            message = "BST-1 strength must be a number from 0 to 100%.";
-            value = 50f;
-            return false;
-        }
-
-        value = Math.Clamp(value, 0f, 100f);
-        message = "BST-1 strength ready.";
-        return true;
-    }
-
-    private static bool TryParseBst1OutputTrim(string text, out float value, out string message)
-    {
-        if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-            || !float.IsFinite(value))
-        {
-            message = "BST-1 output trim must be a number from 25 to 400%.";
-            value = 200f;
-            return false;
-        }
-
-        value = Math.Clamp(
-            value,
-            ManualAsioHardwareTestRequest.MinimumOutputTrim * 100f,
-            ManualAsioHardwareTestRequest.MaximumOutputTrim * 100f);
-        message = "BST-1 output trim ready.";
-        return true;
-    }
-
-    private static bool TryParseBst1Frequency(string text, out float value, out string message)
-    {
-        if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-            || !float.IsFinite(value))
-        {
-            message = "BST-1 frequency must be a number from 10 to 80 Hz.";
-            value = 50f;
-            return false;
-        }
-
-        value = Math.Clamp(
-            value,
-            ManualAsioHardwareTestRequest.MinimumFrequencyHz,
-            ManualAsioHardwareTestRequest.MaximumFrequencyHz);
-        message = "BST-1 frequency ready.";
-        return true;
-    }
-
-    private static bool TryParseBst1Duration(string text, out int value, out string message)
-    {
-        if (!int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
-        {
-            message = "BST-1 duration must be a whole number of milliseconds.";
-            value = 45;
-            return false;
-        }
-
-        value = Math.Clamp(
-            value,
-            ManualAsioHardwareTestRequest.MinimumDurationMilliseconds,
-            (int)ManualAsioHardwareTestRequest.MaximumDuration.TotalMilliseconds);
-        message = "BST-1 duration ready.";
         return true;
     }
 
@@ -6394,24 +5720,16 @@ public partial class MainWindow : Window
             : $"Replay inactive; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s) last replayed. {snapshot.StatusMessage}";
     }
 
-    private static ReplayTimingModeOption GetReplayTimingModeOption(ReplayTimingPreference preference)
-    {
-        return preference == ReplayTimingPreference.FastDebug
-            ? ReplayTimingModeOption.FastDebug
-            : ReplayTimingModeOption.RealTime;
-    }
-
     private ReplayTimingModeOption GetSelectedReplayTimingMode()
     {
-        return ReplayTimingModeComboBox.SelectedItem as ReplayTimingModeOption
-            ?? ReplayTimingModeOption.RealTime;
+        return ControlSettingsSnapshotBuilder.GetSelectedReplayTimingMode(
+            ReplayTimingModeComboBox.SelectedItem as ReplayTimingModeOption);
     }
 
     private ReplayTimingPreference GetSelectedReplayTimingPreference()
     {
-        return GetSelectedReplayTimingMode().IsFastDebug
-            ? ReplayTimingPreference.FastDebug
-            : ReplayTimingPreference.RealTime;
+        return ControlSettingsSnapshotBuilder.GetReplayTimingPreference(
+            ReplayTimingModeComboBox.SelectedItem as ReplayTimingModeOption);
     }
 
     private static string CreateDefaultRecordingPath()
