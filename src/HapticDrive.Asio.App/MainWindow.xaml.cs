@@ -114,71 +114,71 @@ public partial class MainWindow : Window
         new(
             "Dashboard",
             "Dashboard",
-            "Safe overview for telemetry, haptics, and hardware-absent operation.",
-            "Hardware-absent safe startup active",
+            "Operational overview for haptics, telemetry, and hardware readiness.",
+            "Ready overview",
             [
-                "NullAudioOutputDevice is the default safe output.",
-                "F1 25 packets stay raw for recording and forwarding.",
-                "P-HPR direct hardware output never starts on launch; startup only auto-selects and validates a known direct-ready device."
+                "Null output stays the safe default until you choose hardware.",
+                "Recording and forwarding preserve the incoming F1 25 UDP packets.",
+                "P-HPR direct mode never starts output on launch."
             ]),
         new(
             "Devices",
             "Devices",
-            "Bass shaker output, Simagic P-HPR pedals, and wheel paddle input.",
-            "Safe device controls available",
+            "Bass shaker output, Simagic P-HPR pedals, and wheel paddle setup.",
+            "Device setup and readiness",
             [
                 "ASIO absence does not block startup, builds, or tests.",
                 "P-HPR mock mode never writes hardware reports.",
-                "Read-only paddle input can drive InstantPaddleOnly shift intent through safety gates."
+                "Wheel paddles can drive local gear pulses after mapping and safety checks."
             ]),
         new(
             "Effects",
             "Effects",
-            "Hardware-safe generated effect diagnostics.",
-            "Effect tuning drives the output-owned render path",
+            "Normal tuning for the seat shaker and pedal effects.",
+            "Effect tuning ready",
             [
-                "Engine, gear shift, kerb, impact, road texture, slip, and brake-lock effects consume VehicleState.",
-                "P-HPR pedal effects remain separate from the ASIO/BST-1 audio path.",
+                "Engine, gear shift, kerb, impact, road texture, slip, and brake-lock effects stay grouped by hardware.",
+                "P-HPR pedal effects remain separate from the BST-1 audio path.",
                 "Physical tuning waits for local hardware validation."
             ]),
         new(
             "Routing / Mixer",
             "Routing / Mixer",
-            "Hardware-safe mixer level controls and safety-chain visibility.",
-            "Mixer and safety controls available",
+            "Output routing, gain, mute, active effects, and protection status.",
+            "Mixer summary ready",
             [
                 "ASIO/BST-1 routing remains audio-only.",
                 "P-HPR modules use a separate actuator path.",
-                "Emergency mute and limiter diagnostics stay visible."
+                "Emergency mute and limiter protection stay visible."
             ]),
         new(
             "Telemetry / UDP",
             "Telemetry / UDP",
-            "Raw F1 25 UDP input, byte-preserving forwarding, recording, and replay.",
-            "UDP listener, forwarder, recorder, parser, and VehicleState adapter active",
+            "F1 25 UDP input, forwarding, recording, and replay.",
+            "Telemetry tools ready",
             [
                 "Default listen port is 20778.",
                 "Forwarding sends exact packet bytes to enabled destinations.",
-                "Recording captures raw incoming UDP payload bytes before parser validation.",
-                "Replay emits recorded packets through the same parser and VehicleState path."
+                "Recording captures the incoming UDP packets before parser validation.",
+                "Replay uses recorded packets for software-only testing."
             ]),
         new(
             "Profiles",
             "Profiles",
-            "Versioned JSON tuning profiles for existing effects, mixer, and safety settings.",
-            "Profiles available",
+            "Saved tuning profiles and app preferences.",
+            "Profiles ready",
             [
-                "The default profile uses the current Stage 18r-B software defaults for this rig.",
+                "The default profile uses the current software defaults for this rig.",
                 "Audio tuning auto-saves to the default profile under local app data.",
                 "Profile values are validated and repaired to the current software ranges on load.",
-                "Emergency mute remains runtime-only and is not saved in profiles.",
+                "Emergency state and live hardware state stay runtime-only.",
                 "Device settings remain separate from effect profiles."
             ]),
         new(
             "Testing / Validation",
             "Testing / Validation",
-            "Manual pulse tests, synthetic validation, and local checklists.",
-            "Manual test tools available",
+            "Manual tests, synthetic checks, and local validation exports.",
+            "Testing tools ready",
             [
                 "Synthetic validation stays available without physical hardware.",
                 "Manual BST-1 and P-HPR pulse checks live here.",
@@ -504,11 +504,15 @@ public partial class MainWindow : Window
     {
         if (NavigationList.SelectedItem is ShellPageDefinition page)
         {
+            var isDashboardPage = page.NavigationLabel == "Dashboard";
             PageTitleText.Text = page.Title;
             PageSummaryText.Text = page.Summary;
             TopBarContextText.Text = $"{page.NavigationLabel} / safe control";
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
+            DashboardSummaryPanel.Visibility = isDashboardPage
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             EffectsPanel.Visibility = page.NavigationLabel == "Effects"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -545,7 +549,7 @@ public partial class MainWindow : Window
             DiagnosticsPanel.Visibility = isAdvancedPage && _advancedDiagnosticsEnabled
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            FooterStatusText.Text = $"Viewing {page.NavigationLabel} - P-HPR controls simplified";
+            FooterStatusText.Text = $"Viewing {page.NavigationLabel}";
             UpdateTelemetryStatus();
             UpdateEffectStatus();
             UpdateMixerStatus();
@@ -556,6 +560,7 @@ public partial class MainWindow : Window
             UpdateManualAsioHardwareTestStatus();
             UpdateDiagnosticsStatus();
             UpdateAdvancedDiagnosticsVisibility();
+            UpdateDashboardStatus();
             if (isTelemetryPage)
             {
                 _ = RefreshRecordingLibraryAsync();
@@ -711,7 +716,7 @@ public partial class MainWindow : Window
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = workflowName == "local gear test"
             ? "Read-only paddle listener started for Local Gear Test Mode. Start Haptics and F1 telemetry were not started."
-            : "Read-only paddle input listener started. Mapped presses update diagnostics only.";
+            : "Read-only paddle input listener started. Mapped presses now update the status view only.";
         return true;
     }
 
@@ -2725,15 +2730,16 @@ public partial class MainWindow : Window
             PhprPedalsMode.Disabled => "P-HPR pedals disabled. Emergency stop remains available.",
             PhprPedalsMode.Mock => mockSnapshot.IsEmergencyStopActive
                 ? "Mock P-HPR emergency stop is active; clear it before mock test pulses."
-                : "Mock P-HPR pedals enabled. Test pulses stay mock-only.",
+                : "Mock P-HPR pedals are ready for software-only test pulses.",
             PhprPedalsMode.Direct => directReady
                 ? "Direct P-HPR mode is ready for this session."
-                : $"Direct P-HPR mode is selected but not ready: {directMessage}.",
+                : $"Direct P-HPR mode is selected but blocked: {directMessage}.",
             _ => "P-HPR pedal mode unavailable."
         };
         PhprPedalsDeviceStatusText.Text =
-            $"Mock output {(mockSnapshot.IsEmergencyStopActive ? "stopped" : "ready")}; direct output {realDiagnostics.Connection.State}; selected {(realDiagnostics.Options.Selector.IsSelected ? "yes" : "no")}; open-check {(realDiagnostics.Options.OpenCheckSucceeded ? "passed" : "pending/blocked")}; report-shape {(realDiagnostics.Options.ReportShapeValidationSucceeded ? "passed" : "pending/blocked")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}.";
+            $"Mock output {(mockSnapshot.IsEmergencyStopActive ? "stopped" : "ready")}; direct connection {realDiagnostics.Connection.State}; device {(realDiagnostics.Options.Selector.IsSelected ? "selected" : "not selected")}; direct checks {(realDiagnostics.Options.OpenCheckSucceeded && realDiagnostics.Options.ReportShapeValidationSucceeded ? "ready" : "still blocked")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realDiagnostics.Output.IsEmergencyStopActive)}.";
         PhprPedalsLastResultText.Text = _lastPhprPedalsPulseMessage;
+        UpdateDashboardStatus();
     }
 
     private string BuildNormalPulseToolTip(
@@ -3103,6 +3109,184 @@ public partial class MainWindow : Window
         StartStopButton.Content = presentation.StartStopButtonText;
         EmergencyMuteButton.Content = presentation.EmergencyMuteButtonText;
         HapticsStateText.Text = presentation.HapticsStateText;
+        UpdateDashboardStatus(pipelineSnapshot);
+    }
+
+    private void UpdateDashboardStatus(HapticPipelineSnapshot? pipelineSnapshot = null)
+    {
+        pipelineSnapshot ??= RefreshDrivingArmedAndShiftIntentTelemetry();
+        var telemetrySnapshot = _telemetryReceiver.GetSnapshot();
+        var replaySnapshot = pipelineSnapshot.Replay;
+        var outputStatus = pipelineSnapshot.Output;
+        var directRuntime = _phprDirectRuntime.GetSnapshot();
+        var phprMode = GetSelectedPhprPedalsMode();
+        var telemetryState = _telemetryStartError is not null
+            ? "UDP unavailable"
+            : telemetrySnapshot.HasNoPacketWarning
+                ? "Waiting for UDP"
+                : telemetrySnapshot.IsRunning
+                    ? $"Listening on {telemetrySnapshot.BoundPort}"
+                    : "UDP stopped";
+        var phprState = phprMode switch
+        {
+            PhprPedalsMode.Disabled => "P-HPR disabled",
+            PhprPedalsMode.Mock => "P-HPR mock ready",
+            PhprPedalsMode.Direct when directRuntime.DirectReady => "P-HPR direct ready",
+            PhprPedalsMode.Direct => $"P-HPR direct blocked: {NormalizeDashboardReason(directRuntime.BlockedReason)}",
+            _ => "P-HPR unavailable"
+        };
+
+        DashboardWorkflowStatusText.Text =
+            $"Haptics {(_hapticsStarted ? "running" : "stopped")}; output {outputStatus.DisplayName}; {telemetryState.ToLowerInvariant()}; replay {(replaySnapshot.IsReplaying ? "active" : "idle")}; {phprState.ToLowerInvariant()}.";
+        DashboardNextStepText.Text = BuildDashboardNextStepText(pipelineSnapshot, telemetrySnapshot, directRuntime);
+        DashboardChecklistItemsControl.ItemsSource = new[]
+        {
+            $"Output: {BuildDashboardOutputSummary(outputStatus)}",
+            $"Telemetry: {BuildDashboardTelemetrySummary(telemetrySnapshot, replaySnapshot)}",
+            $"P-HPR pedals: {BuildDashboardPhprSummary(phprMode, directRuntime)}",
+            $"Wheel paddles: {BuildDashboardPaddleSummary()}",
+            $"Recording / replay: {BuildDashboardRecordingSummary(replaySnapshot)}"
+        };
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Dashboard" })
+        {
+            PageStatusText.Text = $"Haptics {(_hapticsStarted ? "running" : "stopped")}; {BuildDashboardOutputSummary(outputStatus)}; {BuildDashboardTelemetrySummary(telemetrySnapshot, replaySnapshot).ToLowerInvariant()}.";
+        }
+    }
+
+    private string BuildDashboardNextStepText(
+        HapticPipelineSnapshot pipelineSnapshot,
+        UdpTelemetryReceiverSnapshot telemetrySnapshot,
+        PHprDirectRuntimeSnapshot directRuntime)
+    {
+        if (_telemetryStartError is not null)
+        {
+            return "Fix the UDP listener startup error before using live telemetry or recordings.";
+        }
+
+        if (!_hapticsStarted)
+        {
+            if (pipelineSnapshot.Output.Kind == AudioOutputDeviceKind.Asio && !_asioArmed)
+            {
+                return "Arm ASIO on Devices, then press Start Haptics when you are ready to open the bass-shaker stream.";
+            }
+
+            if (pipelineSnapshot.Output.Kind == AudioOutputDeviceKind.Asio)
+            {
+                return "Press Start Haptics when you are ready to open the selected ASIO driver and channel.";
+            }
+
+            if (telemetrySnapshot.PacketCount == 0 && !pipelineSnapshot.Replay.IsReplaying)
+            {
+                return "Start F1 25 UDP or replay a recording to feed the app, then press Start Haptics when you want live output.";
+            }
+
+            return "Press Start Haptics when you are ready to run the current setup.";
+        }
+
+        if (telemetrySnapshot.PacketCount == 0 && !pipelineSnapshot.Replay.IsReplaying)
+        {
+            return "Haptics are running, but no packets are arriving yet. Start F1 25 UDP or replay a saved recording.";
+        }
+
+        if (GetSelectedPhprPedalsMode() == PhprPedalsMode.Direct && !directRuntime.DirectReady)
+        {
+            return $"P-HPR Direct is selected but blocked. Use Devices to clear readiness issues or switch to Mock. ({NormalizeDashboardReason(directRuntime.BlockedReason)})";
+        }
+
+        if (_paddleInputSource.GetPaddleSnapshot().Status is not InputListenerStatus.Listening
+            && (_bst1PaddleGearPulseEnabled || _shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled))
+        {
+            return "Start the wheel paddle listener on Devices if you want local paddle gear pulses or live shift intent routing.";
+        }
+
+        return pipelineSnapshot.Replay.IsReplaying
+            ? "Replay is driving the app. Let it run or stop replay when you are ready to return to live UDP."
+            : "The app is ready. Drive the car, keep telemetry flowing, and use Devices or Testing / Validation only when you need setup or checks.";
+    }
+
+    private string BuildDashboardOutputSummary(AudioOutputStatus status)
+    {
+        if (status.Kind != AudioOutputDeviceKind.Asio)
+        {
+            return $"{status.DisplayName} selected; safe default mode.";
+        }
+
+        if (!_asioArmed)
+        {
+            return $"ASIO selected with driver {(_selectedAsioDriverName ?? "none")} and channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; arm it before starting output.";
+        }
+
+        return _hapticsStarted
+            ? $"ASIO active on driver {(_selectedAsioDriverName ?? "none")} channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}."
+            : $"ASIO is armed on driver {(_selectedAsioDriverName ?? "none")} channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; stream still stopped.";
+    }
+
+    private string BuildDashboardTelemetrySummary(UdpTelemetryReceiverSnapshot telemetrySnapshot, TelemetryReplaySnapshot replaySnapshot)
+    {
+        if (_telemetryStartError is not null)
+        {
+            return "Listener unavailable.";
+        }
+
+        if (replaySnapshot.IsReplaying)
+        {
+            return $"Replay active with {replaySnapshot.PacketsReplayed:N0} packet(s).";
+        }
+
+        if (!telemetrySnapshot.IsRunning)
+        {
+            return "Listener stopped.";
+        }
+
+        return telemetrySnapshot.LastPacketAtUtc is null
+            ? $"Listening on port {telemetrySnapshot.BoundPort}; no packets yet."
+            : $"Listening on port {telemetrySnapshot.BoundPort}; last packet {telemetrySnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago.";
+    }
+
+    private string BuildDashboardPhprSummary(PhprPedalsMode mode, PHprDirectRuntimeSnapshot directRuntime)
+    {
+        return mode switch
+        {
+            PhprPedalsMode.Disabled => "Disabled until you enable a pedal mode on Devices.",
+            PhprPedalsMode.Mock => "Mock mode is selected for software-only pedal testing.",
+            PhprPedalsMode.Direct when directRuntime.DirectReady => "Direct mode is selected and ready for this session.",
+            PhprPedalsMode.Direct => $"Direct mode is selected but blocked: {NormalizeDashboardReason(directRuntime.BlockedReason)}.",
+            _ => "Unavailable."
+        };
+    }
+
+    private string BuildDashboardPaddleSummary()
+    {
+        var snapshot = _paddleInputSource.GetPaddleSnapshot();
+        var mappingReady = snapshot.Mapping.LeftPaddleButtonId is not null && snapshot.Mapping.RightPaddleButtonId is not null;
+        return snapshot.Status switch
+        {
+            InputListenerStatus.Listening when mappingReady => "Listener running and left/right paddle mappings are ready.",
+            InputListenerStatus.Listening => "Listener running, but left/right paddle mapping still needs to be completed.",
+            _ when mappingReady => "Mappings are saved; start the listener when you want paddle input.",
+            _ => "Refresh devices, choose the wheel input, and map the left/right paddle buttons when needed."
+        };
+    }
+
+    private string BuildDashboardRecordingSummary(TelemetryReplaySnapshot replaySnapshot)
+    {
+        var recordingSnapshot = _hapticPipeline.GetSnapshot().Recording;
+        if (recordingSnapshot.IsRecording)
+        {
+            return $"Recording is active to {Path.GetFileName(recordingSnapshot.FilePath)}.";
+        }
+
+        return replaySnapshot.IsReplaying
+            ? $"Replay is active from {Path.GetFileName(replaySnapshot.SourceFilePath)}."
+            : "Recording idle; replay idle.";
+    }
+
+    private static string NormalizeDashboardReason(string? reason)
+    {
+        return string.IsNullOrWhiteSpace(reason)
+            ? "a readiness check is still blocking direct output"
+            : reason;
     }
 
     private void ThemeButton_Click(object sender, RoutedEventArgs e)
@@ -3708,8 +3892,8 @@ public partial class MainWindow : Window
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Testing / Validation" })
         {
             PageStatusText.Text = snapshot.IsActive
-                ? $"{snapshot.SelectedSignalName}; {snapshot.RenderedBufferCount:N0} buffer(s); peak {snapshot.OutputPeakLevel:0.000}; limiter {snapshot.LimitedSampleCount:N0} sample(s); mute {(snapshot.IsMuted ? "on" : "off")}; emergency {snapshot.EmergencyMute}."
-                : $"Test bench idle; output {snapshot.OutputDisplayName}; mute {(snapshot.IsMuted ? "on" : "off")}; emergency {snapshot.EmergencyMute}.";
+                ? $"Testing tools active; synthetic bench running {snapshot.SelectedSignalName}; output {snapshot.OutputDisplayName}; emergency mute {FormatOnOff(snapshot.EmergencyMute)}."
+                : $"Testing tools ready; synthetic bench idle; output {snapshot.OutputDisplayName}; local exports and manual checks remain available.";
         }
 
         UpdateDiagnosticsStatus();
@@ -3845,8 +4029,13 @@ public partial class MainWindow : Window
     {
         OutputModeValueText.Text = status.DisplayName;
         OutputModeDetailText.Text = status.Kind == AudioOutputDeviceKind.Asio
-            ? $"{status.StatusMessage} Armed {status.IsHardwareArmed}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}."
+            ? _hapticsStarted
+                ? $"{status.StatusMessage} Driver {(_selectedAsioDriverName ?? "none")}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}."
+                : status.IsHardwareArmed
+                    ? $"ASIO is selected and armed. Driver {(_selectedAsioDriverName ?? "none")}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}; press Start Haptics to open the stream."
+                    : $"ASIO is selected. Driver {(_selectedAsioDriverName ?? "none")}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}; arm it before starting haptics."
             : status.StatusMessage;
+        UpdateDashboardStatus();
         UpdateDeviceStatus();
     }
 
@@ -3866,7 +4055,9 @@ public partial class MainWindow : Window
         MixerEmergencyMuteStatusText.Text = $"Emergency mute: {FormatOnOff(_emergencyMuted)}; normal mute: {FormatOnOff(pipelineSnapshot.IsMuted)}.";
         MixerOutputPeakStatusText.Text = $"Output peak: {audioDiagnostics.OutputPeakLevel:0.000}; mixer peak {audioDiagnostics.MixerPeakLevel:0.000}.";
         MixerLimiterActivityStatusText.Text =
-            $"Limiter: always on; internal ceiling {safety.OutputGainCeiling:P0}; limited samples {audioDiagnostics.LimitedSampleCount:N0}; clipped samples {audioDiagnostics.ClippedSampleCount:N0}.";
+            audioDiagnostics.LimitedSampleCount > 0 || audioDiagnostics.ClippedSampleCount > 0
+                ? "Limiter protection is active and has reduced peaks during this session."
+                : "Limiter protection stays on automatically to protect the output path.";
 
         var outputStatus = pipelineSnapshot.Output;
         var manualAsio = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
@@ -3891,18 +4082,18 @@ public partial class MainWindow : Window
             ? "direct ready"
             : $"direct blocked: {(string.IsNullOrWhiteSpace(directRuntime.BlockedReason) ? "safety gate" : directRuntime.BlockedReason)}";
         BrakePhprRoutingSummaryText.Text =
-            $"Mode {PhprPedalsModeComboBox.SelectedItem}; P-HPR {FormatEnabled(_realPhprOptions.DirectControlEnabled)}; {directReadiness}; connection {realOutput.Connection.State}; writes {realOutput.ReportWriteCount:N0}.";
+            $"Mode {PhprPedalsModeComboBox.SelectedItem}; brake pedal output {FormatEnabled(_realPhprOptions.BrakeGearPulse.IsEnabled)}; {directReadiness}; connection {realOutput.Connection.State}.";
         BrakePhprEffectsSummaryText.Text =
             $"Effects: gear {FormatEnabledActive(_realPhprOptions.BrakeGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled, continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true)}; lock {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled, brakeSlipLockActive)}.";
         ThrottlePhprRoutingSummaryText.Text =
-            $"Mode {PhprPedalsModeComboBox.SelectedItem}; P-HPR {FormatEnabled(_realPhprOptions.DirectControlEnabled)}; {directReadiness}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realOutput.Output.IsEmergencyStopActive)}.";
+            $"Mode {PhprPedalsModeComboBox.SelectedItem}; throttle pedal output {FormatEnabled(_realPhprOptions.ThrottleGearPulse.IsEnabled)}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realOutput.Output.IsEmergencyStopActive)}.";
         ThrottlePhprEffectsSummaryText.Text =
             $"Effects: gear {FormatEnabledActive(_realPhprOptions.ThrottleGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled, continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true)}; slip {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled, throttleSlipLockActive)}.";
 
         ActiveEffectsSummaryText.Text =
             $"{effectSnapshot.ActiveEffectCount:N0} active source(s); engine {FormatActiveIdle(effectSnapshot.Engine.IsActive)}; gear {FormatActiveIdle(effectSnapshot.GearShift.IsActive)}; road {FormatActiveIdle(effectSnapshot.RoadTexture.IsActive)}; kerb {FormatActiveIdle(effectSnapshot.Kerb.IsActive)}; impact {FormatActiveIdle(effectSnapshot.Impact.IsActive)}; slip/lock {FormatActiveIdle(effectSnapshot.Slip.IsActive)}; output peak {audioDiagnostics.OutputPeakLevel:0.000}.";
         PriorityDuckingSummaryText.Text =
-            "Emergency Stop and Emergency Mute override all output. Gear pulses remain highest priority on P-HPR. Continuous P-HPR slip/lock now routes above P-HPR road, road yields while slip/lock is active, and telemetry-stale slip/lock or road output is suppressed.";
+            "Emergency stop and emergency mute override all output. Gear pulses take priority on P-HPR, and continuous pedal effects back off when higher-priority safety or gear activity needs the path.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Routing / Mixer" })
         {
@@ -3915,10 +4106,10 @@ public partial class MainWindow : Window
         var snapshot = _hapticPipeline.GetSnapshot();
         var status = snapshot.Output;
         CurrentOutputStatusText.Text = $"Current output: {status.DisplayName} ({status.State}); {status.StatusMessage}";
-        NullOutputStatusText.Text = "Null output: default automated-test and hardware-absent target; produces no physical sound.";
-        WasapiDebugStatusText.Text = "WASAPI debug: manual placeholder only; it is not the ASIO target and is never selected automatically.";
+        NullOutputStatusText.Text = "Null output: the safe default when you are not ready to drive hardware.";
+        WasapiDebugStatusText.Text = "WASAPI debug: manual fallback only. It is never selected automatically.";
         AsioStatusText.Text = _asioVisibilitySnapshot.Message;
-        AsioReadinessStatusText.Text = $"{BuildTrueAsioStatusText(_hapticPipeline.GetManualAsioHardwareTestSnapshot())}; driver {(_selectedAsioDriverName ?? "none")}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}.";
+        AsioReadinessStatusText.Text = $"{BuildTrueAsioStatusText(_hapticPipeline.GetManualAsioHardwareTestSnapshot())}; driver {(_selectedAsioDriverName ?? "none")}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {FormatOnOff(_asioArmed)}.";
         HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
         UpdateManualAsioHardwareTestStatus();
         UpdatePhprSoftwareCoexistenceStatus();
@@ -3934,12 +4125,13 @@ public partial class MainWindow : Window
         UpdateMockGearPulseStatus();
         UpdateMockPedalEffectsStatus();
         UpdatePhprPedalsStatus();
+        UpdateDashboardStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
-                ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers {_asioVisibilitySnapshot.DriverNames.Count}; input devices {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; P-HPR mode {GetSelectedPhprPedalsMode()}.";
+                ? "Hardware output is selected. Confirm readiness here, use Testing / Validation for checks, and keep haptics stopped until you are ready."
+                : $"Safe startup mode active; output {status.DisplayName}; input devices {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; P-HPR mode {GetSelectedPhprPedalsMode()}.";
         }
     }
 
@@ -3950,17 +4142,18 @@ public partial class MainWindow : Window
         var settingsPresentation = BuildPersistedSettingsStatusPresentation();
         ProfileStatusText.Text = message ?? $"Active profile: {_currentProfile.Name}.";
         ProfilePathText.Text = $"Audio profile path: {path}; normal BST-1/audio tuning auto-saves here for the next launch.";
-        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; manual save/load snapshot for shift intent, mock gear/pedal effects, and real gear/road/slip/lock preferences. Startup restore uses app settings for safe P-HPR preferences; direct enable/arm/device and paddle bench state remain runtime-only.";
+        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; saves shift intent plus gear, road, slip, and lock preferences. Live output, emergency state, private device paths, direct arming, and paddle bench state remain runtime-only.";
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
-            : "Profile values are clamped to the current Stage 18r-C software ranges on load and save.";
+            : "Profile values are repaired to the current software ranges on load and save.";
         SettingsStatusText.Text = settingsPresentation.StatusText;
         SettingsPathText.Text = settingsPresentation.PathText;
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
+        UpdateDashboardStatus();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Profiles" })
         {
-            PageStatusText.Text = $"Active profile {_currentProfile.Name}; audio JSON version {HapticDriveProfile.CurrentVersion}; P-HPR JSON version {PhprEffectProfile.CurrentVersion}; startup restores saved tuning without auto-starting haptics or direct output.";
+            PageStatusText.Text = $"Active profile {_currentProfile.Name}; audio JSON version {HapticDriveProfile.CurrentVersion}; P-HPR JSON version {PhprEffectProfile.CurrentVersion}; startup restores saved tuning without restoring live hardware state.";
         }
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
@@ -4006,12 +4199,12 @@ public partial class MainWindow : Window
     {
         if (!_inputDiscoverySnapshot.HasRun)
         {
-            InputDiscoveryStatusText.Text = "Input discovery has not been refreshed. Use Refresh Input Devices to enumerate read-only Windows input metadata.";
+            InputDiscoveryStatusText.Text = "Input devices have not been refreshed yet. Use Refresh Input Devices before choosing the wheel input.";
             InputDiscoveryItemsControl.ItemsSource = new[]
             {
-                "Discovery is read-only.",
-                "Select a Windows game-controller device after refresh.",
-                "Start Listener when you want live paddle diagnostics."
+                "Refresh is read-only and safe.",
+                "Choose the wheel input after refresh.",
+                "Start the listener only when you want live paddle input."
             };
             return;
         }
@@ -4023,12 +4216,12 @@ public partial class MainWindow : Window
         var candidates = _wheelInputCandidateProvider.GetCandidates(snapshot);
 
         InputDiscoveryStatusText.Text =
-            $"Input discovery: {(snapshot.ReadOnlyDiscoverySucceeded ? "succeeded" : "completed with warnings")}; refreshed {localRefreshTime}; {snapshot.DeviceCount:N0} device(s); methods {methodText}; errors {snapshot.Errors.Count:N0}.";
+            $"Input devices refreshed {localRefreshTime}; {snapshot.DeviceCount:N0} device(s) found; status {(snapshot.ReadOnlyDiscoverySucceeded ? "ready" : "warnings")}.";
         InputDiscoveryItemsControl.ItemsSource = new[]
         {
-            $"Saved/usable candidates: {FormatInputCandidates(candidates)}",
-            $"Likely wheel input: {FormatInputCandidates(snapshot.LikelyGtNeoWheelInputCandidates)}",
-            $"Discovery errors: {errorText}"
+            $"Wheel input options: {FormatInputCandidates(snapshot.LikelyGtNeoWheelInputCandidates)}",
+            $"Saved selection candidates: {FormatInputCandidates(candidates)}",
+            $"Refresh methods {methodText}; errors {errorText}"
         };
     }
 
@@ -4067,12 +4260,14 @@ public partial class MainWindow : Window
             ? "Listening"
             : "Listener stopped";
         PaddleInputStatusText.Text =
-            $"Paddle listener: {snapshot.Status}; selected {selectedText}; selection {(selectionBlocker is null ? "ready" : $"blocked: {selectionBlocker}")}; mapped presses {snapshot.PaddlePressCount:N0}; last raw {lastRaw}; last mapped {lastMapped}; error {error}.";
+            snapshot.Status is InputListenerStatus.Listening
+                ? $"Paddle listener is running on {selectedText}; mapped presses {snapshot.PaddlePressCount:N0}; last mapped input {lastMapped}."
+                : $"Paddle listener is stopped; selected {selectedText}; {(selectionBlocker is null ? "ready to start" : $"blocked: {selectionBlocker}")}.";
         PaddleInputItemsControl.ItemsSource = new[]
         {
-            "Mapped paddles can trigger gear-shift haptics when enabled.",
-            $"Mappings: left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}, right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}, debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms.",
-            $"Selected device usable buttons: {selectedButtonCount}; listener error: {error}"
+            $"Mappings: left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}, right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}.",
+            $"Debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms; usable buttons {selectedButtonCount}.",
+            $"Last raw input {lastRaw}; error {error}"
         };
     }
 
@@ -4121,12 +4316,12 @@ public partial class MainWindow : Window
             : $"{driving.LastTelemetryAge.Value.TotalMilliseconds:0} ms";
 
         ShiftIntentStatusText.Text =
-            $"Shift intent: {(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}.";
+            $"Shift intent {(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; driving state {(driving.Current.IsArmed ? "armed" : "not armed")}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}.";
         ShiftIntentItemsControl.ItemsSource = new[]
         {
-            "Shift intent turns mapped paddle presses into gear-shift events.",
-            $"DrivingArmed {driving.Current.IsArmed}; telemetry age {telemetryAge}; menu safe {driving.MenuSafeModeEnabled}.",
-            $"Last suppression reason: {diagnostics.LastSuppressionReason ?? "none"}; error {diagnostics.LastError ?? "none"}"
+            "Mapped paddle presses can become local gear-shift haptics when enabled.",
+            $"Driving state {(driving.Current.IsArmed ? "armed" : "not armed")}; telemetry age {telemetryAge}; menu safe {driving.MenuSafeModeEnabled}.",
+            $"Last accepted {lastAccepted}; last blocked {lastSuppressed}"
         };
     }
 
@@ -5504,6 +5699,7 @@ public partial class MainWindow : Window
             UpdateEffectStatus();
             UpdateRecordingStatus();
             UpdateDiagnosticsStatus();
+            UpdateDashboardStatus(pipelineSnapshot);
             return;
         }
 
@@ -5518,9 +5714,11 @@ public partial class MainWindow : Window
         UdpListenerValueText.Text = snapshot.IsRunning
             ? $"Listening {snapshot.BoundPort}"
             : "Stopped";
-        UdpListenerDetailText.Text = snapshot.LastPacketAtUtc is null
-            ? $"Default port {UdpTelemetryReceiverOptions.DefaultPort}; waiting for packets."
-            : $"Last packet {snapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago.";
+        UdpListenerDetailText.Text = !snapshot.IsRunning
+            ? "Listener stopped."
+            : snapshot.LastPacketAtUtc is null
+                ? $"Listening on port {UdpTelemetryReceiverOptions.DefaultPort}; no packets received yet."
+                : $"Last packet {snapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago.";
         PacketCountValueText.Text = snapshot.PacketCount.ToString("N0");
         PacketRateDetailText.Text = $"{snapshot.PacketRatePerSecond:0.00} packets/s";
         UpdateForwardingStatus();
@@ -5529,6 +5727,7 @@ public partial class MainWindow : Window
         UpdateEffectStatus();
         UpdateRecordingStatus();
         UpdateDiagnosticsStatus();
+        UpdateDashboardStatus(pipelineSnapshot);
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP" })
         {
@@ -5536,7 +5735,7 @@ public partial class MainWindow : Window
             var parsedPackets = pipelineSnapshot.ParserSuccessCount;
             var vehicleStateUpdates = pipelineSnapshot.VehicleStateUpdateCount;
             var recordingSnapshot = pipelineSnapshot.Recording;
-            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} datagrams; recording {recordingSnapshot.PacketCount:N0} packets; parsed {parsedPackets:N0} packets; VehicleState {vehicleStateUpdates:N0} updates";
+            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} packet(s); recording {recordingSnapshot.PacketCount:N0}; parsed {parsedPackets:N0}; vehicle samples {vehicleStateUpdates:N0}.";
         }
     }
 
@@ -5563,7 +5762,7 @@ public partial class MainWindow : Window
             ? "Waiting"
             : $"{successCount:N0} valid";
         HeaderParserDetailText.Text = successCount == 0 && ignoredCount == 0 && failureCount == 0
-            ? "Validates headers and parses Stage 07 packet bodies."
+            ? "Waiting for F1 25 packets."
             : $"Ignored {ignoredCount:N0}, failed {failureCount:N0}. {pipelineSnapshot.LastPacketMessage}";
     }
 
@@ -5584,7 +5783,7 @@ public partial class MainWindow : Window
         }
 
         VehicleStateDetailText.Text = updateCount == 0
-            ? "Maps parsed Stage 07 packet bodies into shared VehicleState samples."
+            ? "Waiting for parsed telemetry samples."
             : pipelineSnapshot.LastVehicleStateMessage;
     }
 
@@ -5672,9 +5871,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        RecordingDetailText.Text = "Ready to capture raw UDP packets to versioned replay files.";
+        RecordingDetailText.Text = "Ready to capture F1 25 UDP packets to replay files.";
         RecordingsDetailText.Text = RecordingDetailText.Text;
         ReplayDetailText.Text = BuildReplayStatusText();
+        UpdateDashboardStatus();
         UpdateDiagnosticsStatus();
     }
 
@@ -5689,7 +5889,7 @@ public partial class MainWindow : Window
 
         return snapshot.IsReplaying
             ? $"Replay active from {Path.GetFileName(snapshot.SourceFilePath)}; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s)."
-            : $"Replay inactive; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s) last replayed. {snapshot.StatusMessage}";
+            : $"Replay idle; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s) were replayed last time. {snapshot.StatusMessage}";
     }
 
     private ReplayTimingModeOption GetSelectedReplayTimingMode()

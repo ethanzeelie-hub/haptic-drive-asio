@@ -3934,3 +3934,87 @@ Self-review:
 - No F1 25 parser layout, UDP forwarding behavior, raw packet preservation, replay timing mode semantics, or `.hdrec` format changed.
 - Saved Direct preference can now restore Direct intent safely, but that still depends on the existing candidate/open-check/report-shape/coexistence/emergency-stop gates before any manual pulse or live route can write.
 - Stage 23A does not claim physical validation, final shaker feel, safe gain, final latency, or final cadence tuning. Local hardware validation is still required later.
+
+## Stage 23B - Product UI Polish, First-Run Workflow Clarity, and Normal-Mode Diagnostics Reduction
+
+Date: 2026-06-18
+
+Status: Complete.
+
+Goal: Polish the post-23A shell so the normal workflow reads like a finished sim-racing haptics app, with clearer first-run guidance, less debug-heavy copy on normal pages, and a more deliberate Testing / Validation tools workflow.
+
+Changes:
+
+- Re-audited the Stage 23A shell before editing:
+  - confirmed the eight-page navigation layout,
+  - confirmed Dashboard was still only the shared metric cards plus page-status card,
+  - confirmed Devices/Testing/Advanced boundaries were structurally correct,
+  - confirmed safe P-HPR preferred-mode persistence still used only `PreferredPhprPedalsEnabled` and `PreferredPhprPedalsMode`.
+- Added a dedicated Dashboard workflow card:
+  - `Ready Checklist`,
+  - `Next Step`,
+  - concise operational summary items built only from existing state.
+- Kept Dashboard runtime ownership unchanged and used existing state only:
+  - haptics running/stopped,
+  - output mode and ASIO armed/stopped state,
+  - UDP listener/no-packets-yet state,
+  - replay active/idle state,
+  - P-HPR Disabled / Mock / Direct readiness,
+  - paddle listener/mapping readiness.
+- Removed remaining legacy shell chrome wording that still read like an internal stage marker:
+  - top-bar default context text,
+  - footer default text,
+  - page summaries/items that still referenced older stage wording.
+- Cleaned normal-page wording and first-run clarity without changing runtime logic:
+  - Devices now uses plainer ASIO, P-HPR, and paddle setup language,
+  - Effects summary now reads like normal tuning instead of diagnostics,
+  - Routing / Mixer now keeps limiter/protection copy user-facing,
+  - Telemetry / UDP now describes F1 25 UDP, no-packets-yet, recording, and replay more plainly,
+  - Profiles now states more directly that tuning/preferences save while live hardware state does not.
+- Tightened normal workflow status text in code-behind:
+  - clearer ASIO selected-but-stopped wording,
+  - clearer no-packets-yet / listener-stopped / replay-idle wording,
+  - shorter P-HPR readiness/device summaries,
+  - shorter input discovery, paddle listener, and shift-intent summaries,
+  - Dashboard next-step guidance now points users toward the next safe action.
+- Polished Testing / Validation so it feels like a deliberate tools page:
+  - `Manual Bass Shaker Test`,
+  - `Manual P-HPR Pedal Test`,
+  - `Paddle Gear Bench`,
+  - `Synthetic Test Bench`,
+  - `Controlled Validation Harness`.
+- Added short `Use this when...` helper copy for the Testing / Validation groups so the page reads like purpose-built operator tools instead of a generic validation dump.
+- Kept Advanced / Diagnostics detailed and unchanged in role:
+  - report IDs,
+  - HID/open-check details,
+  - mock-routing internals,
+  - direct-control diagnostics,
+  - copyable runtime diagnostics.
+- Added and updated stable source/XAML boundary tests for:
+  - Dashboard ready-checklist presence,
+  - removal of legacy stage chrome text,
+  - Testing / Validation group headings and helper text,
+  - Devices concise normal-user P-HPR setup text,
+  - Profiles text stating live hardware state is not saved,
+  - normal workflow panels not exposing raw HID/report wording,
+  - existing Stage 23A page-boundary coverage still holding.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 822 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23B is intentionally UI polish, wording, and workflow clarity only. No runtime ownership moved.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No F1 25 parser layout, UDP forwarding semantics, raw-packet preservation, replay format, or replay timing mode behavior changed.
+- Stage 23A safe P-HPR preferred-mode persistence remains intact: only enable preference and Disabled/Mock/Direct workflow intent persist; live output, HID paths, emergency-stop state, and arming still remain runtime-only.
+- Testing / Validation is more deliberate, but it still does not claim physical validation. Physical shaker feel, gain, latency, and final pedal tuning remain Ethan-local hardware work, with Stage 22B still the guidance point for that later physical fine-tune pass.

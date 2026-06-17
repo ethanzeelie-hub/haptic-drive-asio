@@ -42,7 +42,7 @@
                                VerticalAlignment="Center"
                                FontSize="15"
                                FontWeight="SemiBold"
-                               Text="Stage 18 pre-shaker readiness" />
+                               Text="Operational overview" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -265,6 +265,36 @@
                             </StackPanel>
                         </Border>
                     </UniformGrid>
+
+                    <Border x:Name="DashboardSummaryPanel"
+                            Style="{StaticResource CardBorderStyle}"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                                       Text="Ready Checklist" />
+                            <TextBlock x:Name="DashboardWorkflowStatusText"
+                                       Margin="0,10,0,0"
+                                       Style="{StaticResource MutedTextBlockStyle}" />
+                            <TextBlock Margin="0,16,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="Next Step" />
+                            <TextBlock x:Name="DashboardNextStepText"
+                                       Margin="0,8,0,0"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       TextWrapping="Wrap" />
+                            <ItemsControl x:Name="DashboardChecklistItemsControl"
+                                          Margin="0,14,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,0,0,8"
+                                                   Style="{StaticResource MutedTextBlockStyle}"
+                                                   Text="{Binding}"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
 
                     <Border x:Name="EffectsPanel"
                             Style="{StaticResource CardBorderStyle}"
@@ -1026,7 +1056,7 @@
                                        Text="Synthetic Test Bench" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Render deterministic validation buffers through the Stage 10 mixer, safety chain, and Null output." />
+                                       Text="Use this when you want a repeatable software-only signal path check through the mixer, safety chain, and Null output." />
 
                             <WrapPanel Margin="0,16,0,0"
                                        VerticalAlignment="Center">
@@ -1143,7 +1173,7 @@
                                                Style="{StaticResource MutedTextBlockStyle}" />
                                     <TextBlock Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
-                                               Text="Limiter stays on automatically. Internal output ceiling stays at 100%." />
+                                               Text="Limiter protection stays on automatically to protect the output path." />
                                     <TextBlock x:Name="MixerOutputPeakStatusText"
                                                Margin="0,10,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}" />
@@ -1291,7 +1321,7 @@
                                                    Text="Simagic P-HPR Pedals" />
                                         <TextBlock Grid.Column="1"
                                                    Style="{StaticResource StatusBadgeTextBlockStyle}"
-                                                   Text="Readiness on Testing" />
+                                                   Text="Ready state" />
                                     </Grid>
                                     <WrapPanel Margin="0,16,0,0">
                                         <CheckBox x:Name="PhprPedalsMasterEnableCheckBox"
@@ -1322,7 +1352,7 @@
                                     </WrapPanel>
                                     <TextBlock Margin="0,14,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
-                                               Text="Normal P-HPR gear, road, slip, and lock tuning lives on Effects. Manual pulse checks now live on Testing / Validation." />
+                                               Text="Choose Disabled, Mock, or Direct here. Normal gear, road, slip, and lock tuning stays on Effects. Manual pedal checks stay on Testing / Validation." />
                                 </StackPanel>
                             </Border>
 
@@ -1480,10 +1510,10 @@
                                     CornerRadius="8">
                                 <StackPanel>
                                     <TextBlock FontWeight="SemiBold"
-                                               Text="BST-1 ASIO Pulse Check" />
+                                               Text="Manual Bass Shaker Test" />
                                     <TextBlock Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
-                                               Text="Short manual hardware output. Use ASIO output, the validated driver/channel, and Arm ASIO. Start Haptics is not required." />
+                                               Text="Use this when you want a short seat-shaker check without starting live haptics. Select ASIO, confirm the driver/channel, and arm ASIO first." />
                                     <WrapPanel Margin="0,12,0,0">
                                         <TextBlock Margin="0,4,6,8"
                                                    Style="{StaticResource MutedTextBlockStyle}"
@@ -1559,7 +1589,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock FontWeight="SemiBold"
-                                                   Text="P-HPR Pulse Check" />
+                                                   Text="Manual P-HPR Pedal Test" />
                                         <TextBlock x:Name="PhprPedalsModeBadgeText"
                                                    Grid.Column="1"
                                                    Style="{StaticResource StatusBadgeTextBlockStyle}"
@@ -1567,7 +1597,7 @@
                                     </Grid>
                                     <TextBlock Margin="0,8,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}"
-                                               Text="Use this page for manual brake/throttle pulse checks. Devices keeps readiness, emergency recovery, and current status." />
+                                               Text="Use this when you want a short brake or throttle check. Devices keeps normal readiness, emergency recovery, and current mode." />
                                     <TextBlock x:Name="PhprPedalsStatusText"
                                                Margin="0,12,0,0"
                                                Style="{StaticResource MutedTextBlockStyle}" />
@@ -1602,10 +1632,10 @@
                                     CornerRadius="8">
                                 <StackPanel>
                                     <TextBlock FontWeight="SemiBold"
-                                               Text="Paddle Gear Bench Test" />
+                                               Text="Paddle Gear Bench" />
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="{DynamicResource AppMutedTextBrush}"
-                                               Text="Local validation only. Normal live-driving shift intent still requires recent telemetry outside this bench mode."
+                                               Text="Use this when you want local paddle-to-pulse checks without waiting for live driving telemetry. Normal live-driving shift intent still needs recent telemetry outside this bench mode."
                                                TextWrapping="Wrap" />
                                     <WrapPanel Margin="0,12,0,0">
                                         <CheckBox x:Name="LocalGearTestModeCheckBox"
@@ -1712,10 +1742,10 @@
                                     CornerRadius="8">
                                 <StackPanel>
                                     <TextBlock FontWeight="SemiBold"
-                                               Text="P-HPR Controlled Validation Harness" />
+                                               Text="Controlled Validation Harness" />
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="{DynamicResource AppMutedTextBrush}"
-                                               Text="Manual evidence capture only. This section does not trigger hardware output."
+                                               Text="Use this when you are recording manual validation notes and exports. This section does not trigger hardware output."
                                                TextWrapping="Wrap" />
                                     <WrapPanel Margin="0,10,0,0">
                                         <CheckBox x:Name="PhprValidationUserPresentCheckBox"
@@ -2543,7 +2573,7 @@
                                        Text="Recording And Replay" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Recording captures raw UDP payload bytes before parser validation. Replay feeds recorded packets through the same parser, VehicleState, effects, mixer, safety, and Null output path." />
+                                       Text="Recording captures raw F1 25 UDP packets. Replay uses those saved packets for software testing through the same app pipeline." />
                             <Grid Margin="0,16,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -2638,7 +2668,7 @@
                                        Text="UDP Forwarding Destinations" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Forwarding preserves raw F1 25 UDP datagrams byte-for-byte and remains independent from parser success." />
+                                       Text="Forwarding sends the incoming F1 25 UDP packets byte-for-byte to each enabled destination." />
                             <UniformGrid Columns="2"
                                          Margin="0,18,0,0">
                                 <StackPanel Margin="0,0,24,0">
@@ -2710,7 +2740,7 @@
                                        Text="Profiles" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Profiles are versioned JSON tuning snapshots stored under local app data. Emergency mute is runtime-only and is not saved." />
+                                       Text="Profiles save tuning and preferences. Live output, emergency state, private device paths, and running hardware state are not saved." />
                             <TextBlock Margin="0,16,0,0"
                                        Foreground="{DynamicResource AppMutedTextBrush}"
                                        Text="Profile name" />
@@ -2863,7 +2893,7 @@
                 <TextBlock x:Name="FooterStatusText"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource AppMutedTextBrush}"
-                           Text="Ready - Stage 18 final pre-shaker package" />
+                           Text="Ready" />
             </Grid>
         </Border>
     </Grid>

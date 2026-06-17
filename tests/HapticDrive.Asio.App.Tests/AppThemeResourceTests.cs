@@ -87,6 +87,39 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void ShellCopyDoesNotExposeLegacyStage18ChromeText()
+    {
+        var xamlSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var codeSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.DoesNotContain("Stage 18", xamlSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stage 18", codeSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DashboardContainsReadyChecklistCard()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var names = GetXNameValues(mainWindowXaml.Root!);
+        var text = GetTextValues(mainWindowXaml.Root!);
+
+        Assert.Contains("DashboardSummaryPanel", names);
+        Assert.Contains("DashboardWorkflowStatusText", names);
+        Assert.Contains("DashboardNextStepText", names);
+        Assert.Contains("DashboardChecklistItemsControl", names);
+        Assert.Contains("Ready Checklist", text);
+        Assert.Contains("Next Step", text);
+    }
+
+    [Fact]
     public void EffectsPageUsesHardwareEffectSectionsAndMovedControls()
     {
         var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
@@ -180,6 +213,11 @@ public sealed class AppThemeResourceTests
         Assert.Contains(
             devicesText,
             text => text.Contains("Detailed paddle bench and validation tools now live on Testing / Validation", StringComparison.Ordinal));
+        Assert.Contains(
+            devicesText,
+            text => text.Contains("Choose Disabled, Mock, or Direct here.", StringComparison.Ordinal));
+        Assert.DoesNotContain("HID", devicesText);
+        Assert.DoesNotContain("Report ID", devicesText);
     }
 
     [Fact]
@@ -224,10 +262,18 @@ public sealed class AppThemeResourceTests
         Assert.Contains("PaddleGearBenchTargetComboBox", testingNames);
         Assert.Contains("PhprValidationUserPresentCheckBox", testingNames);
         Assert.Contains("PhprValidationStatusText", testingNames);
+        Assert.Contains("Manual Bass Shaker Test", testingText);
+        Assert.Contains("Manual P-HPR Pedal Test", testingText);
+        Assert.Contains("Paddle Gear Bench", testingText);
+        Assert.Contains("Controlled Validation Harness", testingText);
         Assert.Contains("Synthetic Test Bench", GetTextValues(testBenchPanel));
         Assert.Contains(
             testingText,
             text => text.Contains("manual pulse checks, paddle bench tools, and local validation exports live here", StringComparison.OrdinalIgnoreCase));
+        Assert.True(testingText.Count(text => text.Contains("Use this when", StringComparison.Ordinal)) >= 4);
+        Assert.Contains(
+            GetTextValues(testBenchPanel),
+            text => text.Contains("Use this when you want a repeatable software-only signal path check", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -274,7 +320,7 @@ public sealed class AppThemeResourceTests
         Assert.Contains("Mixer And Safety", mixerText);
         Assert.Contains(
             mixerText,
-            text => text.Contains("Limiter stays on automatically. Internal output ceiling stays at 100%.", StringComparison.Ordinal));
+            text => text.Contains("Limiter protection stays on automatically to protect the output path.", StringComparison.Ordinal));
         Assert.Contains("Output Routing Summary", mixerText);
         Assert.Contains("Active Effects", mixerText);
         Assert.Contains("Priority And Ducking", mixerText);
@@ -300,7 +346,7 @@ public sealed class AppThemeResourceTests
             text => text.Contains("Rename to", StringComparison.Ordinal));
         Assert.Contains(
             recordingsText,
-            text => text.Contains("Recording captures raw UDP payload bytes before parser validation.", StringComparison.Ordinal));
+            text => text.Contains("Recording captures raw F1 25 UDP packets.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -326,6 +372,35 @@ public sealed class AppThemeResourceTests
         Assert.Contains(
             mixerText,
             text => text.Contains("Normal effect tuning stays on Effects", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ProfilesPageStatesLiveHardwareStateIsNotSaved()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var profilesPanel = FindElementByXName(mainWindowXaml, "ProfilesPanel");
+        var profileText = GetTextValues(profilesPanel);
+
+        Assert.Contains(
+            profileText,
+            text => text.Contains("Live output, emergency state, private device paths, and running hardware state are not saved.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NormalWorkflowPanelsDoNotExposeRawHidOrReportCopy()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var normalText = GetTextValues(FindElementByXName(mainWindowXaml, "DevicesPanel"))
+            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "EffectsPanel")))
+            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "MixerPanel")))
+            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "ProfilesPanel")))
+            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "TestingPanel")))
+            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "RecordingsPanel")))
+            .ToArray();
+
+        Assert.DoesNotContain(normalText, text => text.Contains("Report ID", StringComparison.Ordinal));
+        Assert.DoesNotContain(normalText, text => text.Contains("FeatureReport", StringComparison.Ordinal));
+        Assert.DoesNotContain(normalText, text => text.Contains("HID device-interface", StringComparison.Ordinal));
     }
 
     private static XDocument LoadSourceXaml(params string[] pathSegments)

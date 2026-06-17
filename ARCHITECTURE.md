@@ -1879,3 +1879,47 @@ Stage 23A explicitly does not persist or restore:
 - haptics-running state.
 
 Stage 23A does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, parser layouts, replay format, or physical-validation boundaries.
+
+## Stage 23B Product Workflow Polish and First-Run Clarity
+
+Stage 23B keeps the Stage 23A shell boundaries and runtime ownership intact. It only refines the way the normal shell explains those existing boundaries.
+
+Dashboard result:
+
+- Dashboard now owns a dedicated ready-checklist / next-step card in addition to the shared top metric cards.
+- That card is built only from existing shell/runtime state:
+  - haptics running/stopped,
+  - output selection and ASIO armed/stopped state,
+  - UDP listener/no-packets-yet state,
+  - replay active/idle state,
+  - P-HPR Disabled / Mock / Direct readiness,
+  - paddle listener/mapping readiness.
+- No new dashboard runtime logic, graphs, or ownership was introduced.
+
+Normal-page wording boundary:
+
+- `Devices`, `Effects`, `Routing / Mixer`, `Telemetry / UDP`, `Profiles`, and `Testing / Validation` now favor operator-facing wording:
+  - what is connected,
+  - what is ready,
+  - what is disabled,
+  - what should happen next,
+  - what remains runtime-only/not saved.
+- Raw HID/report/candidate/debug detail remains intentionally concentrated in `Advanced / Diagnostics`.
+- The page split introduced in Stage 23A remains the same:
+  - `Devices` for setup/readiness,
+  - `Effects` for normal tuning,
+  - `Routing / Mixer` for output/gain/protection summary,
+  - `Telemetry / UDP` for input/record/replay/forwarding,
+  - `Profiles` for saved tuning/preferences,
+  - `Testing / Validation` for deliberate manual tools,
+  - `Advanced / Diagnostics` for low-level troubleshooting.
+
+Persistence boundary:
+
+- Stage 23B does not expand or relax persistence.
+- Stage 23A safe P-HPR preference persistence remains unchanged:
+  - `PreferredPhprPedalsEnabled`,
+  - `PreferredPhprPedalsMode`.
+- Live output, HID paths, emergency-stop state, arming, startup output, and haptics-running state remain runtime-only.
+
+Stage 23B does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, command encoding, parser layouts, replay format behavior, or physical-validation boundaries.
