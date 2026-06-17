@@ -717,3 +717,12 @@
 - The next safest extraction target is app/settings snapshot and hydration shaping, including the long persisted-settings diagnostics/status line. Startup/shutdown lifecycle ownership and safety-context builders remain higher-risk follow-up work after that.
 - Stage 21B intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, replay timing, or diagnostics redaction/privacy boundaries.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21C
+
+- `MainWindow.xaml.cs` still remains the dominant App-shell file and still owns WPF control assignment, startup/load wiring, shutdown/dispose ordering, profile lifecycle, replay-control reads, safety-context construction, general status/dashboard updates, and live snapshot gathering from current shell/runtime state.
+- Stage 21C extracts the safe app-settings hydration/save mapping and the persisted-settings status/diagnostics wording into `AppSettingsSnapshotBuilder` and `PersistedSettingsStatusPresenter`. That reduces `MainWindow` ownership of persistence-shaping logic, but it intentionally does not claim a broad MVVM decomposition.
+- The new builder/presenter keep direct-control enable/arm state, selected private HID path, emergency-stop state, output-active state, command histories, validation paths, and other startup-energising runtime state out of persisted settings and status restoration.
+- Replay timing still has some direct WPF control reads in `MainWindow.xaml.cs`, and other settings-application helpers still live there. Stage 21D should target those remaining pure parsing/hydration helpers before any startup/shutdown or safety-context extraction.
+- Stage 21C intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.

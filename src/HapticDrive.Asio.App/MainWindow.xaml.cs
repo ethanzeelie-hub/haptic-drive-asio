@@ -263,27 +263,27 @@ public partial class MainWindow : Window
         _asioVisibilityDiagnostics = new AsioDriverVisibilityDiagnostics(_asioDriverCatalog);
         _asioReadinessDiagnostics = new AsioReadinessDiagnostics(_asioDriverCatalog);
 
-        var appSettings = _settingsStore.Load();
-        _settingsError = appSettings.LastStatusMessage;
+        var appSettings = AppSettingsSnapshotBuilder.BuildHydrationSnapshot(_settingsStore.Load());
+        _settingsError = appSettings.SettingsError;
         _lightTheme = appSettings.UseLightTheme;
         _advancedDiagnosticsEnabled = appSettings.AdvancedDiagnosticsEnabled;
-        _hasPersistedOutputModePreference = appSettings.PreferredOutputMode is not null;
-        _selectedOutputKind = appSettings.PreferredOutputMode ?? AudioOutputDeviceKind.Null;
-        _selectedAsioDriverName = appSettings.LastAsioDriverName;
-        _selectedAsioOutputChannel = appSettings.LastAsioOutputChannel;
+        _hasPersistedOutputModePreference = appSettings.HasPersistedOutputModePreference;
+        _selectedOutputKind = appSettings.SelectedOutputKind;
+        _selectedAsioDriverName = appSettings.SelectedAsioDriverName;
+        _selectedAsioOutputChannel = appSettings.SelectedAsioOutputChannel;
         _asioArmed = appSettings.ArmAsioPreference;
         _forwardingDestinations = appSettings.ForwardingDestinations.ToList();
-        _paddleMapping = CreatePaddleMapping(appSettings.PaddleInputMapping);
+        _paddleMapping = appSettings.PaddleMapping;
         ApplyBst1PaddleGearPulseSetting(appSettings.Bst1PaddleGearPulse);
-        _realPhprOptions = CreateRealPhprOutputOptions(appSettings.RealPhprGearPulseRouting);
+        _realPhprOptions = appSettings.RealPhprOutputOptions;
         _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.ResolveSharedDuration(
             _realPhprOptions.BrakeGearPulse,
             _realPhprOptions.ThrottleGearPulse);
-        _realRoadVibrationOptions = CreateRealRoadVibrationRouterOptions(appSettings.RealPhprRoadVibrationRouting);
-        _realSlipLockOptions = CreateRealSlipLockRouterOptions(appSettings.RealPhprSlipLockRouting);
+        _realRoadVibrationOptions = appSettings.RealRoadVibrationRouterOptions;
+        _realSlipLockOptions = appSettings.RealSlipLockRouterOptions;
         _shiftIntentProcessor = new ShiftIntentProcessor(
             _drivingArmedStateService,
-            CreateShiftIntentOptions(appSettings.ShiftIntent));
+            appSettings.ShiftIntentOptions);
         _mockPhprSafetyOutput = new SafetyLimitedPhprOutputDevice(_mockPhprOutput);
         _realPhprOutput = new SimagicPhprOutputDevice(_realPhprHidWriter, _realPhprOptions);
         _phprDirectPulseService = new PhprDeviceCardPulseService(_realPhprOutput);
@@ -311,10 +311,10 @@ public partial class MainWindow : Window
             BuildRealContinuousEffectsRuntimeInput);
         _mockGearPulseRouter = new PHprGearPulseRouter(
             _mockPhprSafetyOutput,
-            CreateMockGearPulseRouterOptions(appSettings.MockGearPulseRouting));
+            appSettings.MockGearPulseRouterOptions);
         _mockPedalEffectsRouter = new PHprPedalEffectsRouter(
             _mockPhprSafetyOutput,
-            CreateMockPedalEffectsRouterOptions(appSettings.MockPedalEffectsRouting));
+            appSettings.MockPedalEffectsRouterOptions);
         LoadPersistedAudioProfile();
         _hapticPipeline = CreatePipelineForSelectedOutput();
         _paddleInputRoutingCoordinator = new PaddleInputRoutingCoordinator(
@@ -2635,244 +2635,6 @@ public partial class MainWindow : Window
         PaddleInputStatusText.Text = message;
     }
 
-    private static WheelPaddleMapping CreatePaddleMapping(PaddleInputMappingSetting setting)
-    {
-        return new WheelPaddleMapping
-        {
-            SelectedDeviceId = setting.SelectedDeviceId,
-            SelectedMethod = setting.SelectedMethod,
-            LeftPaddleButtonId = setting.LeftPaddleButtonId,
-            RightPaddleButtonId = setting.RightPaddleButtonId,
-            DebounceDuration = TimeSpan.FromMilliseconds(setting.DebounceMilliseconds)
-        }.Normalize();
-    }
-
-    private PaddleInputMappingSetting CreatePaddleMappingSetting()
-    {
-        var mapping = _paddleMapping.Normalize();
-        return new PaddleInputMappingSetting
-        {
-            SelectedDeviceId = mapping.SelectedDeviceId,
-            SelectedMethod = mapping.SelectedMethod,
-            LeftPaddleButtonId = mapping.LeftPaddleButtonId,
-            RightPaddleButtonId = mapping.RightPaddleButtonId,
-            DebounceMilliseconds = (int)mapping.DebounceDuration.TotalMilliseconds
-        };
-    }
-
-    private Bst1PaddleGearPulseSetting CreateBst1PaddleGearPulseSetting()
-    {
-        return new Bst1PaddleGearPulseSetting
-        {
-            IsEnabled = _bst1PaddleGearPulseEnabled,
-            StrengthPercent = _bst1PaddleGearStrengthPercent,
-            FrequencyHz = _bst1PaddleGearFrequencyHz,
-            UseSharedDuration = _bst1PaddleGearSyncDuration,
-            CustomDurationMs = _bst1PaddleGearCustomDurationMs
-        };
-    }
-
-    private static ShiftIntentProcessorOptions CreateShiftIntentOptions(ShiftIntentSetting setting)
-    {
-        return new ShiftIntentProcessorOptions
-        {
-            IsEnabled = setting.IsEnabled,
-            Mode = setting.Mode
-        }.Normalize();
-    }
-
-    private static PHprGearPulseRouterOptions CreateMockGearPulseRouterOptions(MockGearPulseRoutingSetting setting)
-    {
-        return new PHprGearPulseRouterOptions
-        {
-            IsEnabled = setting.IsEnabled,
-            TargetModule = setting.TargetModule,
-            Profile = PHprGearPulseProfile.Default with
-            {
-                Strength01 = setting.Strength01,
-                FrequencyHz = setting.FrequencyHz,
-                DurationMs = setting.DurationMs
-            }
-        }.Normalize();
-    }
-
-    private static PHprPedalEffectsRouterOptions CreateMockPedalEffectsRouterOptions(MockPedalEffectsRoutingSetting setting)
-    {
-        return new PHprPedalEffectsRouterOptions
-        {
-            IsEnabled = setting.IsEnabled,
-            RoadVibration = CreatePedalEffectState(PHprPedalEffectKind.RoadVibration, setting.RoadVibration),
-            WheelSlip = CreatePedalEffectState(PHprPedalEffectKind.WheelSlip, setting.WheelSlip),
-            WheelLock = CreatePedalEffectState(PHprPedalEffectKind.WheelLock, setting.WheelLock)
-        }.Normalize();
-    }
-
-    private static PHprRealOutputOptions CreateRealPhprOutputOptions(RealPhprGearPulseRoutingSetting setting)
-    {
-        return PHprRealOutputOptions.Disabled with
-        {
-            BrakeGearPulse = CreateRealGearPulseSettings(setting.Brake),
-            ThrottleGearPulse = CreateRealGearPulseSettings(setting.Throttle)
-        };
-    }
-
-    private static PHprRealGearPulseSettings CreateRealGearPulseSettings(RealPhprGearPulseSetting setting)
-    {
-        return new PHprRealGearPulseSettings
-        {
-            IsEnabled = setting.IsEnabled,
-            Strength01 = setting.Strength01,
-            FrequencyHz = setting.FrequencyHz,
-            DurationMs = setting.DurationMs
-        }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-    }
-
-    private static PHprRoadVibrationRouterOptions CreateRealRoadVibrationRouterOptions(RealPhprRoadVibrationRoutingSetting setting)
-    {
-        return PHprRoadVibrationRouterOptions.Disabled with
-        {
-            IsEnabled = setting.IsEnabled,
-            Brake = CreateRealRoadVibrationPedalSettings(setting.Brake),
-            Throttle = CreateRealRoadVibrationPedalSettings(setting.Throttle)
-        };
-    }
-
-    private static PHprRoadVibrationPedalSettings CreateRealRoadVibrationPedalSettings(RealPhprRoadVibrationPedalSetting setting)
-    {
-        return new PHprRoadVibrationPedalSettings
-        {
-            IsEnabled = setting.IsEnabled,
-            MinimumStrength01 = setting.MinimumStrength01,
-            Strength01 = setting.Strength01,
-            MinimumFrequencyHz = setting.MinimumFrequencyHz,
-            FrequencyHz = setting.FrequencyHz,
-            DurationMs = setting.DurationMs
-        }.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-    }
-
-    private static PHprSlipLockRouterOptions CreateRealSlipLockRouterOptions(RealPhprSlipLockRoutingSetting setting)
-    {
-        return PHprSlipLockRouterOptions.Disabled with
-        {
-            IsEnabled = setting.IsEnabled,
-            WheelSlip = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelSlip, setting.WheelSlip),
-            WheelLock = CreateRealSlipLockEffectSettings(PHprPedalEffectKind.WheelLock, setting.WheelLock)
-        };
-    }
-
-    private static PHprSlipLockEffectSettings CreateRealSlipLockEffectSettings(
-        PHprPedalEffectKind kind,
-        RealPhprSlipLockEffectSetting setting)
-    {
-        return new PHprSlipLockEffectSettings
-        {
-            IsEnabled = setting.IsEnabled,
-            TargetModule = setting.TargetModule,
-            MinimumStrength01 = setting.MinimumStrength01,
-            Strength01 = setting.Strength01,
-            MinimumFrequencyHz = setting.MinimumFrequencyHz,
-            FrequencyHz = setting.FrequencyHz,
-            DurationMs = setting.DurationMs
-        }.Normalize(kind, SimagicPhprOutputDevice.DirectControlSafetyLimits);
-    }
-
-    private static PHprPedalEffectState CreatePedalEffectState(
-        PHprPedalEffectKind kind,
-        MockPedalEffectSetting setting)
-    {
-        var defaults = PHprPedalEffectState.DefaultFor(kind);
-        return defaults with
-        {
-            IsEnabled = setting.IsEnabled,
-            TargetModule = setting.TargetModule,
-            Profile = defaults.Profile with
-            {
-                Strength01 = setting.Strength01,
-                FrequencyHz = setting.FrequencyHz,
-                DurationMs = setting.DurationMs
-            }
-        };
-    }
-
-    private ShiftIntentSetting CreateShiftIntentSetting()
-    {
-        var snapshot = _shiftIntentProcessor.GetDiagnosticsSnapshot();
-        return new ShiftIntentSetting
-        {
-            IsEnabled = snapshot.IsEnabled,
-            Mode = snapshot.Mode
-        };
-    }
-
-    private MockGearPulseRoutingSetting CreateMockGearPulseRoutingSetting()
-    {
-        var snapshot = _mockGearPulseRouter.GetSnapshot();
-        return new MockGearPulseRoutingSetting
-        {
-            IsEnabled = snapshot.Options.IsEnabled,
-            TargetModule = snapshot.Options.TargetModule,
-            Strength01 = snapshot.Options.Profile.Strength01,
-            FrequencyHz = snapshot.Options.Profile.FrequencyHz,
-            DurationMs = snapshot.Options.Profile.DurationMs
-        };
-    }
-
-    private MockPedalEffectsRoutingSetting CreateMockPedalEffectsRoutingSetting()
-    {
-        var snapshot = _mockPedalEffectsRouter.GetSnapshot();
-        return new MockPedalEffectsRoutingSetting
-        {
-            IsEnabled = snapshot.Options.IsEnabled,
-            RoadVibration = CreateMockPedalEffectSetting(snapshot.Options.RoadVibration),
-            WheelSlip = CreateMockPedalEffectSetting(snapshot.Options.WheelSlip),
-            WheelLock = CreateMockPedalEffectSetting(snapshot.Options.WheelLock)
-        };
-    }
-
-    private RealPhprGearPulseRoutingSetting CreateRealPhprGearPulseRoutingSetting()
-    {
-        var options = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        return new RealPhprGearPulseRoutingSetting
-        {
-            Brake = RealPhprGearPulseSetting.From(options.BrakeGearPulse),
-            Throttle = RealPhprGearPulseSetting.From(options.ThrottleGearPulse)
-        };
-    }
-
-    private RealPhprRoadVibrationRoutingSetting CreateRealPhprRoadVibrationRoutingSetting()
-    {
-        var options = _realRoadVibrationOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        return new RealPhprRoadVibrationRoutingSetting
-        {
-            IsEnabled = options.IsEnabled,
-            Brake = RealPhprRoadVibrationPedalSetting.From(options.Brake),
-            Throttle = RealPhprRoadVibrationPedalSetting.From(options.Throttle)
-        };
-    }
-
-    private RealPhprSlipLockRoutingSetting CreateRealPhprSlipLockRoutingSetting()
-    {
-        var options = _realSlipLockOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
-        return new RealPhprSlipLockRoutingSetting
-        {
-            IsEnabled = options.IsEnabled,
-            WheelSlip = RealPhprSlipLockEffectSetting.From(PHprPedalEffectKind.WheelSlip, options.WheelSlip),
-            WheelLock = RealPhprSlipLockEffectSetting.From(PHprPedalEffectKind.WheelLock, options.WheelLock)
-        };
-    }
-
-    private static MockPedalEffectSetting CreateMockPedalEffectSetting(PHprPedalEffectState state)
-    {
-        return new MockPedalEffectSetting
-        {
-            IsEnabled = state.IsEnabled,
-            TargetModule = state.TargetModule,
-            Strength01 = state.Profile.Strength01,
-            FrequencyHz = state.Profile.FrequencyHz,
-            DurationMs = state.Profile.DurationMs
-        };
-    }
-
     private void ApplyShiftIntentSettingsToControls()
     {
         var snapshot = _shiftIntentProcessor.GetDiagnosticsSnapshot();
@@ -3514,25 +3276,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            _settingsStore.Save(new AppSettings
-            {
-                UseLightTheme = _lightTheme,
-                AdvancedDiagnosticsEnabled = _advancedDiagnosticsEnabled,
-                PreferredOutputMode = _selectedOutputKind,
-                LastAsioDriverName = _selectedAsioDriverName,
-                LastAsioOutputChannel = _selectedAsioOutputChannel,
-                ArmAsioPreference = _asioArmed,
-                ReplayTimingPreference = GetSelectedReplayTimingPreference(),
-                ForwardingDestinations = _forwardingDestinations.ToList(),
-                PaddleInputMapping = CreatePaddleMappingSetting(),
-                Bst1PaddleGearPulse = CreateBst1PaddleGearPulseSetting(),
-                ShiftIntent = CreateShiftIntentSetting(),
-                MockGearPulseRouting = CreateMockGearPulseRoutingSetting(),
-                MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting(),
-                RealPhprGearPulseRouting = CreateRealPhprGearPulseRoutingSetting(),
-                RealPhprRoadVibrationRouting = CreateRealPhprRoadVibrationRoutingSetting(),
-                RealPhprSlipLockRouting = CreateRealPhprSlipLockRoutingSetting()
-            });
+            _settingsStore.Save(AppSettingsSnapshotBuilder.BuildAppSettings(BuildCurrentAppSettingsSaveInputs()));
             _settingsError = null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -3541,6 +3285,35 @@ public partial class MainWindow : Window
         }
 
         UpdateProfileStatus();
+    }
+
+    private AppSettingsSaveInputs BuildCurrentAppSettingsSaveInputs()
+    {
+        var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        var mockGear = _mockGearPulseRouter.GetSnapshot();
+        var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot();
+        return new AppSettingsSaveInputs(
+            UseLightTheme: _lightTheme,
+            AdvancedDiagnosticsEnabled: _advancedDiagnosticsEnabled,
+            SelectedOutputKind: _selectedOutputKind,
+            SelectedAsioDriverName: _selectedAsioDriverName,
+            SelectedAsioOutputChannel: _selectedAsioOutputChannel,
+            ArmAsioPreference: _asioArmed,
+            ReplayTimingPreference: GetSelectedReplayTimingPreference(),
+            ForwardingDestinations: _forwardingDestinations.ToList(),
+            PaddleMapping: _paddleMapping,
+            Bst1PaddleGearPulseEnabled: _bst1PaddleGearPulseEnabled,
+            Bst1PaddleGearStrengthPercent: _bst1PaddleGearStrengthPercent,
+            Bst1PaddleGearFrequencyHz: _bst1PaddleGearFrequencyHz,
+            Bst1PaddleGearUseSharedDuration: _bst1PaddleGearSyncDuration,
+            Bst1PaddleGearCustomDurationMs: _bst1PaddleGearCustomDurationMs,
+            ShiftIntentEnabled: shiftIntent.IsEnabled,
+            ShiftIntentMode: shiftIntent.Mode,
+            MockGearPulseRouterOptions: mockGear.Options,
+            MockPedalEffectsRouterOptions: mockPedalEffects.Options,
+            RealPhprOutputOptions: _realPhprOptions,
+            RealRoadVibrationRouterOptions: _realRoadVibrationOptions,
+            RealSlipLockRouterOptions: _realSlipLockOptions);
     }
 
     private HapticProfileSaveResult PersistCurrentAudioProfile()
@@ -4177,15 +3950,7 @@ public partial class MainWindow : Window
     {
         return PhprEffectProfile.FromAppSettings(
             string.IsNullOrWhiteSpace(name) ? _currentProfile.Name : name,
-            new AppSettings
-            {
-                ShiftIntent = CreateShiftIntentSetting(),
-                MockGearPulseRouting = CreateMockGearPulseRoutingSetting(),
-                MockPedalEffectsRouting = CreateMockPedalEffectsRoutingSetting(),
-                RealPhprGearPulseRouting = CreateRealPhprGearPulseRoutingSetting(),
-                RealPhprRoadVibrationRouting = CreateRealPhprRoadVibrationRoutingSetting(),
-                RealPhprSlipLockRouting = CreateRealPhprSlipLockRoutingSetting()
-            });
+            AppSettingsSnapshotBuilder.BuildAppSettings(BuildCurrentAppSettingsSaveInputs()));
     }
 
     private void ApplyPhprEffectProfileToRuntime(PhprEffectProfile profile)
@@ -4193,18 +3958,18 @@ public partial class MainWindow : Window
         var validation = PhprEffectProfileValidator.Validate(profile);
         var settings = validation.Profile.ApplyTo(AppSettings.Default);
 
-        _shiftIntentProcessor.Configure(CreateShiftIntentOptions(settings.ShiftIntent));
-        _mockGearPulseRouter.Configure(CreateMockGearPulseRouterOptions(settings.MockGearPulseRouting));
-        _mockPedalEffectsRouter.Configure(CreateMockPedalEffectsRouterOptions(settings.MockPedalEffectsRouting));
+        _shiftIntentProcessor.Configure(AppSettingsSnapshotBuilder.CreateShiftIntentOptions(settings.ShiftIntent));
+        _mockGearPulseRouter.Configure(AppSettingsSnapshotBuilder.CreateMockGearPulseRouterOptions(settings.MockGearPulseRouting));
+        _mockPedalEffectsRouter.Configure(AppSettingsSnapshotBuilder.CreateMockPedalEffectsRouterOptions(settings.MockPedalEffectsRouting));
 
-        var realProfileOptions = CreateRealPhprOutputOptions(settings.RealPhprGearPulseRouting);
+        var realProfileOptions = AppSettingsSnapshotBuilder.CreateRealPhprOutputOptions(settings.RealPhprGearPulseRouting);
         _realPhprOptions = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits) with
         {
             BrakeGearPulse = realProfileOptions.BrakeGearPulse,
             ThrottleGearPulse = realProfileOptions.ThrottleGearPulse
         };
-        _realRoadVibrationOptions = CreateRealRoadVibrationRouterOptions(settings.RealPhprRoadVibrationRouting);
-        _realSlipLockOptions = CreateRealSlipLockRouterOptions(settings.RealPhprSlipLockRouting);
+        _realRoadVibrationOptions = AppSettingsSnapshotBuilder.CreateRealRoadVibrationRouterOptions(settings.RealPhprRoadVibrationRouting);
+        _realSlipLockOptions = AppSettingsSnapshotBuilder.CreateRealSlipLockRouterOptions(settings.RealPhprSlipLockRouting);
 
         _realPhprOutput.Configure(_realPhprOptions);
         _realPhprGearPulseRouter.Configure(_realPhprOptions);
@@ -4812,17 +4577,15 @@ public partial class MainWindow : Window
     {
         var path = HapticProfileStore.GetDefaultProfilePath();
         var phprPath = PhprEffectProfileStore.GetDefaultProfilePath();
+        var settingsPresentation = BuildPersistedSettingsStatusPresentation();
         ProfileStatusText.Text = message ?? $"Active profile: {_currentProfile.Name}.";
         ProfilePathText.Text = $"Audio profile path: {path}; normal BST-1/audio tuning auto-saves here for the next launch.";
         ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; manual save/load snapshot for shift intent, mock gear/pedal effects, and real gear/road/slip/lock preferences. Startup restore uses app settings for safe P-HPR preferences; direct enable/arm/device and paddle bench state remain runtime-only.";
         ProfileValidationText.Text = validationMessages is { Count: > 0 }
             ? string.Join(" ", validationMessages)
             : "Profile values are clamped to the current Stage 18r-C software ranges on load and save.";
-        var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
-        var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
-        var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
-        SettingsStatusText.Text = $"Theme: {(_lightTheme ? "Light" : "Dark")}. Active profile: {_currentProfile.Name}. Saved output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; forwarding destinations {_forwardingDestinations.Count}. Saved ASIO driver {_selectedAsioDriverName ?? "none"}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; Arm ASIO preference {_asioArmed}. Paddle mapping left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)}, debounce {_paddleMapping.DebounceDuration.TotalMilliseconds:0} ms. BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} at {_bst1PaddleGearStrengthPercent:0}% / {_bst1PaddleGearFrequencyHz:0.#} Hz / {GetEffectiveBst1PaddleGearDurationMs()} ms. Shift intent {(shiftIntent.IsEnabled ? "enabled" : "disabled")} mode {shiftIntent.Mode}. Real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")} runtime-only. Real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}. Mock gear routing {(mockGear.IsEnabled ? "enabled" : "disabled")} target {mockGear.TargetModule}. Mock pedal effects {(mockPedalEffects.IsEnabled ? "enabled" : "disabled")}. Haptics running, emergency mute, active pulses, pending stops, direct enable/arm/private device, paddle bench enable, and manual ASIO test active state are not saved. {_settingsError ?? ""}".Trim();
-        SettingsPathText.Text = $"App settings path: {_settingsStore.SettingsPath}";
+        SettingsStatusText.Text = settingsPresentation.StatusText;
+        SettingsPathText.Text = settingsPresentation.PathText;
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Profiles" })
@@ -4834,6 +4597,37 @@ public partial class MainWindow : Window
         {
             PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; ASIO ready/arm preference can persist without starting output, while haptics running and direct-output enable/arm/device runtime states remain non-persistent.";
         }
+    }
+
+    private PersistedSettingsStatusPresentation BuildPersistedSettingsStatusPresentation()
+    {
+        var shiftIntent = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        var mockGear = _mockGearPulseRouter.GetSnapshot().Options;
+        var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot().Options;
+        return PersistedSettingsStatusPresenter.Build(new PersistedSettingsStatusSnapshot(
+            SettingsPath: _settingsStore.SettingsPath,
+            SettingsError: _settingsError,
+            UseLightTheme: _lightTheme,
+            ActiveProfileName: _currentProfile.Name,
+            SelectedOutputKind: _selectedOutputKind,
+            ReplayTimingLabel: GetSelectedReplayTimingMode().Label,
+            ForwardingDestinationCount: _forwardingDestinations.Count,
+            SelectedAsioDriverName: _selectedAsioDriverName,
+            SelectedAsioOutputChannel: _selectedAsioOutputChannel,
+            ArmAsioPreference: _asioArmed,
+            PaddleMapping: _paddleMapping,
+            Bst1PaddleGearPulseEnabled: _bst1PaddleGearPulseEnabled,
+            Bst1PaddleGearStrengthPercent: _bst1PaddleGearStrengthPercent,
+            Bst1PaddleGearFrequencyHz: _bst1PaddleGearFrequencyHz,
+            EffectiveBst1PaddleGearDurationMs: GetEffectiveBst1PaddleGearDurationMs(),
+            ShiftIntentEnabled: shiftIntent.IsEnabled,
+            ShiftIntentMode: shiftIntent.Mode,
+            RealDirectControlEnabled: _realPhprOptions.DirectControlEnabled,
+            RealRoadVibrationEnabled: _realRoadVibrationOptions.IsEnabled,
+            RealSlipLockEnabled: _realSlipLockOptions.IsEnabled,
+            MockGearRoutingEnabled: mockGear.IsEnabled,
+            MockGearRoutingTarget: mockGear.TargetModule,
+            MockPedalEffectsEnabled: mockPedalEffects.IsEnabled));
     }
 
     private void UpdateInputDiscoveryStatus()
@@ -5336,9 +5130,6 @@ public partial class MainWindow : Window
         var roadDiagnosticLines = roadDiagnostics.ToDiagnosticsLines();
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var phprWorkflowPresentation = BuildPhprWorkflowStatusPresentation(pipelineSnapshot, realDiagnostics);
-        var shiftIntentDiagnostics = _shiftIntentProcessor.GetDiagnosticsSnapshot();
-        var mockGearSnapshot = _mockGearPulseRouter.GetSnapshot();
-        var mockPedalEffectsSnapshot = _mockPedalEffectsRouter.GetSnapshot();
         var snapshot = DiagnosticsStatusSnapshotBuilder.Build(new DiagnosticsStatusBuildInputs(
             GeneratedAt: DateTimeOffset.Now,
             FlightRecorderActive: roadDiagnostics.FlightRecorderActive,
@@ -5382,7 +5173,7 @@ public partial class MainWindow : Window
             ManualAsioHardwareTestText: BuildManualAsioHardwareTestDiagnosticsText(),
             AsioReadinessText: $"{_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
             RuntimePrerequisitesText: $".NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            AppSettingsText: $"{_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted Arm ASIO preference {_asioArmed}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)} debounce {_paddleMapping.DebounceDuration.TotalMilliseconds:0} ms; shift intent {(shiftIntentDiagnostics.IsEnabled ? "enabled" : "disabled")} mode {shiftIntentDiagnostics.Mode}; BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} {_bst1PaddleGearStrengthPercent:0}% {_bst1PaddleGearFrequencyHz:0.#} Hz {GetEffectiveBst1PaddleGearDurationMs()} ms; mock gear routing {(mockGearSnapshot.Options.IsEnabled ? "enabled" : "disabled")} target {mockGearSnapshot.Options.TargetModule}; mock pedal effects {(mockPedalEffectsSnapshot.Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted."));
+            AppSettingsText: BuildPersistedSettingsStatusPresentation().DiagnosticsText));
         return DiagnosticsStatusPresenter.Build(snapshot);
     }
 

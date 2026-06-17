@@ -421,6 +421,37 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public void AppSettingsJson_DoesNotPersistPrivatePathsValidationOrCaptureArtifacts()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var store = new AppSettingsStore(path);
+
+        store.Save(new AppSettings
+        {
+            PreferredOutputMode = AudioOutputDeviceKind.Asio,
+            LastAsioDriverName = "M-Audio",
+            PaddleInputMapping = new PaddleInputMappingSetting
+            {
+                SelectedDeviceId = "wheel-1",
+                SelectedMethod = InputDiscoveryMethod.WindowsGameController,
+                LeftPaddleButtonId = 14,
+                RightPaddleButtonId = 13,
+                DebounceMilliseconds = 6
+            }
+        });
+
+        var json = File.ReadAllText(path);
+
+        Assert.DoesNotContain("DevicePath", json, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"\?\hid", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("local-validation-results", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("capture-metadata", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("pcap", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ValidationResult", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AdvancedDiagnosticsPreferenceDefaultsOffAndPersists()
     {
         using var directory = new TempDirectory();

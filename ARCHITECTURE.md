@@ -1138,3 +1138,73 @@ Recommended Stage 21C:
 2. Re-audit startup/shutdown and safety-context construction only after the settings/diagnostics seams are stable.
 
 Stage 21B does not change UI/XAML, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, replay timing, or privacy/redaction boundaries.
+
+## Stage 21C Settings Snapshot Hydration Extraction
+
+Stage 21C takes the safest remaining app-settings seam out of `MainWindow.xaml.cs` without attempting MVVM or changing startup/runtime ownership.
+
+New App-only non-WPF settings snapshot/presentation boundary:
+
+- `AppSettingsSnapshotBuilder`
+- `PersistedSettingsStatusPresenter`
+- supporting records in `AppSettingsSnapshotBuilder.cs`
+
+The extracted boundary now owns:
+
+- safe `AppSettings` sanitization and hydration shaping for output-mode, ASIO, replay, forwarding, paddle, BST-1 local gear, shift-intent, mock P-HPR, and real P-HPR effect preferences,
+- safe save-shaping back into `AppSettings` from current shell/runtime preference snapshots,
+- the persisted-settings status/footer text and diagnostics text assembly,
+- normalization/clamping handoff for restored P-HPR effect settings while keeping direct-control disabled and unselected on hydration.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- WPF control assignment and event wiring,
+- current shell/runtime snapshot gathering before save or status presentation,
+- `LoadPersistedAudioProfile()` and audio-profile lifecycle,
+- `PhprEffectProfileStore` manual load/save/reset workflow,
+- replay timing reads from WPF controls,
+- startup/shutdown sequencing,
+- safety-context builders,
+- ASIO start/stop ownership,
+- P-HPR runtime coordination and direct-output hardware ownership.
+
+Persisted settings intentionally still allowed:
+
+- theme,
+- Advanced / Diagnostics visibility,
+- preferred output mode,
+- selected ASIO driver/channel preference,
+- Arm ASIO readiness preference only,
+- replay timing preference,
+- forwarding destinations,
+- paddle device/mapping/debounce preference,
+- BST-1 local gear test preference,
+- shift-intent preference,
+- mock P-HPR routing preferences,
+- real P-HPR safe gear/road/slip/lock effect preferences.
+
+Runtime-only / unsafe state intentionally still not persisted:
+
+- haptics running state,
+- emergency mute or emergency-stop latch state,
+- Stop All state,
+- ASIO stream running or output-active state,
+- P-HPR direct-control enable/arm state,
+- selected private HID path,
+- direct/mock command history,
+- validation result data and local validation paths,
+- capture paths or raw HID inventory paths,
+- active pulses, pending stops, or any other startup-energising state.
+
+Why this stays in App:
+
+- the extracted code still bridges `AppSettings`, profile models, shell preferences, and user-facing persisted-settings text,
+- it has no business in Core, Audio, Runtime, Actuation, or the Windows P-HPR output assembly,
+- keeping it App-local preserves the current project graph while reducing `MainWindow` ownership.
+
+Recommended Stage 21D:
+
+1. Extract the remaining pure settings/control parsing and hydration-application helpers that still live in `MainWindow.xaml.cs`.
+2. Re-audit startup/shutdown sequencing and safety-context construction only after those smaller settings seams stabilize.
+
+Stage 21C does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.

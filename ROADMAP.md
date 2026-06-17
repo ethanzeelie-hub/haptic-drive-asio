@@ -85,6 +85,8 @@
 - Stage 19D: Extract paddle input routing ownership out of `MainWindow` complete.
 - Stage 20: Shared slip/lock evaluator for BST-1 and P-HPR complete.
 - Stage 21A: MainWindow residual orchestration audit and safe workflow-status extraction complete.
+- Stage 21B: Diagnostics/status report extraction complete.
+- Stage 21C: App/settings snapshot hydration and persisted-settings status extraction complete.
 
 ## Planned Stages
 
@@ -141,6 +143,8 @@
 51. Stage 19D: Extract paddle input routing ownership out of `MainWindow`. Complete.
 52. Stage 20: Shared slip/lock evaluator for BST-1 and P-HPR. Complete.
 53. Stage 21A: MainWindow residual orchestration audit and safe workflow-status extraction. Complete.
+54. Stage 21B: Diagnostics/status report extraction. Complete.
+55. Stage 21C: App/settings snapshot hydration and persisted-settings status extraction. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -218,6 +222,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 20 introduces `SlipLockEvaluator` in `HapticDrive.Asio.Core.Haptics` and moves the shared slip/lock freshness, sanitization, threshold, speed-scale, and TC/ABS attenuation math out of `SlipEffect` and `PHprSlipLockRouter`. `SlipEffect` keeps BST-1 audio shaping, `PHprSlipLockRouter` keeps direct-routing ownership, and the older mock `PHprPedalEffectsRouter` also adopts the shared evaluator so BST-1, mock P-HPR, and real direct P-HPR stay aligned without changing UI/XAML, ASIO/BST-1 backends, P-HPR HID/report bytes, parser layouts, gear routing, road cadence, or slip/lock cadence.
 - Stage 21A audits the remaining post-Stage-20 `MainWindow.xaml.cs` ownership, avoids a broad MVVM rewrite, and extracts the lowest-risk P-HPR workflow/status report assembly into `PhprWorkflowStatusSnapshotBuilder` and `PhprWorkflowStatusPresenter` inside `HapticDrive.Asio.App`. Startup/shutdown sequencing, settings parsing, safety-context building, recording/replay UI workflow, and the larger diagnostics-panel assembly intentionally remain in `MainWindow` for later stages.
 - Stage 21B extracts the broader diagnostics/status report assembly around `UpdateDiagnosticsStatus()` into `DiagnosticsStatusSnapshotBuilder` and `DiagnosticsStatusPresenter` in `HapticDrive.Asio.App`, and extends `PhprWorkflowStatusPresenter` so diagnostics reuse the sanitized workflow/profile/live-validation lines instead of rebuilding them in `MainWindow.xaml.cs`. `MainWindow` still owns live snapshot gathering, helper subsection formatting, visibility gating, WPF control assignment, startup/shutdown sequencing, and settings/safety-context work. Recommended Stage 21C is app/settings snapshot-hydration extraction rather than a broad MVVM rewrite.
+- Stage 21C extracts the safe app-settings hydration/save mapping and persisted-settings status/diagnostics text shaping into `AppSettingsSnapshotBuilder` and `PersistedSettingsStatusPresenter` in `HapticDrive.Asio.App`. `MainWindow` still owns WPF control assignment, live shell/runtime snapshot gathering, profile lifecycle, replay-control reads, startup/shutdown sequencing, safety-context builders, ASIO start/stop ownership, and P-HPR runtime coordination. Recommended Stage 21D is the remaining pure settings/control parsing and hydration-application helpers rather than a broad lifecycle move.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

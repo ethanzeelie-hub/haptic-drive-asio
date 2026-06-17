@@ -3404,3 +3404,45 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 7044 to 7043 in this stage. The benefit here is ownership clarity and testability rather than a dramatic line-count drop.
 - Stage 21B intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21C - Settings Hydration And Persisted-Settings Status Extraction
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Extract the safest remaining app/settings hydration and persisted-settings status-shaping seam out of `MainWindow.xaml.cs` into a testable App-layer boundary while preserving all current persistence semantics, privacy boundaries, and startup-output safety guarantees.
+
+Changes:
+
+- Re-audited the live Stage 21B baseline before coding. `MainWindow.xaml.cs` was 7043 lines and still owned `AppSettings` load/save shaping, persisted-settings footer text, persisted-settings diagnostics text, safe P-HPR settings mapping, and a large block of App-only settings conversion helpers.
+- Confirmed the safe extraction target was the app-settings hydration/save mapping plus the persisted-settings status/diagnostics text, not startup/shutdown sequencing, WPF control assignment, safety-context construction, ASIO start/stop ownership, profile lifecycle ownership, or P-HPR runtime coordination.
+- Added `AppSettingsSnapshotBuilder`, `PersistedSettingsStatusPresenter`, `AppSettingsHydrationSnapshot`, `AppSettingsSaveInputs`, `PersistedSettingsStatusSnapshot`, and `PersistedSettingsStatusPresentation` in `src/HapticDrive.Asio.App/AppSettingsSnapshotBuilder.cs`.
+- Moved the safe `AppSettings` sanitization/hydration shaping for output mode, ASIO driver/channel readiness preference, replay timing preference, forwarding destinations, paddle mapping, BST-1 local gear settings, shift-intent settings, mock P-HPR routing settings, and real P-HPR effect settings out of `MainWindow.xaml.cs`.
+- Moved the save-side shaping from current shell/runtime preference snapshots back into `AppSettings` out of `SaveAppSettings()` and the old inline conversion helpers in `MainWindow.xaml.cs`.
+- Moved the persisted-settings footer text and diagnostics text assembly out of `UpdateProfileStatus()` and `BuildDiagnosticsStatusPresentation()` into `PersistedSettingsStatusPresenter`, preserving the existing wording about runtime-only state not being saved.
+- Reduced `MainWindow.xaml.cs` to loading the hydration snapshot, gathering current settings/runtime snapshots for save/status presentation, calling the new builder/presenter, and assigning the returned values to WPF controls or existing runtime/profile paths.
+- Refactored `BuildPhprEffectProfileFromCurrentSettings()` and `ApplyPhprEffectProfileToRuntime()` to reuse the same App-layer settings builder conversions instead of keeping duplicate `MainWindow` conversion logic.
+- Added `AppSettingsSnapshotBuilderTests` for representative safe hydration mapping, safe save mapping that drops runtime-only direct-control/private-device state, and representative persisted-settings status/diagnostics text equivalence.
+- Added `AppSettingsSnapshotBuilderGuardrailTests` to prove the new builder/presenter source stays free of WPF-control references, HID writers, ASIO output classes, runtime start/stop calls, and `EmergencyStop`, and to prove `MainWindow.xaml.cs` now routes the extracted settings/status shaping through the builder/presenter path.
+- Expanded `AppSettingsStoreTests` with an additional privacy test proving app-settings JSON still does not persist private HID-like paths, validation-artifact paths, or capture-artifact strings.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21C extraction result, the App-home rationale, the allowed persisted-settings set, the runtime-only non-persisted state list, and the recommended Stage 21D follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 756 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21C intentionally avoided a broad MVVM rewrite. It moved one persistence-focused App seam and left startup/shutdown, safety-context, runtime coordination, and WPF control ownership where they already were.
+- `MainWindow.xaml.cs` remains large after this stage because it still owns control assignment, replay-control reads, profile lifecycle, live snapshot gathering, safety-context builders, startup/shutdown sequencing, and output/runtime ownership. Those remain better Stage 21D+ targets than forcing them into this settings-focused stage.
+- `MainWindow.xaml.cs` line count moved from 7043 to 6834 in this stage. The drop comes mostly from removing the large in-window settings conversion block while keeping behavior unchanged.
+- Stage 21C intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
