@@ -3526,3 +3526,42 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 6152 to 6124 in this stage. The reduction is intentionally modest because most of the safety here came from extracting mapping ownership rather than chasing raw line count.
 - Stage 21E intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21F - Residual MainWindow Orchestration Audit
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Re-audit the residual `MainWindow.xaml.cs` ownership after Stages 21A through 21E, confirm whether any low-risk presentation/status seam remains, and implement only one tiny safe extraction while leaving lifecycle, safety, and hardware/runtime ownership unchanged.
+
+Changes:
+
+- Re-audited the live Stage 21E baseline before coding. `MainWindow.xaml.cs` was 6124 lines and the remaining large responsibilities were profile lifecycle, startup/load wiring, shutdown/dispose ordering, runtime apply/configure calls, local gear readiness evaluation, status/dashboard refresh flow, telemetry/replay workflow, Stop All / Emergency Stop handlers, safety-context builders, ASIO start/stop ownership, P-HPR runtime coordination, and direct-output hardware ownership.
+- Confirmed that most remaining seams are now lifecycle-heavy, hardware-adjacent, or safety-critical and should not move in a low-risk stage.
+- Determined that one safe extraction still existed: the local gear readiness text/button/tooltip shaping layered on top of the already-separated `LocalGearTestReadiness` evaluation result.
+- Added `LocalGearReadinessPresenter` in `src/HapticDrive.Asio.App/LocalGearReadinessPresenter.cs`.
+- Reduced `UpdateLocalGearTestStatus()` in `MainWindow.xaml.cs` to gather the readiness result, call the presenter, and apply the returned WPF values.
+- Intentionally kept `EvaluateLocalGearTestReadiness()` in `MainWindow.xaml.cs` because it gathers live runtime snapshots, configures direct-runtime dependencies, and belongs to the current orchestration boundary.
+- Added `LocalGearReadinessPresenterTests` for representative ready, start-listener-available, and null-fallback presentation cases.
+- Added `LocalGearReadinessPresenterGuardrailTests` to prove the presenter stays free of WPF and hardware/runtime calls and that `MainWindow.xaml.cs` now routes the extracted local gear presentation through the presenter.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21F residual audit, the extraction decision, the remaining lifecycle-heavy seams, and the recommended Stage 21G follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 774 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21F intentionally stopped after one tiny presenter extraction because the rest of the residual `MainWindow` weight is now mostly coordination rather than deterministic mapping.
+- `MainWindow.xaml.cs` remains large after this stage because it still owns direct WPF reads/writes, profile lifecycle, startup/shutdown sequencing, runtime apply/configure calls, local gear readiness evaluation, safety-context builders, ASIO start/stop ownership, P-HPR runtime coordination, and direct-output hardware ownership. Those are higher-risk Stage 21G+ candidates rather than safe Stage 21F extractions.
+- `MainWindow.xaml.cs` line count moved from 6124 to 6120 in this stage. The reduction is intentionally tiny because this stage prioritized a precise audit and a low-risk stop point over cosmetic deconstruction.
+- Stage 21F intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.

@@ -241,7 +241,6 @@ public partial class MainWindow : Window
     private bool _bst1PaddleGearPulseEnabled;
     private bool _localGearTestModeEnabled;
     private bool _localGearTestAutoStartListener = true;
-    private string _localGearTestStatusMessage = "Local gear test disabled.";
     private int _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.DefaultGearDurationMs;
     private float _manualBst1StrengthPercent = 50f;
     private float _bst1OutputTrimPercent = 200f;
@@ -1287,13 +1286,10 @@ public partial class MainWindow : Window
     private void UpdateLocalGearTestStatus()
     {
         var readiness = EvaluateLocalGearTestReadiness();
-        _localGearTestStatusMessage = readiness.Message;
-        LocalGearTestStatusText.Text =
-            $"{readiness.Message} Auto-start listener {_localGearTestAutoStartListener}; Start Haptics required: NO; F1 telemetry required: NO; live telemetry effects started: NO.";
-        StartGearTestListenerButton.IsEnabled = readiness.CanStartListener;
-        StartGearTestListenerButton.ToolTip = readiness.CanStartListener
-            ? "Start the read-only paddle listener for Local Gear Test Mode without Start Haptics or F1 telemetry."
-            : readiness.Message;
+        var presentation = LocalGearReadinessPresenter.Build(readiness, _localGearTestAutoStartListener);
+        LocalGearTestStatusText.Text = presentation.StatusText;
+        StartGearTestListenerButton.IsEnabled = presentation.StartListenerEnabled;
+        StartGearTestListenerButton.ToolTip = presentation.StartListenerToolTip;
     }
 
     private LocalGearTestReadiness EvaluateLocalGearTestReadiness()

@@ -1306,3 +1306,61 @@ Recommended Stage 21F:
 2. If a small deterministic follow-up still exists, prefer residual profile-status/readiness shaping before any startup/shutdown or safety-context move.
 
 Stage 21E does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21F Residual MainWindow Orchestration Audit
+
+Stage 21F re-audits the residual `MainWindow.xaml.cs` ownership after Stages 21A through 21E and only extracts one tiny remaining safe presentation seam instead of forcing another broad deconstruction pass.
+
+Audit result:
+
+- the remaining large responsibilities are now mostly lifecycle-heavy, runtime-heavy, or safety-critical,
+- profile load/save/reset lifecycle, startup/load ordering, shutdown/dispose ordering, Stop All / Emergency Stop handlers, safety-context builders, ASIO start/stop ownership, P-HPR runtime coordination, direct-output hardware ownership, and runtime `Configure(...)` calls still belong in `MainWindow`,
+- the remaining low-risk seam was the local gear readiness text/button/tooltip shaping that sat on top of the already-extracted `LocalGearTestReadiness` evaluation.
+
+New App-only non-WPF residual presenter boundary:
+
+- `LocalGearReadinessPresenter`
+
+The extracted boundary now owns:
+
+- local gear readiness status text shaping,
+- local gear start-listener enabled-state shaping,
+- local gear start-listener tooltip shaping,
+- safe fallback presentation when the readiness model is missing.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- `EvaluateLocalGearTestReadiness()` and its runtime snapshot gathering,
+- direct WPF reads and writes,
+- profile file lifecycle,
+- startup/load ordering,
+- shutdown/dispose ordering,
+- Stop All / Emergency Stop handlers,
+- safety-context builders,
+- ASIO start/stop ownership,
+- P-HPR runtime coordination and direct-output hardware ownership,
+- runtime `Configure(...)` calls,
+- dashboard/status refresh triggering and live snapshot gathering.
+
+What remains deferred after Stage 21F:
+
+- profile lifecycle orchestration,
+- startup/readiness hydration orchestration,
+- shutdown cleanup ordering,
+- safety-context construction,
+- ASIO/BST-1 output lifecycle ownership,
+- P-HPR runtime/device lifecycle ownership,
+- larger telemetry/replay/dashboard orchestration.
+
+Why broad extraction stops here:
+
+- the residual size in `MainWindow` is now dominated by coordination rather than deterministic mapping,
+- forcing more extraction at this point would mean moving lifecycle or hardware-adjacent ownership, which is higher risk than the earlier App-layer builder/presenter stages,
+- the project now benefits more from a deliberate higher-risk architecture stage than from more tiny presentation-only moves.
+
+Recommended Stage 21G:
+
+1. Treat the next stage as explicitly higher risk and choose one orchestration domain, not a general cleanup pass.
+2. The strongest candidate is a lifecycle-safe extraction plan around startup/shutdown/readiness or a runtime-ownership stage around direct-output orchestration, with dedicated fake-backed tests and manual validation planning.
+
+Stage 21F does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
