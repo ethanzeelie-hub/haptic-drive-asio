@@ -1923,3 +1923,49 @@ Persistence boundary:
 - Live output, HID paths, emergency-stop state, arming, startup output, and haptics-running state remain runtime-only.
 
 Stage 23B does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, command encoding, parser layouts, replay format behavior, or physical-validation boundaries.
+
+## Stage 23C Dashboard View Extraction and Shell Presentation Seam
+
+Stage 23C begins reducing shell maintainability risk without changing shell ownership boundaries.
+
+Dashboard extraction result:
+
+- The Dashboard page now lives in a dedicated WPF component:
+  - `Views/DashboardView.xaml`
+  - `Views/DashboardView.xaml.cs`
+- The extracted view still presents the same Stage 23B Dashboard role:
+  - shared top metric cards,
+  - ready-checklist summary,
+  - next-step guidance.
+- The extracted view does not own runtime objects, hardware calls, or snapshot gathering. It only renders already-shaped dashboard state.
+
+Presentation-seam result:
+
+- Dashboard-only display shaping now flows through `DashboardStatusPresenter` with immutable App-layer inputs:
+  - `DashboardStatusSnapshot`,
+  - `DashboardStatusPresentation`,
+  - dashboard-local mode metadata for the P-HPR summary path.
+- The presenter owns only deterministic wording/status shaping for:
+  - output mode summary,
+  - haptics state text already supplied from the haptics presenter,
+  - UDP/no-packets-yet status,
+  - parser/vehicle/recording summaries,
+  - ready-checklist items,
+  - next-step guidance.
+- The presenter does not own WPF controls, `System.Windows` types, ASIO output classes, HID/report writers, or start/stop/mute execution.
+
+Residual `MainWindow` boundary:
+
+- `MainWindow` still owns:
+  - app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - Start Haptics / Stop Haptics,
+  - Emergency Mute / Stop All execution,
+  - startup/shutdown cleanup,
+  - live snapshot gathering from telemetry, replay, recording, P-HPR direct runtime, and paddle input.
+- `MainWindow` now applies the shaped presentation through `DashboardViewControl.Apply(...)` rather than assigning every Dashboard text block directly.
+
+Stage 23C intentionally does not start a broad MVVM rewrite. It extracts one low-risk page/component seam while leaving runtime ownership explicit and visible.
+
+Stage 23C does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, command encoding, parser layouts, replay format behavior, or physical-validation boundaries.

@@ -107,9 +107,9 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void DashboardContainsReadyChecklistCard()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var names = GetXNameValues(mainWindowXaml.Root!);
-        var text = GetTextValues(mainWindowXaml.Root!);
+        var dashboardXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DashboardView.xaml");
+        var names = GetXNameValues(dashboardXaml.Root!);
+        var text = GetTextValues(dashboardXaml.Root!);
 
         Assert.Contains("DashboardSummaryPanel", names);
         Assert.Contains("DashboardWorkflowStatusText", names);
@@ -117,6 +117,37 @@ public sealed class AppThemeResourceTests
         Assert.Contains("DashboardChecklistItemsControl", names);
         Assert.Contains("Ready Checklist", text);
         Assert.Contains("Next Step", text);
+    }
+
+    [Fact]
+    public void MainWindowSourceContainsDashboardNavigationAndViewHost()
+    {
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("DashboardViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("\"Dashboard\"", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("TopBarContextText.Text = $\"{page.NavigationLabel} / safe control\";", mainWindowCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DashboardViewDoesNotExposeRawHidOrReportCopy()
+    {
+        var dashboardXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DashboardView.xaml");
+        var dashboardText = GetTextValues(dashboardXaml.Root!);
+
+        Assert.DoesNotContain(dashboardText, text => text.Contains("Report ID", StringComparison.Ordinal));
+        Assert.DoesNotContain(dashboardText, text => text.Contains("FeatureReport", StringComparison.Ordinal));
+        Assert.DoesNotContain(dashboardText, text => text.Contains("HID", StringComparison.Ordinal));
+        Assert.DoesNotContain(dashboardText, text => text.Contains("candidate", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

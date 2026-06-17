@@ -97,6 +97,9 @@
 - Stage 21K: Start Haptics / Emergency Mute ownership audit complete.
 - Stage 21L: Final residual MainWindow orchestration audit complete.
 - Stage 22A: Post-Gemini P-HPR slip/lock feel retune and user controls complete.
+- Stage 23A: Product workflow cleanup, Testing / Validation tab extraction, and safe normal-user P-HPR preference persistence complete.
+- Stage 23B: Post-23A product UI polish, first-run workflow clarity, and normal-mode diagnostics reduction complete.
+- Stage 23C: Dashboard view extraction and shell presentation seam complete.
 
 ## Planned Stages
 
@@ -166,6 +169,9 @@
 64. Stage 21L: Final residual MainWindow orchestration audit. Complete.
 65. Stage 22A: Post-Gemini P-HPR slip/lock feel retune and user controls. Complete.
 66. Stage 22B: Local hardware validation and slip/lock fine-tune guidance. Planned.
+67. Stage 23A: Product workflow cleanup, Testing / Validation tab extraction, and safe normal-user P-HPR preference persistence. Complete.
+68. Stage 23B: Post-23A product UI polish, first-run workflow clarity, and normal-mode diagnostics reduction. Complete.
+69. Stage 23C: Dashboard view extraction and shell presentation seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -294,3 +300,5 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 23B adds product-polish copy and first-run clarity on top of the Stage 23A shell: Dashboard now owns a ready-checklist/next-step summary, normal pages use plainer operator-facing wording, and Testing / Validation is grouped as deliberate tools rather than a raw validation dump.
 - Stage 23B also keeps raw HID/report/debug detail on `Advanced / Diagnostics` while normal workflow pages avoid obvious report/candidate internals, without moving runtime ownership or changing the safe P-HPR preferred-mode persistence added in Stage 23A.
 - Stage 23B intentionally does not change ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, parser/replay format behavior, or physical-validation boundaries; Stage 22B remains the local hardware validation/fine-tune guide for Ethan's later physical testing.
+- Stage 23C extracts the Dashboard XAML into `Views/DashboardView` and moves Dashboard-only status/checklist/next-step shaping into `DashboardStatusPresenter`, while keeping `MainWindow` as the composition root, runtime owner, and live snapshot gatherer.
+- Stage 23C begins gradual shell component extraction only. It does not introduce a broad MVVM rewrite, move Start/Stop/Mute ownership, change ASIO/BST-1 runtime behavior, change P-HPR HID/report behavior, change parser/replay format behavior, or make any physical-validation claim.

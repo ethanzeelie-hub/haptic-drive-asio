@@ -4018,3 +4018,68 @@ Self-review:
 - No F1 25 parser layout, UDP forwarding semantics, raw-packet preservation, replay format, or replay timing mode behavior changed.
 - Stage 23A safe P-HPR preferred-mode persistence remains intact: only enable preference and Disabled/Mock/Direct workflow intent persist; live output, HID paths, emergency-stop state, and arming still remain runtime-only.
 - Testing / Validation is more deliberate, but it still does not claim physical validation. Physical shaker feel, gain, latency, and final pedal tuning remain Ethan-local hardware work, with Stage 22B still the guidance point for that later physical fine-tune pass.
+
+## Stage 23C - Dashboard View Extraction and Shell Presentation Seam
+
+Status: Complete.
+
+Goal: Reduce the Stage 23 shell's maintainability risk by extracting the Dashboard page into a dedicated component/presentation seam without moving runtime ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Dashboard seam before editing:
+  - `MainWindow.xaml` was 2900 lines,
+  - `MainWindow.xaml.cs` was 6365 lines,
+  - Dashboard still lived inline in `MainWindow.xaml`,
+  - Dashboard status/checklist/next-step text was still shaped inside `MainWindow.xaml.cs`.
+- Added dedicated Dashboard view files:
+  - `src/HapticDrive.Asio.App/Views/DashboardView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/DashboardView.xaml.cs`.
+- Moved the Stage 23B Dashboard metric cards plus the `Ready Checklist` / `Next Step` workflow card into `DashboardView` without changing their visual role or normal-user wording.
+- Added `src/HapticDrive.Asio.App/DashboardStatusPresenter.cs`:
+  - `DashboardStatusSnapshot`,
+  - `DashboardStatusPresentation`,
+  - `DashboardStatusPresenter`,
+  - dashboard-local `DashboardPhprMode`.
+- Kept runtime ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - Start Haptics / Stop Haptics,
+  - Emergency Mute / Stop All execution,
+  - startup/shutdown cleanup,
+  - live snapshot gathering from telemetry, replay, recording, P-HPR direct runtime, and paddle input.
+- Reduced `MainWindow.xaml.cs` Dashboard-specific shaping:
+  - `UpdateDashboardStatus(...)` now builds a `DashboardStatusPresentation` and applies it through `DashboardViewControl.Apply(...)`,
+  - the old inline dashboard string-building helpers were removed from `MainWindow.xaml.cs`,
+  - Dashboard visibility for the workflow card now flows through presentation state instead of direct panel toggles.
+- Kept the extraction intentionally small:
+  - no broad MVVM rewrite,
+  - no new dependencies,
+  - no new runtime logic,
+  - no hardware-output ownership moved.
+- Added and updated stable tests:
+  - `DashboardStatusPresenterTests`,
+  - `DashboardStatusPresenterGuardrailTests`,
+  - `AppThemeResourceTests` updates for the extracted Dashboard view/boundary.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 830 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23C is intentionally Dashboard presentation/component extraction only.
+- `MainWindow` remains the composition/runtime owner.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No F1 25 parser layout, raw-packet preservation, replay format, or replay timing behavior changed.
+- No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
+- This begins gradual shell component extraction only; it does not claim a broad MVVM rewrite.

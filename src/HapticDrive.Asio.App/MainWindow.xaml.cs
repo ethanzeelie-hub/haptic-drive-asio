@@ -504,15 +504,11 @@ public partial class MainWindow : Window
     {
         if (NavigationList.SelectedItem is ShellPageDefinition page)
         {
-            var isDashboardPage = page.NavigationLabel == "Dashboard";
             PageTitleText.Text = page.Title;
             PageSummaryText.Text = page.Summary;
             TopBarContextText.Text = $"{page.NavigationLabel} / safe control";
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            DashboardSummaryPanel.Visibility = isDashboardPage
-                ? Visibility.Visible
-                : Visibility.Collapsed;
             EffectsPanel.Visibility = page.NavigationLabel == "Effects"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -2564,6 +2560,16 @@ public partial class MainWindow : Window
         };
     }
 
+    private static DashboardPhprMode ToDashboardPhprMode(PhprPedalsMode mode)
+    {
+        return mode switch
+        {
+            PhprPedalsMode.Direct => DashboardPhprMode.Direct,
+            PhprPedalsMode.Disabled => DashboardPhprMode.Disabled,
+            _ => DashboardPhprMode.Mock
+        };
+    }
+
     private static PhprPedalsMode FromPhprPedalsModePreference(PhprPedalsModePreference mode)
     {
         return mode switch
@@ -3108,185 +3114,89 @@ public partial class MainWindow : Window
             OutputStatus: pipelineSnapshot.Output));
         StartStopButton.Content = presentation.StartStopButtonText;
         EmergencyMuteButton.Content = presentation.EmergencyMuteButtonText;
-        HapticsStateText.Text = presentation.HapticsStateText;
         UpdateDashboardStatus(pipelineSnapshot);
     }
 
     private void UpdateDashboardStatus(HapticPipelineSnapshot? pipelineSnapshot = null)
     {
         pipelineSnapshot ??= RefreshDrivingArmedAndShiftIntentTelemetry();
-        var telemetrySnapshot = _telemetryReceiver.GetSnapshot();
-        var replaySnapshot = pipelineSnapshot.Replay;
-        var outputStatus = pipelineSnapshot.Output;
-        var directRuntime = _phprDirectRuntime.GetSnapshot();
-        var phprMode = GetSelectedPhprPedalsMode();
-        var telemetryState = _telemetryStartError is not null
-            ? "UDP unavailable"
-            : telemetrySnapshot.HasNoPacketWarning
-                ? "Waiting for UDP"
-                : telemetrySnapshot.IsRunning
-                    ? $"Listening on {telemetrySnapshot.BoundPort}"
-                    : "UDP stopped";
-        var phprState = phprMode switch
-        {
-            PhprPedalsMode.Disabled => "P-HPR disabled",
-            PhprPedalsMode.Mock => "P-HPR mock ready",
-            PhprPedalsMode.Direct when directRuntime.DirectReady => "P-HPR direct ready",
-            PhprPedalsMode.Direct => $"P-HPR direct blocked: {NormalizeDashboardReason(directRuntime.BlockedReason)}",
-            _ => "P-HPR unavailable"
-        };
-
-        DashboardWorkflowStatusText.Text =
-            $"Haptics {(_hapticsStarted ? "running" : "stopped")}; output {outputStatus.DisplayName}; {telemetryState.ToLowerInvariant()}; replay {(replaySnapshot.IsReplaying ? "active" : "idle")}; {phprState.ToLowerInvariant()}.";
-        DashboardNextStepText.Text = BuildDashboardNextStepText(pipelineSnapshot, telemetrySnapshot, directRuntime);
-        DashboardChecklistItemsControl.ItemsSource = new[]
-        {
-            $"Output: {BuildDashboardOutputSummary(outputStatus)}",
-            $"Telemetry: {BuildDashboardTelemetrySummary(telemetrySnapshot, replaySnapshot)}",
-            $"P-HPR pedals: {BuildDashboardPhprSummary(phprMode, directRuntime)}",
-            $"Wheel paddles: {BuildDashboardPaddleSummary()}",
-            $"Recording / replay: {BuildDashboardRecordingSummary(replaySnapshot)}"
-        };
+        var presentation = BuildDashboardStatusPresentation(pipelineSnapshot);
+        DashboardViewControl.Apply(presentation);
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Dashboard" })
         {
-            PageStatusText.Text = $"Haptics {(_hapticsStarted ? "running" : "stopped")}; {BuildDashboardOutputSummary(outputStatus)}; {BuildDashboardTelemetrySummary(telemetrySnapshot, replaySnapshot).ToLowerInvariant()}.";
+            PageStatusText.Text = presentation.PageStatusText;
         }
     }
 
-    private string BuildDashboardNextStepText(
-        HapticPipelineSnapshot pipelineSnapshot,
-        UdpTelemetryReceiverSnapshot telemetrySnapshot,
-        PHprDirectRuntimeSnapshot directRuntime)
+    private DashboardStatusPresentation BuildDashboardStatusPresentation(HapticPipelineSnapshot pipelineSnapshot)
     {
-        if (_telemetryStartError is not null)
-        {
-            return "Fix the UDP listener startup error before using live telemetry or recordings.";
-        }
+        var telemetrySnapshot = _telemetryReceiver.GetSnapshot();
+        var replaySnapshot = pipelineSnapshot.Replay;
+        var recordingSnapshot = pipelineSnapshot.Recording;
+        var directRuntime = _phprDirectRuntime.GetSnapshot();
+        var paddleSnapshot = _paddleInputSource.GetPaddleSnapshot();
+        var shiftIntentDiagnostics = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        var hapticsStatePresentation = HapticsControlStatePresenter.Build(new HapticsControlStateSnapshot(
+            HapticsStarted: _hapticsStarted,
+            PipelineRunning: pipelineSnapshot.IsRunning,
+            EmergencyMuteActive: _emergencyMuted,
+            NormalMuteActive: pipelineSnapshot.IsMuted,
+            TelemetryTimedOutMuted: pipelineSnapshot.TelemetryTimedOutMuted,
+            ActiveEffectCount: pipelineSnapshot.Effects.ActiveEffectCount,
+            OutputPeakLevel: pipelineSnapshot.Audio?.OutputPeakLevel,
+            OutputStatus: pipelineSnapshot.Output));
 
-        if (!_hapticsStarted)
-        {
-            if (pipelineSnapshot.Output.Kind == AudioOutputDeviceKind.Asio && !_asioArmed)
-            {
-                return "Arm ASIO on Devices, then press Start Haptics when you are ready to open the bass-shaker stream.";
-            }
-
-            if (pipelineSnapshot.Output.Kind == AudioOutputDeviceKind.Asio)
-            {
-                return "Press Start Haptics when you are ready to open the selected ASIO driver and channel.";
-            }
-
-            if (telemetrySnapshot.PacketCount == 0 && !pipelineSnapshot.Replay.IsReplaying)
-            {
-                return "Start F1 25 UDP or replay a recording to feed the app, then press Start Haptics when you want live output.";
-            }
-
-            return "Press Start Haptics when you are ready to run the current setup.";
-        }
-
-        if (telemetrySnapshot.PacketCount == 0 && !pipelineSnapshot.Replay.IsReplaying)
-        {
-            return "Haptics are running, but no packets are arriving yet. Start F1 25 UDP or replay a saved recording.";
-        }
-
-        if (GetSelectedPhprPedalsMode() == PhprPedalsMode.Direct && !directRuntime.DirectReady)
-        {
-            return $"P-HPR Direct is selected but blocked. Use Devices to clear readiness issues or switch to Mock. ({NormalizeDashboardReason(directRuntime.BlockedReason)})";
-        }
-
-        if (_paddleInputSource.GetPaddleSnapshot().Status is not InputListenerStatus.Listening
-            && (_bst1PaddleGearPulseEnabled || _shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled))
-        {
-            return "Start the wheel paddle listener on Devices if you want local paddle gear pulses or live shift intent routing.";
-        }
-
-        return pipelineSnapshot.Replay.IsReplaying
-            ? "Replay is driving the app. Let it run or stop replay when you are ready to return to live UDP."
-            : "The app is ready. Drive the car, keep telemetry flowing, and use Devices or Testing / Validation only when you need setup or checks.";
-    }
-
-    private string BuildDashboardOutputSummary(AudioOutputStatus status)
-    {
-        if (status.Kind != AudioOutputDeviceKind.Asio)
-        {
-            return $"{status.DisplayName} selected; safe default mode.";
-        }
-
-        if (!_asioArmed)
-        {
-            return $"ASIO selected with driver {(_selectedAsioDriverName ?? "none")} and channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; arm it before starting output.";
-        }
-
-        return _hapticsStarted
-            ? $"ASIO active on driver {(_selectedAsioDriverName ?? "none")} channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}."
-            : $"ASIO is armed on driver {(_selectedAsioDriverName ?? "none")} channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; stream still stopped.";
-    }
-
-    private string BuildDashboardTelemetrySummary(UdpTelemetryReceiverSnapshot telemetrySnapshot, TelemetryReplaySnapshot replaySnapshot)
-    {
-        if (_telemetryStartError is not null)
-        {
-            return "Listener unavailable.";
-        }
-
-        if (replaySnapshot.IsReplaying)
-        {
-            return $"Replay active with {replaySnapshot.PacketsReplayed:N0} packet(s).";
-        }
-
-        if (!telemetrySnapshot.IsRunning)
-        {
-            return "Listener stopped.";
-        }
-
-        return telemetrySnapshot.LastPacketAtUtc is null
-            ? $"Listening on port {telemetrySnapshot.BoundPort}; no packets yet."
-            : $"Listening on port {telemetrySnapshot.BoundPort}; last packet {telemetrySnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago.";
-    }
-
-    private string BuildDashboardPhprSummary(PhprPedalsMode mode, PHprDirectRuntimeSnapshot directRuntime)
-    {
-        return mode switch
-        {
-            PhprPedalsMode.Disabled => "Disabled until you enable a pedal mode on Devices.",
-            PhprPedalsMode.Mock => "Mock mode is selected for software-only pedal testing.",
-            PhprPedalsMode.Direct when directRuntime.DirectReady => "Direct mode is selected and ready for this session.",
-            PhprPedalsMode.Direct => $"Direct mode is selected but blocked: {NormalizeDashboardReason(directRuntime.BlockedReason)}.",
-            _ => "Unavailable."
-        };
-    }
-
-    private string BuildDashboardPaddleSummary()
-    {
-        var snapshot = _paddleInputSource.GetPaddleSnapshot();
-        var mappingReady = snapshot.Mapping.LeftPaddleButtonId is not null && snapshot.Mapping.RightPaddleButtonId is not null;
-        return snapshot.Status switch
-        {
-            InputListenerStatus.Listening when mappingReady => "Listener running and left/right paddle mappings are ready.",
-            InputListenerStatus.Listening => "Listener running, but left/right paddle mapping still needs to be completed.",
-            _ when mappingReady => "Mappings are saved; start the listener when you want paddle input.",
-            _ => "Refresh devices, choose the wheel input, and map the left/right paddle buttons when needed."
-        };
-    }
-
-    private string BuildDashboardRecordingSummary(TelemetryReplaySnapshot replaySnapshot)
-    {
-        var recordingSnapshot = _hapticPipeline.GetSnapshot().Recording;
-        if (recordingSnapshot.IsRecording)
-        {
-            return $"Recording is active to {Path.GetFileName(recordingSnapshot.FilePath)}.";
-        }
-
-        return replaySnapshot.IsReplaying
-            ? $"Replay is active from {Path.GetFileName(replaySnapshot.SourceFilePath)}."
-            : "Recording idle; replay idle.";
-    }
-
-    private static string NormalizeDashboardReason(string? reason)
-    {
-        return string.IsNullOrWhiteSpace(reason)
-            ? "a readiness check is still blocking direct output"
-            : reason;
+        return DashboardStatusPresenter.Build(new DashboardStatusSnapshot(
+            ShowWorkflowCard: NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Dashboard" },
+            OutputDisplayName: pipelineSnapshot.Output.DisplayName,
+            OutputKind: pipelineSnapshot.Output.Kind,
+            OutputHardwareArmed: pipelineSnapshot.Output.IsHardwareArmed,
+            SelectedOutputChannel: pipelineSnapshot.Output.SelectedOutputChannel,
+            SelectedAsioDriverName: _selectedAsioDriverName,
+            HapticsStateText: hapticsStatePresentation.HapticsStateText,
+            HapticsStarted: _hapticsStarted,
+            AsioArmed: _asioArmed,
+            TelemetryUnavailable: _telemetryStartError is not null,
+            TelemetryError: _telemetryStartError,
+            TelemetryRunning: telemetrySnapshot.IsRunning,
+            TelemetryHasNoPacketWarning: telemetrySnapshot.HasNoPacketWarning,
+            TelemetryBoundPort: telemetrySnapshot.BoundPort,
+            TelemetryTimeSinceLastPacket: telemetrySnapshot.TimeSinceLastPacket,
+            TelemetryPacketCount: telemetrySnapshot.PacketCount,
+            TelemetryPacketRatePerSecond: telemetrySnapshot.PacketRatePerSecond,
+            ForwardingEnabled: pipelineSnapshot.Forwarding.IsEnabled,
+            ForwardingEnabledDestinationCount: pipelineSnapshot.Forwarding.EnabledDestinationCount,
+            ForwardedDatagramCount: pipelineSnapshot.Forwarding.ForwardedDatagramCount,
+            ForwardedByteCount: pipelineSnapshot.Forwarding.ForwardedByteCount,
+            ForwardingDestinationCount: pipelineSnapshot.Forwarding.DestinationCount,
+            ForwardingInputPacketCount: pipelineSnapshot.Forwarding.InputPacketCount,
+            ParserSuccessCount: pipelineSnapshot.ParserSuccessCount,
+            ParserIgnoredCount: pipelineSnapshot.ParserIgnoredCount,
+            ParserFailureCount: pipelineSnapshot.ParserFailureCount,
+            LastPacketMessage: pipelineSnapshot.LastPacketMessage,
+            VehicleStateUpdateCount: pipelineSnapshot.VehicleStateUpdateCount,
+            VehiclePlayerCarIndex: pipelineSnapshot.VehicleState.Telemetry is null ? null : pipelineSnapshot.VehicleState.Frame.PlayerCarIndex,
+            VehicleSpeedKph: pipelineSnapshot.VehicleState.Telemetry?.Value.SpeedKph,
+            VehicleGear: pipelineSnapshot.VehicleState.Telemetry?.Value.Gear,
+            LastVehicleStateMessage: pipelineSnapshot.LastVehicleStateMessage,
+            RecordingHasError: _recordingError is not null,
+            RecordingError: _recordingError,
+            RecordingActive: recordingSnapshot.IsRecording,
+            RecordingPacketCount: recordingSnapshot.PacketCount,
+            RecordingFileName: recordingSnapshot.FilePath is null ? null : Path.GetFileName(recordingSnapshot.FilePath),
+            RecordingLastPacketRelativeTime: recordingSnapshot.LastPacketRelativeTime,
+            ReplayActive: replaySnapshot.IsReplaying,
+            ReplayPacketCount: replaySnapshot.PacketsReplayed,
+            ReplayFileName: replaySnapshot.SourceFilePath is null ? null : Path.GetFileName(replaySnapshot.SourceFilePath),
+            PhprMode: ToDashboardPhprMode(GetSelectedPhprPedalsMode()),
+            PhprDirectReady: directRuntime.DirectReady,
+            PhprDirectBlockedReason: directRuntime.BlockedReason,
+            PaddleListenerStatus: paddleSnapshot.Status,
+            PaddleMappingReady: paddleSnapshot.Mapping.LeftPaddleButtonId is not null
+                && paddleSnapshot.Mapping.RightPaddleButtonId is not null,
+            Bst1PaddleGearPulseEnabled: _bst1PaddleGearPulseEnabled,
+            ShiftIntentEnabled: shiftIntentDiagnostics.IsEnabled));
     }
 
     private void ThemeButton_Click(object sender, RoutedEventArgs e)
@@ -4027,14 +3937,6 @@ public partial class MainWindow : Window
 
     private void UpdateOutputStatus(AudioOutputStatus status)
     {
-        OutputModeValueText.Text = status.DisplayName;
-        OutputModeDetailText.Text = status.Kind == AudioOutputDeviceKind.Asio
-            ? _hapticsStarted
-                ? $"{status.StatusMessage} Driver {(_selectedAsioDriverName ?? "none")}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}."
-                : status.IsHardwareArmed
-                    ? $"ASIO is selected and armed. Driver {(_selectedAsioDriverName ?? "none")}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}; press Start Haptics to open the stream."
-                    : $"ASIO is selected. Driver {(_selectedAsioDriverName ?? "none")}; channel {(status.SelectedOutputChannel is null ? "not selected" : status.SelectedOutputChannel)}; arm it before starting haptics."
-            : status.StatusMessage;
         UpdateDashboardStatus();
         UpdateDeviceStatus();
     }
@@ -5689,13 +5591,6 @@ public partial class MainWindow : Window
         if (_telemetryStartError is not null)
         {
             TelemetryStatusText.Text = "UDP: unavailable";
-            UdpListenerValueText.Text = "Unavailable";
-            UdpListenerDetailText.Text = _telemetryStartError;
-            PacketCountValueText.Text = "0";
-            PacketRateDetailText.Text = "0.00 packets/s";
-            UpdateForwardingStatus();
-            UpdateHeaderParserStatus();
-            UpdateVehicleStateStatus();
             UpdateEffectStatus();
             UpdateRecordingStatus();
             UpdateDiagnosticsStatus();
@@ -5711,19 +5606,6 @@ public partial class MainWindow : Window
                 : "Stopped";
 
         TelemetryStatusText.Text = $"UDP: {status}";
-        UdpListenerValueText.Text = snapshot.IsRunning
-            ? $"Listening {snapshot.BoundPort}"
-            : "Stopped";
-        UdpListenerDetailText.Text = !snapshot.IsRunning
-            ? "Listener stopped."
-            : snapshot.LastPacketAtUtc is null
-                ? $"Listening on port {UdpTelemetryReceiverOptions.DefaultPort}; no packets received yet."
-                : $"Last packet {snapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago.";
-        PacketCountValueText.Text = snapshot.PacketCount.ToString("N0");
-        PacketRateDetailText.Text = $"{snapshot.PacketRatePerSecond:0.00} packets/s";
-        UpdateForwardingStatus();
-        UpdateHeaderParserStatus();
-        UpdateVehicleStateStatus();
         UpdateEffectStatus();
         UpdateRecordingStatus();
         UpdateDiagnosticsStatus();
@@ -5737,54 +5619,6 @@ public partial class MainWindow : Window
             var recordingSnapshot = pipelineSnapshot.Recording;
             PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} packet(s); recording {recordingSnapshot.PacketCount:N0}; parsed {parsedPackets:N0}; vehicle samples {vehicleStateUpdates:N0}.";
         }
-    }
-
-    private void UpdateForwardingStatus()
-    {
-        var snapshot = _hapticPipeline.GetSnapshot().Forwarding;
-
-        ForwardingValueText.Text = snapshot.IsEnabled
-            ? $"{snapshot.EnabledDestinationCount} enabled"
-            : "Disabled";
-        ForwardingDetailText.Text = snapshot.IsEnabled
-            ? $"{snapshot.ForwardedDatagramCount:N0} datagrams, {snapshot.ForwardedByteCount:N0} bytes."
-            : $"{snapshot.DestinationCount} destinations configured; {snapshot.InputPacketCount:N0} packets observed.";
-    }
-
-    private void UpdateHeaderParserStatus()
-    {
-        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
-        var successCount = pipelineSnapshot.ParserSuccessCount;
-        var ignoredCount = pipelineSnapshot.ParserIgnoredCount;
-        var failureCount = pipelineSnapshot.ParserFailureCount;
-
-        HeaderParserValueText.Text = successCount == 0 && ignoredCount == 0 && failureCount == 0
-            ? "Waiting"
-            : $"{successCount:N0} valid";
-        HeaderParserDetailText.Text = successCount == 0 && ignoredCount == 0 && failureCount == 0
-            ? "Waiting for F1 25 packets."
-            : $"Ignored {ignoredCount:N0}, failed {failureCount:N0}. {pipelineSnapshot.LastPacketMessage}";
-    }
-
-    private void UpdateVehicleStateStatus()
-    {
-        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
-        var updateCount = pipelineSnapshot.VehicleStateUpdateCount;
-        var state = pipelineSnapshot.VehicleState;
-
-        VehicleStateValueText.Text = updateCount == 0
-            ? "Waiting"
-            : $"{updateCount:N0} updates";
-
-        if (state.Telemetry is not null)
-        {
-            VehicleStateDetailText.Text = $"Player {state.Frame.PlayerCarIndex}, {state.Telemetry.Value.SpeedKph} km/h, gear {state.Telemetry.Value.Gear}.";
-            return;
-        }
-
-        VehicleStateDetailText.Text = updateCount == 0
-            ? "Waiting for parsed telemetry samples."
-            : pipelineSnapshot.LastVehicleStateMessage;
     }
 
     private void UpdateEffectStatus()
@@ -5852,27 +5686,21 @@ public partial class MainWindow : Window
 
         if (_recordingError is not null)
         {
-            RecordingValueText.Text = "Error";
-            RecordingDetailText.Text = _recordingError;
             RecordingsDetailText.Text = _recordingError;
+            UpdateDashboardStatus();
             return;
         }
-
-        RecordingValueText.Text = snapshot.IsRecording
-            ? $"{snapshot.PacketCount:N0} packets"
-            : "Idle";
         if (snapshot.IsRecording)
         {
-            RecordingDetailText.Text = snapshot.LastPacketRelativeTime is null
+            RecordingsDetailText.Text = snapshot.LastPacketRelativeTime is null
                 ? $"Writing {Path.GetFileName(snapshot.FilePath)}; waiting for first packet."
                 : $"Writing {Path.GetFileName(snapshot.FilePath)}; last packet {snapshot.LastPacketRelativeTime.Value.TotalSeconds:0.000}s.";
-            RecordingsDetailText.Text = RecordingDetailText.Text;
             ReplayDetailText.Text = BuildReplayStatusText();
+            UpdateDashboardStatus();
             return;
         }
 
-        RecordingDetailText.Text = "Ready to capture F1 25 UDP packets to replay files.";
-        RecordingsDetailText.Text = RecordingDetailText.Text;
+        RecordingsDetailText.Text = "Ready to capture F1 25 UDP packets to replay files.";
         ReplayDetailText.Text = BuildReplayStatusText();
         UpdateDashboardStatus();
         UpdateDiagnosticsStatus();

@@ -824,3 +824,10 @@
 - The existing command-rate limiter and direct-control safety limiter remain in force. If a chosen cadence is more aggressive than the effective hardware safety window, the limiter may cap or reject updates; diagnostics now expose the configured cadence plus command-rate suppression counts, but they do not claim physical saturation behavior.
 - Normal real slip/lock workflow now relies on the visible brake-lock and throttle-slip effect checkboxes rather than a separate normal routing-enabled checkbox. Advanced min/max/target/duration controls still exist, so future tuning changes must keep those normal/advanced surfaces aligned.
 - No ASIO/BST-1 road/slip/lock behavior changed, no P-HPR HID/report bytes changed, and no startup output or direct-control auto-arm behavior changed in this stage.
+
+## Stage 23C
+
+- Stage 23C extracts the Dashboard page into `Views/DashboardView` and moves Dashboard-only wording/checklist shaping into `DashboardStatusPresenter`, but `MainWindow.xaml` and `MainWindow.xaml.cs` remain large shell files that still own other pages, page selection, direct WPF control assignment outside Dashboard, runtime snapshot gathering, startup/shutdown sequencing, and execution-heavy lifecycle/safety work.
+- The new Dashboard seam intentionally avoids a broad MVVM rewrite. It reduces one maintainability hotspot, but the broader shell is still code-behind-driven by design and future page-by-page extraction should remain optional and low-risk.
+- Start Haptics / Stop Haptics, Emergency Mute, Stop All, ASIO ownership, telemetry ownership, replay ownership, P-HPR direct runtime ownership, and hardware write call sites remain explicitly anchored in `MainWindow` after this stage.
+- No ASIO/BST-1 runtime behavior changed, no P-HPR HID/report behavior changed, and no parser/replay format behavior changed in this stage.
