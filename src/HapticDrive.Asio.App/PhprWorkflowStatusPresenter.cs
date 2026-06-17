@@ -1,3 +1,5 @@
+using HapticDrive.Asio.Audio.Profiles;
+
 namespace HapticDrive.Asio.App;
 
 internal sealed record PhprWorkflowStatusSnapshot(
@@ -58,7 +60,10 @@ internal sealed record PhprWorkflowStatusPresentation(
     string StatusText,
     IReadOnlyList<string> Items,
     string ValidationStatusText,
-    IReadOnlyList<string> ValidationItems);
+    IReadOnlyList<string> ValidationItems,
+    string ProfilePersistenceDiagnosticsLine,
+    string WorkflowDiagnosticsLine,
+    string LiveValidationDiagnosticsLine);
 
 internal static class PhprWorkflowStatusSnapshotBuilder
 {
@@ -149,7 +154,12 @@ internal static class PhprWorkflowStatusPresenter
                 $"Real output counters: writes {snapshot?.RealReportWriteCount ?? 0:N0}; failures {snapshot?.RealFailedReportWriteCount ?? 0:N0}; connection {Normalize(snapshot?.RealConnectionState, "Unknown")}; last error {Normalize(snapshot?.RealLastError, "none")}."
             ],
             ValidationStatusText: validation.Summary,
-            ValidationItems: validation.Checklist);
+            ValidationItems: validation.Checklist,
+            ProfilePersistenceDiagnosticsLine: PhprWorkflowDiagnosticsReport.BuildProfilePersistenceLine(
+                HapticProfileStore.GetDefaultProfilePath(),
+                PhprEffectProfileStore.GetDefaultProfilePath()),
+            WorkflowDiagnosticsLine: PhprWorkflowDiagnosticsReport.BuildWorkflowLine(workflow),
+            LiveValidationDiagnosticsLine: validation.DiagnosticsLine);
     }
 
     private static PhprWorkflowDiagnosticsSnapshot CreateDefaultWorkflowDiagnostics()

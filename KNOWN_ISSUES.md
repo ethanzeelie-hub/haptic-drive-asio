@@ -708,3 +708,12 @@
 - The next safest extraction target is still the larger diagnostics/status assembly path around `UpdateDiagnosticsStatus`, followed by settings snapshot/hydration builders. Startup/shutdown lifecycle ownership and safety-context builders remain higher-risk follow-up work.
 - Stage 21A intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21B
+
+- `MainWindow.xaml.cs` still remains the dominant App-shell file and still owns startup/load wiring, shutdown/dispose ordering, settings/profile hydration, control parsing, safety-context construction, recording/replay UI workflow, general WPF status/footer/dashboard updates, and the live snapshot gathering that feeds diagnostics.
+- Stage 21B extracts the broader diagnostics/status report assembly into `DiagnosticsStatusSnapshotBuilder` and `DiagnosticsStatusPresenter`, and it routes the diagnostics workflow/profile/live-validation lines through `PhprWorkflowStatusPresenter` instead of rebuilding those strings inline. That reduces `MainWindow` report ownership, but it intentionally does not claim a broad MVVM decomposition.
+- Helper subsection formatting for individual diagnostics areas still lives in `MainWindow.xaml.cs` when that wording depends directly on current shell/runtime fields. Stage 21B keeps those helpers in place rather than forcing a larger runtime/service move.
+- The next safest extraction target is app/settings snapshot and hydration shaping, including the long persisted-settings diagnostics/status line. Startup/shutdown lifecycle ownership and safety-context builders remain higher-risk follow-up work after that.
+- Stage 21B intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, replay timing, or diagnostics redaction/privacy boundaries.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.

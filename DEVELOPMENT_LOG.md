@@ -3364,3 +3364,43 @@ Self-review:
 - `MainWindow.xaml.cs` is still large after this stage because the bigger remaining responsibilities are startup/shutdown, settings parsing, safety-context construction, diagnostics-panel assembly, and recording/replay orchestration. Those are better Stage 21B+ targets than forcing them into this smaller stage.
 - Stage 21A intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21B - Diagnostics Status Extraction Out Of MainWindow
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Extract the broader diagnostics/status report assembly around `UpdateDiagnosticsStatus()` out of `MainWindow.xaml.cs` into a testable non-WPF App-layer boundary while preserving the existing diagnostics meaning, copy-report content, and privacy/redaction behavior.
+
+Changes:
+
+- Re-audited the live Stage 21A baseline before coding. `MainWindow.xaml.cs` was 7044 lines and still owned diagnostics-panel visibility gating, snapshot gathering from pipeline/receiver/output/workflow state, road-recorder status text, the full ordered diagnostics item list, and clipboard-report generation.
+- Confirmed the safe extraction target was the diagnostics/status assembly itself, not startup/shutdown orchestration, settings hydration, safety-context builders, ASIO start/stop ownership, Stop All / Emergency Stop handlers, or P-HPR runtime coordination.
+- Added `DiagnosticsStatusSnapshotBuilder`, `DiagnosticsStatusPresenter`, `DiagnosticsStatusBuildInputs`, `DiagnosticsStatusSnapshot`, and `DiagnosticsStatusPresentation` in `src/HapticDrive.Asio.App/DiagnosticsStatusPresenter.cs`.
+- Moved diagnostics summary text assembly, road-recorder status text assembly, ordered diagnostics item/report assembly, clipboard report generation, and safe fallback text into the new non-WPF presenter.
+- Reduced `MainWindow.xaml.cs` to diagnostics visibility gating, live snapshot collection, helper subsection formatting, presenter input construction, and WPF control assignment for diagnostics output.
+- Refactored `CopyDiagnosticsButton_Click` to use the presenter-generated clipboard report text instead of rebuilding the report from WPF control state with an inline `StringBuilder`.
+- Extended `PhprWorkflowStatusPresenter` so it now also emits the already-sanitized diagnostics lines for profile persistence, workflow mode/report state, and live F1 validation. `UpdateDiagnosticsStatus()` now reuses that Stage 21A presenter output instead of calling `PhprWorkflowDiagnosticsReport` / `PhprLiveF1ValidationGuide` inline.
+- Added `DiagnosticsStatusPresenterTests` for representative summary/order/report output plus safe fallback behavior, and `DiagnosticsStatusPresenterGuardrailTests` to prove the new presenter stays free of WPF/control/hardware-write references while `MainWindow.xaml.cs` routes the diagnostics workflow strings through the new presenter path.
+- Expanded `PhprWorkflowStatusPresenterTests` to cover the new diagnostics-line outputs so the Stage 21A presenter remains the single formatting owner for those sanitized workflow diagnostics strings.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the new diagnostics presenter seam, the continued non-MVVM scope, and the recommended Stage 21C follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 750 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21B intentionally does not move hardware/runtime ownership, change diagnostics wording semantics, or alter privacy boundaries. Local paths remain filename-only where already sanitized, private HID paths remain withheld, and clipboard reports still avoid raw captures, serials, and unsanitized inventories.
+- `MainWindow.xaml.cs` is still large after this stage because snapshot gathering, helper subsection formatting, settings shaping, safety-context construction, startup/shutdown orchestration, and recording/replay workflow still live there. Those remain follow-up work rather than being forced into this stage.
+- `MainWindow.xaml.cs` line count moved from 7044 to 7043 in this stage. The benefit here is ownership clarity and testability rather than a dramatic line-count drop.
+- Stage 21B intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.

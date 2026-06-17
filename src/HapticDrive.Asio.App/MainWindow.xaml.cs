@@ -29,7 +29,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -4330,23 +4329,12 @@ public partial class MainWindow : Window
 
     private void CopyDiagnosticsButton_Click(object sender, RoutedEventArgs e)
     {
-        UpdateDiagnosticsStatus();
-        var report = new StringBuilder()
-            .AppendLine("Haptic Drive ASIO diagnostics")
-            .AppendLine($"Generated: {DateTimeOffset.Now:g}")
-            .AppendLine(DiagnosticsSummaryText.Text);
-
-        if (DiagnosticsItemsControl.ItemsSource is IEnumerable<string> items)
-        {
-            foreach (var item in items)
-            {
-                report.AppendLine(item);
-            }
-        }
+        var presentation = BuildDiagnosticsStatusPresentation();
+        ApplyDiagnosticsStatusPresentation(presentation);
 
         try
         {
-            Clipboard.SetText(report.ToString());
+            Clipboard.SetText(presentation.ClipboardReportText);
             FooterStatusText.Text = "Diagnostics report copied.";
         }
         catch (Exception ex)
@@ -5106,9 +5094,21 @@ public partial class MainWindow : Window
     private void UpdatePhprWorkflowStatus()
     {
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
+        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        var presentation = BuildPhprWorkflowStatusPresentation(pipelineSnapshot, realDiagnostics);
+
+        PhprWorkflowStatusText.Text = presentation.StatusText;
+        PhprWorkflowItemsControl.ItemsSource = presentation.Items;
+        PhprLiveF1ValidationStatusText.Text = presentation.ValidationStatusText;
+        PhprLiveF1ValidationItemsControl.ItemsSource = presentation.ValidationItems;
+    }
+
+    private PhprWorkflowStatusPresentation BuildPhprWorkflowStatusPresentation(
+        HapticPipelineSnapshot pipelineSnapshot,
+        PHprRealOutputDiagnostics realDiagnostics)
+    {
         var mockGear = _mockGearPulseRouter.GetSnapshot();
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot();
-        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
         var liveValidationSnapshot = BuildPhprLiveF1ValidationSnapshot(pipelineSnapshot, realDiagnostics);
         var snapshot = PhprWorkflowStatusSnapshotBuilder.Build(new PhprWorkflowStatusBuildInputs(
             new PhprWorkflowDiagnosticsSnapshot(
@@ -5147,12 +5147,7 @@ public partial class MainWindow : Window
             realDiagnostics.Connection.State.ToString(),
             realDiagnostics.LastError ?? "none",
             liveValidationSnapshot));
-        var presentation = PhprWorkflowStatusPresenter.Build(snapshot);
-
-        PhprWorkflowStatusText.Text = presentation.StatusText;
-        PhprWorkflowItemsControl.ItemsSource = presentation.Items;
-        PhprLiveF1ValidationStatusText.Text = presentation.ValidationStatusText;
-        PhprLiveF1ValidationItemsControl.ItemsSource = presentation.ValidationItems;
+        return PhprWorkflowStatusPresenter.Build(snapshot);
     }
 
     private PhprLiveF1ValidationSnapshot BuildPhprLiveF1ValidationSnapshot(
@@ -5310,6 +5305,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        ApplyDiagnosticsStatusPresentation(BuildDiagnosticsStatusPresentation());
+    }
+
+    private DiagnosticsStatusPresentation BuildDiagnosticsStatusPresentation()
+    {
         var pipelineSnapshot = _hapticPipeline.GetSnapshot();
         var outputStatus = pipelineSnapshot.Output;
         var effectSnapshot = pipelineSnapshot.Effects;
@@ -5333,69 +5333,68 @@ public partial class MainWindow : Window
             audioDiagnostics,
             _roadTextureFlightRecorder.IsEnabled,
             _roadTextureFlightRecorder.LogPath);
-        RoadTextureFlightRecorderStatusText.Text =
-            $"Road recorder: {(roadDiagnostics.FlightRecorderActive ? "active" : "disabled")}; path {roadDiagnostics.FlightRecorderPath}; last fallback {_roadTextureFlightRecorder.LastFallbackStatus ?? "none"}.";
         var roadDiagnosticLines = roadDiagnostics.ToDiagnosticsLines();
+        var realDiagnostics = _realPhprOutput.GetDiagnostics();
+        var phprWorkflowPresentation = BuildPhprWorkflowStatusPresentation(pipelineSnapshot, realDiagnostics);
+        var shiftIntentDiagnostics = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        var mockGearSnapshot = _mockGearPulseRouter.GetSnapshot();
+        var mockPedalEffectsSnapshot = _mockPedalEffectsRouter.GetSnapshot();
+        var snapshot = DiagnosticsStatusSnapshotBuilder.Build(new DiagnosticsStatusBuildInputs(
+            GeneratedAt: DateTimeOffset.Now,
+            FlightRecorderActive: roadDiagnostics.FlightRecorderActive,
+            FlightRecorderPath: roadDiagnostics.FlightRecorderPath,
+            FlightRecorderLastFallbackStatus: _roadTextureFlightRecorder.LastFallbackStatus ?? "none",
+            UdpPacketCount: receiverSnapshot.PacketCount,
+            ParserSuccessCount: parserSuccess,
+            ParserFailureCount: parserFailed,
+            ActiveEffectCount: audioDiagnostics.ActiveEffectCount,
+            OutputPeakLevel: audioDiagnostics.OutputPeakLevel,
+            RenderCallbackCount: outputStatus.RenderCallbackCount,
+            PipelineText: $"{(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); telemetry age {(pipelineSnapshot.TelemetryAge is null ? "none" : $"{pipelineSnapshot.TelemetryAge.Value.TotalMilliseconds:0} ms")}; stale mute {pipelineSnapshot.TelemetryTimedOutMuted}; last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
+            UdpListenerText: $"{(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}.",
+            UdpForwardingText: $"{forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; {forwarderSnapshot.ErrorCount:N0} error(s).",
+            UdpForwardingDestinationsText: BuildForwardingDestinationsText(),
+            ParserText: $"{parserSuccess:N0} valid, {parserIgnored:N0} ignored, {parserFailed:N0} failed. {pipelineSnapshot.LastPacketMessage}",
+            PacketIdsText: packetDiagnostics,
+            VehicleStateText: $"{vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
+            RecordingText: $"{(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
+            ReplayText: $"{(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
+            EffectsText: $"enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.WheelSlipEnabled}, lock {effectSnapshot.Slip.WheelLockEnabled}; overall slip/lock {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
+            Bst1SlipLockText: $"source {effectSnapshot.Slip.ActiveSource}; reason {effectSnapshot.Slip.ActiveReason}; slip intensity {effectSnapshot.Slip.CurrentSlipIntensity:0.00}; lock intensity {effectSnapshot.Slip.CurrentLockIntensity:0.00}; slip ratio {effectSnapshot.Slip.CurrentSlipRatio:0.00}; slip angle {effectSnapshot.Slip.CurrentSlipAngleRadians:0.00} rad; wheel-speed ratio {effectSnapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}; frequency {effectSnapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {effectSnapshot.Slip.CurrentNoiseAmount:P0}; peak {effectSnapshot.Slip.PeakLevel:0.000}.",
+            MixerSafetyText: $"mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
+            RoadDiagnosticsLines: roadDiagnosticLines,
+            PhprSlipLockText: BuildRealSlipLockDiagnosticsText(),
+            TestBenchText: $"{(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
+            OutputText: $"{outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
+            InputDiscoveryText: BuildInputDiscoveryDiagnosticsText(),
+            PaddleInputListenerText: BuildPaddleInputDiagnosticsText(),
+            ShiftIntentText: BuildShiftIntentDiagnosticsText(),
+            ProfilePersistenceText: phprWorkflowPresentation.ProfilePersistenceDiagnosticsLine,
+            WorkflowText: phprWorkflowPresentation.WorkflowDiagnosticsLine,
+            LiveValidationText: phprWorkflowPresentation.LiveValidationDiagnosticsLine,
+            PhprSoftwareCoexistenceText: BuildPhprCoexistenceDiagnosticsText(),
+            PhprDirectWriteReadinessText: BuildPhprControlledWriteReadinessDiagnosticsText(),
+            PhprRealDirectControlText: BuildRealPhprDirectDiagnosticsText(),
+            PhprValidationHarnessText: BuildPhprValidationDiagnosticsText(),
+            PaddleGearBenchText: BuildPaddleGearBenchDiagnosticsText(),
+            MockGearRoutingText: BuildMockGearPulseDiagnosticsText(),
+            MockPedalEffectsText: BuildMockPedalEffectsDiagnosticsText(),
+            ManualAsioHardwareTestText: BuildManualAsioHardwareTestDiagnosticsText(),
+            AsioReadinessText: $"{_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
+            RuntimePrerequisitesText: $".NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
+            AppSettingsText: $"{_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted Arm ASIO preference {_asioArmed}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)} debounce {_paddleMapping.DebounceDuration.TotalMilliseconds:0} ms; shift intent {(shiftIntentDiagnostics.IsEnabled ? "enabled" : "disabled")} mode {shiftIntentDiagnostics.Mode}; BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} {_bst1PaddleGearStrengthPercent:0}% {_bst1PaddleGearFrequencyHz:0.#} Hz {GetEffectiveBst1PaddleGearDurationMs()} ms; mock gear routing {(mockGearSnapshot.Options.IsEnabled ? "enabled" : "disabled")} target {mockGearSnapshot.Options.TargetModule}; mock pedal effects {(mockPedalEffectsSnapshot.Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted."));
+        return DiagnosticsStatusPresenter.Build(snapshot);
+    }
 
-        DiagnosticsSummaryText.Text = $"UDP {receiverSnapshot.PacketCount:N0} packet(s), parser {parserSuccess:N0} valid / {parserFailed:N0} failed, effects {audioDiagnostics.ActiveEffectCount}, output peak {audioDiagnostics.OutputPeakLevel:0.000}, callbacks {outputStatus.RenderCallbackCount:N0}.";
-        DiagnosticsItemsControl.ItemsSource = new[]
-        {
-            $"Pipeline: {(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); telemetry age {(pipelineSnapshot.TelemetryAge is null ? "none" : $"{pipelineSnapshot.TelemetryAge.Value.TotalMilliseconds:0} ms")}; stale mute {pipelineSnapshot.TelemetryTimedOutMuted}; last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
-            $"UDP listener: {(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}.",
-            $"UDP forwarding: {forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; {forwarderSnapshot.ErrorCount:N0} error(s).",
-            $"UDP forwarding destinations: {BuildForwardingDestinationsText()}",
-            $"Parser: {parserSuccess:N0} valid, {parserIgnored:N0} ignored, {parserFailed:N0} failed. {pipelineSnapshot.LastPacketMessage}",
-            $"Packet IDs: {packetDiagnostics}",
-            $"VehicleState: {vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
-            $"Recording: {(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
-            $"Replay: {(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
-            $"Effects: enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.WheelSlipEnabled}, lock {effectSnapshot.Slip.WheelLockEnabled}; overall slip/lock {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
-            $"BST-1 slip/lock: source {effectSnapshot.Slip.ActiveSource}; reason {effectSnapshot.Slip.ActiveReason}; slip intensity {effectSnapshot.Slip.CurrentSlipIntensity:0.00}; lock intensity {effectSnapshot.Slip.CurrentLockIntensity:0.00}; slip ratio {effectSnapshot.Slip.CurrentSlipRatio:0.00}; slip angle {effectSnapshot.Slip.CurrentSlipAngleRadians:0.00} rad; wheel-speed ratio {effectSnapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}; frequency {effectSnapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {effectSnapshot.Slip.CurrentNoiseAmount:P0}; peak {effectSnapshot.Slip.PeakLevel:0.000}.",
-            $"Mixer / safety: mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
-            roadDiagnosticLines[0],
-            roadDiagnosticLines[1],
-            roadDiagnosticLines[2],
-            roadDiagnosticLines[3],
-            $"P-HPR slip/lock: {BuildRealSlipLockDiagnosticsText()}",
-            $"Test bench: {(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",
-            $"Output: {outputStatus.DisplayName} ({outputStatus.State}); streaming {outputStatus.IsStreaming}; hardware required {outputStatus.RequiresPhysicalHardware}; manual debug {outputStatus.IsManualDebugOnly}; hardware-absent mode {audioDiagnostics.HardwareAbsentMode}; null buffers {pipelineSnapshot.NullOutput?.SubmittedBufferCount ?? 0:N0}; render callbacks {outputStatus.RenderCallbackCount:N0}; backend callbacks {outputStatus.BackendCallbackCount:N0}; output buffers {outputStatus.SubmittedBufferCount:N0}; drops {outputStatus.DroppedBufferCount:N0}; underruns {outputStatus.UnderrunCount:N0}; render {FormatDuration(outputStatus.LastRenderDuration)}; jitter {FormatDuration(outputStatus.LastCallbackJitter)}.",
-            $"Input discovery: {BuildInputDiscoveryDiagnosticsText()}",
-            $"Paddle input listener: {BuildPaddleInputDiagnosticsText()}",
-            $"Shift intent layer: {BuildShiftIntentDiagnosticsText()}",
-            PhprWorkflowDiagnosticsReport.BuildProfilePersistenceLine(
-                HapticProfileStore.GetDefaultProfilePath(),
-                PhprEffectProfileStore.GetDefaultProfilePath()),
-            PhprWorkflowDiagnosticsReport.BuildWorkflowLine(new PhprWorkflowDiagnosticsSnapshot(
-                GetPhprWorkflowModeText(),
-                pipelineSnapshot.InputSource.ToString(),
-                FormatReplaySource(pipelineSnapshot),
-                pipelineSnapshot.Replay.PacketsReplayed,
-                _realPhprOptions.DirectControlEnabled,
-                _realPhprOptions.DirectControlArmed,
-                _realPhprOptions.Selector.IsSelected,
-                _mockGearPulseRouter.GetSnapshot().Options.IsEnabled,
-                _mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled,
-                _realRoadVibrationOptions.IsEnabled,
-                _realSlipLockOptions.IsEnabled)),
-            PhprLiveF1ValidationGuide.Build(BuildPhprLiveF1ValidationSnapshot(
-                pipelineSnapshot,
-                _realPhprOutput.GetDiagnostics())).DiagnosticsLine,
-            $"P-HPR software coexistence: {BuildPhprCoexistenceDiagnosticsText()}",
-            $"P-HPR direct write readiness: {BuildPhprControlledWriteReadinessDiagnosticsText()}",
-            $"P-HPR real direct control: {BuildRealPhprDirectDiagnosticsText()}",
-            $"P-HPR validation harness: {BuildPhprValidationDiagnosticsText()}",
-            $"Paddle gear bench test: {BuildPaddleGearBenchDiagnosticsText()}",
-            $"Mock P-HPR gear routing: {BuildMockGearPulseDiagnosticsText()}",
-            $"Mock P-HPR pedal effects: {BuildMockPedalEffectsDiagnosticsText()}",
-            $"Manual ASIO Hardware Test: {BuildManualAsioHardwareTestDiagnosticsText()}",
-            $"ASIO readiness: {_asioReadinessSnapshot.Message} Drivers reported {_asioReadinessSnapshot.DriverNames.Count}; M-Audio match {(_asioReadinessSnapshot.MTrackDriverVisible ? "yes" : "no")}; channel {(_asioReadinessSnapshot.SelectedOutputChannel is null ? "none" : _asioReadinessSnapshot.SelectedOutputChannel)}; armed {_asioReadinessSnapshot.IsArmed}; Windows sound output proves ASIO {_asioReadinessSnapshot.WindowsSoundOutputVisibilityProvesAsio}.",
-            $"Runtime prerequisites: .NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
-            $"App settings: {_settingsStore.SettingsPath}; {(_settingsError ?? "loaded")}; theme {(_lightTheme ? "light" : "dark")}; output mode {_selectedOutputKind}; replay {GetSelectedReplayTimingMode().Label}; persisted ASIO driver {(_selectedAsioDriverName ?? "none")}; persisted ASIO channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; persisted Arm ASIO preference {_asioArmed}; persisted paddle mapping device {_paddleMapping.SelectedDeviceId ?? "none"} left {FormatButtonMapping(_paddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(_paddleMapping.RightPaddleButtonId)} debounce {_paddleMapping.DebounceDuration.TotalMilliseconds:0} ms; BST-1 local gear {(_bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} {_bst1PaddleGearStrengthPercent:0}% {_bst1PaddleGearFrequencyHz:0.#} Hz {GetEffectiveBst1PaddleGearDurationMs()} ms; shift intent {(_shiftIntentProcessor.GetDiagnosticsSnapshot().IsEnabled ? "enabled" : "disabled")} mode {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; mock gear routing {(_mockGearPulseRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")} target {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted."
-        };
+    private void ApplyDiagnosticsStatusPresentation(DiagnosticsStatusPresentation presentation)
+    {
+        RoadTextureFlightRecorderStatusText.Text = presentation.RoadRecorderStatusText;
+        DiagnosticsSummaryText.Text = presentation.SummaryText;
+        DiagnosticsItemsControl.ItemsSource = presentation.Items;
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
         {
-            PageStatusText.Text = DiagnosticsSummaryText.Text;
+            PageStatusText.Text = presentation.SummaryText;
         }
     }
 

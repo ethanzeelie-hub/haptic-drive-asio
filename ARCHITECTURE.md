@@ -1097,3 +1097,44 @@ Recommended Stage 21B:
 2. After that, consider `AppSettingsHydrationService` or dedicated P-HPR/ASIO settings snapshot builders.
 
 Stage 21A does not change UI/XAML, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.
+
+## Stage 21B Diagnostics Status Extraction
+
+Stage 21B takes the larger diagnostics/status assembly path out of `MainWindow.xaml.cs` without attempting MVVM or changing runtime ownership.
+
+New App-only non-WPF diagnostics presentation boundary:
+
+- `DiagnosticsStatusSnapshotBuilder`
+- `DiagnosticsStatusPresenter`
+- supporting records in `DiagnosticsStatusPresenter.cs`
+
+The extracted diagnostics boundary now owns:
+
+- diagnostics summary text assembly,
+- road-recorder status text assembly,
+- ordered diagnostics item/report assembly for the Advanced / Diagnostics page,
+- clipboard report text generation,
+- safe fallback text for missing/incomplete diagnostics snapshots.
+
+`PhprWorkflowStatusPresenter` now also emits the already-sanitized diagnostics lines for:
+
+- profile persistence,
+- workflow mode/report state,
+- live F1 validation diagnostics.
+
+That keeps the diagnostics page reusing the Stage 21A workflow presentation boundary instead of rebuilding those strings directly in `MainWindow.xaml.cs`.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- live snapshot collection from pipeline, receiver, output, workflow, input, and settings state,
+- helper formatting for individual subsection diagnostics that still depend on current shell/runtime fields,
+- WPF control assignment to `TextBlock` / `ItemsControl` targets,
+- visibility gating around diagnostics refresh,
+- startup/shutdown lifecycle orchestration, settings hydration, and safety-context builders.
+
+Recommended Stage 21C:
+
+1. Extract app/settings snapshot and hydration builders so `MainWindow.xaml.cs` stops owning the long persisted-settings/status line plus related restore/save shaping.
+2. Re-audit startup/shutdown and safety-context construction only after the settings/diagnostics seams are stable.
+
+Stage 21B does not change UI/XAML, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, replay timing, or privacy/redaction boundaries.

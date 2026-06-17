@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.App;
 
 namespace HapticDrive.Asio.App.Tests;
@@ -29,6 +30,15 @@ public sealed class PhprWorkflowStatusPresenterTests
         var expectedValidation = PhprLiveF1ValidationGuide.Build(CreateLiveValidationSnapshot());
         Assert.Equal(expectedValidation.Summary, presentation.ValidationStatusText);
         Assert.Equal(expectedValidation.Checklist, presentation.ValidationItems);
+        Assert.Equal(
+            PhprWorkflowDiagnosticsReport.BuildProfilePersistenceLine(
+                HapticProfileStore.GetDefaultProfilePath(),
+                PhprEffectProfileStore.GetDefaultProfilePath()),
+            presentation.ProfilePersistenceDiagnosticsLine);
+        Assert.Equal(
+            PhprWorkflowDiagnosticsReport.BuildWorkflowLine(snapshot.WorkflowDiagnostics!),
+            presentation.WorkflowDiagnosticsLine);
+        Assert.Equal(expectedValidation.DiagnosticsLine, presentation.LiveValidationDiagnosticsLine);
     }
 
     [Fact]
@@ -101,6 +111,7 @@ public sealed class PhprWorkflowStatusPresenterTests
         Assert.Contains(
             presentation.ValidationItems,
             item => item.Contains("Emergency stop: current emergency stop latched", StringComparison.Ordinal));
+        Assert.Contains("emergency stop latched", presentation.LiveValidationDiagnosticsLine, StringComparison.Ordinal);
     }
 
     private static PhprWorkflowStatusSnapshot CreateSnapshot()
