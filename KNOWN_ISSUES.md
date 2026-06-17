@@ -763,3 +763,13 @@
 - The next worthwhile step is a dedicated Stage 21H shutdown/cleanup ordering audit rather than mixing shutdown, safety-context, and Stop All work into the startup-readiness stage.
 - Stage 21G intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21H
+
+- `MainWindow.xaml.cs` still remains the dominant App-shell file and still owns `OnClosing` / `OnClosed`, actual event/timer detachment, actual stop/dispose execution, shutdown exception aggregation, shutdown diagnostic writes, startup cleanup invocation, safety-context construction, and direct hardware/runtime orchestration.
+- Stage 21H extracts only `ShutdownCleanupPlanner`, which now owns deterministic stop-only shutdown ordering metadata and bounded timeout metadata for the app-owned cleanup sequence.
+- `InitializeStartupCleanupAsync()` remains in `PHprDirectRuntime` because it is an output-capable stop-only startup path and must stay explicit rather than being hidden inside an App planner.
+- Stop All / Emergency Stop handlers, safety-context builders, ASIO start/stop ownership, P-HPR runtime coordination, and direct-output hardware ownership remain intentionally in `MainWindow`.
+- The next worthwhile step is a separate Stage 21I safety-context-builder audit or Stop All / Emergency Stop audit, not both together.
+- Stage 21H intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.

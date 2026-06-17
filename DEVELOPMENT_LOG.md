@@ -3606,3 +3606,45 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 6120 to 6099 in this stage. The reduction is modest because this stage prioritized a safe lifecycle boundary over line-count chasing.
 - Stage 21G intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21H - Shutdown/Cleanup Ordering Audit
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Audit shutdown, dispose, startup-cleanup, and stop-only lifecycle ordering in `MainWindow.xaml.cs`, then extract only the safest deterministic App-layer shutdown boundary while keeping actual stop/dispose execution explicit and behavior unchanged.
+
+Changes:
+
+- Re-audited the live Stage 21G baseline before coding. `MainWindow.xaml.cs` was 6099 lines and still owned `OnClosing` / `OnClosed`, event/timer detachment, continuous P-HPR runtime stop, standalone BST-1 local/manual pulse cleanup, app-owned service disposal, real P-HPR road stop, real P-HPR output disposal, haptic-pipeline disposal, and shutdown diagnostic recording.
+- Confirmed that `InitializeStartupCleanupAsync()` remains an output-capable stop-only startup path inside `PHprDirectRuntime` and should stay explicit rather than being hidden behind an App planner.
+- Confirmed that Stop All / Emergency Stop handlers, safety-context builders, ASIO lifecycle ownership, and direct-output runtime ownership remain too safety-adjacent to move in this stage.
+- Determined that one safe Stage 21H extraction still existed: deterministic shutdown ordering metadata for the app-owned cleanup path.
+- Added `ShutdownCleanupPlanner`, `ShutdownCleanupPlan`, `ShutdownCleanupStep`, `ShutdownCleanupContext`, `ShutdownCleanupActionKind`, and `ShutdownCleanupStepKind` in `src/HapticDrive.Asio.App/ShutdownCleanupPlanner.cs`.
+- Moved only the high-level shutdown step ordering and timeout metadata out of `MainWindow.xaml.cs`.
+- Updated `RunShutdownCleanupAsync()` in `MainWindow.xaml.cs` to iterate the shutdown plan while still executing every real detach/stop/dispose call inline through an explicit `switch (step.Kind)` block.
+- Intentionally kept `OnClosing`, `OnClosed`, minimize-to-tray handling, shutdown exception aggregation, shutdown diagnostic writes, actual `_realPhprContinuousEffectsRuntime.StopAsync(...)`, actual `_hapticPipeline.StopManualAsioHardwareTest(...)`, actual disposals, startup cleanup invocation, Stop All / Emergency Stop handlers, and safety-context builders in `MainWindow.xaml.cs`.
+- Added `ShutdownCleanupPlannerTests` for representative shutdown order, stop-only/no-start semantics, deterministic repeated plan building, and expected bounded timeouts.
+- Added `ShutdownCleanupPlannerGuardrailTests` to prove the new planner stays free of WPF/output-start execution references and that `MainWindow.xaml.cs` still owns the real cleanup execution calls while routing only the ordering metadata through the planner.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21H audit result, the extracted planner boundary, what intentionally stayed in `MainWindow`, the unchanged startup-cleanup boundary, and the recommended Stage 21I follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 786 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21H intentionally avoided turning shutdown into a broad lifecycle coordinator. It moved only deterministic stop/dispose ordering metadata and kept every real stop/dispose call visible in `MainWindow.xaml.cs`.
+- Startup cleanup remains explicit and unchanged in `PHprDirectRuntime`; this stage does not move or weaken the existing stop-only startup boundary.
+- `MainWindow.xaml.cs` remains large after this stage because it still owns actual close/stop/dispose execution, shutdown diagnostics, startup cleanup invocation, Stop All / Emergency Stop handlers, safety-context builders, ASIO start/stop ownership, and direct-output runtime ownership. Those are better Stage 21I+ audit targets than forcing them into a planner stage.
+- `MainWindow.xaml.cs` line count moved from 6099 to 6140 in this stage. The increase is acceptable because the stage prioritized explicit lifecycle ownership and testable ordering over cosmetic reduction.
+- Stage 21H intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.

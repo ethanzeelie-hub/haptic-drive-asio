@@ -5873,93 +5873,134 @@ public partial class MainWindow : Window
             pendingTaskCount: _activeReplayTask is { IsCompleted: false } ? 1 : 0,
             shutdownExceptions);
 
-        Dispatcher.UnhandledException -= MainWindow_DispatcherUnhandledException;
-        AppDomain.CurrentDomain.UnhandledException -= CurrentDomain_UnhandledException;
-        TaskScheduler.UnobservedTaskException -= TaskScheduler_UnobservedTaskException;
-        _paddleInputSource.RawButtonChanged -= PaddleInputSource_InputChanged;
-        _paddleInputSource.PaddleInputReceived -= PaddleInputSource_InputChanged;
-        _paddleInputSource.PaddleInputReceived -= PaddleInputSource_PaddleInputReceived;
-        _telemetryReceiver.PacketReceived -= TelemetryReceiver_PacketReceived;
-        _telemetryStatusTimer.Tick -= TelemetryStatusTimer_Tick;
-        _telemetryStatusTimer.Stop();
-        var continuousRuntimeStop = await _realPhprContinuousEffectsRuntime
-            .StopAsync(TimeSpan.FromSeconds(2))
-            .ConfigureAwait(false);
-        if (continuousRuntimeStop.SlipLockRuntimeTimedOut)
+        var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();
+        foreach (var step in plan.Steps)
         {
-            shutdownExceptions.Add("slipLockRuntime:TimeoutException:slip/lock runtime did not stop within 2 seconds");
-        }
+            switch (step.Kind)
+            {
+                case ShutdownCleanupStepKind.DetachUnhandledExceptionAndInputTelemetryHandlers:
+                    Dispatcher.UnhandledException -= MainWindow_DispatcherUnhandledException;
+                    AppDomain.CurrentDomain.UnhandledException -= CurrentDomain_UnhandledException;
+                    TaskScheduler.UnobservedTaskException -= TaskScheduler_UnobservedTaskException;
+                    _paddleInputSource.RawButtonChanged -= PaddleInputSource_InputChanged;
+                    _paddleInputSource.PaddleInputReceived -= PaddleInputSource_InputChanged;
+                    _paddleInputSource.PaddleInputReceived -= PaddleInputSource_PaddleInputReceived;
+                    _telemetryReceiver.PacketReceived -= TelemetryReceiver_PacketReceived;
+                    _telemetryStatusTimer.Tick -= TelemetryStatusTimer_Tick;
+                    break;
 
-        if (continuousRuntimeStop.RoadRuntimeTimedOut)
-        {
-            shutdownExceptions.Add("roadRuntime:TimeoutException:road runtime did not stop within 2 seconds");
-        }
+                case ShutdownCleanupStepKind.StopTelemetryStatusTimer:
+                    _telemetryStatusTimer.Stop();
+                    timersDisposed = true;
+                    break;
 
-        timersDisposed = true;
+                case ShutdownCleanupStepKind.StopContinuousPhprRuntime:
+                    {
+                        var continuousRuntimeStop = await _realPhprContinuousEffectsRuntime
+                            .StopAsync(step.Timeout ?? TimeSpan.FromSeconds(2))
+                            .ConfigureAwait(false);
+                        if (continuousRuntimeStop.SlipLockRuntimeTimedOut)
+                        {
+                            shutdownExceptions.Add("slipLockRuntime:TimeoutException:slip/lock runtime did not stop within 2 seconds");
+                        }
 
-        _hapticPipeline.StopManualAsioHardwareTest("App shutdown stopped standalone BST-1 pulse session.");
-        standalonePulseDisposed = true;
+                        if (continuousRuntimeStop.RoadRuntimeTimedOut)
+                        {
+                            shutdownExceptions.Add("roadRuntime:TimeoutException:road runtime did not stop within 2 seconds");
+                        }
 
-        try
-        {
-            await _testBench.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            shutdownExceptions.Add($"testBench:{ex.GetType().Name}:{ex.Message}");
-        }
+                        break;
+                    }
 
-        try
-        {
-            await _paddleInputSource.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-            paddleListenerDisposed = true;
-        }
-        catch (Exception ex)
-        {
-            shutdownExceptions.Add($"paddleListener:{ex.GetType().Name}:{ex.Message}");
-        }
+                case ShutdownCleanupStepKind.StopStandaloneBst1PulseSession:
+                    _hapticPipeline.StopManualAsioHardwareTest("App shutdown stopped standalone BST-1 pulse session.");
+                    standalonePulseDisposed = true;
+                    break;
 
-        try
-        {
-            await _telemetryReceiver.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-            udpListenerDisposed = true;
-        }
-        catch (Exception ex)
-        {
-            shutdownExceptions.Add($"udpListener:{ex.GetType().Name}:{ex.Message}");
-        }
+                case ShutdownCleanupStepKind.DisposeTestBench:
+                    try
+                    {
+                        await _testBench.DisposeAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        shutdownExceptions.Add($"testBench:{ex.GetType().Name}:{ex.Message}");
+                    }
 
-        try
-        {
-            await _realRoadVibrationRouter.StopAsync("App shutdown stopped P-HPR road output.")
-                .AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(2))
-                .ConfigureAwait(false);
-            await _realPhprOutput.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            shutdownExceptions.Add($"phprOutput:{ex.GetType().Name}:{ex.Message}");
-        }
+                    break;
 
-        try
-        {
-            await _realPhprContinuousEffectsRuntime.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2))
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            shutdownExceptions.Add($"phprContinuousRuntime:{ex.GetType().Name}:{ex.Message}");
-        }
+                case ShutdownCleanupStepKind.DisposePaddleInputSource:
+                    try
+                    {
+                        await _paddleInputSource.DisposeAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                        paddleListenerDisposed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        shutdownExceptions.Add($"paddleListener:{ex.GetType().Name}:{ex.Message}");
+                    }
 
-        try
-        {
-            await _hapticPipeline.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
-            asioDisposed = true;
-        }
-        catch (Exception ex)
-        {
-            shutdownExceptions.Add($"hapticPipeline:{ex.GetType().Name}:{ex.Message}");
+                    break;
+
+                case ShutdownCleanupStepKind.DisposeTelemetryReceiver:
+                    try
+                    {
+                        await _telemetryReceiver.DisposeAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                        udpListenerDisposed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        shutdownExceptions.Add($"udpListener:{ex.GetType().Name}:{ex.Message}");
+                    }
+
+                    break;
+
+                case ShutdownCleanupStepKind.StopRoadAndDisposeRealPhprOutput:
+                    try
+                    {
+                        await _realRoadVibrationRouter.StopAsync("App shutdown stopped P-HPR road output.")
+                            .AsTask()
+                            .WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2))
+                            .ConfigureAwait(false);
+                        await _realPhprOutput.DisposeAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        shutdownExceptions.Add($"phprOutput:{ex.GetType().Name}:{ex.Message}");
+                    }
+
+                    break;
+
+                case ShutdownCleanupStepKind.DisposeContinuousPhprRuntime:
+                    try
+                    {
+                        await _realPhprContinuousEffectsRuntime.DisposeAsync().AsTask()
+                            .WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2))
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        shutdownExceptions.Add($"phprContinuousRuntime:{ex.GetType().Name}:{ex.Message}");
+                    }
+
+                    break;
+
+                case ShutdownCleanupStepKind.DisposeHapticPipeline:
+                    try
+                    {
+                        await _hapticPipeline.DisposeAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+                        asioDisposed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        shutdownExceptions.Add($"hapticPipeline:{ex.GetType().Name}:{ex.Message}");
+                    }
+
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Unknown shutdown cleanup step: {step.Kind}");
+            }
         }
 
         RecordShutdownDiagnostic(

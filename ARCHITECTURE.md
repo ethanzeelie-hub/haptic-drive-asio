@@ -1432,3 +1432,72 @@ Recommended Stage 21H:
 2. Only after that, consider a separate safety-context or Stop All / Emergency Stop audit rather than mixing multiple high-risk lifecycle seams together.
 
 Stage 21G does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21H Shutdown/Cleanup Ordering Audit
+
+Stage 21H re-audits only shutdown/cleanup ordering and extracts one narrow App-layer planner that describes the intended stop-only order without executing hardware or runtime calls.
+
+Audit result:
+
+- `MainWindow.xaml.cs` still owns mixed shutdown responsibilities across window closing, event/timer detachment, continuous P-HPR runtime stop, standalone BST-1 local/manual pulse cleanup, service disposal, real P-HPR road stop, real P-HPR output disposal, haptic-pipeline disposal, and shutdown diagnostic recording,
+- `InitializeStartupCleanupAsync()` remains an output-capable stop-only startup path inside `PHprDirectRuntime`; it is intentionally not moved into App because it can attempt stop reports and unclean-marker recovery,
+- Stop All / Emergency Stop handlers, safety-context builders, ASIO lifecycle ownership, and direct-output runtime ownership remain explicit and unsafe to move in this stage.
+
+New App-only non-WPF shutdown boundary:
+
+- `ShutdownCleanupPlanner`
+- supporting records/enums in `ShutdownCleanupPlanner.cs`
+
+The extracted boundary now owns:
+
+- deterministic app-shutdown stop/dispose step ordering metadata,
+- bounded timeout metadata for the explicit stop/dispose steps,
+- readable step descriptions for tests and audit documentation.
+
+`ShutdownCleanupPlanner` intentionally does not own:
+
+- WPF controls, `Dispatcher`, `Window`, or event handlers,
+- HID writer open/write/close calls,
+- P-HPR start/stop report emission,
+- ASIO output start/stop execution,
+- audio buffer submission,
+- telemetry receiver start,
+- timer start,
+- direct-control enable/arm mutation,
+- Stop All / Emergency Stop execution,
+- startup cleanup execution,
+- safety-context construction,
+- shutdown diagnostic file writes.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- the actual `OnClosing` / `OnClosed` lifecycle,
+- minimize-to-tray decision handling,
+- the real `RunShutdownCleanupAsync()` execution body,
+- event/timer detachment,
+- explicit `_realPhprContinuousEffectsRuntime.StopAsync(...)`,
+- explicit `_hapticPipeline.StopManualAsioHardwareTest(...)`,
+- explicit `_testBench`, `_paddleInputSource`, `_telemetryReceiver`, `_realPhprOutput`, `_realPhprContinuousEffectsRuntime`, and `_hapticPipeline` disposal calls,
+- explicit shutdown exception aggregation and shutdown diagnostic recording.
+
+Protected behavior after Stage 21H:
+
+- no startup BST-1 output and no startup P-HPR output are introduced,
+- no shutdown start/arm/enable behavior is introduced,
+- no Stop All / Emergency Stop ownership changes are introduced,
+- no ASIO/P-HPR report/protocol/tuning/schema behavior changes are introduced,
+- startup cleanup remains explicit in `PHprDirectRuntime` and unchanged,
+- app shutdown still performs stop-only cleanup before final disposal in the same runtime order as before.
+
+Why the extraction stops here:
+
+- the shutdown path is still execution-heavy and safety-adjacent,
+- only the high-level order is deterministic enough to extract safely,
+- moving actual stop/dispose execution would hide output-capable behavior and weaken lifecycle clarity.
+
+Recommended Stage 21I:
+
+1. Audit either safety-context builders or Stop All / Emergency Stop ownership as a separate stage.
+2. Do not combine both unless a later audit proves those seams are trivial and fully fake-testable.
+
+Stage 21H does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
