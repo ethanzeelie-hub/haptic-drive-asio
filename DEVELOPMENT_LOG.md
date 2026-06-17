@@ -3691,6 +3691,42 @@ Self-review:
 - Stage 21I intentionally avoided broad safety ownership transfer. It moved only the pure snapshot-to-context mapping layer and kept execution-heavy safety behavior explicit.
 - Stop All / Emergency Stop execution did not move, and `InitializeStartupCleanupAsync()` remains explicit and unchanged in `PHprDirectRuntime`.
 - `MainWindow.xaml.cs` remains large after this stage because it still owns runtime snapshot gathering, direct WPF reads/writes, Stop All / Emergency Stop execution, startup cleanup invocation, direct-control mutation, and direct hardware/runtime calls. Those are better Stage 21J+ audit targets than forcing them into this pure-builder stage.
-- `MainWindow.xaml.cs` line count moved from 6140 to 6103 in this stage. The reduction came from removing repeated inline `PHprSafetyContext` construction while preserving behavior.
+- `MainWindow.xaml.cs` line count moved from 5539 to 5502 in this stage. The reduction came from removing repeated inline `PHprSafetyContext` construction while preserving behavior.
 - Stage 21I intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+Goal: Audit the remaining Stop All / Emergency Stop ownership in `MainWindow.xaml.cs` and extract only if a truly pure deterministic seam exists, otherwise harden the boundary with guardrails and documentation without changing stop behavior.
+
+Changes:
+
+- Re-audited the live Stage 21I baseline before coding. `MainWindow.xaml.cs` was 5502 lines and still owned clustered stop/emergency handlers for mock gear routing, mock pedal effects, advanced real direct control, normal P-HPR pedals, and direct-runtime `Stop All / Clear Device State`.
+- Confirmed that the Stage 21J stop surface is execution-heavy rather than a safe planner seam: the handlers perform real router/runtime stop or clear calls, preserve startup-cleanup and shutdown-cleanup ownership expectations, reset paddle-bench runtime block state after Stop All, and fan out into multiple WPF status/diagnostic refreshes.
+- Confirmed that extracting only the handler shell would mostly hide safety-critical call order behind another coordinator without removing WPF/runtime coupling or reducing the true App-shell safety surface.
+- Intentionally kept mock emergency stop, real emergency stop, direct-runtime Stop All, startup cleanup invocation, shutdown cleanup execution, and post-stop UI recovery in `MainWindow.xaml.cs`.
+- Added `tests/HapticDrive.Asio.App.Tests/StopEmergencyOwnershipGuardrailTests.cs` to prove `MainWindow.xaml.cs` still owns:
+  - mock gear and mock pedal emergency-stop execution,
+  - real direct emergency-stop execution,
+  - direct-runtime `StopAllAsync(...)`,
+  - `InitializeStartupCleanupAsync()` invocation,
+  - shutdown cleanup planning entry via `ShutdownCleanupPlanner.BuildAppShutdownPlan()`.
+- Added guardrail coverage proving the previously extracted pure App seams (`StartupReadinessPlanner`, `ShutdownCleanupPlanner`, and `SafetyContextSnapshotBuilder`) still do not absorb Stop All, emergency-stop, emergency-mute, haptics start/stop, or paddle-bench runtime-block execution.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21J audit result, why no extraction was safe, the new guardrail boundary, and the recommended Stage 21K follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 796 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21J intentionally does not extract a new runtime/lifecycle coordinator because the remaining Stop All / Emergency Stop seam is still dominated by real execution, recovery ordering, and WPF fan-out rather than deterministic data shaping.
+- Stop All / Emergency Stop execution did not move, startup cleanup remains explicit and unchanged in `PHprDirectRuntime`, and shutdown cleanup execution remains explicit and unchanged in `MainWindow.xaml.cs`.
+- `MainWindow.xaml.cs` line count remained 5502 in this stage because the correct outcome was stronger ownership proof, not cosmetic file-size reduction.
+- Stage 21J intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, emergency-stop physical response claim, or latency claim is made here. Local validation is still required later.

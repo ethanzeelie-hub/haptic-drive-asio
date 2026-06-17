@@ -782,3 +782,13 @@
 - The next worthwhile step is a dedicated Stage 21J Stop All / Emergency Stop ownership audit now that the pure safety-context mapping has been separated.
 - Stage 21I intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21J
+
+- `MainWindow.xaml.cs` still remains the dominant Stop All / Emergency Stop owner because the current handlers coordinate real execution across mock routers, the direct runtime, startup cleanup assumptions, shutdown cleanup ordering, bench runtime block reset, footer/status updates, and diagnostics refreshes.
+- Stage 21J intentionally does not extract a new coordinator because the remaining seam is execution-heavy rather than a pure planner or presenter. Moving it now would mostly hide safety-critical call order behind another wrapper without reducing risk.
+- Added `StopEmergencyOwnershipGuardrailTests` so future refactors must keep mock emergency stop, real emergency stop, direct-runtime Stop All, startup cleanup invocation, and shutdown cleanup planning visibly anchored in `MainWindow`, while the previously extracted planners/builders remain free of stop/emergency execution.
+- Stop All / Emergency Stop execution still did not move, `InitializeStartupCleanupAsync()` remains explicit and unchanged in `PHprDirectRuntime`, and `ShutdownCleanupPlanner` still describes only deterministic shutdown order metadata rather than performing stop work.
+- The next worthwhile step is a dedicated Stage 21K Start Haptics / Emergency Mute ownership audit instead of mixing those adjacent controls into Stop All / Emergency Stop work.
+- Stage 21J intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.

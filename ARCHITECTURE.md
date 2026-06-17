@@ -1569,3 +1569,57 @@ Recommended Stage 21J:
 2. If that still looks unsafe to extract, add more guardrails around those handlers rather than forcing a broad lifecycle coordinator.
 
 Stage 21I does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21J Stop All / Emergency Stop Ownership Audit
+
+Stage 21J re-audits only the remaining Stop All / Emergency Stop ownership in `MainWindow.xaml.cs` and confirms the safe result is audit plus guardrails, not another extraction.
+
+Audit result:
+
+- the stop handlers are not just shaping text or deterministic plans; they sequence real stop and clear calls across mock routing, direct P-HPR runtime ownership, and UI/runtime recovery state,
+- the direct `Stop All / Clear Device State` path also reapplies paddle-bench runtime block state after execution, which keeps startup-cleanup and unclean-marker recovery semantics tied to the same boundary,
+- the surrounding work fans out into multiple WPF status surfaces and diagnostics updates, so moving only the handler shell would mostly hide safety-critical call order behind a coordinator without creating a truly pure seam,
+- startup cleanup remains explicit in `PHprDirectRuntime` and shutdown cleanup execution remains explicit in `MainWindow`, so this stop boundary is still coupled to the broader lifecycle ownership that earlier stages intentionally left untouched.
+
+New Stage 21J protection:
+
+- `StopEmergencyOwnershipGuardrailTests`
+
+The guardrail now proves:
+
+- `MainWindow.xaml.cs` still visibly owns mock gear and mock pedal emergency-stop execution,
+- `MainWindow.xaml.cs` still visibly owns real direct emergency-stop execution and direct-runtime `StopAllAsync(...)`,
+- startup cleanup invocation and shutdown cleanup plan execution stay anchored around the same App-shell owner,
+- previously extracted pure App planners/builders still do not absorb Stop All, emergency-stop, emergency-mute, or haptics start/stop execution.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- `MockGearPulseEmergencyStopButton_Click`,
+- `MockPedalEffectsEmergencyStopButton_Click`,
+- `RealPhprEmergencyStopButton_Click`,
+- `PhprPedalsEmergencyStopButton_Click`,
+- `PhprPedalsStopAllClearDeviceStateButton_Click`,
+- `InitializeStartupCleanupAsync()` invocation,
+- shutdown cleanup execution from `ShutdownCleanupPlanner.BuildAppShutdownPlan()`,
+- post-stop status refresh, diagnostics refresh, and paddle-bench runtime block recovery.
+
+Protected behavior after Stage 21J:
+
+- Stop All / Emergency Stop execution did not move,
+- startup cleanup remains explicit and unchanged in `PHprDirectRuntime`,
+- shutdown cleanup execution remains explicit and unchanged in `MainWindow`,
+- no startup output, auto-arm, or hidden recovery output was introduced,
+- no ASIO/P-HPR report, protocol, tuning, schema, parser, replay, or privacy behavior changed.
+
+Why the extraction stops here:
+
+- there is no meaningful pure planner/presenter seam left around Stop All / Emergency Stop without mixing in real runtime execution and lifecycle ownership,
+- extracting only call-order wrappers would add indirection without reducing risk or shrinking the true safety surface,
+- the honest next step is a separate audit of the adjacent Start Haptics / Emergency Mute ownership rather than broadening this stop boundary further.
+
+Recommended Stage 21K:
+
+1. Audit Start Haptics / Emergency Mute ownership as a separate lifecycle-control stage.
+2. If any seam exists there, keep it limited to pure status/message planning and leave real start/stop/mute execution in `MainWindow`.
+
+Stage 21J does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
