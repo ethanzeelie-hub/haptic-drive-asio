@@ -3486,3 +3486,43 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 6834 to 6152 in this stage. Most of that drop comes from removing the large WPF-bound parsing and formatting helpers while preserving behavior.
 - Stage 21D intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21E - Audio Profile Control Parsing And Application Extraction
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Extract the remaining pure audio-profile control parsing, validated profile application planning, clamp/default shaping, and profile display-text formatting out of `MainWindow.xaml.cs` into a testable App-layer boundary while leaving direct WPF reads/writes, profile file lifecycle, runtime apply/configure calls, lifecycle, and safety ownership unchanged.
+
+Changes:
+
+- Re-audited the live Stage 21D baseline before coding. `MainWindow.xaml.cs` was 6152 lines and still owned the full `BuildProfileFromControls()` / `ApplyProfileToControls()` audio-profile mapping path plus inline profile text formatting.
+- Confirmed the safe extraction target was not save/load/reset event flow, profile store IO, `ApplyProfileToRuntime(...)`, startup/shutdown sequencing, local gear readiness, Stop All / Emergency Stop handlers, or safety-context construction. The low-risk seam was the deterministic audio-profile primitive mapping and profile-to-control/text planning.
+- Added `AudioProfileControlSnapshotBuilder` and supporting records in `src/HapticDrive.Asio.App/AudioProfileControlSnapshotBuilder.cs`.
+- Moved profile-name fallback, engine max-frequency pairing, effect/mixer/safety primitive mapping, and validated `HapticDriveProfile` construction out of `MainWindow.xaml.cs`.
+- Moved the corresponding validated profile-to-plain-control-value hydration plan and profile display-text formatting out of `MainWindow.xaml.cs`.
+- Reduced `MainWindow.xaml.cs` to reading WPF primitives into `AudioProfileControlInputs`, passing them into `AudioProfileControlSnapshotBuilder`, assigning returned control values/text back to WPF controls, and invoking the existing runtime/profile lifecycle paths.
+- Intentionally kept direct WPF writes, profile file lifecycle, `ApplyProfileToRuntime(...)`, footer/profile status assignment, local gear test readiness, startup/shutdown sequencing, and safety-context builders in `MainWindow.xaml.cs`.
+- Added `AudioProfileControlSnapshotBuilderTests` for representative audio-profile control mapping, clamp/default equivalence, legacy slip/lock fallback hydration, null/default profile planning, and safe serialized persistence boundaries.
+- Added `AudioProfileControlSnapshotBuilderGuardrailTests` to prove the new builder stays free of WPF and hardware/runtime calls and that `MainWindow.xaml.cs` now routes the moved audio-profile parsing/application logic through the new builder path.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21E extraction result, the remaining deferred orchestration seams, the App-home rationale, and the recommended Stage 21F follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 769 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21E intentionally avoided MVVM and lifecycle extraction. It moved only deterministic audio-profile parsing/application planning seams and kept hardware/runtime ownership obvious in `MainWindow.xaml.cs`.
+- `MainWindow.xaml.cs` remains large after this stage because it still owns direct WPF reads/writes, profile lifecycle, runtime apply/configure calls, local gear test readiness, startup/shutdown sequencing, safety-context builders, and runtime/output ownership. Those are better Stage 21F+ audit targets than forcing them into this profile-mapping stage.
+- `MainWindow.xaml.cs` line count moved from 6152 to 6124 in this stage. The reduction is intentionally modest because most of the safety here came from extracting mapping ownership rather than chasing raw line count.
+- Stage 21E intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.

@@ -3189,85 +3189,52 @@ public partial class MainWindow : Window
         UpdateProfileStatus(result.Message, result.ValidationMessages);
     }
 
+    private AudioProfileControlInputs BuildCurrentAudioProfileControlInputs()
+    {
+        return new AudioProfileControlInputs(
+            ProfileName: ProfileNameTextBox.Text,
+            EngineEnabled: EngineEnabledCheckBox.IsChecked == true,
+            EngineGainValue: EngineGainSlider.Value,
+            EngineMinimumFrequencyValue: EngineMinimumFrequencySlider.Value,
+            EngineMaximumFrequencyValue: EngineMaximumFrequencySlider.Value,
+            GearShiftEnabled: GearShiftEnabledCheckBox.IsChecked == true,
+            GearShiftGainValue: GearShiftGainSlider.Value,
+            GearShiftDurationValue: GearShiftDurationSlider.Value,
+            KerbEnabled: KerbEnabledCheckBox.IsChecked == true,
+            KerbGainValue: KerbGainSlider.Value,
+            KerbBaseFrequencyValue: KerbBaseFrequencySlider.Value,
+            ImpactEnabled: ImpactEnabledCheckBox.IsChecked == true,
+            ImpactGainValue: ImpactGainSlider.Value,
+            ImpactDurationValue: ImpactDurationSlider.Value,
+            SharedRoadSignalEnabled: SharedRoadSignalEnabledCheckBox.IsChecked == true,
+            Bst1RoadOutputEnabled: Bst1RoadOutputEnabledCheckBox.IsChecked == true,
+            RoadTextureGainValue: RoadTextureGainSlider.Value,
+            RoadTextureMinimumSpeedValue: RoadTextureMinimumSpeedSlider.Value,
+            RoadTextureSpeedReferenceValue: RoadTextureSpeedReferenceSlider.Value,
+            RoadTextureLowSpeedFrequencyValue: RoadTextureLowSpeedFrequencySlider.Value,
+            RoadTextureHighSpeedFrequencyValue: RoadTextureHighSpeedFrequencySlider.Value,
+            RoadTextureSpeedFrequencyInfluenceValue: RoadTextureSpeedFrequencyInfluenceSlider.Value,
+            RoadTextureGrainAmountValue: RoadTextureGrainAmountSlider.Value,
+            SlipWheelSlipEnabled: SlipWheelSlipEnabledCheckBox.IsChecked == true,
+            SlipWheelSlipGainValue: SlipWheelSlipGainSlider.Value,
+            SlipWheelSlipFrequencyValue: SlipWheelSlipFrequencySlider.Value,
+            SlipWheelSlipNoiseValue: SlipWheelSlipNoiseSlider.Value,
+            SlipWheelLockEnabled: SlipWheelLockEnabledCheckBox.IsChecked == true,
+            SlipWheelLockGainValue: SlipWheelLockGainSlider.Value,
+            SlipWheelLockFrequencyValue: SlipWheelLockFrequencySlider.Value,
+            SlipWheelLockNoiseValue: SlipWheelLockNoiseSlider.Value,
+            SlipWheelLockSensitivityValue: SlipWheelLockSensitivitySlider.Value,
+            SlipThresholdValue: SlipThresholdSlider.Value,
+            MasterGainValue: MasterGainSlider.Value,
+            MixerMuted: MixerMuteCheckBox.IsChecked == true,
+            SafetyOutputGainValue: SafetyOutputGainSlider.Value);
+    }
+
     private HapticDriveProfile BuildProfileFromControls()
     {
-        var name = string.IsNullOrWhiteSpace(ProfileNameTextBox.Text)
-            ? _currentProfile.Name
-            : ProfileNameTextBox.Text.Trim();
-        var effects = _currentProfile.Effects;
-        var engineMinimumFrequency = (float)EngineMinimumFrequencySlider.Value;
-        var engineMaximumFrequency = Math.Max(engineMinimumFrequency, (float)EngineMaximumFrequencySlider.Value);
-
-        return HapticProfileValidator.Validate(_currentProfile with
-        {
-            Name = name,
-            Effects = effects with
-            {
-                Engine = effects.Engine with
-                {
-                    IsEnabled = EngineEnabledCheckBox.IsChecked == true,
-                    Gain = (float)EngineGainSlider.Value,
-                    MinimumFrequencyHz = engineMinimumFrequency,
-                    MaximumFrequencyHz = engineMaximumFrequency
-                },
-                GearShift = effects.GearShift with
-                {
-                    IsEnabled = GearShiftEnabledCheckBox.IsChecked == true,
-                    Gain = (float)GearShiftGainSlider.Value,
-                    PulseDurationMilliseconds = (int)Math.Round(GearShiftDurationSlider.Value)
-                },
-                Kerb = effects.Kerb with
-                {
-                    IsEnabled = KerbEnabledCheckBox.IsChecked == true,
-                    Gain = (float)KerbGainSlider.Value,
-                    BaseFrequencyHz = (float)KerbBaseFrequencySlider.Value
-                },
-                Impact = effects.Impact with
-                {
-                    IsEnabled = ImpactEnabledCheckBox.IsChecked == true,
-                    Gain = (float)ImpactGainSlider.Value,
-                    PulseDurationMilliseconds = (int)Math.Round(ImpactDurationSlider.Value)
-                },
-                RoadTexture = effects.RoadTexture with
-                {
-                    IsEnabled = SharedRoadSignalEnabledCheckBox.IsChecked == true,
-                    Bst1OutputEnabled = Bst1RoadOutputEnabledCheckBox.IsChecked == true,
-                    Gain = (float)RoadTextureGainSlider.Value,
-                    MinimumSpeedKph = (float)RoadTextureMinimumSpeedSlider.Value,
-                    FullIntensitySpeedKph = (float)RoadTextureSpeedReferenceSlider.Value,
-                    LowSpeedFrequencyHz = (float)RoadTextureLowSpeedFrequencySlider.Value,
-                    HighSpeedFrequencyHz = (float)RoadTextureHighSpeedFrequencySlider.Value,
-                    SpeedFrequencyInfluence = (float)RoadTextureSpeedFrequencyInfluenceSlider.Value,
-                    GrainAmount = (float)RoadTextureGrainAmountSlider.Value
-                },
-                Slip = effects.Slip with
-                {
-                    IsEnabled = SlipWheelSlipEnabledCheckBox.IsChecked == true
-                        || SlipWheelLockEnabledCheckBox.IsChecked == true,
-                    Gain = (float)SlipWheelSlipGainSlider.Value,
-                    BaseFrequencyHz = (float)SlipWheelSlipFrequencySlider.Value,
-                    SlipRatioThreshold = (float)SlipThresholdSlider.Value,
-                    WheelSlipEnabled = SlipWheelSlipEnabledCheckBox.IsChecked == true,
-                    WheelSlipNoiseAmount = (float)SlipWheelSlipNoiseSlider.Value,
-                    WheelLockEnabled = SlipWheelLockEnabledCheckBox.IsChecked == true,
-                    WheelLockGain = (float)SlipWheelLockGainSlider.Value,
-                    WheelLockFrequencyHz = (float)SlipWheelLockFrequencySlider.Value,
-                    WheelLockNoiseAmount = (float)SlipWheelLockNoiseSlider.Value,
-                    WheelLockWheelSpeedRatioThreshold = (float)SlipWheelLockSensitivitySlider.Value
-                }
-            },
-            Mixer = _currentProfile.Mixer with
-            {
-                MasterGain = (float)MasterGainSlider.Value,
-                IsMuted = MixerMuteCheckBox.IsChecked == true
-            },
-            Safety = _currentProfile.Safety with
-            {
-                OutputGain = (float)SafetyOutputGainSlider.Value,
-                OutputGainCeiling = AudioSafetyProcessorOptions.DefaultOutputGainCeiling,
-                LimiterEnabled = true
-            }
-        }).Profile;
+        return AudioProfileControlSnapshotBuilder.BuildProfile(
+            _currentProfile,
+            BuildCurrentAudioProfileControlInputs());
     }
 
     private void ApplyProfileToRuntime(HapticDriveProfile profile)
@@ -3283,78 +3250,83 @@ public partial class MainWindow : Window
 
     private void ApplyProfileToControls(HapticDriveProfile profile)
     {
-        var validation = HapticProfileValidator.Validate(profile);
-        var safeProfile = validation.Profile;
+        var plan = AudioProfileControlSnapshotBuilder.BuildApplicationPlan(profile);
+        var values = plan.ControlValues;
         _updatingTuningUi = true;
 
-        ProfileNameTextBox.Text = safeProfile.Name;
-        EngineEnabledCheckBox.IsChecked = safeProfile.Effects.Engine.IsEnabled;
-        EngineGainSlider.Value = safeProfile.Effects.Engine.Gain;
-        EngineMinimumFrequencySlider.Value = safeProfile.Effects.Engine.MinimumFrequencyHz;
-        EngineMaximumFrequencySlider.Value = safeProfile.Effects.Engine.MaximumFrequencyHz;
-        GearShiftEnabledCheckBox.IsChecked = safeProfile.Effects.GearShift.IsEnabled;
-        GearShiftGainSlider.Value = safeProfile.Effects.GearShift.Gain;
-        GearShiftDurationSlider.Value = safeProfile.Effects.GearShift.PulseDurationMilliseconds;
-        KerbEnabledCheckBox.IsChecked = safeProfile.Effects.Kerb.IsEnabled;
-        KerbGainSlider.Value = safeProfile.Effects.Kerb.Gain;
-        KerbBaseFrequencySlider.Value = safeProfile.Effects.Kerb.BaseFrequencyHz;
-        ImpactEnabledCheckBox.IsChecked = safeProfile.Effects.Impact.IsEnabled;
-        ImpactGainSlider.Value = safeProfile.Effects.Impact.Gain;
-        ImpactDurationSlider.Value = safeProfile.Effects.Impact.PulseDurationMilliseconds;
-        SharedRoadSignalEnabledCheckBox.IsChecked = safeProfile.Effects.RoadTexture.IsEnabled;
-        Bst1RoadOutputEnabledCheckBox.IsChecked = safeProfile.Effects.RoadTexture.Bst1OutputEnabled == true;
-        RoadTextureGainSlider.Value = safeProfile.Effects.RoadTexture.Gain;
-        RoadTextureMinimumSpeedSlider.Value = safeProfile.Effects.RoadTexture.MinimumSpeedKph;
-        RoadTextureSpeedReferenceSlider.Value = safeProfile.Effects.RoadTexture.FullIntensitySpeedKph;
-        RoadTextureLowSpeedFrequencySlider.Value = safeProfile.Effects.RoadTexture.LowSpeedFrequencyHz;
-        RoadTextureHighSpeedFrequencySlider.Value = safeProfile.Effects.RoadTexture.HighSpeedFrequencyHz;
-        RoadTextureSpeedFrequencyInfluenceSlider.Value = safeProfile.Effects.RoadTexture.SpeedFrequencyInfluence;
-        RoadTextureGrainAmountSlider.Value = safeProfile.Effects.RoadTexture.GrainAmount;
-        SlipWheelSlipEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.WheelSlipEnabled ?? safeProfile.Effects.Slip.IsEnabled;
-        SlipWheelSlipGainSlider.Value = safeProfile.Effects.Slip.Gain;
-        SlipWheelSlipFrequencySlider.Value = safeProfile.Effects.Slip.BaseFrequencyHz;
-        SlipWheelSlipNoiseSlider.Value = safeProfile.Effects.Slip.WheelSlipNoiseAmount ?? SlipEffectOptions.Default.WheelSlipNoiseAmount;
-        SlipWheelLockEnabledCheckBox.IsChecked = safeProfile.Effects.Slip.WheelLockEnabled ?? safeProfile.Effects.Slip.IsEnabled;
-        SlipWheelLockGainSlider.Value = safeProfile.Effects.Slip.WheelLockGain ?? safeProfile.Effects.Slip.Gain;
-        SlipWheelLockFrequencySlider.Value = safeProfile.Effects.Slip.WheelLockFrequencyHz ?? SlipEffectOptions.Default.WheelLockFrequencyHz;
-        SlipWheelLockNoiseSlider.Value = safeProfile.Effects.Slip.WheelLockNoiseAmount ?? SlipEffectOptions.Default.WheelLockNoiseAmount;
-        SlipWheelLockSensitivitySlider.Value = safeProfile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold;
-        SlipThresholdSlider.Value = safeProfile.Effects.Slip.SlipRatioThreshold;
-        MasterGainSlider.Value = safeProfile.Mixer.MasterGain;
-        MixerMuteCheckBox.IsChecked = safeProfile.Mixer.IsMuted;
-        SafetyOutputGainSlider.Value = safeProfile.Safety.OutputGain;
+        ProfileNameTextBox.Text = values.ProfileName;
+        EngineEnabledCheckBox.IsChecked = values.EngineEnabled;
+        EngineGainSlider.Value = values.EngineGain;
+        EngineMinimumFrequencySlider.Value = values.EngineMinimumFrequencyHz;
+        EngineMaximumFrequencySlider.Value = values.EngineMaximumFrequencyHz;
+        GearShiftEnabledCheckBox.IsChecked = values.GearShiftEnabled;
+        GearShiftGainSlider.Value = values.GearShiftGain;
+        GearShiftDurationSlider.Value = values.GearShiftDurationMilliseconds;
+        KerbEnabledCheckBox.IsChecked = values.KerbEnabled;
+        KerbGainSlider.Value = values.KerbGain;
+        KerbBaseFrequencySlider.Value = values.KerbBaseFrequencyHz;
+        ImpactEnabledCheckBox.IsChecked = values.ImpactEnabled;
+        ImpactGainSlider.Value = values.ImpactGain;
+        ImpactDurationSlider.Value = values.ImpactDurationMilliseconds;
+        SharedRoadSignalEnabledCheckBox.IsChecked = values.SharedRoadSignalEnabled;
+        Bst1RoadOutputEnabledCheckBox.IsChecked = values.Bst1RoadOutputEnabled;
+        RoadTextureGainSlider.Value = values.RoadTextureGain;
+        RoadTextureMinimumSpeedSlider.Value = values.RoadTextureMinimumSpeedKph;
+        RoadTextureSpeedReferenceSlider.Value = values.RoadTextureSpeedReferenceKph;
+        RoadTextureLowSpeedFrequencySlider.Value = values.RoadTextureLowSpeedFrequencyHz;
+        RoadTextureHighSpeedFrequencySlider.Value = values.RoadTextureHighSpeedFrequencyHz;
+        RoadTextureSpeedFrequencyInfluenceSlider.Value = values.RoadTextureSpeedFrequencyInfluence;
+        RoadTextureGrainAmountSlider.Value = values.RoadTextureGrainAmount;
+        SlipWheelSlipEnabledCheckBox.IsChecked = values.SlipWheelSlipEnabled;
+        SlipWheelSlipGainSlider.Value = values.SlipWheelSlipGain;
+        SlipWheelSlipFrequencySlider.Value = values.SlipWheelSlipFrequencyHz;
+        SlipWheelSlipNoiseSlider.Value = values.SlipWheelSlipNoiseAmount;
+        SlipWheelLockEnabledCheckBox.IsChecked = values.SlipWheelLockEnabled;
+        SlipWheelLockGainSlider.Value = values.SlipWheelLockGain;
+        SlipWheelLockFrequencySlider.Value = values.SlipWheelLockFrequencyHz;
+        SlipWheelLockNoiseSlider.Value = values.SlipWheelLockNoiseAmount;
+        SlipWheelLockSensitivitySlider.Value = values.SlipWheelLockSensitivity;
+        SlipThresholdSlider.Value = values.SlipThreshold;
+        MasterGainSlider.Value = values.MasterGain;
+        MixerMuteCheckBox.IsChecked = values.MixerMuted;
+        SafetyOutputGainSlider.Value = values.SafetyOutputGain;
 
         _updatingTuningUi = false;
-        UpdateProfileControlText(safeProfile);
+        ApplyProfileControlText(plan.TextValues);
     }
 
     private void UpdateProfileControlText(HapticDriveProfile profile)
     {
-        EngineGainValueText.Text = $"{profile.Effects.Engine.Gain:P0}";
-        EngineFrequencyValueText.Text = $"{profile.Effects.Engine.MinimumFrequencyHz:0}-{profile.Effects.Engine.MaximumFrequencyHz:0} Hz";
-        GearShiftGainValueText.Text = $"{profile.Effects.GearShift.Gain:P0}";
-        GearShiftDurationValueText.Text = $"{profile.Effects.GearShift.PulseDurationMilliseconds} ms";
-        KerbGainValueText.Text = $"{profile.Effects.Kerb.Gain:P0}";
-        KerbFrequencyValueText.Text = $"{profile.Effects.Kerb.BaseFrequencyHz:0} Hz";
-        ImpactGainValueText.Text = $"{profile.Effects.Impact.Gain:P0}";
-        ImpactDurationValueText.Text = $"{profile.Effects.Impact.PulseDurationMilliseconds} ms";
-        RoadTextureGainValueText.Text = $"{profile.Effects.RoadTexture.Gain:P0}";
-        RoadTextureMinimumSpeedValueText.Text = $"{profile.Effects.RoadTexture.MinimumSpeedKph:0} km/h";
-        RoadTextureSpeedReferenceValueText.Text = $"{profile.Effects.RoadTexture.FullIntensitySpeedKph:0} km/h";
-        RoadTextureLowSpeedFrequencyValueText.Text = $"{profile.Effects.RoadTexture.LowSpeedFrequencyHz:0} Hz";
-        RoadTextureHighSpeedFrequencyValueText.Text = $"{profile.Effects.RoadTexture.HighSpeedFrequencyHz:0} Hz";
-        RoadTextureSpeedFrequencyInfluenceValueText.Text = $"{profile.Effects.RoadTexture.SpeedFrequencyInfluence:P0}";
-        RoadTextureGrainAmountValueText.Text = $"{profile.Effects.RoadTexture.GrainAmount:P0}";
-        SlipWheelSlipGainValueText.Text = $"{profile.Effects.Slip.Gain:P0}";
-        SlipWheelSlipFrequencyValueText.Text = $"{profile.Effects.Slip.BaseFrequencyHz:0} Hz";
-        SlipWheelSlipNoiseValueText.Text = $"{(profile.Effects.Slip.WheelSlipNoiseAmount ?? SlipEffectOptions.Default.WheelSlipNoiseAmount):P0}";
-        SlipWheelLockGainValueText.Text = $"{(profile.Effects.Slip.WheelLockGain ?? profile.Effects.Slip.Gain):P0}";
-        SlipWheelLockFrequencyValueText.Text = $"{(profile.Effects.Slip.WheelLockFrequencyHz ?? SlipEffectOptions.Default.WheelLockFrequencyHz):0} Hz";
-        SlipWheelLockNoiseValueText.Text = $"{(profile.Effects.Slip.WheelLockNoiseAmount ?? SlipEffectOptions.Default.WheelLockNoiseAmount):P0}";
-        SlipWheelLockSensitivityValueText.Text = $"{(profile.Effects.Slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold):0.00}";
-        SlipThresholdValueText.Text = $"{profile.Effects.Slip.SlipRatioThreshold:0.00}";
-        MasterGainValueText.Text = $"{profile.Mixer.MasterGain:P0}";
-        SafetyOutputGainValueText.Text = $"{profile.Safety.OutputGain:P0}";
+        ApplyProfileControlText(AudioProfileControlSnapshotBuilder.BuildApplicationPlan(profile).TextValues);
+    }
+
+    private void ApplyProfileControlText(AudioProfileControlTextValues values)
+    {
+        EngineGainValueText.Text = values.EngineGainText;
+        EngineFrequencyValueText.Text = values.EngineFrequencyText;
+        GearShiftGainValueText.Text = values.GearShiftGainText;
+        GearShiftDurationValueText.Text = values.GearShiftDurationText;
+        KerbGainValueText.Text = values.KerbGainText;
+        KerbFrequencyValueText.Text = values.KerbFrequencyText;
+        ImpactGainValueText.Text = values.ImpactGainText;
+        ImpactDurationValueText.Text = values.ImpactDurationText;
+        RoadTextureGainValueText.Text = values.RoadTextureGainText;
+        RoadTextureMinimumSpeedValueText.Text = values.RoadTextureMinimumSpeedText;
+        RoadTextureSpeedReferenceValueText.Text = values.RoadTextureSpeedReferenceText;
+        RoadTextureLowSpeedFrequencyValueText.Text = values.RoadTextureLowSpeedFrequencyText;
+        RoadTextureHighSpeedFrequencyValueText.Text = values.RoadTextureHighSpeedFrequencyText;
+        RoadTextureSpeedFrequencyInfluenceValueText.Text = values.RoadTextureSpeedFrequencyInfluenceText;
+        RoadTextureGrainAmountValueText.Text = values.RoadTextureGrainAmountText;
+        SlipWheelSlipGainValueText.Text = values.SlipWheelSlipGainText;
+        SlipWheelSlipFrequencyValueText.Text = values.SlipWheelSlipFrequencyText;
+        SlipWheelSlipNoiseValueText.Text = values.SlipWheelSlipNoiseText;
+        SlipWheelLockGainValueText.Text = values.SlipWheelLockGainText;
+        SlipWheelLockFrequencyValueText.Text = values.SlipWheelLockFrequencyText;
+        SlipWheelLockNoiseValueText.Text = values.SlipWheelLockNoiseText;
+        SlipWheelLockSensitivityValueText.Text = values.SlipWheelLockSensitivityText;
+        SlipThresholdValueText.Text = values.SlipThresholdText;
+        MasterGainValueText.Text = values.MasterGainText;
+        SafetyOutputGainValueText.Text = values.SafetyOutputGainText;
     }
 
     private PhprEffectProfile BuildPhprEffectProfileFromCurrentSettings(string name)

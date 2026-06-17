@@ -88,6 +88,7 @@
 - Stage 21B: Diagnostics/status report extraction complete.
 - Stage 21C: App/settings snapshot hydration and persisted-settings status extraction complete.
 - Stage 21D: Remaining pure control-settings parsing and hydration-application extraction complete.
+- Stage 21E: Audio-profile control parsing and application extraction complete.
 
 ## Planned Stages
 
@@ -147,6 +148,7 @@
 54. Stage 21B: Diagnostics/status report extraction. Complete.
 55. Stage 21C: App/settings snapshot hydration and persisted-settings status extraction. Complete.
 56. Stage 21D: Remaining pure control-settings parsing and hydration-application extraction. Complete.
+57. Stage 21E: Audio-profile control parsing and application extraction. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -226,6 +228,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 21B extracts the broader diagnostics/status report assembly around `UpdateDiagnosticsStatus()` into `DiagnosticsStatusSnapshotBuilder` and `DiagnosticsStatusPresenter` in `HapticDrive.Asio.App`, and extends `PhprWorkflowStatusPresenter` so diagnostics reuse the sanitized workflow/profile/live-validation lines instead of rebuilding them in `MainWindow.xaml.cs`. `MainWindow` still owns live snapshot gathering, helper subsection formatting, visibility gating, WPF control assignment, startup/shutdown sequencing, and settings/safety-context work. Recommended Stage 21C is app/settings snapshot-hydration extraction rather than a broad MVVM rewrite.
 - Stage 21C extracts the safe app-settings hydration/save mapping and persisted-settings status/diagnostics text shaping into `AppSettingsSnapshotBuilder` and `PersistedSettingsStatusPresenter` in `HapticDrive.Asio.App`. `MainWindow` still owns WPF control assignment, live shell/runtime snapshot gathering, profile lifecycle, replay-control reads, startup/shutdown sequencing, safety-context builders, ASIO start/stop ownership, and P-HPR runtime coordination. Recommended Stage 21D is the remaining pure settings/control parsing and hydration-application helpers rather than a broad lifecycle move.
 - Stage 21D extracts the remaining pure primitive control parsing, normalization, and plain control-value hydration plans into `ControlSettingsSnapshotBuilder` in `HapticDrive.Asio.App`. `MainWindow` still owns direct WPF reads/writes, candidate/item-list binding, runtime configure calls, local gear test readiness, profile lifecycle, startup/shutdown sequencing, safety-context builders, ASIO start/stop ownership, and P-HPR runtime coordination. Recommended Stage 21E is the remaining audio-profile control parsing/application helpers rather than lifecycle extraction.
+- Stage 21E extracts the remaining deterministic audio-profile control parsing, validated profile application planning, and profile display-text formatting into `AudioProfileControlSnapshotBuilder` in `HapticDrive.Asio.App`. `MainWindow` still owns direct WPF reads/writes, profile file lifecycle, runtime apply/configure calls, local gear test readiness, startup/shutdown sequencing, safety-context builders, ASIO start/stop ownership, and P-HPR runtime coordination. Recommended Stage 21F is another residual-orchestration audit before any lifecycle move.
 - Stage 18b simplifies the P-HPR Paddle Gear Bench direct workflow: startup may auto-refresh input/direct candidates, auto-select the known `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte HID device-interface candidate by capability, and run no-output readiness checks without sending startup vibration; the bench is enabled, auto-armed, Direct-mode by default, uses Devices brake/throttle gear-pulse values, and direct starts schedule matching stop reports after `DurationMs`.
 - Stage 18c fixes Paddle Gear Bench follow-up blockers by selecting the usable 32-button `VID_3670/PID_0905` Windows game-controller over 0-button candidates, blocking 0-button listener starts, routing bench pulses only from visible mapped listener events, and surfacing active-pulse/start/stop diagnostics from the shared direct P-HPR output path.
 - Stage 18d hotfixes Direct Paddle Gear Bench runaway-output risk by removing the bench-only pulse planner, routing direct bench starts through the same Devices-tab direct pulse service as the blue Test Brake/Throttle buttons, defaulting the bench target to Both, blocking release/retrigger events while a direct pulse is active or pending stop, adding `DurationMs + 100 ms` stop-all watchdog coverage, retrying per-module emergency stop-all writes, and writing sanitized local crash-state logs on unhandled failures.

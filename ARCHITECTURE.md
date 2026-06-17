@@ -1257,3 +1257,52 @@ Recommended Stage 21E:
 2. Only after those seams settle, re-audit startup/shutdown and safety-context construction for a higher-risk follow-up stage.
 
 Stage 21D does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21E Audio Profile Control Extraction
+
+Stage 21E takes the remaining low-risk audio-profile control parsing and profile-to-control application planning out of `MainWindow.xaml.cs` without attempting MVVM or changing runtime/lifecycle ownership.
+
+New App-only non-WPF audio-profile boundary:
+
+- `AudioProfileControlSnapshotBuilder`
+- supporting records in `AudioProfileControlSnapshotBuilder.cs`
+
+The extracted boundary now owns:
+
+- primitive audio-profile control parsing for profile name, engine, gear shift, kerb, impact, road texture, slip/wheel lock, mixer, and safety output gain values,
+- deterministic shaping from those primitives into a validated `HapticDriveProfile` while preserving the existing hidden profile fields that are not directly editable on the current WPF surface,
+- plain control-value hydration plans for loaded/default audio profiles,
+- plain profile-text presentation values that used to be formatted inline in `UpdateProfileControlText(...)`.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- direct WPF reads and writes,
+- event wiring,
+- audio and P-HPR profile file lifecycle,
+- `ApplyProfileToRuntime(...)` and all runtime `Configure(...)` calls,
+- profile status/footer assignment,
+- local gear test readiness evaluation,
+- startup/shutdown sequencing,
+- safety-context builders,
+- ASIO start/stop ownership,
+- P-HPR runtime coordination and direct-output hardware ownership.
+
+What remains deferred after Stage 21E:
+
+- profile lifecycle event flow and load/save/reset orchestration,
+- local gear readiness/status orchestration,
+- startup/readiness hydration orchestration,
+- any lifecycle, Stop All / Emergency Stop, or safety-context extraction.
+
+Why this stays in App:
+
+- these builders still bridge WPF shell primitives and App-owned audio profile presentation/application flow,
+- they do not belong in Core, Audio, Runtime, Actuation, Input, or the Windows P-HPR output assembly,
+- keeping them App-local improves testability without hiding the live runtime ownership edges.
+
+Recommended Stage 21F:
+
+1. Re-audit the remaining `MainWindow` orchestration seams after Stage 21C, 21D, and 21E rather than assuming another extraction is automatically safe.
+2. If a small deterministic follow-up still exists, prefer residual profile-status/readiness shaping before any startup/shutdown or safety-context move.
+
+Stage 21E does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
