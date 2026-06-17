@@ -3565,3 +3565,44 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 6124 to 6120 in this stage. The reduction is intentionally tiny because this stage prioritized a precise audit and a low-risk stop point over cosmetic deconstruction.
 - Stage 21F intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21G - Startup/Readiness Orchestration
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Audit startup/load/readiness ownership in `MainWindow.xaml.cs`, separate deterministic no-output startup planning from output-capable lifecycle work, and extract only the safest App-layer startup/readiness seam while preserving exact no-startup-output behavior.
+
+Changes:
+
+- Re-audited the live Stage 21F baseline before coding. `MainWindow.xaml.cs` was 6120 lines and the constructor plus `MainWindow_Loaded` still owned mixed startup responsibilities across safe settings/profile hydration, WPF control assignment, ASIO visibility/readiness refresh, input discovery, P-HPR candidate discovery, startup cleanup, telemetry start, timer start, and continuous-runtime start.
+- Confirmed the safe Stage 21G extraction was not broad lifecycle decomposition. The smallest deterministic seam was startup ASIO selection/default fallback planning plus startup preferred P-HPR candidate auto-selection for readiness checks only.
+- Added `StartupReadinessPlanner` and `StartupAsioReadinessPlan` in `src/HapticDrive.Asio.App/StartupReadinessPlanner.cs`.
+- Moved the startup ASIO selection/default decision logic out of `ApplyStartupAsioDefaultsAsync()` into `StartupReadinessPlanner.BuildAsioSelectionPlan(...)`, while keeping the explicit `RebuildHapticPipelineForOutputSelectionAsync(...)` call in `MainWindow.xaml.cs`.
+- Moved the startup preferred P-HPR candidate auto-selection decision out of `RefreshRealPhprCandidateItemsAsync(true)` into `StartupReadinessPlanner.BuildStartupPhprAutoReadySelection(...)`.
+- Tightened startup P-HPR behavior so the startup preferred-candidate path now selects the known-good candidate for existing no-output readiness checks without auto-enabling or auto-arming direct control. The old generic auto-ready selector still exists for deliberate non-startup paths that explicitly request enablement.
+- Intentionally kept App-settings hydration, persisted audio-profile loading, direct WPF assignment, input/candidate discovery, no-output HID open-check execution, `InitializeStartupCleanupAsync()`, telemetry receiver start, timer start, continuous runtime start, Stop All / Emergency Stop handlers, safety-context builders, ASIO start/stop ownership, and direct-output runtime ownership in `MainWindow.xaml.cs`.
+- Added `StartupReadinessPlannerTests` for representative ASIO default fallback, missing persisted driver disarm behavior, startup preferred P-HPR auto-selection that stays disabled/unarmed, and safe clearing when no preferred candidate exists.
+- Added `StartupReadinessPlannerGuardrailTests` to prove the new planner stays free of WPF/output-runtime calls and that `MainWindow.xaml.cs` now routes the extracted startup planning through the planner instead of the old inline/default auto-enable path.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21G startup/readiness audit, the extraction result, the explicit no-output startup boundary, the seams intentionally left in `MainWindow`, and the recommended Stage 21H shutdown/cleanup audit follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 780 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21G intentionally avoided a broad constructor/load coordinator or MVVM rewrite. It moved only deterministic no-output startup planning and left output-capable lifecycle calls explicit where they already run.
+- The key safety fix in this stage is that startup preferred-candidate refresh no longer auto-enables or auto-arms P-HPR direct control in memory. Startup still allows the existing no-output readiness/open-check path, but direct control remains disabled until manually enabled.
+- `MainWindow.xaml.cs` remains large after this stage because it still owns WPF assignment, startup/shutdown sequencing, startup cleanup, discovery refresh execution, telemetry/timer/runtime start, safety-context builders, ASIO start/stop ownership, and direct-output runtime ownership. Those are better Stage 21H+ audit targets than forcing them into a planner stage.
+- `MainWindow.xaml.cs` line count moved from 6120 to 6099 in this stage. The reduction is modest because this stage prioritized a safe lifecycle boundary over line-count chasing.
+- Stage 21G intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.

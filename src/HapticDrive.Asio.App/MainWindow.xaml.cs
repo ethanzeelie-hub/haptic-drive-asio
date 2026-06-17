@@ -1761,10 +1761,9 @@ public partial class MainWindow : Window
             PhprDirectAutoReadySelection? autoSelection = null;
             if (autoSelectPreferred)
             {
-                autoSelection = PhprDirectAutoReadySelector.Select(
+                autoSelection = StartupReadinessPlanner.BuildStartupPhprAutoReadySelection(
                     candidates,
-                    _realPhprOptions,
-                    enableWhenPreferredPresent: true);
+                    _realPhprOptions);
                 _realPhprOptions = autoSelection.Options;
             }
 
@@ -1797,7 +1796,7 @@ public partial class MainWindow : Window
             UpdatePaddleGearBenchStatus();
             UpdateDiagnosticsStatus();
             FooterStatusText.Text = autoSelection?.HasPreferredCandidate == true
-                ? $"Preferred real P-HPR direct candidate selected; {_realPhprCandidateItems.Count:N0} candidate(s) found. Open-check used no output report or feature report."
+                ? $"Preferred real P-HPR direct candidate selected for startup no-output readiness only; direct control remains disabled until enabled manually. {_realPhprCandidateItems.Count:N0} candidate(s) found. Open-check used no output report or feature report."
                 : $"Real P-HPR direct-output candidates refreshed; {_realPhprCandidateItems.Count:N0} HID candidate(s) found. No HID writer was opened.";
         }
         catch (Exception ex)
@@ -4937,44 +4936,24 @@ public partial class MainWindow : Window
         }
 
         _startupAsioDefaultsApplied = true;
-        var selection = Bst1AsioStartupDefaults.Resolve(_asioVisibilitySnapshot.DriverNames);
-        string message;
-        if (_hasPersistedOutputModePreference)
-        {
-            if (_selectedOutputKind == AudioOutputDeviceKind.Asio
-                && _selectedAsioDriverName is not null
-                && !_asioVisibilitySnapshot.DriverNames.Contains(_selectedAsioDriverName, StringComparer.OrdinalIgnoreCase))
-            {
-                _selectedAsioDriverName = null;
-                _asioArmed = false;
-                message = "Saved ASIO output selection restored, but the saved driver is unavailable. Select a driver and review Arm ASIO before starting haptics.";
-            }
-            else if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
-            {
-                message = _asioArmed
-                    ? "Saved ASIO output selection and Arm ASIO readiness restored without starting haptics or output."
-                    : "Saved ASIO output selection restored. ASIO remains disarmed until you arm it manually.";
-            }
-            else
-            {
-                message = $"Saved output selection restored: {_selectedOutputKind}.";
-            }
-        }
-        else
-        {
-            _selectedOutputKind = selection.OutputKind;
-            _selectedAsioDriverName = selection.DriverName;
-            _selectedAsioOutputChannel = selection.OutputChannel;
-            _asioArmed = selection.Armed;
-            message = selection.Message;
-        }
+        var plan = StartupReadinessPlanner.BuildAsioSelectionPlan(
+            _hasPersistedOutputModePreference,
+            _selectedOutputKind,
+            _selectedAsioDriverName,
+            _selectedAsioOutputChannel,
+            _asioArmed,
+            _asioVisibilitySnapshot.DriverNames);
+        _selectedOutputKind = plan.SelectedOutputKind;
+        _selectedAsioDriverName = plan.SelectedAsioDriverName;
+        _selectedAsioOutputChannel = plan.SelectedAsioOutputChannel;
+        _asioArmed = plan.ArmAsioPreference;
 
         _updatingOutputUi = true;
         OutputModeComboBox.SelectedItem = _outputModeOptions.Single(option => option.Kind == _selectedOutputKind);
         UpdateAsioDriverSelectionItems();
         _updatingOutputUi = false;
 
-        await RebuildHapticPipelineForOutputSelectionAsync(message);
+        await RebuildHapticPipelineForOutputSelectionAsync(plan.Message);
     }
 
     private async Task RefreshAsioReadinessDiagnosticsAsync()

@@ -753,3 +753,13 @@
 - The next worthwhile step is no longer another tiny mapping extraction. Stage 21G should be framed as an explicitly higher-risk orchestration stage with dedicated fake-backed tests and manual validation planning.
 - Stage 21F intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21G
+
+- `MainWindow.xaml.cs` still remains the dominant App-shell file and still owns direct WPF reads/writes, profile file lifecycle, startup/load wiring, shutdown/dispose ordering, pipeline rebuild/readiness hydration, input/candidate discovery, startup cleanup, telemetry/timer/runtime start, safety-context construction, general status/dashboard updates, and direct hardware/runtime orchestration.
+- Stage 21G extracts only `StartupReadinessPlanner`, which now owns deterministic no-output startup planning for ASIO selection/default fallback and startup preferred P-HPR candidate auto-selection for readiness checks only.
+- Startup no longer reuses the generic preferred-candidate auto-enable path for the load-time refresh. Preferred P-HPR candidate selection at startup now stays disabled/unarmed until the user enables it manually, while still allowing the existing no-output readiness/open-check flow to run explicitly in `MainWindow`.
+- Startup/shutdown ordering, `InitializeStartupCleanupAsync()`, Stop All / Emergency Stop handlers, safety-context builders, ASIO start/stop ownership, P-HPR runtime coordination, direct-output hardware ownership, and runtime `Configure(...)` calls remain intentionally in `MainWindow`.
+- The next worthwhile step is a dedicated Stage 21H shutdown/cleanup ordering audit rather than mixing shutdown, safety-context, and Stop All work into the startup-readiness stage.
+- Stage 21G intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, shutdown ordering, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.

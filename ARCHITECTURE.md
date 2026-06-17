@@ -1364,3 +1364,71 @@ Recommended Stage 21G:
 2. The strongest candidate is a lifecycle-safe extraction plan around startup/shutdown/readiness or a runtime-ownership stage around direct-output orchestration, with dedicated fake-backed tests and manual validation planning.
 
 Stage 21F does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup/shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21G Startup/Readiness Orchestration Audit
+
+Stage 21G re-audits only startup/load/readiness orchestration and extracts one narrow no-output planning seam instead of moving lifecycle or hardware ownership.
+
+Audit result:
+
+- constructor and `MainWindow_Loaded` still own mixed startup responsibilities across settings hydration, audio-profile hydration, WPF control assignment, ASIO visibility/readiness refresh, input discovery, P-HPR candidate discovery, startup cleanup, telemetry start, timer start, and continuous-runtime start,
+- the safe no-output startup/readiness subset is deterministic planning around ASIO startup selection/default fallback and preferred P-HPR candidate auto-selection for readiness checks only,
+- output-capable or hardware-adjacent calls such as pipeline rebuild/readiness hydration, P-HPR HID open-check execution, startup cleanup, telemetry start, timer start, and continuous runtime start remain explicit in `MainWindow.xaml.cs`.
+
+New App-only non-WPF startup/readiness boundary:
+
+- `StartupReadinessPlanner`
+- supporting record `StartupAsioReadinessPlan`
+
+The extracted boundary now owns:
+
+- safe startup ASIO selection/default planning from persisted selection plus visible-driver inputs,
+- safe fallback when the persisted ASIO driver is unavailable,
+- startup preferred P-HPR candidate auto-selection planning for no-output readiness checks only.
+
+`StartupReadinessPlanner` intentionally does not own:
+
+- WPF control reads or writes,
+- ASIO output start/stop,
+- audio buffer submission,
+- HID writer open/write/close,
+- P-HPR start/stop report sending,
+- startup cleanup,
+- telemetry receiver start,
+- timer ownership,
+- direct-control enable/arm persistence,
+- selected private HID path persistence,
+- Stop All / Emergency Stop behavior.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- `AppSettingsSnapshotBuilder` hydration application and `LoadPersistedAudioProfile()` execution,
+- direct WPF control assignment and event wiring,
+- `RebuildHapticPipelineForOutputSelectionAsync(...)` and the existing ASIO readiness hydration path,
+- input discovery and P-HPR candidate discovery,
+- execution of the existing no-output HID open-check/dry-run readiness path,
+- `InitializeStartupCleanupAsync()` and all startup/shutdown cleanup ordering,
+- telemetry receiver start, timer start, and continuous P-HPR runtime start,
+- safety-context builders, Stop All / Emergency Stop handlers, ASIO start/stop ownership, and direct-output runtime ownership.
+
+Protected startup behavior after Stage 21G:
+
+- startup still sends no BST-1 output and no P-HPR output,
+- startup still does not auto-start haptics or ASIO,
+- startup still does not auto-enable or auto-arm P-HPR direct control,
+- startup still does not persist or restore a private HID path as an unsafe active runtime selection,
+- startup still does not restore emergency mute or Stop All / emergency latch state as active,
+- startup cleanup remains explicit and unchanged rather than being hidden inside the new planner.
+
+Why the extraction stops here:
+
+- broader constructor/load decomposition would immediately cross into lifecycle-heavy and hardware-adjacent ownership,
+- `StartupReadinessPlanner` is the smallest deterministic seam that improves testability without obscuring when output-capable code actually runs,
+- avoiding MVVM or generic lifecycle coordinators keeps the current project graph and safety boundaries obvious.
+
+Recommended Stage 21H:
+
+1. Audit shutdown/cleanup ordering and stop-only lifecycle behavior as its own dedicated stage, including the explicit `InitializeStartupCleanupAsync()` / dispose path boundaries.
+2. Only after that, consider a separate safety-context or Stop All / Emergency Stop audit rather than mixing multiple high-risk lifecycle seams together.
+
+Stage 21G does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, shutdown ordering, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
