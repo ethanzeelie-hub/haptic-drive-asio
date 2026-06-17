@@ -3860,3 +3860,77 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 5494 to 5497 in this stage because the safe change was small UI/control plumbing, not another orchestration extraction.
 - Stage 22A intentionally does not change ASIO/BST-1 behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, F1 25 parser layouts, replay timing, `.hdrec` format, startup output behavior, or auto-enable/auto-arm direct-control behavior.
 - Ethan still needs local hardware validation for final brake wheel-lock feel, throttle wheel-slip feel, preferred cadence ranges, and any further practical retune guidance in a follow-up Stage 22B.
+
+## Stage 23A - Product Workflow Cleanup, Testing Tab Extraction, and Safe P-HPR Preferred-Mode Persistence
+
+Date: 2026-06-18
+
+Status: Complete.
+
+Goal: Make the app feel more like a product than a validation harness by moving manual testing into a dedicated Testing / Validation workflow and by persisting the normal-user P-HPR enable/mode preference safely without restoring live hardware state.
+
+Changes:
+
+- Re-audited the current shell, settings, and startup flow before editing. Confirmed that the normal P-HPR Devices card was inferring mode from whichever mock/direct runtime options happened to be enabled instead of from an explicit saved normal-user preference.
+- Added safe app-settings persistence for normal-user P-HPR preference only:
+  - `PreferredPhprPedalsEnabled`
+  - `PreferredPhprPedalsMode`
+- Kept direct output startup safe by separating the saved preference from runtime-only device/path/live state:
+  - no private HID path is persisted,
+  - no active pulse or pending-stop state is persisted,
+  - no emergency-stop latch is persisted,
+  - no startup output report or feature report is sent,
+  - no startup haptics run state is restored.
+- Kept hydration of real P-HPR output options as a no-output preference snapshot, then re-applied the saved normal-user P-HPR preference only after startup candidate refresh/open-check so the UI can restore Mock/Direct intent without restoring unsafe live state.
+- Updated startup direct-candidate refresh so a saved Direct preference can restore the normal Devices/Testing workflow to Direct readiness when a valid candidate exists, while still showing a blocked/not-ready state if the device is missing, open-check fails, coexistence is blocked, or emergency stop is active.
+- Added a dedicated `Testing / Validation` navigation page and moved testing-heavy controls there while preserving existing named controls and handlers:
+  - manual BST-1 ASIO pulse check,
+  - manual P-HPR brake/throttle pulse check,
+  - Synthetic Test Bench,
+  - Paddle Gear Bench Test,
+  - P-HPR Controlled Validation Harness.
+- Kept Devices focused on:
+  - ASIO/BST-1 setup and readiness,
+  - normal P-HPR mode selection and emergency recovery,
+  - wheel/paddle setup and mapping,
+  - concise notes pointing manual tests to Testing / Validation.
+- Kept Advanced / Diagnostics focused on developer/troubleshooting surfaces:
+  - real direct-control candidate/report/open-check internals,
+  - mock-routing internals,
+  - workflow/coexistence/readiness diagnostics,
+  - app settings and copyable diagnostics.
+- Shortened several normal-workflow status surfaces so Devices no longer leads with long validator-style prose:
+  - P-HPR normal status/device text,
+  - input discovery helper items,
+  - paddle listener helper items,
+  - shift-intent helper items,
+  - Devices page status summary,
+  - Advanced gate copy.
+- Added/updated app tests for:
+  - safe P-HPR preference persistence and hydration,
+  - invalid/missing P-HPR preference repair,
+  - non-persistence of emergency/runtime-only state,
+  - Testing / Validation navigation presence,
+  - moved manual/validation controls now living on Testing,
+  - Devices no longer containing those moved manual test controls,
+  - Advanced no longer containing the moved bench/validation controls.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 818 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23A is intentionally product workflow, copy, and safe preference persistence only. It does not add new haptic effects, new tuning algorithms, runtime ownership moves, or a broad MVVM rewrite.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed. Report ID `0xF1`, FeatureReport support, command encoding, and direct-output safety gates remain unchanged.
+- No F1 25 parser layout, UDP forwarding behavior, raw packet preservation, replay timing mode semantics, or `.hdrec` format changed.
+- Saved Direct preference can now restore Direct intent safely, but that still depends on the existing candidate/open-check/report-shape/coexistence/emergency-stop gates before any manual pulse or live route can write.
+- Stage 23A does not claim physical validation, final shaker feel, safe gain, final latency, or final cadence tuning. Local hardware validation is still required later.

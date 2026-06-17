@@ -1848,3 +1848,34 @@ This shifts the default feel toward tighter continuous texture without changing:
 - runtime ownership boundaries introduced in Stages 19-21.
 
 If a user selects an aggressive cadence, Stage 22A still relies on the existing `PHprSafetyLimiter` and command-rate limiter rather than bypassing them. Diagnostics now surface the configured slip/lock cadence per effect alongside existing command-rate suppression counters. Physical feel remains Ethan-local validation work.
+
+## Stage 23A Product Workflow and Safe P-HPR Preference Persistence
+
+Stage 23A keeps the runtime ownership introduced in earlier stages intact and changes only shell workflow/persistence boundaries.
+
+Shell workflow result:
+
+- `Dashboard`, `Devices`, `Effects`, `Routing / Mixer`, `Telemetry / UDP`, `Profiles`, `Testing / Validation`, and `Advanced / Diagnostics` now have clearer separation.
+- `Testing / Validation` owns manual pulse checks, synthetic validation, paddle bench work, and local validation exports.
+- `Devices` stays focused on hardware selection, readiness, wheel mapping, and emergency recovery.
+- `Advanced / Diagnostics` stays focused on raw direct-control/mock-routing internals and copyable diagnostics.
+
+Safe P-HPR persistence result:
+
+- app settings now persist only the normal-user P-HPR preference:
+  - enabled/disabled preference,
+  - preferred mode `Disabled` / `Mock` / `Direct`.
+- hydration still restores real direct-output options as a no-output preference snapshot first;
+- startup candidate refresh/open-check still runs without sending output reports or feature reports;
+- saved Direct preference is re-applied only as workflow intent on top of those existing readiness gates.
+
+Stage 23A explicitly does not persist or restore:
+
+- private HID path,
+- active pulse/live output state,
+- pending stops,
+- emergency-stop latch state,
+- startup output,
+- haptics-running state.
+
+Stage 23A does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, parser layouts, replay format, or physical-validation boundaries.

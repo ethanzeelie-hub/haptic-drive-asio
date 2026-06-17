@@ -75,6 +75,18 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void MainWindowSourceContainsTestingValidationNavigation()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("\"Testing / Validation\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EffectsPageUsesHardwareEffectSectionsAndMovedControls()
     {
         var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
@@ -138,7 +150,7 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
-    public void DevicesPageKeepsHardwareReadinessAndManualTestControls()
+    public void DevicesPageKeepsHardwareReadinessAndSetupControls()
     {
         var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
         var devicesPanel = FindElementByXName(mainWindowXaml, "DevicesPanel");
@@ -149,14 +161,9 @@ public sealed class AppThemeResourceTests
         Assert.Contains("AsioDriverComboBox", devicesNames);
         Assert.Contains("AsioOutputChannelComboBox", devicesNames);
         Assert.Contains("AsioArmCheckBox", devicesNames);
-        Assert.Contains("ManualBst1StrengthTextBox", devicesNames);
-        Assert.Contains("ManualBst1FrequencyTextBox", devicesNames);
-        Assert.Contains("ManualBst1DurationTextBox", devicesNames);
 
         Assert.Contains("PhprPedalsMasterEnableCheckBox", devicesNames);
         Assert.Contains("PhprPedalsModeComboBox", devicesNames);
-        Assert.Contains("TestPhprBrakePulseButton", devicesNames);
-        Assert.Contains("TestPhprThrottlePulseButton", devicesNames);
 
         Assert.Contains("PaddleInputDeviceComboBox", devicesNames);
         Assert.Contains("StartPaddleInputListenerButton", devicesNames);
@@ -172,7 +179,7 @@ public sealed class AppThemeResourceTests
 
         Assert.Contains(
             devicesText,
-            text => text.Contains("Detailed Local Gear Test and Paddle Gear Bench validation controls are under Advanced Diagnostics", StringComparison.Ordinal));
+            text => text.Contains("Detailed paddle bench and validation tools now live on Testing / Validation", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -190,23 +197,46 @@ public sealed class AppThemeResourceTests
         Assert.DoesNotContain("RealSlipTargetComboBox", devicesNames);
         Assert.DoesNotContain("MockGearPulseEnabledCheckBox", devicesNames);
         Assert.DoesNotContain("MockPedalEffectsEnabledCheckBox", devicesNames);
+        Assert.DoesNotContain("ManualBst1StrengthTextBox", devicesNames);
+        Assert.DoesNotContain("ManualBst1FrequencyTextBox", devicesNames);
+        Assert.DoesNotContain("ManualBst1DurationTextBox", devicesNames);
+        Assert.DoesNotContain("TestPhprBrakePulseButton", devicesNames);
+        Assert.DoesNotContain("TestPhprThrottlePulseButton", devicesNames);
     }
 
     [Fact]
-    public void AdvancedDiagnosticsContainsBenchDirectMockAndLowLevelDiagnostics()
+    public void TestingPageContainsMovedManualAndValidationControls()
+    {
+        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
+        var testingPanel = FindElementByXName(mainWindowXaml, "TestingPanel");
+        var testingText = GetTextValues(testingPanel);
+        var testingNames = GetXNameValues(testingPanel);
+        var testBenchPanel = FindElementByXName(mainWindowXaml, "TestBenchPanel");
+
+        Assert.Contains("ManualBst1StrengthTextBox", testingNames);
+        Assert.Contains("ManualBst1FrequencyTextBox", testingNames);
+        Assert.Contains("ManualBst1DurationTextBox", testingNames);
+        Assert.Contains("TestPhprBrakePulseButton", testingNames);
+        Assert.Contains("TestPhprThrottlePulseButton", testingNames);
+        Assert.Contains("LocalGearTestModeCheckBox", testingNames);
+        Assert.Contains("StartGearTestListenerButton", testingNames);
+        Assert.Contains("PaddleGearBenchEnabledCheckBox", testingNames);
+        Assert.Contains("PaddleGearBenchTargetComboBox", testingNames);
+        Assert.Contains("PhprValidationUserPresentCheckBox", testingNames);
+        Assert.Contains("PhprValidationStatusText", testingNames);
+        Assert.Contains("Synthetic Test Bench", GetTextValues(testBenchPanel));
+        Assert.Contains(
+            testingText,
+            text => text.Contains("manual pulse checks, paddle bench tools, and local validation exports live here", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AdvancedDiagnosticsContainsDirectMockAndLowLevelDiagnostics()
     {
         var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
         var advancedPanel = FindElementByXName(mainWindowXaml, "AdvancedPhprDiagnosticsPanel");
         var advancedText = GetTextValues(advancedPanel);
         var advancedNames = GetXNameValues(advancedPanel);
-
-        Assert.Contains("Paddle Gear Bench Test", advancedText);
-        Assert.Contains("LocalGearTestModeCheckBox", advancedNames);
-        Assert.Contains("LocalGearTestAutoStartListenerCheckBox", advancedNames);
-        Assert.Contains("StartGearTestListenerButton", advancedNames);
-        Assert.Contains("PaddleGearBenchEnabledCheckBox", advancedNames);
-        Assert.Contains("PaddleGearBenchTargetComboBox", advancedNames);
-        Assert.Contains("PaddleGearBenchStatusText", advancedNames);
 
         Assert.Contains("RealPhprCandidateComboBox", advancedNames);
         Assert.Contains("RealPhprReportIdTextBox", advancedNames);
@@ -217,6 +247,10 @@ public sealed class AppThemeResourceTests
 
         Assert.Contains("MockGearPulseEnabledCheckBox", advancedNames);
         Assert.Contains("MockPedalEffectsEnabledCheckBox", advancedNames);
+        Assert.DoesNotContain("Paddle Gear Bench Test", advancedText);
+        Assert.DoesNotContain("LocalGearTestModeCheckBox", advancedNames);
+        Assert.DoesNotContain("PaddleGearBenchEnabledCheckBox", advancedNames);
+        Assert.DoesNotContain("PhprValidationUserPresentCheckBox", advancedNames);
     }
 
     [Fact]

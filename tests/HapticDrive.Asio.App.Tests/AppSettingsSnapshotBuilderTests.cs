@@ -19,6 +19,8 @@ public sealed class AppSettingsSnapshotBuilderTests
             UseLightTheme = true,
             AdvancedDiagnosticsEnabled = true,
             PreferredOutputMode = AudioOutputDeviceKind.Asio,
+            PreferredPhprPedalsEnabled = true,
+            PreferredPhprPedalsMode = PhprPedalsModePreference.Direct,
             LastAsioDriverName = "M-Audio",
             LastAsioOutputChannel = 1,
             ArmAsioPreference = true,
@@ -105,6 +107,8 @@ public sealed class AppSettingsSnapshotBuilderTests
         Assert.True(snapshot.UseLightTheme);
         Assert.True(snapshot.AdvancedDiagnosticsEnabled);
         Assert.True(snapshot.HasPersistedOutputModePreference);
+        Assert.True(snapshot.PhprPedalsEnabledPreference);
+        Assert.Equal(PhprPedalsModePreference.Direct, snapshot.PhprPedalsModePreference);
         Assert.Equal(AudioOutputDeviceKind.Asio, snapshot.SelectedOutputKind);
         Assert.Equal("M-Audio", snapshot.SelectedAsioDriverName);
         Assert.Equal(1, snapshot.SelectedAsioOutputChannel);
@@ -134,6 +138,8 @@ public sealed class AppSettingsSnapshotBuilderTests
             UseLightTheme: true,
             AdvancedDiagnosticsEnabled: true,
             SelectedOutputKind: AudioOutputDeviceKind.Asio,
+            PhprPedalsEnabledPreference: true,
+            PhprPedalsModePreference: PhprPedalsModePreference.Direct,
             SelectedAsioDriverName: "M-Audio",
             SelectedAsioOutputChannel: 1,
             ArmAsioPreference: true,
@@ -235,6 +241,8 @@ public sealed class AppSettingsSnapshotBuilderTests
         Assert.True(settings.UseLightTheme);
         Assert.True(settings.AdvancedDiagnosticsEnabled);
         Assert.Equal(AudioOutputDeviceKind.Asio, settings.PreferredOutputMode);
+        Assert.True(settings.PreferredPhprPedalsEnabled);
+        Assert.Equal(PhprPedalsModePreference.Direct, settings.PreferredPhprPedalsMode);
         Assert.Equal("M-Audio", settings.LastAsioDriverName);
         Assert.Equal(1, settings.LastAsioOutputChannel);
         Assert.True(settings.ArmAsioPreference);
@@ -260,6 +268,8 @@ public sealed class AppSettingsSnapshotBuilderTests
             UseLightTheme: false,
             ActiveProfileName: "Race",
             SelectedOutputKind: AudioOutputDeviceKind.Asio,
+            PhprPedalsEnabledPreference: true,
+            PhprPedalsModePreference: PhprPedalsModePreference.Direct,
             ReplayTimingLabel: "Real time",
             ForwardingDestinationCount: 2,
             SelectedAsioDriverName: "M-Audio",
@@ -288,14 +298,39 @@ public sealed class AppSettingsSnapshotBuilderTests
 
         Assert.Contains("Theme: Dark. Active profile: Race.", presentation.StatusText, StringComparison.Ordinal);
         Assert.Contains("Saved ASIO driver M-Audio; channel 1; Arm ASIO preference True.", presentation.StatusText, StringComparison.Ordinal);
+        Assert.Contains("Saved P-HPR pedals enabled in Direct mode.", presentation.StatusText, StringComparison.Ordinal);
         Assert.Contains("Real P-HPR direct control disabled runtime-only.", presentation.StatusText, StringComparison.Ordinal);
         Assert.Contains("manual ASIO test active state are not saved.", presentation.StatusText, StringComparison.Ordinal);
         Assert.Equal(
             @"App settings path: C:\Users\ethan\AppData\Local\HapticDrive.Asio\appsettings.json",
             presentation.PathText);
+        Assert.Contains("persisted P-HPR pedals enabled mode Direct", presentation.DiagnosticsText, StringComparison.Ordinal);
         Assert.Contains("persisted paddle mapping device wheel-1 left button 14 right button 13 debounce 6 ms", presentation.DiagnosticsText, StringComparison.Ordinal);
         Assert.Contains("flight-recorder history, and mock histories are not persisted.", presentation.DiagnosticsText, StringComparison.Ordinal);
         Assert.DoesNotContain(@"\?\hid", presentation.DiagnosticsText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("serial", presentation.DiagnosticsText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildHydrationSnapshot_RepairsMissingOrInvalidPhprPreferenceFieldsSafely()
+    {
+        var snapshot = AppSettingsSnapshotBuilder.BuildHydrationSnapshot(new AppSettings
+        {
+            PreferredPhprPedalsEnabled = null,
+            PreferredPhprPedalsMode = (PhprPedalsModePreference)999,
+            MockGearPulseRouting = new MockGearPulseRoutingSetting
+            {
+                IsEnabled = false
+            },
+            MockPedalEffectsRouting = new MockPedalEffectsRoutingSetting
+            {
+                IsEnabled = false
+            }
+        });
+
+        Assert.False(snapshot.PhprPedalsEnabledPreference);
+        Assert.Equal(PhprPedalsModePreference.Disabled, snapshot.PhprPedalsModePreference);
+        Assert.False(snapshot.RealPhprOutputOptions.DirectControlEnabled);
+        Assert.False(snapshot.RealPhprOutputOptions.DirectControlArmed);
     }
 }

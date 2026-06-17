@@ -175,13 +175,23 @@ public partial class MainWindow : Window
                 "Device settings remain separate from effect profiles."
             ]),
         new(
+            "Testing / Validation",
+            "Testing / Validation",
+            "Manual pulse tests, synthetic validation, and local checklists.",
+            "Manual test tools available",
+            [
+                "Synthetic validation stays available without physical hardware.",
+                "Manual BST-1 and P-HPR pulse checks live here.",
+                "Bench and export tools remain local-only and do not claim physical validation."
+            ]),
+        new(
             "Advanced / Diagnostics",
             "Advanced / Diagnostics",
-            "Diagnostics, synthetic test bench, app preferences, and guarded P-HPR research controls.",
+            "Developer diagnostics, raw direct-control details, and guarded research controls.",
             "Advanced diagnostics hidden until enabled",
             [
-                "Advanced P-HPR direct-control, validation, and mock internals stay collapsed by default.",
-                "The synthetic test bench remains Null-output friendly.",
+                "Raw P-HPR direct-control and mock-routing internals stay collapsed by default.",
+                "Testing tools now live on Testing / Validation.",
                 "Copyable diagnostics keep parser, mixer, output, input, and P-HPR safety state visible."
             ])
     ];
@@ -202,6 +212,8 @@ public partial class MainWindow : Window
     private string? _replayError;
     private string? _settingsError;
     private bool _hasPersistedOutputModePreference;
+    private bool _phprPedalsEnabledPreference;
+    private PhprPedalsModePreference _phprPedalsModePreference = PhprPedalsModePreference.Mock;
     private string _startupProfileStatusMessage = "Current rig defaults loaded.";
     private IReadOnlyList<string> _startupProfileValidationMessages = [];
     private HapticDriveProfile _currentProfile = HapticDriveProfile.Default;
@@ -267,6 +279,8 @@ public partial class MainWindow : Window
         _lightTheme = appSettings.UseLightTheme;
         _advancedDiagnosticsEnabled = appSettings.AdvancedDiagnosticsEnabled;
         _hasPersistedOutputModePreference = appSettings.HasPersistedOutputModePreference;
+        _phprPedalsEnabledPreference = appSettings.PhprPedalsEnabledPreference;
+        _phprPedalsModePreference = appSettings.PhprPedalsModePreference;
         _selectedOutputKind = appSettings.SelectedOutputKind;
         _selectedAsioDriverName = appSettings.SelectedAsioDriverName;
         _selectedAsioOutputChannel = appSettings.SelectedAsioOutputChannel;
@@ -314,6 +328,7 @@ public partial class MainWindow : Window
         _mockPedalEffectsRouter = new PHprPedalEffectsRouter(
             _mockPhprSafetyOutput,
             appSettings.MockPedalEffectsRouterOptions);
+        ApplyPersistedPhprPedalsPreferenceToRuntime(saveSafeSettings: false, updateUi: false);
         LoadPersistedAudioProfile();
         _hapticPipeline = CreatePipelineForSelectedOutput();
         _paddleInputRoutingCoordinator = new PaddleInputRoutingCoordinator(
@@ -504,17 +519,21 @@ public partial class MainWindow : Window
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             var isTelemetryPage = page.NavigationLabel == "Telemetry / UDP";
+            var isTestingPage = page.NavigationLabel == "Testing / Validation";
             ForwardingPanel.Visibility = isTelemetryPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             RecordingsPanel.Visibility = isTelemetryPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            var isAdvancedPage = page.NavigationLabel == "Advanced / Diagnostics";
-            AdvancedPhprDiagnosticsPanel.Visibility = isAdvancedPage
+            TestingPanel.Visibility = isTestingPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            TestBenchPanel.Visibility = isAdvancedPage && _advancedDiagnosticsEnabled
+            TestBenchPanel.Visibility = isTestingPage
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            var isAdvancedPage = page.NavigationLabel == "Advanced / Diagnostics";
+            AdvancedPhprDiagnosticsPanel.Visibility = isAdvancedPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             ProfilesPanel.Visibility = page.NavigationLabel == "Profiles"
@@ -1786,16 +1805,19 @@ public partial class MainWindow : Window
             if (autoSelection?.HasPreferredCandidate == true)
             {
                 await RunAutomaticRealPhprReadinessChecksAsync(autoSelection);
-                ApplyPhprPedalsNormalSettingsToControls();
-                ApplyPaddleGearBenchSettingsToControls();
             }
+
+            ApplyPersistedPhprPedalsPreferenceToRuntime(saveSafeSettings: false);
+            ApplyPaddleGearBenchSettingsToControls();
 
             UpdateRealPhprDirectControlStatus();
             UpdatePhprPedalsStatus();
             UpdatePaddleGearBenchStatus();
             UpdateDiagnosticsStatus();
             FooterStatusText.Text = autoSelection?.HasPreferredCandidate == true
-                ? $"Preferred real P-HPR direct candidate selected for startup no-output readiness only; direct control remains disabled until enabled manually. {_realPhprCandidateItems.Count:N0} candidate(s) found. Open-check used no output report or feature report."
+                ? GetPreferredPhprPedalsMode() == PhprPedalsMode.Direct
+                    ? $"Preferred real P-HPR candidate refreshed for saved Direct readiness. {_realPhprCandidateItems.Count:N0} candidate(s) found. Open-check used no output report or feature report."
+                    : $"Preferred real P-HPR direct candidate selected for startup no-output readiness only. {_realPhprCandidateItems.Count:N0} candidate(s) found. Open-check used no output report or feature report."
                 : $"Real P-HPR direct-output candidates refreshed; {_realPhprCandidateItems.Count:N0} HID candidate(s) found. No HID writer was opened.";
         }
         catch (Exception ex)
@@ -2266,22 +2288,21 @@ public partial class MainWindow : Window
             : Visibility.Collapsed;
         AdvancedDiagnosticsGateText.Text = _advancedDiagnosticsEnabled
             ? "Advanced diagnostics are visible. Real direct-control output still requires enable, selected device, clear coexistence, and clear emergency stop."
-            : "Advanced diagnostics are hidden by default. Normal P-HPR mock controls, paddle mapping, and emergency stop are available on Devices without enabling this.";
+            : "Advanced diagnostics are hidden by default. Normal setup stays on Devices, and manual testing stays on Testing / Validation.";
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
         {
-            TestBenchPanel.Visibility = _advancedDiagnosticsEnabled ? Visibility.Visible : Visibility.Collapsed;
             SettingsPanel.Visibility = _advancedDiagnosticsEnabled ? Visibility.Visible : Visibility.Collapsed;
             DiagnosticsPanel.Visibility = _advancedDiagnosticsEnabled ? Visibility.Visible : Visibility.Collapsed;
             PageStatusText.Text = _advancedDiagnosticsEnabled
                 ? "Advanced diagnostics visible; direct hardware output remains guarded."
-                : "Advanced diagnostics hidden. Enable the checkbox to show research controls, test bench, settings, and full diagnostics.";
+                : "Advanced diagnostics hidden. Enable the checkbox to show research controls, settings, and full diagnostics.";
         }
     }
 
     private void ApplyPhprPedalsNormalSettingsToControls()
     {
-        var mode = GetEffectivePhprPedalsMode();
+        var mode = GetPreferredPhprPedalsMode();
         var options = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
         _sharedPhprGearPulseDurationMs = Bst1GearPulseDurationSync.ResolveSharedDuration(
             options.BrakeGearPulse,
@@ -2332,6 +2353,8 @@ public partial class MainWindow : Window
         }
 
         var mode = GetSelectedPhprPedalsMode();
+        _phprPedalsEnabledPreference = mode != PhprPedalsMode.Disabled;
+        _phprPedalsModePreference = ToPhprPedalsModePreference(mode);
         _realPhprOptions = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits) with
         {
             DirectControlEnabled = mode == PhprPedalsMode.Direct,
@@ -2471,18 +2494,79 @@ public partial class MainWindow : Window
             : PhprPedalsMode.Mock;
     }
 
-    private PhprPedalsMode GetEffectivePhprPedalsMode()
+    private PhprPedalsMode GetPreferredPhprPedalsMode()
     {
-        if (_realPhprOptions.DirectControlEnabled)
+        if (!_phprPedalsEnabledPreference)
         {
-            return PhprPedalsMode.Direct;
+            return PhprPedalsMode.Disabled;
         }
 
-        var mockGear = _mockGearPulseRouter.GetSnapshot().Options.IsEnabled;
-        var mockPedals = _mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled;
-        return mockGear || mockPedals
-            ? PhprPedalsMode.Mock
-            : PhprPedalsMode.Disabled;
+        return FromPhprPedalsModePreference(_phprPedalsModePreference);
+    }
+
+    private void ApplyPersistedPhprPedalsPreferenceToRuntime(bool saveSafeSettings, bool updateUi = true)
+    {
+        var mode = GetPreferredPhprPedalsMode();
+        _realPhprOptions = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits) with
+        {
+            DirectControlEnabled = mode == PhprPedalsMode.Direct,
+            DirectControlArmed = mode == PhprPedalsMode.Direct,
+            DirectControlApprovalConfirmed = mode == PhprPedalsMode.Direct
+        };
+        _realPhprOutput.Configure(_realPhprOptions);
+        _realPhprGearPulseRouter.Configure(_realPhprOptions);
+
+        var mockGearOptions = _mockGearPulseRouter.GetSnapshot().Options with
+        {
+            IsEnabled = mode == PhprPedalsMode.Mock
+        };
+        _mockGearPulseRouter.Configure(mockGearOptions.Normalize());
+
+        var mockPedalOptions = _mockPedalEffectsRouter.GetSnapshot().Options with
+        {
+            IsEnabled = mode == PhprPedalsMode.Mock
+        };
+        _mockPedalEffectsRouter.Configure(mockPedalOptions.Normalize());
+
+        ConfigurePhprDirectRuntime();
+
+        if (updateUi && RealPhprDirectControlEnabledCheckBox is not null)
+        {
+            _updatingRealPhprDirectControlUi = true;
+            RealPhprDirectControlEnabledCheckBox.IsChecked = _realPhprOptions.DirectControlEnabled;
+            RealPhprDirectControlArmCheckBox.IsChecked = _realPhprOptions.DirectControlEnabled;
+            _updatingRealPhprDirectControlUi = false;
+        }
+
+        if (updateUi && PhprPedalsMasterEnableCheckBox is not null)
+        {
+            ApplyPhprPedalsNormalSettingsToControls();
+        }
+
+        if (saveSafeSettings)
+        {
+            SaveAppSettings();
+        }
+    }
+
+    private static PhprPedalsModePreference ToPhprPedalsModePreference(PhprPedalsMode mode)
+    {
+        return mode switch
+        {
+            PhprPedalsMode.Direct => PhprPedalsModePreference.Direct,
+            PhprPedalsMode.Disabled => PhprPedalsModePreference.Disabled,
+            _ => PhprPedalsModePreference.Mock
+        };
+    }
+
+    private static PhprPedalsMode FromPhprPedalsModePreference(PhprPedalsModePreference mode)
+    {
+        return mode switch
+        {
+            PhprPedalsModePreference.Direct => PhprPedalsMode.Direct,
+            PhprPedalsModePreference.Disabled => PhprPedalsMode.Disabled,
+            _ => PhprPedalsMode.Mock
+        };
     }
 
     private async Task TriggerNormalPhprTestPulseAsync(PHprModuleId moduleId)
@@ -2641,14 +2725,14 @@ public partial class MainWindow : Window
             PhprPedalsMode.Disabled => "P-HPR pedals disabled. Emergency stop remains available.",
             PhprPedalsMode.Mock => mockSnapshot.IsEmergencyStopActive
                 ? "Mock P-HPR emergency stop is active; clear it before mock test pulses."
-                : "Mock P-HPR pedals enabled. Test pulses generate mock frames only and do not require haptics to be running.",
+                : "Mock P-HPR pedals enabled. Test pulses stay mock-only.",
             PhprPedalsMode.Direct => directReady
-                ? "Direct P-HPR mode is ready for this session. Hardware writes remain manually gated."
+                ? "Direct P-HPR mode is ready for this session."
                 : $"Direct P-HPR mode is selected but not ready: {directMessage}.",
             _ => "P-HPR pedal mode unavailable."
         };
         PhprPedalsDeviceStatusText.Text =
-            $"Mock output: {(mockSnapshot.IsEmergencyStopActive ? "emergency stop active" : "ready")}; accepted {mockSnapshot.AcceptedCommandCount:N0}, rejected {mockSnapshot.RejectedCommandCount:N0}. Direct output: {realDiagnostics.Connection.State}; selected {(realDiagnostics.Options.Selector.IsSelected ? "yes" : "no")}; transport {realDiagnostics.Options.Selector.Transport}; source {realDiagnostics.Options.CandidateSourceMethod}; raw-input-only {realDiagnostics.Options.CandidateIsRawInputOnly}; openable {realDiagnostics.Options.CandidateHasOpenableHidPath}; output report known {realDiagnostics.Options.CandidateOutputReportCapabilityKnown}; feature report known {realDiagnostics.Options.CandidateFeatureReportCapabilityKnown}; report-shape {realDiagnostics.Options.ReportShapeValidationAttempted}/{realDiagnostics.Options.ReportShapeValidationSucceeded}; open-check {realDiagnostics.Options.OpenCheckAttempted}/{realDiagnostics.Options.OpenCheckSucceeded}; enabled {realDiagnostics.Options.DirectControlEnabled}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}.";
+            $"Mock output {(mockSnapshot.IsEmergencyStopActive ? "stopped" : "ready")}; direct output {realDiagnostics.Connection.State}; selected {(realDiagnostics.Options.Selector.IsSelected ? "yes" : "no")}; open-check {(realDiagnostics.Options.OpenCheckSucceeded ? "passed" : "pending/blocked")}; report-shape {(realDiagnostics.Options.ReportShapeValidationSucceeded ? "passed" : "pending/blocked")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}.";
         PhprPedalsLastResultText.Text = _lastPhprPedalsPulseMessage;
     }
 
@@ -2704,6 +2788,8 @@ public partial class MainWindow : Window
             UseLightTheme: _lightTheme,
             AdvancedDiagnosticsEnabled: _advancedDiagnosticsEnabled,
             SelectedOutputKind: _selectedOutputKind,
+            PhprPedalsEnabledPreference: _phprPedalsEnabledPreference,
+            PhprPedalsModePreference: _phprPedalsModePreference,
             SelectedAsioDriverName: _selectedAsioDriverName,
             SelectedAsioOutputChannel: _selectedAsioOutputChannel,
             ArmAsioPreference: _asioArmed,
@@ -3619,7 +3705,7 @@ public partial class MainWindow : Window
         TestBenchLimiterText.Text = $"{snapshot.LimitedSampleCount:N0} limited";
         TestBenchOutputText.Text = $"{snapshot.OutputDisplayName} ({snapshot.OutputState})";
 
-        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Testing / Validation" })
         {
             PageStatusText.Text = snapshot.IsActive
                 ? $"{snapshot.SelectedSignalName}; {snapshot.RenderedBufferCount:N0} buffer(s); peak {snapshot.OutputPeakLevel:0.000}; limiter {snapshot.LimitedSampleCount:N0} sample(s); mute {(snapshot.IsMuted ? "on" : "off")}; emergency {snapshot.EmergencyMute}."
@@ -3853,7 +3939,7 @@ public partial class MainWindow : Window
         {
             PageStatusText.Text = status.RequiresPhysicalHardware
                 ? "Selected output requires explicit manual hardware readiness checks; haptics remain stopped until armed and started."
-                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers reported {_asioVisibilitySnapshot.DriverNames.Count}; input devices discovered {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; shift intent {_shiftIntentProcessor.GetDiagnosticsSnapshot().Mode}; real P-HPR direct control {(_realPhprOptions.DirectControlEnabled ? "enabled" : "disabled")}; real road vibration {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; real slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; mock gear routing {_mockGearPulseRouter.GetSnapshot().Options.TargetModule}; mock pedal effects {(_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled ? "enabled" : "disabled")}.";
+                : $"Hardware-absent mode active; NullAudioOutputDevice remains the safe default; ASIO drivers {_asioVisibilitySnapshot.DriverNames.Count}; input devices {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; P-HPR mode {GetSelectedPhprPedalsMode()}.";
         }
     }
 
@@ -3879,7 +3965,7 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
         {
-            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; ASIO ready/arm preference can persist without starting output, while haptics running and direct-output enable/arm/device runtime states remain non-persistent.";
+            PageStatusText.Text = $"Theme {(_lightTheme ? "light" : "dark")}; app settings are local; ASIO readiness and safe P-HPR mode preferences can persist without starting output, while live runtime/device state remains non-persistent.";
         }
     }
 
@@ -3894,6 +3980,8 @@ public partial class MainWindow : Window
             UseLightTheme: _lightTheme,
             ActiveProfileName: _currentProfile.Name,
             SelectedOutputKind: _selectedOutputKind,
+            PhprPedalsEnabledPreference: _phprPedalsEnabledPreference,
+            PhprPedalsModePreference: _phprPedalsModePreference,
             ReplayTimingLabel: GetSelectedReplayTimingMode().Label,
             ForwardingDestinationCount: _forwardingDestinations.Count,
             SelectedAsioDriverName: _selectedAsioDriverName,
@@ -3921,8 +4009,9 @@ public partial class MainWindow : Window
             InputDiscoveryStatusText.Text = "Input discovery has not been refreshed. Use Refresh Input Devices to enumerate read-only Windows input metadata.";
             InputDiscoveryItemsControl.ItemsSource = new[]
             {
-                "Safety: discovery refresh only. The live listener starts only from Start Listener and never routes haptics or P-HPR commands.",
-                "Selected input device: none. Use Refresh Input Devices, select a Windows game-controller device, then start the listener for diagnostics."
+                "Discovery is read-only.",
+                "Select a Windows game-controller device after refresh.",
+                "Start Listener when you want live paddle diagnostics."
             };
             return;
         }
@@ -3937,13 +4026,8 @@ public partial class MainWindow : Window
             $"Input discovery: {(snapshot.ReadOnlyDiscoverySucceeded ? "succeeded" : "completed with warnings")}; refreshed {localRefreshTime}; {snapshot.DeviceCount:N0} device(s); methods {methodText}; errors {snapshot.Errors.Count:N0}.";
         InputDiscoveryItemsControl.ItemsSource = new[]
         {
-            "Safety: read-only discovery and read-only button-state diagnostics only. No haptic routing, USB output report, feature report, or P-HPR output command is used.",
-            $"Candidate devices: {FormatInputCandidates(candidates)}",
-            $"Likely Simagic wheelbase candidates: {FormatInputCandidates(snapshot.LikelySimagicWheelBaseCandidates)}",
-            $"Likely GT Neo / wheel input candidates: {FormatInputCandidates(snapshot.LikelyGtNeoWheelInputCandidates)}",
-            $"Likely P700 pedal candidates: {FormatInputCandidates(snapshot.LikelyP700PedalCandidates)}",
-            $"Unknown HID/game-controller candidates: {FormatInputCandidates(snapshot.UnknownHidOrGameControllerCandidates)}",
-            "Manual mapping: start the listener, press a paddle, then set left/right from the last changed button.",
+            $"Saved/usable candidates: {FormatInputCandidates(candidates)}",
+            $"Likely wheel input: {FormatInputCandidates(snapshot.LikelyGtNeoWheelInputCandidates)}",
             $"Discovery errors: {errorText}"
         };
     }
@@ -3986,16 +4070,9 @@ public partial class MainWindow : Window
             $"Paddle listener: {snapshot.Status}; selected {selectedText}; selection {(selectionBlocker is null ? "ready" : $"blocked: {selectionBlocker}")}; mapped presses {snapshot.PaddlePressCount:N0}; last raw {lastRaw}; last mapped {lastMapped}; error {error}.";
         PaddleInputItemsControl.ItemsSource = new[]
         {
-            "Safety: mapped paddle presses can feed DrivingArmed-gated shift intent and configured P-HPR routes. Direct hardware output still requires explicit direct-control gates.",
-            $"Selected device usable buttons: {selectedButtonCount}; auto-selection prefers a saved usable device, then VID_3670/PID_0905 with at least 32 buttons, then any usable button-capable controller.",
-            $"Selected method: {(_paddleMapping.SelectedMethod == InputDiscoveryMethod.Unknown ? InputDiscoveryMethod.WindowsGameController : _paddleMapping.SelectedMethod)}",
-            $"Left paddle mapping: {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}; current state {snapshot.LeftPaddleState}",
-            $"Right paddle mapping: {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}; current state {snapshot.RightPaddleState}",
-            $"Last changed raw button: {lastRaw}",
-            $"Last mapped paddle event: {lastMapped}",
-            $"Paddle press count: {snapshot.PaddlePressCount:N0}; debounce suppressed {snapshot.DebounceSuppressedCount:N0}",
-            $"Debounce: {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms",
-            $"Listener error: {error}"
+            "Mapped paddles can trigger gear-shift haptics when enabled.",
+            $"Mappings: left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}, right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}, debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms.",
+            $"Selected device usable buttons: {selectedButtonCount}; listener error: {error}"
         };
     }
 
@@ -4047,15 +4124,9 @@ public partial class MainWindow : Window
             $"Shift intent: {(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; DrivingArmed {driving.Current.IsArmed}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}; last accepted {lastAccepted}; last suppressed {lastSuppressed}.";
         ShiftIntentItemsControl.ItemsSource = new[]
         {
-            "Safety: Stage 2F evaluates mapped paddle intent only. Stage 2M routes accepted events separately to safety-limited mock P-HPR output and still does not touch the ASIO/BST-1 audio path.",
-            $"DrivingArmed current state: {driving.Current.IsArmed}; reason {driving.Current.Reason}",
-            $"DrivingArmed telemetry age: {telemetryAge}; menu safe mode {driving.MenuSafeModeEnabled}; require recent telemetry {driving.RequireRecentTelemetry}",
-            $"Last paddle side: {diagnostics.LastPaddleSide}; direction {diagnostics.LastDirection}; last paddle event {(diagnostics.LastPaddleEvent is null ? "none" : diagnostics.LastPaddleEvent.TimestampUtc.ToLocalTime().ToString("T"))}",
-            $"Accepted shift intents: {diagnostics.AcceptedShiftIntentCount:N0}; suppressed shift intents: {diagnostics.SuppressedShiftIntentCount:N0}; observed paddle events {diagnostics.TotalPaddleEventsObserved:N0}",
-            $"Last accepted event: {lastAccepted}",
-            $"Last suppression reason: {diagnostics.LastSuppressionReason ?? "none"}",
-            $"Last known telemetry: gear {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownGear)}, speed {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownSpeedKph)} km/h, RPM {FormatOptionalInt(diagnostics.LastTelemetry.LastKnownRpm)}, frame {FormatOptionalUInt(diagnostics.LastTelemetry.LastKnownFrameIdentifier)}",
-            $"Pending confirmation records: {diagnostics.PendingConfirmationCount:N0}; error {diagnostics.LastError ?? "none"}"
+            "Shift intent turns mapped paddle presses into gear-shift events.",
+            $"DrivingArmed {driving.Current.IsArmed}; telemetry age {telemetryAge}; menu safe {driving.MenuSafeModeEnabled}.",
+            $"Last suppression reason: {diagnostics.LastSuppressionReason ?? "none"}; error {diagnostics.LastError ?? "none"}"
         };
     }
 

@@ -365,6 +365,8 @@ public sealed class AppSettingsStoreTests
         store.Save(new AppSettings
         {
             PreferredOutputMode = AudioOutputDeviceKind.Asio,
+            PreferredPhprPedalsEnabled = true,
+            PreferredPhprPedalsMode = PhprPedalsModePreference.Direct,
             LastAsioDriverName = "M-Audio Test Driver",
             LastAsioOutputChannel = 1,
             ArmAsioPreference = true,
@@ -390,6 +392,8 @@ public sealed class AppSettingsStoreTests
         var loaded = store.Load();
 
         Assert.Equal(AudioOutputDeviceKind.Asio, loaded.PreferredOutputMode);
+        Assert.True(loaded.PreferredPhprPedalsEnabled);
+        Assert.Equal(PhprPedalsModePreference.Direct, loaded.PreferredPhprPedalsMode);
         Assert.Equal("M-Audio Test Driver", loaded.LastAsioDriverName);
         Assert.Equal(1, loaded.LastAsioOutputChannel);
         Assert.True(loaded.ArmAsioPreference);
@@ -444,6 +448,8 @@ public sealed class AppSettingsStoreTests
         Assert.True(loaded.UseLightTheme);
         Assert.Equal("Existing Driver", loaded.LastAsioDriverName);
         Assert.Null(loaded.PreferredOutputMode);
+        Assert.Null(loaded.PreferredPhprPedalsEnabled);
+        Assert.Null(loaded.PreferredPhprPedalsMode);
         Assert.False(loaded.ArmAsioPreference);
         Assert.Equal(ReplayTimingPreference.RealTime, loaded.ReplayTimingPreference);
         Assert.True(loaded.Bst1PaddleGearPulse.IsEnabled);
@@ -473,6 +479,7 @@ public sealed class AppSettingsStoreTests
         Assert.DoesNotContain("AsioArmed", json, StringComparison.Ordinal);
         Assert.DoesNotContain("HapticsStarted", json, StringComparison.Ordinal);
         Assert.DoesNotContain("EmergencyMute", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("EmergencyStop", json, StringComparison.Ordinal);
         Assert.DoesNotContain("ActivePulse", json, StringComparison.Ordinal);
         Assert.DoesNotContain("PendingStop", json, StringComparison.Ordinal);
         Assert.DoesNotContain("PaddleGearBench", json, StringComparison.Ordinal);
@@ -524,6 +531,24 @@ public sealed class AppSettingsStoreTests
         });
 
         Assert.True(store.Load().AdvancedDiagnosticsEnabled);
+    }
+
+    [Fact]
+    public void PhprPedalsPreferenceFieldsRepairInvalidModeSafely()
+    {
+        using var directory = new TempDirectory();
+        var store = new AppSettingsStore(Path.Combine(directory.Path, "appsettings.json"));
+
+        store.Save(new AppSettings
+        {
+            PreferredPhprPedalsEnabled = true,
+            PreferredPhprPedalsMode = (PhprPedalsModePreference)999
+        });
+
+        var loaded = store.Load();
+
+        Assert.True(loaded.PreferredPhprPedalsEnabled);
+        Assert.Null(loaded.PreferredPhprPedalsMode);
     }
 
     private sealed class TempDirectory : IDisposable

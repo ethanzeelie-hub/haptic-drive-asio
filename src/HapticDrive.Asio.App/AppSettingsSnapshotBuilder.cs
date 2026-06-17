@@ -14,6 +14,8 @@ internal sealed record AppSettingsHydrationSnapshot(
     bool UseLightTheme,
     bool AdvancedDiagnosticsEnabled,
     bool HasPersistedOutputModePreference,
+    bool PhprPedalsEnabledPreference,
+    PhprPedalsModePreference PhprPedalsModePreference,
     AudioOutputDeviceKind SelectedOutputKind,
     string? SelectedAsioDriverName,
     int? SelectedAsioOutputChannel,
@@ -33,6 +35,8 @@ internal sealed record AppSettingsSaveInputs(
     bool UseLightTheme,
     bool AdvancedDiagnosticsEnabled,
     AudioOutputDeviceKind SelectedOutputKind,
+    bool PhprPedalsEnabledPreference,
+    PhprPedalsModePreference PhprPedalsModePreference,
     string? SelectedAsioDriverName,
     int? SelectedAsioOutputChannel,
     bool ArmAsioPreference,
@@ -58,6 +62,8 @@ internal sealed record PersistedSettingsStatusSnapshot(
     bool UseLightTheme,
     string ActiveProfileName,
     AudioOutputDeviceKind SelectedOutputKind,
+    bool PhprPedalsEnabledPreference,
+    PhprPedalsModePreference PhprPedalsModePreference,
     string ReplayTimingLabel,
     int ForwardingDestinationCount,
     string? SelectedAsioDriverName,
@@ -89,11 +95,15 @@ internal static class AppSettingsSnapshotBuilder
     public static AppSettingsHydrationSnapshot BuildHydrationSnapshot(AppSettings? settings)
     {
         var sanitized = AppSettingsStore.Sanitize(settings);
+        var phprPedalsModePreference = ResolvePhprPedalsModePreference(sanitized);
+        var phprPedalsEnabledPreference = ResolvePhprPedalsEnabledPreference(sanitized, phprPedalsModePreference);
         return new AppSettingsHydrationSnapshot(
             SettingsError: sanitized.LastStatusMessage,
             UseLightTheme: sanitized.UseLightTheme,
             AdvancedDiagnosticsEnabled: sanitized.AdvancedDiagnosticsEnabled,
             HasPersistedOutputModePreference: sanitized.PreferredOutputMode is not null,
+            PhprPedalsEnabledPreference: phprPedalsEnabledPreference,
+            PhprPedalsModePreference: phprPedalsModePreference,
             SelectedOutputKind: sanitized.PreferredOutputMode ?? AudioOutputDeviceKind.Null,
             SelectedAsioDriverName: sanitized.LastAsioDriverName,
             SelectedAsioOutputChannel: sanitized.LastAsioOutputChannel,
@@ -117,6 +127,8 @@ internal static class AppSettingsSnapshotBuilder
             UseLightTheme = inputs.UseLightTheme,
             AdvancedDiagnosticsEnabled = inputs.AdvancedDiagnosticsEnabled,
             PreferredOutputMode = inputs.SelectedOutputKind,
+            PreferredPhprPedalsEnabled = inputs.PhprPedalsEnabledPreference,
+            PreferredPhprPedalsMode = inputs.PhprPedalsModePreference,
             LastAsioDriverName = inputs.SelectedAsioDriverName,
             LastAsioOutputChannel = inputs.SelectedAsioOutputChannel,
             ArmAsioPreference = inputs.ArmAsioPreference,
@@ -382,6 +394,30 @@ internal static class AppSettingsSnapshotBuilder
             DurationMs = state.Profile.DurationMs
         };
     }
+
+    private static PhprPedalsModePreference ResolvePhprPedalsModePreference(AppSettings settings)
+    {
+        if (settings.PreferredPhprPedalsMode is not null)
+        {
+            return settings.PreferredPhprPedalsMode.Value;
+        }
+
+        return settings.MockGearPulseRouting.IsEnabled || settings.MockPedalEffectsRouting.IsEnabled
+            ? PhprPedalsModePreference.Mock
+            : PhprPedalsModePreference.Disabled;
+    }
+
+    private static bool ResolvePhprPedalsEnabledPreference(
+        AppSettings settings,
+        PhprPedalsModePreference modePreference)
+    {
+        if (settings.PreferredPhprPedalsEnabled is not null)
+        {
+            return settings.PreferredPhprPedalsEnabled.Value;
+        }
+
+        return modePreference != PhprPedalsModePreference.Disabled;
+    }
 }
 
 internal static class PersistedSettingsStatusPresenter
@@ -390,9 +426,9 @@ internal static class PersistedSettingsStatusPresenter
     {
         var resolved = snapshot ?? CreateDefaultSnapshot();
         return new PersistedSettingsStatusPresentation(
-            StatusText: $"Theme: {(resolved.UseLightTheme ? "Light" : "Dark")}. Active profile: {Normalize(resolved.ActiveProfileName, "Default")}. Saved output mode {resolved.SelectedOutputKind}; replay {Normalize(resolved.ReplayTimingLabel, "Real time")}; forwarding destinations {resolved.ForwardingDestinationCount}. Saved ASIO driver {Normalize(resolved.SelectedAsioDriverName, "none")}; channel {(resolved.SelectedAsioOutputChannel is null ? "none" : resolved.SelectedAsioOutputChannel)}; Arm ASIO preference {resolved.ArmAsioPreference}. Paddle mapping left {FormatButtonMapping(resolved.PaddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(resolved.PaddleMapping.RightPaddleButtonId)}, debounce {resolved.PaddleMapping.DebounceDuration.TotalMilliseconds:0} ms. BST-1 local gear {(resolved.Bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} at {resolved.Bst1PaddleGearStrengthPercent:0}% / {resolved.Bst1PaddleGearFrequencyHz:0.#} Hz / {resolved.EffectiveBst1PaddleGearDurationMs} ms. Shift intent {(resolved.ShiftIntentEnabled ? "enabled" : "disabled")} mode {resolved.ShiftIntentMode}. Real P-HPR direct control {(resolved.RealDirectControlEnabled ? "enabled" : "disabled")} runtime-only. Real slip/lock {(resolved.RealSlipLockEnabled ? "enabled" : "disabled")}. Mock gear routing {(resolved.MockGearRoutingEnabled ? "enabled" : "disabled")} target {resolved.MockGearRoutingTarget}. Mock pedal effects {(resolved.MockPedalEffectsEnabled ? "enabled" : "disabled")}. Haptics running, emergency mute, active pulses, pending stops, direct enable/arm/private device, paddle bench enable, and manual ASIO test active state are not saved. {resolved.SettingsError ?? string.Empty}".Trim(),
+            StatusText: $"Theme: {(resolved.UseLightTheme ? "Light" : "Dark")}. Active profile: {Normalize(resolved.ActiveProfileName, "Default")}. Saved output mode {resolved.SelectedOutputKind}; replay {Normalize(resolved.ReplayTimingLabel, "Real time")}; forwarding destinations {resolved.ForwardingDestinationCount}. Saved ASIO driver {Normalize(resolved.SelectedAsioDriverName, "none")}; channel {(resolved.SelectedAsioOutputChannel is null ? "none" : resolved.SelectedAsioOutputChannel)}; Arm ASIO preference {resolved.ArmAsioPreference}. Saved P-HPR pedals {(resolved.PhprPedalsEnabledPreference ? "enabled" : "disabled")} in {resolved.PhprPedalsModePreference} mode. Paddle mapping left {FormatButtonMapping(resolved.PaddleMapping.LeftPaddleButtonId)}, right {FormatButtonMapping(resolved.PaddleMapping.RightPaddleButtonId)}, debounce {resolved.PaddleMapping.DebounceDuration.TotalMilliseconds:0} ms. BST-1 local gear {(resolved.Bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} at {resolved.Bst1PaddleGearStrengthPercent:0}% / {resolved.Bst1PaddleGearFrequencyHz:0.#} Hz / {resolved.EffectiveBst1PaddleGearDurationMs} ms. Shift intent {(resolved.ShiftIntentEnabled ? "enabled" : "disabled")} mode {resolved.ShiftIntentMode}. Real P-HPR direct control {(resolved.RealDirectControlEnabled ? "enabled" : "disabled")} runtime-only. Real slip/lock {(resolved.RealSlipLockEnabled ? "enabled" : "disabled")}. Mock gear routing {(resolved.MockGearRoutingEnabled ? "enabled" : "disabled")} target {resolved.MockGearRoutingTarget}. Mock pedal effects {(resolved.MockPedalEffectsEnabled ? "enabled" : "disabled")}. Haptics running, emergency mute, active pulses, pending stops, direct enable/arm/private device, paddle bench enable, and manual ASIO test active state are not saved. {resolved.SettingsError ?? string.Empty}".Trim(),
             PathText: $"App settings path: {Normalize(resolved.SettingsPath, "unknown")}",
-            DiagnosticsText: $"{Normalize(resolved.SettingsPath, "unknown")}; {Normalize(resolved.SettingsError, "loaded")}; theme {(resolved.UseLightTheme ? "light" : "dark")}; output mode {resolved.SelectedOutputKind}; replay {Normalize(resolved.ReplayTimingLabel, "Real time")}; persisted ASIO driver {Normalize(resolved.SelectedAsioDriverName, "none")}; persisted ASIO channel {(resolved.SelectedAsioOutputChannel is null ? "none" : resolved.SelectedAsioOutputChannel)}; persisted Arm ASIO preference {resolved.ArmAsioPreference}; persisted paddle mapping device {Normalize(resolved.PaddleMapping.SelectedDeviceId, "none")} left {FormatButtonMapping(resolved.PaddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(resolved.PaddleMapping.RightPaddleButtonId)} debounce {resolved.PaddleMapping.DebounceDuration.TotalMilliseconds:0} ms; shift intent {(resolved.ShiftIntentEnabled ? "enabled" : "disabled")} mode {resolved.ShiftIntentMode}; BST-1 local gear {(resolved.Bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} {resolved.Bst1PaddleGearStrengthPercent:0}% {resolved.Bst1PaddleGearFrequencyHz:0.#} Hz {resolved.EffectiveBst1PaddleGearDurationMs} ms; mock gear routing {(resolved.MockGearRoutingEnabled ? "enabled" : "disabled")} target {resolved.MockGearRoutingTarget}; mock pedal effects {(resolved.MockPedalEffectsEnabled ? "enabled" : "disabled")}; real road vibration {(resolved.RealRoadVibrationEnabled ? "enabled" : "disabled")}; real slip/lock {(resolved.RealSlipLockEnabled ? "enabled" : "disabled")}; haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted.");
+            DiagnosticsText: $"{Normalize(resolved.SettingsPath, "unknown")}; {Normalize(resolved.SettingsError, "loaded")}; theme {(resolved.UseLightTheme ? "light" : "dark")}; output mode {resolved.SelectedOutputKind}; replay {Normalize(resolved.ReplayTimingLabel, "Real time")}; persisted ASIO driver {Normalize(resolved.SelectedAsioDriverName, "none")}; persisted ASIO channel {(resolved.SelectedAsioOutputChannel is null ? "none" : resolved.SelectedAsioOutputChannel)}; persisted Arm ASIO preference {resolved.ArmAsioPreference}; persisted P-HPR pedals {(resolved.PhprPedalsEnabledPreference ? "enabled" : "disabled")} mode {resolved.PhprPedalsModePreference}; persisted paddle mapping device {Normalize(resolved.PaddleMapping.SelectedDeviceId, "none")} left {FormatButtonMapping(resolved.PaddleMapping.LeftPaddleButtonId)} right {FormatButtonMapping(resolved.PaddleMapping.RightPaddleButtonId)} debounce {resolved.PaddleMapping.DebounceDuration.TotalMilliseconds:0} ms; shift intent {(resolved.ShiftIntentEnabled ? "enabled" : "disabled")} mode {resolved.ShiftIntentMode}; BST-1 local gear {(resolved.Bst1PaddleGearPulseEnabled ? "enabled" : "disabled")} {resolved.Bst1PaddleGearStrengthPercent:0}% {resolved.Bst1PaddleGearFrequencyHz:0.#} Hz {resolved.EffectiveBst1PaddleGearDurationMs} ms; mock gear routing {(resolved.MockGearRoutingEnabled ? "enabled" : "disabled")} target {resolved.MockGearRoutingTarget}; mock pedal effects {(resolved.MockPedalEffectsEnabled ? "enabled" : "disabled")}; real road vibration {(resolved.RealRoadVibrationEnabled ? "enabled" : "disabled")}; real slip/lock {(resolved.RealSlipLockEnabled ? "enabled" : "disabled")}; haptics running state, emergency mute, active pulses, pending stops, P-HPR real direct-control enabled/selected private device, P-HPR emergency stop state, safety latch state, paddle bench enable state, manual ASIO test active state, flight-recorder history, and mock histories are not persisted.");
     }
 
     private static PersistedSettingsStatusSnapshot CreateDefaultSnapshot()
@@ -403,6 +439,8 @@ internal static class PersistedSettingsStatusPresenter
             UseLightTheme: false,
             ActiveProfileName: "Default",
             SelectedOutputKind: AudioOutputDeviceKind.Null,
+            PhprPedalsEnabledPreference: true,
+            PhprPedalsModePreference: PhprPedalsModePreference.Mock,
             ReplayTimingLabel: "Real time",
             ForwardingDestinationCount: 0,
             SelectedAsioDriverName: null,

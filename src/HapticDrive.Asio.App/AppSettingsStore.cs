@@ -93,6 +93,12 @@ internal sealed class AppSettingsStore
                 : Enum.IsDefined(settings.PreferredOutputMode.Value)
                     ? settings.PreferredOutputMode
                     : null,
+            PreferredPhprPedalsEnabled = settings.PreferredPhprPedalsEnabled,
+            PreferredPhprPedalsMode = settings.PreferredPhprPedalsMode is null
+                ? null
+                : Enum.IsDefined(settings.PreferredPhprPedalsMode.Value)
+                    ? settings.PreferredPhprPedalsMode
+                    : null,
             LastAsioDriverName = string.IsNullOrWhiteSpace(settings.LastAsioDriverName)
                 ? null
                 : settings.LastAsioDriverName.Trim(),
@@ -388,6 +394,10 @@ internal sealed record AppSettings
 
     public AudioOutputDeviceKind? PreferredOutputMode { get; init; }
 
+    public bool? PreferredPhprPedalsEnabled { get; init; }
+
+    public PhprPedalsModePreference? PreferredPhprPedalsMode { get; init; }
+
     public string? LastAsioDriverName { get; init; }
 
     public int? LastAsioOutputChannel { get; init; }
@@ -417,6 +427,13 @@ internal sealed record AppSettings
     public string? LastStatusMessage { get; init; }
 
     public static AppSettings Default { get; } = new();
+}
+
+internal enum PhprPedalsModePreference
+{
+    Disabled = 0,
+    Mock = 1,
+    Direct = 2
 }
 
 internal enum ReplayTimingPreference
