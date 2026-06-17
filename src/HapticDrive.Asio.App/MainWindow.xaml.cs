@@ -5105,37 +5105,54 @@ public partial class MainWindow : Window
 
     private void UpdatePhprWorkflowStatus()
     {
-        var mode = GetPhprWorkflowModeText();
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var mockGear = _mockGearPulseRouter.GetSnapshot();
         var mockPedalEffects = _mockPedalEffectsRouter.GetSnapshot();
         var pipelineSnapshot = _hapticPipeline.GetSnapshot();
-        var validation = _phprManualValidationReadiness;
-        var liveValidation = PhprLiveF1ValidationGuide.Build(
-            BuildPhprLiveF1ValidationSnapshot(pipelineSnapshot, realDiagnostics));
-        var selectedDevice = realDiagnostics.Options.Selector.IsSelected
-            ? "selected for this session"
-            : "not selected";
-        var replaySource = FormatReplaySource(pipelineSnapshot);
-        var warning = realDiagnostics.Options.DirectControlEnabled
-            ? "Real direct-control state is runtime-only; profile/app settings do not save enable, private device path, emergency stop, or write history."
-            : "Real direct control is currently disabled; mock routing and diagnostics remain hardware-safe.";
+        var liveValidationSnapshot = BuildPhprLiveF1ValidationSnapshot(pipelineSnapshot, realDiagnostics);
+        var snapshot = PhprWorkflowStatusSnapshotBuilder.Build(new PhprWorkflowStatusBuildInputs(
+            new PhprWorkflowDiagnosticsSnapshot(
+                GetPhprWorkflowModeText(),
+                pipelineSnapshot.InputSource.ToString(),
+                FormatReplaySource(pipelineSnapshot),
+                pipelineSnapshot.Replay.PacketsReplayed,
+                realDiagnostics.Options.DirectControlEnabled,
+                realDiagnostics.Options.DirectControlArmed,
+                realDiagnostics.Options.Selector.IsSelected,
+                mockGear.Options.IsEnabled,
+                mockPedalEffects.Options.IsEnabled,
+                _realRoadVibrationOptions.IsEnabled,
+                _realSlipLockOptions.IsEnabled),
+            Path.GetFileName(HapticProfileStore.GetDefaultProfilePath()),
+            Path.GetFileName(PhprEffectProfileStore.GetDefaultProfilePath()),
+            _phprSoftwareCoexistenceSnapshot.Status.ToString(),
+            realDiagnostics.Output.IsEmergencyStopActive,
+            _phprManualValidationReadiness.IsBlocked,
+            FormatRealPhprPulse(realDiagnostics.Options.BrakeGearPulse),
+            FormatRealPhprPulse(realDiagnostics.Options.ThrottleGearPulse),
+            BuildRealPhprGearPulseLatencyText(),
+            _realRoadVibrationOptions.IsEnabled,
+            FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake),
+            FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle),
+            BuildRealRoadVibrationRoutingText(),
+            _realSlipLockOptions.IsEnabled,
+            FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip),
+            FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock),
+            BuildRealSlipLockRoutingText(),
+            mockGear.Options.TargetModule.ToString(),
+            mockGear.OutputSnapshot.AcceptedCommandCount,
+            mockGear.OutputSnapshot.PendingScheduledStopCount,
+            realDiagnostics.ReportWriteCount,
+            realDiagnostics.FailedReportWriteCount,
+            realDiagnostics.Connection.State.ToString(),
+            realDiagnostics.LastError ?? "none",
+            liveValidationSnapshot));
+        var presentation = PhprWorkflowStatusPresenter.Build(snapshot);
 
-        PhprWorkflowStatusText.Text =
-            $"P-HPR mode: {mode}; telemetry input {pipelineSnapshot.InputSource}; replay source {replaySource}; selected output {selectedDevice}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; direct control {(realDiagnostics.Options.DirectControlEnabled ? "enabled" : "disabled")}; emergency stop {realDiagnostics.Output.IsEmergencyStopActive}; validation {(validation.IsBlocked ? "blocked" : "ready")}.";
-        PhprWorkflowItemsControl.ItemsSource = new[]
-        {
-            warning,
-            $"Replay validation: input {pipelineSnapshot.InputSource}; replay source {replaySource}; replay packets {pipelineSnapshot.Replay.PacketsReplayed:N0}; replay does not synthesize gear-paddle events.",
-            $"Profiles: audio {Path.GetFileName(HapticProfileStore.GetDefaultProfilePath())} auto-saves current rig tuning/defaults; P-HPR {Path.GetFileName(PhprEffectProfileStore.GetDefaultProfilePath())} is a manual effect-preferences snapshot only.",
-            $"Instant gear pulse: brake {FormatRealPhprPulse(realDiagnostics.Options.BrakeGearPulse)}; throttle {FormatRealPhprPulse(realDiagnostics.Options.ThrottleGearPulse)}; last latency {BuildRealPhprGearPulseLatencyText()}.",
-            $"Road vibration: {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; brake {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Brake)}; throttle {FormatRealRoadVibrationPedal(_realRoadVibrationOptions.Throttle)}; last {BuildRealRoadVibrationRoutingText()}.",
-            $"Slip/lock: {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; slip {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelSlip, _realSlipLockOptions.WheelSlip)}; lock {FormatRealSlipLockEffect(PHprPedalEffectKind.WheelLock, _realSlipLockOptions.WheelLock)}; last {BuildRealSlipLockRoutingText()}.",
-            $"Mock routing: gear {(mockGear.Options.IsEnabled ? "enabled" : "disabled")} target {mockGear.Options.TargetModule}; pedal effects {(mockPedalEffects.Options.IsEnabled ? "enabled" : "disabled")}; shared mock commands {mockGear.OutputSnapshot.AcceptedCommandCount:N0}; pending stops {mockGear.OutputSnapshot.PendingScheduledStopCount:N0}.",
-            $"Real output counters: writes {realDiagnostics.ReportWriteCount:N0}; failures {realDiagnostics.FailedReportWriteCount:N0}; connection {realDiagnostics.Connection.State}; last error {realDiagnostics.LastError ?? "none"}."
-        };
-        PhprLiveF1ValidationStatusText.Text = liveValidation.Summary;
-        PhprLiveF1ValidationItemsControl.ItemsSource = liveValidation.Checklist;
+        PhprWorkflowStatusText.Text = presentation.StatusText;
+        PhprWorkflowItemsControl.ItemsSource = presentation.Items;
+        PhprLiveF1ValidationStatusText.Text = presentation.ValidationStatusText;
+        PhprLiveF1ValidationItemsControl.ItemsSource = presentation.ValidationItems;
     }
 
     private PhprLiveF1ValidationSnapshot BuildPhprLiveF1ValidationSnapshot(

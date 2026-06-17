@@ -1046,3 +1046,54 @@ The shared evaluator now owns:
 The older mock `PHprPedalEffectsRouter` also now consumes the same shared evaluator for wheel slip / wheel lock detection so replay-safe mock routing stays aligned with BST-1 and the real direct route.
 
 Stage 20 does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, direct gear-pulse tuning, road cadence, slip/lock runtime cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or persistence schema.
+
+## Stage 21A MainWindow Residual Orchestration Audit
+
+Stage 21A re-checks the post-Stage-20 shell and confirms that `MainWindow.xaml.cs` is still the remaining concentration point for:
+
+- startup/load wiring and initial device refresh,
+- shutdown/dispose ordering and shutdown diagnostics,
+- app-settings and profile hydration,
+- control-to-options parsing for ASIO, BST-1, and P-HPR,
+- safety-context construction from current runtime state,
+- diagnostics/status/report string assembly,
+- recording/replay UI workflow,
+- general WPF status/footer/dashboard updates.
+
+Stage 21A intentionally does not start a broad MVVM rewrite. The safe first extraction is the P-HPR workflow/status presentation path because it is pure report assembly and does not own:
+
+- hardware device opening,
+- ASIO render callbacks,
+- P-HPR HID writes,
+- background loops,
+- cancellation-token ownership,
+- startup/shutdown sequencing.
+
+New App-only non-WPF workflow-status presentation boundary:
+
+- `PhprWorkflowStatusSnapshotBuilder`
+- `PhprWorkflowStatusPresenter`
+- supporting records in `PhprWorkflowStatusPresenter.cs`
+
+The extracted boundary now owns:
+
+- P-HPR workflow status summary text assembly,
+- replay/profile/direct/mock/road/slip workflow item text assembly,
+- safe fallback text when the snapshot is missing or incomplete,
+- handoff of the existing `PhprLiveF1ValidationGuide` output back to `MainWindow`.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- live snapshot collection from `_hapticPipeline`, `_realPhprOutput`, `_mockGearPulseRouter`, `_mockPedalEffectsRouter`, paddle input, and validation state,
+- WPF control assignment to `TextBlock` / `ItemsControl` targets,
+- settings parsing and runtime configuration,
+- safety-context builders,
+- startup/shutdown lifecycle orchestration,
+- the much larger diagnostics-panel assembly path.
+
+Recommended Stage 21B:
+
+1. Extract a broader `AppDiagnosticsReportService` / diagnostics snapshot builder from `UpdateDiagnosticsStatus`.
+2. After that, consider `AppSettingsHydrationService` or dedicated P-HPR/ASIO settings snapshot builders.
+
+Stage 21A does not change UI/XAML, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.

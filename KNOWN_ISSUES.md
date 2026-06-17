@@ -700,3 +700,11 @@
 - `MainWindow.xaml.cs` still owns broader UI-only settings/status formatting and shell orchestration around the non-UI coordinators. Stage 20 intentionally does not attempt MVVM or general WPF decomposition.
 - Stage 20 intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or parser layouts.
 - Physical BST-1 shaker feel, physical P-HPR slip/lock feel, safe physical gain, and mixed-output latency still require Ethan-local validation and later tuning.
+
+## Stage 21A
+
+- `MainWindow.xaml.cs` still remains the dominant App-shell file and still owns startup/load wiring, shutdown/dispose ordering, settings/profile hydration, control parsing, safety-context construction, recording/replay UI workflow, diagnostics-panel assembly, and general WPF status/footer/dashboard updates.
+- Stage 21A extracts only the lowest-risk P-HPR workflow/status presentation logic into `PhprWorkflowStatusSnapshotBuilder` and `PhprWorkflowStatusPresenter`. That removes one substantive report-assembly slice from `MainWindow`, but it intentionally does not claim a broad MVVM decomposition.
+- The next safest extraction target is still the larger diagnostics/status assembly path around `UpdateDiagnosticsStatus`, followed by settings snapshot/hydration builders. Startup/shutdown lifecycle ownership and safety-context builders remain higher-risk follow-up work.
+- Stage 21A intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.

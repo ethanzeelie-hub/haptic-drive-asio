@@ -3326,3 +3326,41 @@ Self-review:
 - `SlipEffect` still owns BST-1 sample rendering and audio-facing diagnostics semantics, while `PHprSlipLockRouter` still owns direct-routing cadence, priority, road-yield, stop behavior, and HID-output handoff.
 - The mock P-HPR slip/lock path now shares the same evaluator as the BST-1 and real direct paths, but this stage still does not attempt broader UI/runtime decomposition or MVVM work.
 - No physical BST-1 shaker feel claim, physical P-HPR slip/lock feel claim, safe physical gain claim, or latency claim is made here. Local validation and later tuning are still required.
+
+## Stage 21A - MainWindow Residual Orchestration Audit And Safe Workflow-Status Extraction
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Audit the remaining post-Stage-20 `MainWindow.xaml.cs` ownership, pick the lowest-risk non-MVVM extraction target, move only that slice into a testable non-WPF boundary, and add guardrails so workflow/report logic does not drift back into the window code-behind.
+
+Changes:
+
+- Re-audited the live Stage 20 baseline before coding. `MainWindow.xaml.cs` was 7027 lines and still owned startup/load wiring, shutdown/dispose ordering, settings/profile hydration, ASIO/BST-1/P-HPR control parsing, safety-context construction, diagnostics/report assembly, recording/replay UI workflow, and general WPF status/footer/dashboard updates.
+- Confirmed the safe first extraction was not runtime ownership, hardware lifecycle, or safety-context building. Those still cross more volatile App/runtime/output seams. The lowest-risk path was the P-HPR workflow/status report assembly because it was already snapshot-driven and UI-only.
+- Added `PhprWorkflowStatusSnapshotBuilder`, `PhprWorkflowStatusPresenter`, `PhprWorkflowStatusBuildInputs`, `PhprWorkflowStatusSnapshot`, and `PhprWorkflowStatusPresentation` in `src/HapticDrive.Asio.App/PhprWorkflowStatusPresenter.cs`.
+- Moved the substantive P-HPR workflow summary/item text assembly out of `UpdatePhprWorkflowStatus()` and into the new non-WPF presenter. The presenter now owns safe fallback text, mock/direct/road/slip workflow line assembly, and reuse of the existing `PhprLiveF1ValidationGuide` output.
+- Reduced `MainWindow.xaml.cs` to collecting current live snapshots/settings for that slice, calling the snapshot builder and presenter, and assigning the returned status/checklist strings to WPF controls.
+- Intentionally kept `MainWindow.xaml.cs` responsible for live snapshot collection, `BuildPhprLiveF1ValidationSnapshot()`, WPF control assignment, settings parsing, safety-context builders, startup/shutdown sequencing, recording/replay UI flow, and the much larger diagnostics-panel assembly path.
+- Added `PhprWorkflowStatusPresenterTests` for representative output equivalence, safe fallback behavior for missing/invalid snapshots, and emergency-stop propagation through workflow and validation text.
+- Added `PhprWorkflowStatusPresenterGuardrailTests` to prove the new builder/presenter source stays free of WPF/control/hardware-writer references and that `MainWindow.xaml.cs` now routes the extracted workflow strings through the presenter instead of owning those inline strings directly.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21A audit result, the new workflow-status seam, the explicit no-MVVM scope choice, and the recommended Stage 21B follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 746 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21A intentionally avoided a broad MVVM rewrite. It moved only one low-risk diagnostics/status seam and left runtime behavior ownership untouched.
+- `MainWindow.xaml.cs` is still large after this stage because the bigger remaining responsibilities are startup/shutdown, settings parsing, safety-context construction, diagnostics-panel assembly, and recording/replay orchestration. Those are better Stage 21B+ targets than forcing them into this smaller stage.
+- Stage 21A intentionally does not change UI/XAML, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, recording format, or replay timing.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
