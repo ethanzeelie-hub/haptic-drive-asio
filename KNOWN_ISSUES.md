@@ -773,3 +773,12 @@
 - The next worthwhile step is a separate Stage 21I safety-context-builder audit or Stop All / Emergency Stop audit, not both together.
 - Stage 21H intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.
+
+## Stage 21I
+
+- `MainWindow.xaml.cs` still remains the dominant App-shell file and still owns runtime snapshot gathering, direct WPF reads/writes, actual Stop All / Emergency Stop execution, startup cleanup invocation, direct-control enable/arm mutation, safety-limiter/output call sites, and direct hardware/runtime orchestration.
+- Stage 21I extracts only `SafetyContextSnapshotBuilder`, which now owns the deterministic mapping from already-gathered mock/real output snapshots and runtime booleans into immutable `PHprSafetyContext`-equivalent snapshots.
+- Stop All / Emergency Stop execution did not move, and `InitializeStartupCleanupAsync()` remains explicit and unchanged in `PHprDirectRuntime`.
+- The next worthwhile step is a dedicated Stage 21J Stop All / Emergency Stop ownership audit now that the pure safety-context mapping has been separated.
+- Stage 21I intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, and mixed-output latency remain Ethan-local validation items.

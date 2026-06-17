@@ -3648,3 +3648,49 @@ Self-review:
 - `MainWindow.xaml.cs` line count moved from 6099 to 6140 in this stage. The increase is acceptable because the stage prioritized explicit lifecycle ownership and testable ordering over cosmetic reduction.
 - Stage 21H intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, or privacy/redaction boundaries.
 - No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.
+
+## Stage 21I - Safety-Context Builder Audit
+
+Date: 2026-06-17
+
+Status: Complete.
+
+Goal: Audit the remaining safety-context construction logic in `MainWindow.xaml.cs` and extract only the pure deterministic snapshot-to-context mapping seam while leaving Stop All / Emergency Stop, startup cleanup, direct-control mutation, and hardware/runtime ownership unchanged.
+
+Changes:
+
+- Re-audited the live Stage 21H baseline before coding. `MainWindow.xaml.cs` was 6140 lines and still owned clustered `PHprSafetyContext` builders for mock gear, mock pedal effects, real gear, paddle-bench mock/direct, real road/slip-lock, and manual real pulse paths.
+- Confirmed that the safe Stage 21I seam was the repeated deterministic mapping from already-gathered runtime snapshots and booleans into `PHprSafetyContext` values.
+- Confirmed that WPF reads/writes, runtime snapshot gathering, Stop All / Emergency Stop execution, startup cleanup invocation, direct-control enable/arm mutation, and actual safety-limiter/output calls remain outside that seam and must stay explicit in `MainWindow.xaml.cs`.
+- Added `SafetyContextSnapshotBuilder` and `PhprSafetyContextSnapshot` in `src/HapticDrive.Asio.App/SafetyContextSnapshotBuilder.cs`.
+- Moved the repeated pure `PHprSafetyContext` field mapping out of `MainWindow.xaml.cs` into App-layer builder methods for:
+  - mock runtime safety contexts,
+  - real runtime safety contexts,
+  - manual real-output safety contexts,
+  - paddle-bench mock safety contexts,
+  - paddle-bench direct safety contexts.
+- Reduced `MainWindow.xaml.cs` safety-context methods to gathering the current runtime snapshots/booleans and delegating the pure mapping to `SafetyContextSnapshotBuilder`, then converting the returned immutable snapshot into the existing `PHprSafetyContext`.
+- Intentionally kept `RefreshDrivingArmedAndShiftIntentTelemetry()`, output snapshot reads, driving-armed snapshot reads, Stop All / Emergency Stop handlers, startup cleanup invocation, direct-control mutation, and all routing/runtime/output calls in `MainWindow.xaml.cs`.
+- Added `SafetyContextSnapshotBuilderTests` for default disabled/unarmed-style inputs, haptics stopped state, telemetry-stale mapping, emergency mute / emergency-stop mapping, SimPro / SimHub conflict mapping, manual selected-device mapping, bench mock/direct mapping, and deterministic output.
+- Added `SafetyContextSnapshotBuilderGuardrailTests` to prove the new builder stays free of WPF, HID writer, ASIO start/stop, output-report/FeatureReport write, runtime start/stop, Stop All / Emergency Stop execution, and direct-control mutation references, and to prove `MainWindow.xaml.cs` still owns Stop All / Emergency Stop execution plus startup cleanup invocation.
+- Updated `ARCHITECTURE.md`, `ROADMAP.md`, and `KNOWN_ISSUES.md` with the Stage 21I audit result, the extracted builder boundary, the seams intentionally left in `MainWindow`, and the recommended Stage 21J follow-up.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 794 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 21I intentionally avoided broad safety ownership transfer. It moved only the pure snapshot-to-context mapping layer and kept execution-heavy safety behavior explicit.
+- Stop All / Emergency Stop execution did not move, and `InitializeStartupCleanupAsync()` remains explicit and unchanged in `PHprDirectRuntime`.
+- `MainWindow.xaml.cs` remains large after this stage because it still owns runtime snapshot gathering, direct WPF reads/writes, Stop All / Emergency Stop execution, startup cleanup invocation, direct-control mutation, and direct hardware/runtime calls. Those are better Stage 21J+ audit targets than forcing them into this pure-builder stage.
+- `MainWindow.xaml.cs` line count moved from 6140 to 6103 in this stage. The reduction came from removing repeated inline `PHprSafetyContext` construction while preserving behavior.
+- Stage 21I intentionally does not change UI/XAML, app-settings/profile schemas, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 backend behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
+- No physical BST-1 feel claim, physical P-HPR feel claim, safe physical gain claim, or latency claim is made here. Local validation is still required later.

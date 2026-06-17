@@ -5343,105 +5343,72 @@ public partial class MainWindow : Window
     {
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         var outputSnapshot = _realPhprOutput.GetSnapshot();
-        return new PHprSafetyContext(
-            IsMockOutput: false,
-            IsDeviceConnected: outputSnapshot.IsConnected,
-            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
-            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
-            TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
-            HapticsStopped: !pipelineSnapshot.IsRunning,
-            EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: shiftIntentEvent.DrivingArmedAtEvent.IsArmed,
-            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
-            RequiresRealDeviceWrites: true);
+        return SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(
+                outputSnapshot,
+                pipelineSnapshot.TelemetryTimedOutMuted,
+                hapticsStopped: !pipelineSnapshot.IsRunning,
+                _emergencyMuted,
+                shiftIntentEvent.DrivingArmedAtEvent.IsArmed,
+                _phprSoftwareCoexistenceSnapshot.Status)
+            .ToSafetyContext();
     }
 
     private PHprSafetyContext BuildPaddleGearBenchMockSafetyContext()
     {
         var outputSnapshot = _mockPhprSafetyOutput.GetSnapshot();
-        return new PHprSafetyContext(
-            IsMockOutput: true,
-            IsDeviceConnected: outputSnapshot.IsConnected,
-            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
-            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
-            TelemetryStale: false,
-            HapticsStopped: false,
-            EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: true,
-            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: PHprSoftwareConflictStatus.Clear,
-            RequiresRealDeviceWrites: false);
+        return SafetyContextSnapshotBuilder.BuildBenchMockSnapshot(
+                outputSnapshot,
+                _emergencyMuted)
+            .ToSafetyContext();
     }
 
     private PHprSafetyContext BuildPaddleGearBenchDirectSafetyContext()
     {
         var outputSnapshot = _realPhprOutput.GetSnapshot();
-        return new PHprSafetyContext(
-            IsMockOutput: false,
-            IsDeviceConnected: outputSnapshot.IsConnected,
-            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
-            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
-            TelemetryStale: false,
-            HapticsStopped: false,
-            EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: true,
-            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
-            RequiresRealDeviceWrites: true);
+        return SafetyContextSnapshotBuilder.BuildBenchDirectSnapshot(
+                outputSnapshot,
+                _emergencyMuted,
+                _phprSoftwareCoexistenceSnapshot.Status)
+            .ToSafetyContext();
     }
 
     private PHprSafetyContext BuildRealRoadVibrationSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
     {
         var outputSnapshot = _realPhprOutput.GetSnapshot();
         var driving = _drivingArmedStateService.GetSnapshot();
-        return new PHprSafetyContext(
-            IsMockOutput: false,
-            IsDeviceConnected: outputSnapshot.IsConnected,
-            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
-            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
-            TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
-            HapticsStopped: !pipelineSnapshot.IsRunning,
-            EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: driving.Current.IsArmed,
-            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
-            RequiresRealDeviceWrites: true);
+        return SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(
+                outputSnapshot,
+                pipelineSnapshot.TelemetryTimedOutMuted,
+                hapticsStopped: !pipelineSnapshot.IsRunning,
+                _emergencyMuted,
+                driving.Current.IsArmed,
+                _phprSoftwareCoexistenceSnapshot.Status)
+            .ToSafetyContext();
     }
 
     private PHprSafetyContext BuildRealSlipLockSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
     {
         var outputSnapshot = _realPhprOutput.GetSnapshot();
         var driving = _drivingArmedStateService.GetSnapshot();
-        return new PHprSafetyContext(
-            IsMockOutput: false,
-            IsDeviceConnected: outputSnapshot.IsConnected,
-            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
-            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
-            TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
-            HapticsStopped: !pipelineSnapshot.IsRunning,
-            EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: driving.Current.IsArmed,
-            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
-            RequiresRealDeviceWrites: true);
+        return SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(
+                outputSnapshot,
+                pipelineSnapshot.TelemetryTimedOutMuted,
+                hapticsStopped: !pipelineSnapshot.IsRunning,
+                _emergencyMuted,
+                driving.Current.IsArmed,
+                _phprSoftwareCoexistenceSnapshot.Status)
+            .ToSafetyContext();
     }
 
     private PHprSafetyContext BuildManualRealPhprSafetyContext()
     {
         var outputSnapshot = _realPhprOutput.GetSnapshot();
-        return new PHprSafetyContext(
-            IsMockOutput: false,
-            IsDeviceConnected: _realPhprOptions.Selector.IsSelected,
-            BrakeModuleAvailable: _realPhprOptions.Selector.IsSelected,
-            ThrottleModuleAvailable: _realPhprOptions.Selector.IsSelected,
-            TelemetryStale: false,
-            HapticsStopped: false,
-            EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: true,
-            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
-            RequiresRealDeviceWrites: true);
+        return SafetyContextSnapshotBuilder.BuildManualRealSnapshot(
+                _realPhprOptions.Selector.IsSelected,
+                _emergencyMuted,
+                outputSnapshot.IsEmergencyStopActive,
+                _phprSoftwareCoexistenceSnapshot.Status)
+            .ToSafetyContext();
     }
 
     private PHprSafetyContext BuildMockPhprSafetyContext(
@@ -5449,18 +5416,14 @@ public partial class MainWindow : Window
         bool drivingArmed)
     {
         var outputSnapshot = _mockPhprSafetyOutput.GetSnapshot();
-        return new PHprSafetyContext(
-            IsMockOutput: true,
-            IsDeviceConnected: outputSnapshot.IsConnected,
-            BrakeModuleAvailable: outputSnapshot.BrakeAvailable,
-            ThrottleModuleAvailable: outputSnapshot.ThrottleAvailable,
-            TelemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
-            HapticsStopped: !pipelineSnapshot.IsRunning,
-            EmergencyMuteActive: _emergencyMuted,
-            DrivingArmed: drivingArmed,
-            EmergencyStopActive: outputSnapshot.IsEmergencyStopActive,
-            SoftwareConflictStatus: _phprSoftwareCoexistenceSnapshot.Status,
-            RequiresRealDeviceWrites: false);
+        return SafetyContextSnapshotBuilder.BuildMockRuntimeSnapshot(
+                outputSnapshot,
+                pipelineSnapshot.TelemetryTimedOutMuted,
+                hapticsStopped: !pipelineSnapshot.IsRunning,
+                _emergencyMuted,
+                drivingArmed,
+                _phprSoftwareCoexistenceSnapshot.Status)
+            .ToSafetyContext();
     }
 
     private void UpdateTelemetryStatus()

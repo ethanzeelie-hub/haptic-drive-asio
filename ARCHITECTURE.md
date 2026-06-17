@@ -1501,3 +1501,71 @@ Recommended Stage 21I:
 2. Do not combine both unless a later audit proves those seams are trivial and fully fake-testable.
 
 Stage 21H does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, parser layouts, or privacy/redaction boundaries.
+
+## Stage 21I Safety-Context Builder Audit
+
+Stage 21I re-audits only the remaining App-shell safety-context builders and extracts one narrow pure snapshot builder without moving any Stop All, Emergency Stop, startup-cleanup, or runtime ownership.
+
+Audit result:
+
+- the remaining safety-context methods in `MainWindow.xaml.cs` were all concentrated in one cluster and mostly repeated the same deterministic `PHprSafetyContext` field mapping,
+- the pure seam was the mapping from already-gathered runtime snapshots and booleans into immutable safety-context data,
+- WPF reads/writes, runtime snapshot gathering, Stop All / Emergency Stop execution, direct-control mutation, startup-cleanup invocation, and safety-limiter/output execution remained outside that seam and unsafe to move.
+
+New App-only non-WPF safety-context boundary:
+
+- `SafetyContextSnapshotBuilder`
+- supporting record `PhprSafetyContextSnapshot`
+
+The extracted boundary now owns:
+
+- deterministic mapping from mock/real output snapshots plus read-only runtime booleans into immutable safety-context snapshots,
+- manual real-output safety-context snapshot shaping from selected-device readiness state,
+- paddle-bench mock/direct safety-context snapshot shaping,
+- conversion from the intermediate snapshot to the existing `PHprSafetyContext` value.
+
+`SafetyContextSnapshotBuilder` intentionally does not own:
+
+- WPF controls or `Dispatcher`,
+- HID writer open/write/close calls,
+- P-HPR start/stop report emission,
+- ASIO output start/stop,
+- audio buffer submission,
+- telemetry receiver or timer start/stop,
+- Stop All / Emergency Stop execution,
+- startup cleanup execution,
+- direct-control enable/arm mutation,
+- safety-limiter execution or mutation,
+- private HID path persistence,
+- emergency/Stop All latch persistence.
+
+`MainWindow.xaml.cs` intentionally still owns:
+
+- `RefreshDrivingArmedAndShiftIntentTelemetry()` and other runtime snapshot reads,
+- `_realPhprOutput.GetSnapshot()` / `_mockPhprSafetyOutput.GetSnapshot()` call sites,
+- driving-armed state reads from `_drivingArmedStateService`,
+- actual Stop All / Emergency Stop handlers,
+- actual direct-control enable/arm mutation,
+- actual mock/real routing calls and safety-limiter calls,
+- `InitializeStartupCleanupAsync()` invocation,
+- all ASIO lifecycle and direct-output runtime ownership.
+
+Protected behavior after Stage 21I:
+
+- Stop All / Emergency Stop execution did not move,
+- startup cleanup remains explicit and unchanged in `PHprDirectRuntime`,
+- no startup output or auto-arm behavior was introduced,
+- existing `PHprSafetyContext` gate values remain the same for mock gear, mock pedal effects, real gear, bench mock/direct, real road/slip/lock, and manual real pulse call sites,
+- no ASIO/P-HPR report, protocol, tuning, schema, parser, replay, or privacy behavior changed.
+
+Why the extraction stops here:
+
+- the pure mapping layer was safe to move, but the surrounding snapshot gathering and execution paths are still tied to live runtime state and safety-critical ownership,
+- pushing further in this stage would start mixing safety-context extraction with Stop All / Emergency Stop or runtime ownership, which this stage explicitly avoids.
+
+Recommended Stage 21J:
+
+1. Audit Stop All / Emergency Stop ownership as its own stage now that the pure safety-context mapping is separated.
+2. If that still looks unsafe to extract, add more guardrails around those handlers rather than forcing a broad lifecycle coordinator.
+
+Stage 21I does not change UI/XAML, app-settings schema, audio-profile schema, P-HPR profile schema, `.hdrec` format, replay timing behavior, startup behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, report ID `0xF1`, FeatureReport transport, command encoding, gear routing, road cadence, slip/lock cadence, hold-timeout durations, command-rate limiter behavior, safety-limit numeric defaults, parser layouts, or privacy/redaction boundaries.
