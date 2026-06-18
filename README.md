@@ -8,11 +8,12 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25E: Explicit telemetry adapter composition and runtime fallback removal complete.
+Stage 25F: Effect-engine extensibility seam complete.
 
 ## Current Architecture Baseline
 
 - F1 25 is still the only production game integration. Future game support is planned, runtime now consumes an injected game-telemetry adapter, and the app resolves the active adapter through a selected-game catalog path. The current catalog still contains F1 25 only.
+- `HapticEffectEngine` now composes the shipped BST-1 effects through an internal registered-slot seam instead of hand-wired per-effect orchestration, but options, profiles, diagnostics, and snapshots remain explicitly typed to the current effect set.
 - `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
 - ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.
 - Simagic P-HPR remains a separate non-audio actuator path. It is not routed through ASIO or `IAudioOutputDevice`.

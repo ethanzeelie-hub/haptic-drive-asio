@@ -114,6 +114,7 @@
 - Stage 25C: Runtime game-telemetry adapter seam complete.
 - Stage 25D: App-side game telemetry catalog and selected-game persistence baseline complete.
 - Stage 25E: Explicit telemetry adapter composition and runtime fallback removal complete.
+- Stage 25F: Effect-engine extensibility seam complete.
 
 ## Planned Stages
 
@@ -200,6 +201,7 @@
 81. Stage 25C: Runtime game-telemetry adapter seam. Complete.
 82. Stage 25D: App-side game telemetry catalog and selected-game persistence baseline. Complete.
 83. Stage 25E: Explicit telemetry adapter composition and runtime fallback removal. Complete.
+84. Stage 25F: Effect-engine extensibility seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -245,7 +247,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25C introduces a runtime-facing `IGameTelemetryAdapter` seam so parsing, packet descriptors, and `VehicleState` application now sit behind a game adapter contract with F1 25 as the default implementation.
 - Stage 25D adds an app-side game telemetry catalog plus persisted `SelectedGameId`, so the production app path now composes the runtime adapter explicitly even though the shipped catalog still contains only F1 25.
 - Stage 25E removes the runtime assembly's built-in F1 25 fallback and direct F1 telemetry project reference; callers now compose `HapticPipelineCoordinator` with an explicit adapter.
-- Remaining quality work still includes visible game selection UX when a second game exists, effect-engine extensibility, recording/replay scaling, atomic/schema-versioned persistence, and packaging/release automation.
+- Stage 25F replaces the effect engine's repeated fixed-list orchestration with an internal registered-slot seam, so reset/update/render/mixer-input flow is now shared even though the public effect options and diagnostics surfaces are still explicitly typed to the current BST-1 effect set.
+- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, recording/replay scaling, atomic/schema-versioned persistence, and packaging/release automation.
 
 ## Post-BT-1 Hardware Phases
 

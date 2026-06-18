@@ -111,7 +111,7 @@ Stage 13 does not implement a separate advanced ABS effect, advanced tyre model,
 
 ## Integration
 
-The `HapticEffectEngine` renders active effect buffers as `AudioMixerInput` sources. The Stage 10 mixer and safety processor still handle source summing, master gain, normal mute, emergency mute, invalid sample sanitisation, limiting, clipping, and final submission to `NullAudioOutputDevice` in automated tests.
+The `HapticEffectEngine` renders active effect buffers as `AudioMixerInput` sources through an internal registered effect-slot seam. The Stage 10 mixer and safety processor still handle source summing, master gain, normal mute, emergency mute, invalid sample sanitisation, limiting, clipping, and final submission to `NullAudioOutputDevice` in automated tests.
 
 The WPF shell adds Stage 14 controls for per-effect enabled state and gain, selected existing effect parameters, mixer/safety settings, versioned JSON profiles, and read-only diagnostics. The effect engine can retune by replacing immutable option records under a short lock, then continues to feed the same mixer, safety processor, emergency mute, limiter, clipping protection, and `NullAudioOutputDevice` path.
 

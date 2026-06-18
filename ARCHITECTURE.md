@@ -2455,3 +2455,16 @@ Stage 25E architecture result:
 - Runtime project guardrails now protect that dependency direction.
 
 Stage 25E deliberately does not add a second game, a visible game picker, or game-specific recordings/profile partitioning. It removes hidden composition behavior first so future work stays explicit.
+
+## Stage 25F Effect-Engine Extensibility Seam
+
+Stage 25F reduces the central orchestration pressure inside the BST-1 audio effect engine without changing its public behavior.
+
+Stage 25F architecture result:
+
+- `HapticEffectEngine` now owns the current effect set through an internal registered-slot seam.
+- Reset, `VehicleState` update, effect render, peak aggregation, and mixer-input collection now flow through shared slot orchestration instead of repeated per-effect code paths.
+- The road-texture gear-pulse hook remains explicit, but it now targets the registered road-texture slot rather than a separate hand-managed field/buffer pair.
+- The public surfaces stay stable: `HapticEffectEngineOptions`, `HapticEffectEngineSnapshot`, profile records, diagnostics/report text, and existing callers still expose the shipped BST-1 effect set explicitly.
+
+Stage 25F deliberately does not add new effects, a plugin marketplace, dynamic profile-driven effect discovery, or broader data-driven diagnostics/UI. It narrows the internal engine seam first so future effect additions have a smaller runtime blast radius.

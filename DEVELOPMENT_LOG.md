@@ -4470,6 +4470,60 @@ Self-review:
 - No P-HPR HID/report behavior changed.
 - No physical validation is claimed.
 
+## Stage 25F - Effect-Engine Extensibility Seam
+
+Status: Complete.
+
+Goal: Replace the BST-1 effect engine's repeated fixed-list orchestration with an internal registration seam so future effect growth adds less central runtime pressure while keeping the public effect/runtime surface stable.
+
+Changes:
+
+- Re-audited the post-25E effect engine before editing:
+  - `HapticEffectEngine` still owned six separate effect fields plus six separate buffers,
+  - reset, `VehicleState` update, render, peak aggregation, and mixer-input collection were all repeated by hand for each effect,
+  - the public snapshot/report shape was already widely consumed by app/runtime/tests and needed to stay stable for a seam-only stage.
+- Reworked the engine internals around registered effect slots:
+  - added a private generic `EffectSlot<TEffect, TOptions>` helper inside `HapticEffectEngine`,
+  - each shipped BST-1 effect now owns one slot with its effect instance, persistent render buffer, option selector, and factory,
+  - the engine now keeps one ordered `_effectSlots` list for shared orchestration.
+- Moved repeated engine flow onto the slot seam:
+  - `UpdateOptions` now recreates all slots through one shared loop,
+  - `Reset` now resets every effect through one shared loop,
+  - `Update` now applies `VehicleState` through one shared loop,
+  - `RenderNextBuffer` now renders, collects mixer inputs, and aggregates peak level through one shared loop.
+- Kept public behavior stable while narrowing the internal seam:
+  - `HapticEffectEngineOptions` and `HapticEffectEngineSnapshot` stayed unchanged,
+  - snapshot creation still exposes explicit Engine/GearShift/Kerb/Impact/RoadTexture/Slip data,
+  - the road-texture gear-pulse hook still exists and now targets the registered road-texture slot explicitly.
+- Added one focused observable test:
+  - `EffectEngine_MixerInputsFollowDeterministicRegistrationOrder` now locks the current active-effect order (`Kerb`, `Road texture`, `Slip`) for a known multi-effect state so future effect additions have a visible deterministic extension point.
+- Updated repo documentation:
+  - `README.md` now reports Stage 25F and documents the new registered-slot baseline,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25F and move the remaining gap from engine-internal extensibility to broader effect-surface generalization,
+  - `docs/HAPTIC_EFFECTS.md` now describes the internal slot seam.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Audio.Tests/HapticDrive.Asio.Audio.Tests.csproj --no-restore` passed with 119 tests.
+- `.\.dotnet\dotnet.exe build src/HapticDrive.Asio.Audio/HapticDrive.Asio.Audio.csproj --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 880 tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed launch preflight.
+
+Self-review:
+
+- Stage 25F intentionally changes the engine seam, not the public effect contract.
+- The shipped BST-1 effect set, tuning defaults, diagnostics wording, and runtime behavior remain unchanged.
+- Adding a new effect is now lower-risk inside the audio engine itself, but still requires explicit coordinated work across options/profile/UI/diagnostics surfaces.
+- No telemetry parser logic changed.
+- No game-adapter/catalog behavior changed.
+- No recording/replay behavior changed.
+- No ASIO/BST-1 safety or backend behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+
 ## Stage 23K - MainWindow Shell-Composition Audit and Gemini REC-01 Closure
 
 Status: Complete.

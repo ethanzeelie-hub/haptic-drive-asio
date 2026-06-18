@@ -664,6 +664,28 @@ public sealed class HapticEffectTests
     }
 
     [Fact]
+    public void EffectEngine_MixerInputsFollowDeterministicRegistrationOrder()
+    {
+        var engine = new HapticEffectEngine(EffectFormat);
+
+        engine.Update(State(
+            rpm: 0,
+            speed: 90,
+            surfaceTypeIds: Wheels<byte>(1),
+            wheelSlipRatio: Wheels(0.3f),
+            wheelSlipAngle: Wheels(0.2f),
+            wheelSpeed: Wheels(20f)));
+
+        var render = engine.RenderNextBuffer();
+
+        Assert.Collection(
+            render.MixerInputs,
+            input => Assert.Equal("Kerb", input.Name),
+            input => Assert.Equal("Road texture", input.Name),
+            input => Assert.Equal("Slip", input.Name));
+    }
+
+    [Fact]
     public void EffectEngine_EmergencyMuteOutputsSilenceRegardlessOfActiveEffects()
     {
         var engine = new HapticEffectEngine(EffectFormat);

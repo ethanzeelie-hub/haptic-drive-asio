@@ -894,3 +894,12 @@
 - Packet diagnostics and persisted-settings status now carry selected-game information, but recordings metadata, profile naming, and broader UX are still F1-25-first rather than fully game-agnostic.
 - `HapticEffectEngine` still uses a fixed-list composition model, so adding more effects or game-specific effect sets will continue to increase central orchestration pressure until a registration-style seam exists.
 - Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
+
+## Stage 25F
+
+- `HapticEffectEngine` now uses an internal registered-slot seam for reset/update/render/mixer-input orchestration, but the public effect surfaces are still explicitly typed to the current BST-1 set. Adding a brand-new effect still requires coordinated changes across `HapticEffectEngineOptions`, profile models, app settings/UI wiring, diagnostics, and snapshot/report formatting.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Recordings metadata, profile naming, and broader UX remain F1-25-first rather than fully game-agnostic.
+- Recording/replay still uses the current in-memory queue and file-loading model; it is safe for normal usage but not yet hardened for very long sessions or richer indexing/query workflows.
+- App settings and profile writes are still sanitized but non-atomic and not yet schema-versioned for larger future migration work.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
