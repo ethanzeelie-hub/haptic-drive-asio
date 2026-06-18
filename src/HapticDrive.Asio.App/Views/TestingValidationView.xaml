@@ -1,0 +1,479 @@
+<UserControl x:Class="HapticDrive.Asio.App.Views.TestingValidationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="1200"
+             d:DesignWidth="980">
+    <StackPanel x:Name="TestingValidationPanel">
+        <Border x:Name="TestBenchPanel"
+                Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <TextBlock FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="Synthetic Test Bench" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           Text="Use this when you want a repeatable software-only signal path check through the mixer, safety chain, and Null output." />
+
+                <WrapPanel Margin="0,16,0,0"
+                           VerticalAlignment="Center">
+                    <StackPanel Width="240"
+                                Margin="0,0,16,0">
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Signal" />
+                        <ComboBox x:Name="TestBenchSignalComboBox"
+                                  Margin="0,6,0,0"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectionChanged="TestBenchSignalComboBox_SelectionChanged" />
+                    </StackPanel>
+
+                    <Button x:Name="TestBenchStartStopButton"
+                            MinWidth="150"
+                            Margin="0,20,0,0"
+                            Click="TestBenchStartStopButton_Click"
+                            Content="Start Test Bench" />
+                </WrapPanel>
+
+                <UniformGrid Columns="4"
+                             Margin="0,18,0,0">
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="State" />
+                        <TextBlock x:Name="TestBenchStateText"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="Idle" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Output Peak" />
+                        <TextBlock x:Name="TestBenchPeakText"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="0.000" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Limiter" />
+                        <TextBlock x:Name="TestBenchLimiterText"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="0 limited" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Output" />
+                        <TextBlock x:Name="TestBenchOutputText"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="Null Output" />
+                    </StackPanel>
+                </UniformGrid>
+
+                <TextBlock x:Name="TestBenchWarningText"
+                           Margin="0,14,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           Text="Physical shaker feel, safe gain, latency, and frequency tuning are not validated until real hardware testing." />
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="TestingPanel"
+                Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                           Text="Testing / Validation" />
+                <TextBlock Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}"
+                           Text="Manual pulse checks, paddle bench tools, and local validation exports live here. Advanced keeps raw direct-control details and diagnostics." />
+
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        Background="{DynamicResource AppSurfaceAltBrush}"
+                        BorderBrush="{DynamicResource AppBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Manual Bass Shaker Test" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}"
+                                   Text="Use this when you want a short seat-shaker check without starting live haptics. Select ASIO, confirm the driver/channel, and arm ASIO first." />
+                        <WrapPanel Margin="0,12,0,0">
+                            <TextBlock Margin="0,4,6,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="Strength %" />
+                            <TextBox x:Name="ManualBst1StrengthTextBox"
+                                     Width="84"
+                                     Margin="0,0,12,8"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     LostFocus="ManualBst1Control_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="Output trim %" />
+                            <TextBox x:Name="Bst1OutputTrimTextBox"
+                                     Width="84"
+                                     Margin="0,0,12,8"
+                                     ToolTip="Calibrates ASIO bass-shaker output level without changing P-HPR strength."
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     LostFocus="ManualBst1Control_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="Frequency Hz" />
+                            <TextBox x:Name="ManualBst1FrequencyTextBox"
+                                     Width="84"
+                                     Margin="0,0,12,8"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     LostFocus="ManualBst1Control_LostFocus" />
+                            <TextBlock Margin="0,4,12,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="Dayton BST-1 range: 10-80 Hz" />
+                            <TextBlock Margin="0,4,6,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="Duration ms" />
+                            <TextBox x:Name="ManualBst1DurationTextBox"
+                                     Width="84"
+                                     Margin="0,0,12,8"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     LostFocus="ManualBst1Control_LostFocus" />
+                            <Button Width="150"
+                                    Margin="0,0,8,8"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Click="ManualBst1PulseButton_Click"
+                                    Content="Test BST-1 Pulse" />
+                            <Button Width="150"
+                                    Margin="0,0,8,8"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="ManualAsioHardwareTestChannel1Button_Click"
+                                    Content="Select channel 1" />
+                            <Button Width="150"
+                                    Margin="0,0,8,8"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="ManualAsioHardwareTestChannel0Button_Click"
+                                    Content="Optional channel 0" />
+                        </WrapPanel>
+                        <TextBlock x:Name="ManualAsioHardwareStatusText"
+                                   Margin="0,12,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}" />
+                        <TextBlock x:Name="ManualAsioHardwareBlockedReasonText"
+                                   Margin="0,6,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        Background="{DynamicResource AppSurfaceAltBrush}"
+                        BorderBrush="{DynamicResource AppBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontWeight="SemiBold"
+                                       Text="Manual P-HPR Pedal Test" />
+                            <TextBlock x:Name="PhprPedalsModeBadgeText"
+                                       Grid.Column="1"
+                                       Style="{StaticResource StatusBadgeTextBlockStyle}"
+                                       Text="Disabled" />
+                        </Grid>
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}"
+                                   Text="Use this when you want a short brake or throttle check. Devices keeps normal readiness, emergency recovery, and current mode." />
+                        <TextBlock x:Name="PhprPedalsStatusText"
+                                   Margin="0,12,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}" />
+                        <TextBlock x:Name="PhprPedalsDeviceStatusText"
+                                   Margin="0,6,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}" />
+                        <TextBlock x:Name="PhprPedalsLastResultText"
+                                   Margin="0,6,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}" />
+                        <WrapPanel Margin="0,14,0,0">
+                            <Button x:Name="TestPhprBrakePulseButton"
+                                    Width="170"
+                                    Margin="0,0,8,8"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Click="TestPhprBrakePulseButton_Click"
+                                    Content="Test Brake Pulse" />
+                            <Button x:Name="TestPhprThrottlePulseButton"
+                                    Width="190"
+                                    Margin="0,0,8,8"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Click="TestPhprThrottlePulseButton_Click"
+                                    Content="Test Throttle Pulse" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        Background="{DynamicResource AppSurfaceAltBrush}"
+                        BorderBrush="{DynamicResource AppBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Paddle Gear Bench" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Use this when you want local paddle-to-pulse checks without waiting for live driving telemetry. Normal live-driving shift intent still needs recent telemetry outside this bench mode."
+                                   TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,12,0,0">
+                            <CheckBox x:Name="LocalGearTestModeCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="LocalGearTestModeCheckBox_Changed"
+                                      Unchecked="LocalGearTestModeCheckBox_Changed"
+                                      Content="Enable Local Gear Test Mode" />
+                            <CheckBox x:Name="LocalGearTestAutoStartListenerCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="LocalGearTestModeCheckBox_Changed"
+                                      Unchecked="LocalGearTestModeCheckBox_Changed"
+                                      Content="Auto-start paddle listener for local gear testing" />
+                            <Button x:Name="StartGearTestListenerButton"
+                                    Width="190"
+                                    Margin="0,0,8,8"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="StartGearTestListenerButton_Click"
+                                    Content="Start Gear Test Listener" />
+                        </WrapPanel>
+                        <TextBlock x:Name="LocalGearTestStatusText"
+                                   Margin="0,6,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,12,0,0">
+                            <CheckBox x:Name="PaddleGearBenchEnabledCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="PaddleGearBenchControl_Changed"
+                                      Unchecked="PaddleGearBenchControl_Changed"
+                                      Content="Enable Paddle Gear Bench Test" />
+                            <CheckBox x:Name="PaddleGearBenchArmCheckBox"
+                                      Margin="0,4,12,8"
+                                      Visibility="Collapsed"
+                                      Checked="PaddleGearBenchControl_Changed"
+                                      Unchecked="PaddleGearBenchControl_Changed"
+                                      Content="Arm Bench Test" />
+                            <ComboBox x:Name="PaddleGearBenchOutputModeComboBox"
+                                      Width="120"
+                                      Margin="0,0,8,8"
+                                      Visibility="Collapsed"
+                                      SelectionChanged="PaddleGearBenchControl_Changed" />
+                            <ComboBox x:Name="PaddleGearBenchTargetComboBox"
+                                      Width="130"
+                                      Margin="0,0,8,8"
+                                      SelectionChanged="PaddleGearBenchControl_Changed" />
+                            <TextBlock Margin="0,4,6,8"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Strength %" />
+                            <TextBox x:Name="PaddleGearBenchStrengthTextBox"
+                                     Width="72"
+                                     Margin="0,0,8,8"
+                                     Visibility="Collapsed"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     LostFocus="PaddleGearBenchControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Hz" />
+                            <TextBox x:Name="PaddleGearBenchFrequencyTextBox"
+                                     Width="72"
+                                     Margin="0,0,8,8"
+                                     Visibility="Collapsed"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     LostFocus="PaddleGearBenchControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Duration ms" />
+                            <TextBox x:Name="PaddleGearBenchDurationTextBox"
+                                     Width="72"
+                                     Margin="0,0,8,8"
+                                     Visibility="Collapsed"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     LostFocus="PaddleGearBenchControl_LostFocus" />
+                            <Button Width="170"
+                                    Margin="0,0,8,8"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="ClearPaddleGearBenchCountersButton_Click"
+                                    Content="Clear bench counters" />
+                        </WrapPanel>
+                        <TextBlock x:Name="PaddleGearBenchStatusText"
+                                   Margin="0,8,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   TextWrapping="Wrap" />
+                        <ItemsControl x:Name="PaddleGearBenchItemsControl"
+                                      Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,0,0,8"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="{Binding}"
+                                               TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        Background="{DynamicResource AppSurfaceAltBrush}"
+                        BorderBrush="{DynamicResource AppBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Controlled Validation Harness" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Use this when you are recording manual validation notes and exports. This section does not trigger hardware output."
+                                   TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,10,0,0">
+                            <CheckBox x:Name="PhprValidationUserPresentCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="PhprValidationControl_Changed"
+                                      Unchecked="PhprValidationControl_Changed"
+                                      Content="User present" />
+                            <CheckBox x:Name="PhprValidationP700ConnectedCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="PhprValidationControl_Changed"
+                                      Unchecked="PhprValidationControl_Changed"
+                                      Content="P700 connected" />
+                            <CheckBox x:Name="PhprValidationBrakeInstalledCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="PhprValidationControl_Changed"
+                                      Unchecked="PhprValidationControl_Changed"
+                                      Content="Brake module installed" />
+                            <CheckBox x:Name="PhprValidationThrottleInstalledCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="PhprValidationControl_Changed"
+                                      Unchecked="PhprValidationControl_Changed"
+                                      Content="Throttle module installed" />
+                            <CheckBox x:Name="PhprValidationGearPaddlePlannedCheckBox"
+                                      Margin="0,4,12,8"
+                                      Checked="PhprValidationControl_Changed"
+                                      Unchecked="PhprValidationControl_Changed"
+                                      Content="Gear paddle test planned" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,2,0,0">
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="P700/device info" />
+                            <TextBox x:Name="PhprValidationDeviceInfoTextBox"
+                                     Width="360"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Decision" />
+                            <TextBox x:Name="PhprValidationPassFailDecisionTextBox"
+                                     Width="120"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,2,0,0">
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Brake result" />
+                            <TextBox x:Name="PhprValidationBrakeResultTextBox"
+                                     Width="220"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Throttle result" />
+                            <TextBox x:Name="PhprValidationThrottleResultTextBox"
+                                     Width="220"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Emergency stop" />
+                            <TextBox x:Name="PhprValidationEmergencyStopResultTextBox"
+                                     Width="220"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,2,0,0">
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Upshift" />
+                            <TextBox x:Name="PhprValidationUpshiftResultTextBox"
+                                     Width="180"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Downshift" />
+                            <TextBox x:Name="PhprValidationDownshiftResultTextBox"
+                                     Width="180"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Wrong pedal" />
+                            <TextBox x:Name="PhprValidationWrongPedalTextBox"
+                                     Width="180"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Sustained" />
+                            <TextBox x:Name="PhprValidationSustainedVibrationTextBox"
+                                     Width="180"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,2,0,0">
+                            <TextBlock Margin="0,4,6,8"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="Notes" />
+                            <TextBox x:Name="PhprValidationNotesTextBox"
+                                     Width="520"
+                                     Margin="0,0,8,8"
+                                     LostFocus="PhprValidationControl_LostFocus" />
+                            <Button Width="150"
+                                    Margin="0,0,8,8"
+                                    Click="RefreshPhprValidationChecklistButton_Click"
+                                    Content="Refresh Checklist" />
+                            <Button Width="210"
+                                    Margin="0,0,8,8"
+                                    Click="ExportPhprValidationResultButton_Click"
+                                    Content="Export Validation Result" />
+                        </WrapPanel>
+                        <TextBlock x:Name="PhprValidationStatusText"
+                                   Margin="0,8,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   TextWrapping="Wrap" />
+                        <ItemsControl x:Name="PhprValidationItemsControl"
+                                      Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,0,0,8"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="{Binding}"
+                                               TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

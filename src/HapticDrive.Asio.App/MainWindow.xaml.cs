@@ -391,6 +391,24 @@ public partial class MainWindow : Window
         ProfilesViewControl.SaveProfileClicked += SaveProfileButton_Click;
         ProfilesViewControl.LoadProfileClicked += LoadProfileButton_Click;
         ProfilesViewControl.ResetProfileClicked += ResetProfileButton_Click;
+        TestingValidationViewControl.TestBenchSignalSelectionChanged += TestBenchSignalComboBox_SelectionChanged;
+        TestingValidationViewControl.TestBenchStartStopClicked += TestBenchStartStopButton_Click;
+        TestingValidationViewControl.ManualBst1ControlLostFocus += ManualBst1Control_LostFocus;
+        TestingValidationViewControl.ManualBst1PulseClicked += ManualBst1PulseButton_Click;
+        TestingValidationViewControl.ManualAsioHardwareTestChannel1Clicked += ManualAsioHardwareTestChannel1Button_Click;
+        TestingValidationViewControl.ManualAsioHardwareTestChannel0Clicked += ManualAsioHardwareTestChannel0Button_Click;
+        TestingValidationViewControl.TestPhprBrakePulseClicked += TestPhprBrakePulseButton_Click;
+        TestingValidationViewControl.TestPhprThrottlePulseClicked += TestPhprThrottlePulseButton_Click;
+        TestingValidationViewControl.LocalGearTestModeChanged += LocalGearTestModeCheckBox_Changed;
+        TestingValidationViewControl.StartGearTestListenerClicked += StartGearTestListenerButton_Click;
+        TestingValidationViewControl.PaddleGearBenchControlChanged += PaddleGearBenchControl_Changed;
+        TestingValidationViewControl.PaddleGearBenchSelectionChanged += PaddleGearBenchControl_Changed;
+        TestingValidationViewControl.PaddleGearBenchControlLostFocus += PaddleGearBenchControl_LostFocus;
+        TestingValidationViewControl.ClearPaddleGearBenchCountersClicked += ClearPaddleGearBenchCountersButton_Click;
+        TestingValidationViewControl.PhprValidationControlChanged += PhprValidationControl_Changed;
+        TestingValidationViewControl.PhprValidationControlLostFocus += PhprValidationControl_LostFocus;
+        TestingValidationViewControl.RefreshPhprValidationChecklistClicked += RefreshPhprValidationChecklistButton_Click;
+        TestingValidationViewControl.ExportPhprValidationResultClicked += ExportPhprValidationResultButton_Click;
         DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
         DevicesViewControl.RefreshAsioClicked += RefreshAsioButton_Click;
         DevicesViewControl.AsioDriverSelectionChanged += AsioDriverComboBox_SelectionChanged;
@@ -571,10 +589,7 @@ public partial class MainWindow : Window
             ProfilesViewControl.Visibility = isProfilesPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            TestingPanel.Visibility = isTestingPage
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            TestBenchPanel.Visibility = isTestingPage
+            TestingValidationViewControl.Visibility = isTestingPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             var isAdvancedPage = page.NavigationLabel == "Advanced / Diagnostics";
@@ -3826,23 +3841,11 @@ public partial class MainWindow : Window
 
     private void UpdateTestBenchStatus()
     {
-        var snapshot = _testBench.GetSnapshot();
-
-        TestBenchStartStopButton.Content = snapshot.IsActive ? "Stop Test Bench" : "Start Test Bench";
-        TestBenchStateText.Text = snapshot.EmergencyMute
-            ? "Emergency muted"
-            : snapshot.IsActive
-                ? $"Active: {snapshot.SelectedSignalName}"
-                : "Idle";
-        TestBenchPeakText.Text = snapshot.OutputPeakLevel.ToString("0.000");
-        TestBenchLimiterText.Text = $"{snapshot.LimitedSampleCount:N0} limited";
-        TestBenchOutputText.Text = $"{snapshot.OutputDisplayName} ({snapshot.OutputState})";
+        UpdateTestingValidationPresentation();
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Testing / Validation" })
         {
-            PageStatusText.Text = snapshot.IsActive
-                ? $"Testing tools active; synthetic bench running {snapshot.SelectedSignalName}; output {snapshot.OutputDisplayName}; emergency mute {FormatOnOff(snapshot.EmergencyMute)}."
-                : $"Testing tools ready; synthetic bench idle; output {snapshot.OutputDisplayName}; local exports and manual checks remain available.";
+            PageStatusText.Text = BuildTestingValidationStatusPresentation().TestingValidationPageStatusText;
         }
 
         UpdateDiagnosticsStatus();
@@ -5795,6 +5798,11 @@ public partial class MainWindow : Window
         ProfilesViewControl.Apply(BuildProfilesStatusPresentation(message, validationMessages));
     }
 
+    private void UpdateTestingValidationPresentation()
+    {
+        TestingValidationViewControl.Apply(BuildTestingValidationStatusPresentation());
+    }
+
     private TelemetryUdpStatusPresentation BuildTelemetryUdpStatusPresentation()
     {
         return BuildTelemetryUdpStatusPresentation(
@@ -5863,6 +5871,19 @@ public partial class MainWindow : Window
             PhprProfilePath: PhprEffectProfileStore.GetDefaultProfilePath(),
             AudioProfileVersion: HapticDriveProfile.CurrentVersion,
             PhprProfileVersion: PhprEffectProfile.CurrentVersion));
+    }
+
+    private TestingValidationStatusPresentation BuildTestingValidationStatusPresentation()
+    {
+        var snapshot = _testBench.GetSnapshot();
+        return TestingValidationStatusPresenter.Build(new TestingValidationStatusSnapshot(
+            TestBenchActive: snapshot.IsActive,
+            TestBenchEmergencyMute: snapshot.EmergencyMute,
+            TestBenchSelectedSignalName: snapshot.SelectedSignalName,
+            TestBenchOutputPeakLevel: snapshot.OutputPeakLevel,
+            TestBenchLimitedSampleCount: snapshot.LimitedSampleCount,
+            TestBenchOutputDisplayName: snapshot.OutputDisplayName,
+            TestBenchOutputState: snapshot.OutputState.ToString()));
     }
 
     private ReplayTimingModeOption GetSelectedReplayTimingMode()
@@ -6458,6 +6479,104 @@ public partial class MainWindow : Window
     private TextBlock ProfilePhprStatusText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfilePhprStatusText));
 
     private TextBlock ProfileValidationText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfileValidationText));
+
+    private ComboBox TestBenchSignalComboBox => TestingValidationViewControl.GetRequiredControl<ComboBox>(nameof(TestBenchSignalComboBox));
+
+    private Button TestBenchStartStopButton => TestingValidationViewControl.GetRequiredControl<Button>(nameof(TestBenchStartStopButton));
+
+    private TextBlock TestBenchStateText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(TestBenchStateText));
+
+    private TextBlock TestBenchPeakText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(TestBenchPeakText));
+
+    private TextBlock TestBenchLimiterText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(TestBenchLimiterText));
+
+    private TextBlock TestBenchOutputText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(TestBenchOutputText));
+
+    private TextBlock TestBenchWarningText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(TestBenchWarningText));
+
+    private TextBox ManualBst1StrengthTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(ManualBst1StrengthTextBox));
+
+    private TextBox Bst1OutputTrimTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(Bst1OutputTrimTextBox));
+
+    private TextBox ManualBst1FrequencyTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(ManualBst1FrequencyTextBox));
+
+    private TextBox ManualBst1DurationTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(ManualBst1DurationTextBox));
+
+    private TextBlock ManualAsioHardwareStatusText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(ManualAsioHardwareStatusText));
+
+    private TextBlock ManualAsioHardwareBlockedReasonText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(ManualAsioHardwareBlockedReasonText));
+
+    private TextBlock PhprPedalsModeBadgeText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(PhprPedalsModeBadgeText));
+
+    private TextBlock PhprPedalsStatusText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(PhprPedalsStatusText));
+
+    private TextBlock PhprPedalsDeviceStatusText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(PhprPedalsDeviceStatusText));
+
+    private TextBlock PhprPedalsLastResultText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(PhprPedalsLastResultText));
+
+    private Button TestPhprBrakePulseButton => TestingValidationViewControl.GetRequiredControl<Button>(nameof(TestPhprBrakePulseButton));
+
+    private Button TestPhprThrottlePulseButton => TestingValidationViewControl.GetRequiredControl<Button>(nameof(TestPhprThrottlePulseButton));
+
+    private CheckBox LocalGearTestModeCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(LocalGearTestModeCheckBox));
+
+    private CheckBox LocalGearTestAutoStartListenerCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(LocalGearTestAutoStartListenerCheckBox));
+
+    private Button StartGearTestListenerButton => TestingValidationViewControl.GetRequiredControl<Button>(nameof(StartGearTestListenerButton));
+
+    private TextBlock LocalGearTestStatusText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(LocalGearTestStatusText));
+
+    private CheckBox PaddleGearBenchEnabledCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(PaddleGearBenchEnabledCheckBox));
+
+    private CheckBox PaddleGearBenchArmCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(PaddleGearBenchArmCheckBox));
+
+    private ComboBox PaddleGearBenchOutputModeComboBox => TestingValidationViewControl.GetRequiredControl<ComboBox>(nameof(PaddleGearBenchOutputModeComboBox));
+
+    private ComboBox PaddleGearBenchTargetComboBox => TestingValidationViewControl.GetRequiredControl<ComboBox>(nameof(PaddleGearBenchTargetComboBox));
+
+    private TextBox PaddleGearBenchStrengthTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PaddleGearBenchStrengthTextBox));
+
+    private TextBox PaddleGearBenchFrequencyTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PaddleGearBenchFrequencyTextBox));
+
+    private TextBox PaddleGearBenchDurationTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PaddleGearBenchDurationTextBox));
+
+    private TextBlock PaddleGearBenchStatusText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(PaddleGearBenchStatusText));
+
+    private ItemsControl PaddleGearBenchItemsControl => TestingValidationViewControl.GetRequiredControl<ItemsControl>(nameof(PaddleGearBenchItemsControl));
+
+    private CheckBox PhprValidationUserPresentCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(PhprValidationUserPresentCheckBox));
+
+    private CheckBox PhprValidationP700ConnectedCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(PhprValidationP700ConnectedCheckBox));
+
+    private CheckBox PhprValidationBrakeInstalledCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(PhprValidationBrakeInstalledCheckBox));
+
+    private CheckBox PhprValidationThrottleInstalledCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(PhprValidationThrottleInstalledCheckBox));
+
+    private CheckBox PhprValidationGearPaddlePlannedCheckBox => TestingValidationViewControl.GetRequiredControl<CheckBox>(nameof(PhprValidationGearPaddlePlannedCheckBox));
+
+    private TextBox PhprValidationDeviceInfoTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationDeviceInfoTextBox));
+
+    private TextBox PhprValidationPassFailDecisionTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationPassFailDecisionTextBox));
+
+    private TextBox PhprValidationBrakeResultTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationBrakeResultTextBox));
+
+    private TextBox PhprValidationThrottleResultTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationThrottleResultTextBox));
+
+    private TextBox PhprValidationEmergencyStopResultTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationEmergencyStopResultTextBox));
+
+    private TextBox PhprValidationUpshiftResultTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationUpshiftResultTextBox));
+
+    private TextBox PhprValidationDownshiftResultTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationDownshiftResultTextBox));
+
+    private TextBox PhprValidationWrongPedalTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationWrongPedalTextBox));
+
+    private TextBox PhprValidationSustainedVibrationTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationSustainedVibrationTextBox));
+
+    private TextBox PhprValidationNotesTextBox => TestingValidationViewControl.GetRequiredControl<TextBox>(nameof(PhprValidationNotesTextBox));
+
+    private TextBlock PhprValidationStatusText => TestingValidationViewControl.GetRequiredControl<TextBlock>(nameof(PhprValidationStatusText));
+
+    private ItemsControl PhprValidationItemsControl => TestingValidationViewControl.GetRequiredControl<ItemsControl>(nameof(PhprValidationItemsControl));
 
     private TextBox RecordingRenameTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(RecordingRenameTextBox));
 

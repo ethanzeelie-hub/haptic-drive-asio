@@ -4165,6 +4165,106 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 23I - Testing / Validation View Extraction and Manual-Tools Presentation Seam
+
+Status: Complete.
+
+Goal: Continue the low-risk Stage 23 shell extraction strategy by moving the Testing / Validation workflow into a dedicated view/component and extracting only pure manual-tools display shaping without moving runtime or validation/export ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Testing / Validation seam before editing:
+  - `MainWindow.xaml` was 1435 lines,
+  - `MainWindow.xaml.cs` was 6578 lines,
+  - the Testing / Validation workflow still lived inline in `MainWindow.xaml`,
+  - Testing / Validation was not already extracted into a dedicated view,
+  - the page currently covered both the synthetic test bench and the manual-tools / validation workflow,
+  - the existing manual ASIO, manual P-HPR, paddle bench, and validation controls still needed to preserve their names for runtime gates, settings/profile interactions, and export/input handlers.
+- Added dedicated Testing / Validation view files:
+  - `src/HapticDrive.Asio.App/Views/TestingValidationView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/TestingValidationView.xaml.cs`.
+- Added `src/HapticDrive.Asio.App/TestingValidationStatusPresenter.cs`:
+  - `TestingValidationStatusSnapshot`,
+  - `TestingValidationStatusPresentation`,
+  - `TestingValidationStatusPresenter`.
+- Moved the Testing / Validation layout into `TestingValidationView` while preserving the same operator-facing workflow:
+  - synthetic test bench,
+  - manual BST-1 / ASIO pulse checks,
+  - manual P-HPR pedal checks,
+  - local paddle / gear bench tools,
+  - controlled validation harness and local export notes.
+- Kept runtime and execution ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - live snapshot gathering,
+  - synthetic test bench execution,
+  - manual BST-1 / ASIO test execution,
+  - manual P-HPR test execution,
+  - local paddle / gear bench execution,
+  - controlled validation harness evaluation/export execution,
+  - app settings save/load execution,
+  - ASIO runtime interactions,
+  - P-HPR runtime interactions,
+  - paddle listener/routing coordinator interactions,
+  - startup/shutdown cleanup.
+- Added a narrow event-forwarding seam:
+  - `TestingValidationView` forwards the existing test bench, manual BST-1, manual P-HPR, local gear, paddle bench, and validation interactions back to the current `MainWindow` handlers,
+  - no runtime ownership moved into the view,
+  - no hardware ownership moved into the view,
+  - no validation result export ownership moved into the view,
+  - no safety-gate ownership moved into the view.
+- Centralized only pure Testing / Validation display shaping through `TestingValidationStatusPresenter`:
+  - test bench start/stop button text,
+  - test bench state text,
+  - test bench peak/limiter/output text,
+  - test bench warning text,
+  - Testing / Validation page-status summary text.
+- Preserved existing control behavior by keeping direct control access in `MainWindow` through the extracted-view seam:
+  - existing control names remain intact inside `TestingValidationView`,
+  - `MainWindow` still owns settings parsing/hydration for manual BST-1 and paddle bench controls,
+  - `MainWindow` still owns manual ASIO status gating, manual P-HPR status gating, local gear readiness, paddle bench summaries, and validation harness summaries,
+  - no manual test behavior, validation harness behavior, export behavior, persistence behavior, or runtime behavior changed.
+- Continued the shell reduction without broad architectural churn:
+  - `MainWindow.xaml` now hosts `TestingValidationViewControl` instead of the inline Testing / Validation workflow,
+  - `MainWindow.xaml.cs` now applies `TestingValidationStatusPresentation` instead of shaping the synthetic test bench strings inline,
+  - `MainWindow.xaml` is now 968 lines,
+  - `MainWindow.xaml.cs` is now 6697 lines,
+  - no MVVM rewrite,
+  - no new dependencies,
+  - no hardware/runtime-path ownership changes.
+- Added and updated stable tests:
+  - `TestingValidationStatusPresenterTests`,
+  - `TestingValidationStatusPresenterGuardrailTests`,
+  - `AppThemeResourceTests` updates for the extracted Testing / Validation view and host boundary.
+- Audited `KNOWN_ISSUES.md`:
+  - added one cumulative `Stage 23I` shell-extraction entry instead of repeating the same limitation separately for every extracted page.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23I is intentionally Testing / Validation presentation/component extraction only.
+- `MainWindow` remains the composition/runtime/manual-tool owner.
+- Testing / Validation remains deliberate manual tools only.
+- No manual test behavior changed.
+- No validation harness behavior changed.
+- No profile/persistence boundary changed.
+- No UDP listener, forwarding, recording/replay, parser, or `VehicleState` behavior changed.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+- This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
+
 ## Stage 23H - Profiles View Extraction and Profile Workflow Presentation Seam
 
 Status: Complete.

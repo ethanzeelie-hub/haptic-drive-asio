@@ -2148,3 +2148,70 @@ Normal workflow boundary after Stage 23H:
 Stage 23H intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
 
 Stage 23H does not change profile schema behavior, profile save/load/reset behavior, default/tuning behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
+
+## Stage 23I Testing / Validation View Extraction and Manual-Tools Presentation Seam
+
+Stage 23I continues the same page-by-page shell extraction strategy used in Stages 23C through 23H.
+
+Testing / Validation extraction result:
+
+- The Testing / Validation workflow now lives in a dedicated WPF component:
+  - `Views/TestingValidationView.xaml`
+  - `Views/TestingValidationView.xaml.cs`
+- The extracted view still presents the same workflow role:
+  - synthetic test bench,
+  - manual BST-1 / ASIO pulse checks,
+  - manual P-HPR pedal checks,
+  - local paddle / gear bench tools,
+  - controlled validation harness and local export workflow.
+- The extracted view does not own runtime objects, hardware output, safety gates, validation/export execution, settings/profile persistence, or file IO. It renders already-shaped state and forwards user interactions back to the existing `MainWindow` handlers.
+
+Presentation-seam result:
+
+- Testing / Validation display shaping now flows through `TestingValidationStatusPresenter` with immutable App-layer inputs:
+  - `TestingValidationStatusSnapshot`
+  - `TestingValidationStatusPresentation`
+- The presenter owns only deterministic synthetic-bench and page-summary wording for:
+  - test bench start/stop button text,
+  - test bench state text,
+  - test bench peak/limiter/output text,
+  - test bench warning text,
+  - Testing / Validation page-status summary.
+- The presenter does not own WPF controls, `System.Windows` types, ASIO backend classes, HID/report writers, manual test execution, validation/export execution, or hardware output calls.
+
+Residual `MainWindow` boundary:
+
+- `MainWindow` still owns:
+  - app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - live snapshot gathering,
+  - synthetic test bench execution,
+  - manual BST-1 / ASIO test execution,
+  - manual P-HPR pedal test execution,
+  - local paddle / gear bench execution,
+  - controlled validation harness evaluation and export execution,
+  - profile lifecycle,
+  - app settings save/load execution,
+  - ASIO runtime interactions,
+  - P-HPR runtime interactions,
+  - paddle listener/routing coordinator interactions,
+  - startup/shutdown cleanup,
+  - Start Haptics / Stop Haptics,
+  - Emergency Mute / Stop All execution.
+- `MainWindow` now applies shaped Testing / Validation presentation through `TestingValidationViewControl.Apply(...)` instead of keeping the Testing / Validation page layout inline in `MainWindow.xaml`.
+
+Normal workflow boundary after Stage 23I:
+
+- Dashboard remains operational overview.
+- Devices remains setup/readiness only.
+- Effects remains normal effect tuning only.
+- Routing / Mixer remains output routing, gain, mute, limiter summary, priority, ducking, and active-effect summary only.
+- Telemetry / UDP remains normal F1 25 UDP, recording, replay, recording-library, and forwarding workflow only.
+- Profiles remains the normal audio profile and P-HPR profile workflow only.
+- Testing / Validation remains deliberate manual tools only.
+- Advanced / Diagnostics remains the home for raw internals and troubleshooting.
+
+Stage 23I intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
+
+Stage 23I does not change manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.

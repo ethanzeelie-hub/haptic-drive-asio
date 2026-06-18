@@ -75,15 +75,24 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
-    public void MainWindowSourceContainsTestingValidationNavigation()
+    public void MainWindowSourceContainsTestingValidationNavigationAndViewHost()
     {
-        var source = File.ReadAllText(Path.Combine(
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml.cs"));
 
-        Assert.Contains("\"Testing / Validation\"", source, StringComparison.Ordinal);
+        Assert.Contains("TestingValidationViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("\"Testing / Validation\"", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("TestingValidationViewControl.Visibility = isTestingPage", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("TestingValidationViewControl.Apply(BuildTestingValidationStatusPresentation());", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("TestingValidationStatusPresenter.Build(new TestingValidationStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -389,11 +398,11 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void TestingPageContainsMovedManualAndValidationControls()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var testingPanel = FindElementByXName(mainWindowXaml, "TestingPanel");
+        var testingXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TestingValidationView.xaml");
+        var testingPanel = FindElementByXName(testingXaml, "TestingPanel");
         var testingText = GetTextValues(testingPanel);
         var testingNames = GetXNameValues(testingPanel);
-        var testBenchPanel = FindElementByXName(mainWindowXaml, "TestBenchPanel");
+        var testBenchPanel = FindElementByXName(testingXaml, "TestBenchPanel");
 
         Assert.Contains("ManualBst1StrengthTextBox", testingNames);
         Assert.Contains("ManualBst1FrequencyTextBox", testingNames);
@@ -588,12 +597,13 @@ public sealed class AppThemeResourceTests
         var routingMixerXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "RoutingMixerView.xaml");
         var telemetryXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TelemetryUdpView.xaml");
         var profilesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "ProfilesView.xaml");
+        var testingXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TestingValidationView.xaml");
         var normalText = GetTextValues(FindElementByXName(devicesXaml, "DevicesPanel"))
             .Concat(GetTextValues(FindElementByXName(effectsXaml, "EffectsPanel")))
             .Concat(GetTextValues(FindElementByXName(routingMixerXaml, "MixerPanel")))
             .Concat(GetTextValues(FindElementByXName(telemetryXaml, "TelemetryUdpPanel")))
             .Concat(GetTextValues(FindElementByXName(profilesXaml, "ProfilesPanel")))
-            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "TestingPanel")))
+            .Concat(GetTextValues(FindElementByXName(testingXaml, "TestingPanel")))
             .ToArray();
 
         Assert.DoesNotContain(normalText, text => text.Contains("Report ID", StringComparison.Ordinal));
