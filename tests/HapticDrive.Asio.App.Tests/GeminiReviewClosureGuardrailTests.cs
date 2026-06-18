@@ -10,6 +10,13 @@ public sealed class GeminiReviewClosureGuardrailTests
         var repositoryRoot = FindRepositoryRoot();
         var helperFiles = new[]
         {
+            "DashboardStatusPresenter.cs",
+            "DevicesStatusPresenter.cs",
+            "EffectsStatusPresenter.cs",
+            "RoutingMixerStatusPresenter.cs",
+            "TelemetryUdpStatusPresenter.cs",
+            "ProfilesStatusPresenter.cs",
+            "TestingValidationStatusPresenter.cs",
             "PhprWorkflowStatusPresenter.cs",
             "DiagnosticsStatusPresenter.cs",
             "AppSettingsSnapshotBuilder.cs",

@@ -2285,3 +2285,66 @@ Normal workflow boundary after Stage 23J:
 Stage 23J intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
 
 Stage 23J does not change diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
+
+## Stage 23K MainWindow Shell-Composition Audit and Gemini REC-01 Closure
+
+Stage 23K closes the Stage 23C through 23J page-extraction stream as an audit, guardrail, and documentation stage rather than another feature or extraction stage.
+
+Post-Stage-23 shell boundary:
+
+- `MainWindow.xaml` is now a small shell host:
+  - root `Window`,
+  - shared top action/status bar,
+  - navigation,
+  - extracted page view hosts,
+  - shared page-status summary card,
+  - shared footer/status area.
+- No full page workflow layout remains inline in `MainWindow.xaml`.
+- All major pages now live behind dedicated view seams:
+  - `DashboardView`
+  - `DevicesView`
+  - `EffectsView`
+  - `RoutingMixerView`
+  - `TelemetryUdpView`
+  - `ProfilesView`
+  - `TestingValidationView`
+  - `AdvancedDiagnosticsView`
+
+Residual `MainWindow.xaml.cs` boundary after Stage 23K:
+
+- `MainWindow.xaml.cs` remains intentionally code-behind-driven for:
+  - app construction/composition,
+  - page navigation,
+  - extracted-view event forwarding,
+  - direct WPF control hydration/assignment where not already safely extracted,
+  - runtime object ownership,
+  - live snapshot gathering,
+  - startup/shutdown cleanup,
+  - Start Haptics / Stop Haptics execution,
+  - Emergency Mute / Stop All execution,
+  - ASIO runtime interactions,
+  - P-HPR runtime interactions,
+  - paddle listener/routing coordinator interactions,
+  - telemetry receiver orchestration,
+  - recording/replay/forwarding execution,
+  - diagnostics report copy execution,
+  - advanced setting persistence execution,
+  - road texture flight-recorder execution,
+  - validation harness execution/export execution,
+  - profile lifecycle,
+  - app settings save/load execution.
+- Stage 23K deliberately does not hide this residual ownership behind a broad MVVM rewrite, because the remaining code is WPF-bound, lifecycle-heavy, or safety/hardware-capable rather than clearly pure presentation.
+
+Gemini REC-01 status decision:
+
+- Gemini REC-01 is considered materially addressed for the current phase.
+- The project did not adopt full MVVM or `CommunityToolkit.Mvvm`; instead it chose a lower-risk pattern:
+  - page-level `UserControl` extraction,
+  - small pure presenters/builders where deterministic,
+  - source-boundary and closure guardrails,
+  - explicit retention of execution-heavy runtime/safety ownership in `MainWindow`.
+- This lightweight UserControl plus presenter/builder pattern is considered sufficient until later hardware validation or future feature work reveals another clearly pure presentation seam.
+- Stage 22B hardware validation/fine-tuning remains separate from REC-01 closure.
+- Gemini REC-02 runtime-start ownership, if pursued later, should remain a separate audit-only stage rather than being mixed into the Stage 23 shell closure.
+
+Stage 23K does not change runtime behavior, diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.

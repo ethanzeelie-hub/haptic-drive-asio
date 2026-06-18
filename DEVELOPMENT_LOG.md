@@ -4165,6 +4165,91 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 23K - MainWindow Shell-Composition Audit and Gemini REC-01 Closure
+
+Status: Complete.
+
+Goal: Close the Stage 23C-23J page-extraction stream with an audit, guardrail, and documentation stage that confirms `MainWindow.xaml` is now a small shell host, documents the deliberate residual `MainWindow.xaml.cs` ownership, and decides whether Gemini REC-01 is materially satisfied without a full MVVM rewrite.
+
+Changes:
+
+- Re-audited the post-Stage-23 shell before editing:
+  - `MainWindow.xaml` was 226 lines,
+  - `MainWindow.xaml.cs` was 6900 lines,
+  - `MainWindow.xaml` now hosted `DashboardView`, `DevicesView`, `EffectsView`, `RoutingMixerView`, `TelemetryUdpView`, `ProfilesView`, `TestingValidationView`, and `AdvancedDiagnosticsView`,
+  - no full page workflow layout remained inline in `MainWindow.xaml`,
+  - the remaining XAML was limited to the root window, shared top bar, navigation, extracted view hosts, shared page-status summary card, and footer.
+- Re-audited the remaining `MainWindow.xaml.cs` responsibilities:
+  - page navigation,
+  - extracted-view event-forwarding seams,
+  - direct WPF control hydration/application where not already safely extracted,
+  - runtime snapshot gathering,
+  - startup/shutdown execution,
+  - Start Haptics / Stop Haptics / Emergency Mute / Stop All execution,
+  - ASIO interactions,
+  - P-HPR interactions,
+  - telemetry/recording/replay/forwarding execution,
+  - profile/settings file lifecycle,
+  - diagnostics report execution,
+  - validation/export execution.
+- Confirmed that the residual `MainWindow.xaml.cs` bulk is no longer driven by leftover page layout. The remaining code is mostly execution-heavy, lifecycle-heavy, or direct WPF assignment/hydration work rather than another clearly pure page-seam candidate.
+- Deliberately did not add production abstractions just to chase line count:
+  - no broad MVVM rewrite,
+  - no CommunityToolkit.Mvvm introduction,
+  - no runtime ownership move,
+  - no hardware/safety execution move.
+- Added Stage 23K shell guardrails in `tests/HapticDrive.Asio.App.Tests/MainWindowShellCompositionGuardrailTests.cs`:
+  - `MainWindow.xaml` remains a shell host for all eight extracted views,
+  - `MainWindow.xaml` does not reabsorb representative extracted-page controls or large inline workflow markers,
+  - extracted views keep their expected workflow concepts and Advanced / Diagnostics remains the raw/internal troubleshooting home.
+- Expanded `GeminiReviewClosureGuardrailTests` so the current pure helper/presenter set now also includes the Stage 23 page presenters:
+  - `DashboardStatusPresenter`,
+  - `DevicesStatusPresenter`,
+  - `EffectsStatusPresenter`,
+  - `RoutingMixerStatusPresenter`,
+  - `TelemetryUdpStatusPresenter`,
+  - `ProfilesStatusPresenter`,
+  - `TestingValidationStatusPresenter`,
+  - alongside the existing diagnostics/settings/readiness/shutdown/safety helpers.
+- Updated documentation to record the closure decision:
+  - Stage 23C-23J page extraction is complete enough for the current phase,
+  - `MainWindow.xaml` is now a small shell host,
+  - `MainWindow.xaml.cs` remains the deliberate composition/runtime/safety/event-forwarding owner,
+  - the project uses a lightweight UserControl plus presenter/builder pattern rather than full MVVM for now,
+  - Gemini REC-01 is considered materially addressed for the current safety/productization phase,
+  - Stage 22B hardware validation and any future Gemini REC-02 runtime-start audit remain separate work.
+- Updated `KNOWN_ISSUES.md`:
+  - kept the same cumulative shell limitation,
+  - changed the wording from `Stage 23J` to `Stage 23K` so the closure/audit stage is reflected without adding a repetitive standalone note.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23K is intentionally audit/guardrail/documentation-only.
+- `MainWindow.xaml` is now a small shell host after all major page extractions.
+- `MainWindow.xaml.cs` remains the deliberate composition/runtime/safety/event-forwarding owner.
+- The project is not claiming full MVVM.
+- Gemini REC-01 is considered materially addressed enough for the current phase.
+- No runtime behavior changed.
+- No diagnostics report behavior changed.
+- No manual test behavior changed.
+- No validation harness behavior changed.
+- No profile/persistence boundary changed.
+- No UDP listener, forwarding, recording/replay, parser, or `VehicleState` behavior changed.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+
 ## Stage 23J - Advanced / Diagnostics View Extraction and Raw-Internals Presentation Seam
 
 Status: Complete.
