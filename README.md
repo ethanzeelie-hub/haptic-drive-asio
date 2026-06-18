@@ -8,7 +8,17 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 18b: simplified P-HPR direct bench startup and stop scheduling complete.
+Stage 24A: Gemini REC-02 runtime-start ownership audit and closure complete.
+
+## Current Architecture Baseline
+
+- F1 25 is still the only production game integration. Future game support is planned, but the current shipped parser and adapter path remains F1 25 only.
+- `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
+- ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.
+- Simagic P-HPR remains a separate non-audio actuator path. It is not routed through ASIO or `IAudioOutputDevice`.
+- `MainWindow.xaml.cs` still remains the deliberate composition/runtime shell for startup, shutdown, Start/Stop/Emergency execution, telemetry startup, and cross-page orchestration. The Stage 23/24 extraction stream reduced presentation ownership without forcing a broad MVVM rewrite.
+- Raw UDP forwarding and recording still preserve packet bytes independently of parser or `VehicleState` success.
+- Hardware-capable and physical-validation claims remain intentionally conservative. Physical shaker feel, safe gain, physical latency, and final tuning still require local hardware validation.
 
 The app currently opens to a WPF shell with dashboard, navigation pages, global start/stop, emergency mute, dark theme default, persisted light/dark theme setting, safe tuning controls, profile save/load/reset, runtime diagnostics, recording/replay library controls, persisted UDP forwarding destination controls, ASIO driver visibility diagnostics, and explicit ASIO output readiness controls.
 

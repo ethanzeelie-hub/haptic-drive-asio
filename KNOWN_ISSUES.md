@@ -853,3 +853,12 @@
 - This remaining ownership is still intentional. The app continues to prefer explicit code-behind ownership for safety-critical and hardware-capable execution paths instead of a broad MVVM/runtime-start migration.
 - `PHprContinuousEffectsRuntimeCoordinator` continues to own the background road/slip/lock loop bodies, `PaddleInputRoutingCoordinator` continues to own paddle-routing bodies, and `PHprDirectRuntimeCoordinator` continues to live outside `HapticDrive.Asio.App`.
 - No ASIO/BST-1 runtime behavior changed, no P-HPR HID/report behavior changed, no planner purity boundary changed, and no parser/replay/forwarding behavior changed as part of this audit/closure stage.
+
+## Stage 25A
+
+- `README.md` previously reported `Stage 18b` as the current stage even though the live roadmap and architecture work had already advanced through `Stage 24A`. Stage 25A aligns the public documentation baseline with the real codebase state.
+- The current production integration is still F1 25 only. Future multi-game support remains planned, but Runtime still needs a proper game-adapter abstraction before adding another game cleanly.
+- `HapticEffectEngine` is still a fixed-list effect owner for the current BST-1 effect set. It is stable for the existing feature surface, but adding more effects still requires cross-cutting edits in options, profile mapping, UI wiring, diagnostics, and tests.
+- Recording/replay remains production-safe for current normal usage, but the recording path still uses an unbounded in-memory queue model and the replay/file-loading path still has room for long-session scalability hardening.
+- App settings and profile persistence remain functional and guarded by sanitization/tests, but writes are not yet atomic or schema-versioned for future migration-heavy changes.
+- Production packaging remains incomplete: the repo has strong local verification and passing tests, but it still needs durable CI/release automation, publish/install flow, and support-bundle style diagnostics/export hardening for a more production-ready delivery story.

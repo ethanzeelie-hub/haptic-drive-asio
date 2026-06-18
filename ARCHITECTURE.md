@@ -2378,3 +2378,25 @@ Deliberate Stage 24A ownership split:
 - `StartupReadinessPlanner` and `ShutdownCleanupPlanner` remain pure planning helpers. They describe readiness/cleanup plans but do not execute runtime start, stop, emergency, or hardware operations themselves.
 
 Stage 24A does not change runtime behavior, diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
+
+## Stage 25A Documentation Baseline and Audit Closure
+
+Stage 25A is a documentation-only baseline alignment stage layered on top of Stage 24A.
+
+Documentation baseline result:
+
+- `README.md` now reflects the live Stage 24A state instead of the older Stage 18b milestone.
+- The public architecture baseline is now stated explicitly:
+  - F1 25 is the only current production game integration.
+  - `NullAudioOutputDevice` remains the default and automated-test-safe output.
+  - ASIO remains explicit opt-in and does not auto-start.
+  - Simagic P-HPR remains a separate non-audio actuator path.
+  - `MainWindow.xaml.cs` still remains the deliberate composition/runtime shell after the Stage 23/24 extraction stream.
+- The remaining scale-up limitations are now documented directly rather than being left implicit in the codebase:
+  - Runtime still needs a game-adapter abstraction before a second game can be added cleanly.
+  - The current effect-engine structure is still a fixed-list design around the existing BST-1 effects.
+  - Recording/replay still has future work around long-session queueing and streaming efficiency.
+  - Settings/profile persistence still needs atomic writes and schema-versioned migration support.
+  - Release automation, packaging, and support-bundle diagnostics are still incomplete.
+
+Stage 25A does not change runtime behavior, diagnostics report behavior, parser / `VehicleState` behavior, recording/replay behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.

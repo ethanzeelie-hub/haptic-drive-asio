@@ -4165,6 +4165,55 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 25A - Documentation Baseline and Audit Closure
+
+Status: Complete.
+
+Goal: Align the public documentation baseline with the live Stage 24A codebase before beginning the production-readiness and future-compatibility implementation roadmap.
+
+Changes:
+
+- Re-audited the live documentation baseline before editing:
+  - `README.md` still reported `Stage 18b` as the current stage,
+  - `ROADMAP.md` and `ARCHITECTURE.md` already reflected the later Stage 23/24 shell and audit stream,
+  - the repo issue was documentation drift rather than runtime drift.
+- Updated `README.md`:
+  - changed `Current Stage` from `Stage 18b` to `Stage 24A`,
+  - added a `Current Architecture Baseline` section that documents:
+    - F1 25 as the only current production game,
+    - `NullAudioOutputDevice` as the safe default output,
+    - explicit ASIO opt-in,
+    - separate non-audio Simagic P-HPR path,
+    - deliberate residual `MainWindow.xaml.cs` ownership,
+    - conservative physical-validation boundary.
+- Updated `ROADMAP.md`:
+  - added `Stage 25A` to the completed current-stage list,
+  - added `Stage 25A` to the numbered planned-stage history,
+  - added a short Stage 25A summary describing the documentation-baseline closure and the newly documented future-scale limitations.
+- Updated `KNOWN_ISSUES.md`:
+  - added a `Stage 25A` section that now states the current architectural/productization limitations explicitly:
+    - Runtime still needs a future game-adapter abstraction,
+    - the effect engine is still a fixed-list design,
+    - recording/replay still has future long-session scalability work,
+    - settings/profile persistence still needs atomic/versioned hardening,
+    - packaging/release automation is still incomplete.
+- Updated `ARCHITECTURE.md`:
+  - added a `Stage 25A Documentation Baseline and Audit Closure` section so the architecture narrative now matches the public README/roadmap baseline.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25A is intentionally documentation-only.
+- No parser, replay, ASIO, BST-1, P-HPR, or runtime ownership behavior changed.
+- The goal was to remove documentation ambiguity before code-architecture work begins, not to resume shell refactoring or physical-validation work.
+
 ## Stage 24A - Gemini REC-02 Runtime-Start Ownership Audit and Closure
 
 Status: Complete.

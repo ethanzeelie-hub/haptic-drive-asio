@@ -109,6 +109,7 @@
 - Stage 23J: Advanced / Diagnostics view extraction and raw-internals presentation seam complete.
 - Stage 23K: MainWindow shell-composition audit and Gemini REC-01 closure complete.
 - Stage 24A: Gemini REC-02 runtime-start ownership audit and closure complete.
+- Stage 25A: Documentation baseline and audit closure complete.
 
 ## Planned Stages
 
@@ -190,6 +191,7 @@
 76. Stage 23J: Advanced / Diagnostics view extraction and raw-internals presentation seam. Complete.
 77. Stage 23K: MainWindow shell-composition audit and Gemini REC-01 closure. Complete.
 78. Stage 24A: Gemini REC-02 runtime-start ownership audit and closure. Complete.
+79. Stage 25A: Documentation baseline and audit closure. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -331,3 +333,4 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 23K closes the Stage 23C-23J page-extraction stream as an audit/guardrail/documentation stage. `MainWindow.xaml` is now a small shell host, `MainWindow.xaml.cs` remains the deliberate composition/runtime/safety/event-forwarding owner, and Gemini REC-01 is considered materially addressed for the current phase through the lightweight UserControl plus presenter/builder pattern rather than a broad MVVM rewrite.
 - Stage 23K does not change runtime behavior, diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener/forwarding/recording/replay/parser behavior, ASIO/BST-1 runtime behavior, or P-HPR HID/report behavior. Stage 22B hardware validation and any future REC-02 runtime-start audit remain separate work.
 - Stage 24A audits Gemini REC-02 and keeps the same deliberate ownership split: extracted views remain event-forwarding/presentation seams only, `MainWindow` remains the composition root plus Start/Stop/Emergency/startup/shutdown executor, `PHprContinuousEffectsRuntimeCoordinator` keeps the continuous road/slip/lock loop bodies, `PaddleInputRoutingCoordinator` keeps the paddle-routing body, `PHprDirectRuntimeCoordinator` remains outside `App`/`MainWindow`, planners remain pure, and no runtime behavior changes.
+- Stage 25A aligns the public documentation baseline with the live Stage 24A codebase. `README.md` now reflects the current stage, records the deliberate F1-25-only plus Null-default plus separate-P-HPR architecture baseline, and the issue/docs set now calls out the remaining future-scale limitations directly: Runtime still needs a game-adapter abstraction, the effect engine remains a fixed-list design, recording still uses an unbounded in-memory queue model, settings/profile writes are not yet atomic/versioned, and production packaging/release automation is still incomplete.
