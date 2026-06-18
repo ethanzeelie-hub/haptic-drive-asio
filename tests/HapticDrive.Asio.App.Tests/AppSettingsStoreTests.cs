@@ -476,6 +476,26 @@ public sealed class AppSettingsStoreTests
         Assert.Equal(50f, loaded.Bst1PaddleGearPulse.FrequencyHz, precision: 6);
         Assert.True(loaded.Bst1PaddleGearPulse.UseSharedDuration);
         Assert.Equal(Bst1GearPulseDurationSync.DefaultGearDurationMs, loaded.Bst1PaddleGearPulse.CustomDurationMs);
+        Assert.Equal(AppSettings.CurrentVersion, loaded.Version);
+    }
+
+    [Fact]
+    public void Save_PersistsCurrentSettingsSchemaVersion()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var store = new AppSettingsStore(path);
+
+        store.Save(new AppSettings
+        {
+            UseLightTheme = true
+        });
+
+        var json = File.ReadAllText(path);
+        var loaded = store.Load();
+
+        Assert.Contains(@"""Version"": 1", json, StringComparison.Ordinal);
+        Assert.Equal(AppSettings.CurrentVersion, loaded.Version);
     }
 
     [Fact]

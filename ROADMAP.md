@@ -117,6 +117,7 @@
 - Stage 25F: Effect-engine extensibility seam complete.
 - Stage 25G: Replay-file streaming seam complete.
 - Stage 25H: Live recording queue/backpressure hardening complete.
+- Stage 25I: Atomic persistence hardening complete.
 
 ## Planned Stages
 
@@ -206,6 +207,7 @@
 84. Stage 25F: Effect-engine extensibility seam. Complete.
 85. Stage 25G: Replay-file streaming seam. Complete.
 86. Stage 25H: Live recording queue/backpressure hardening. Complete.
+87. Stage 25I: Atomic persistence hardening. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -254,7 +256,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25F replaces the effect engine's repeated fixed-list orchestration with an internal registered-slot seam, so reset/update/render/mixer-input flow is now shared even though the public effect options and diagnostics surfaces are still explicitly typed to the current BST-1 effect set.
 - Stage 25G adds a streaming replay-file seam so `ReplayFileAsync` now reads `.hdrec` packets directly from disk through an open reader instead of first loading the whole recording into memory, while `LoadAsync` reuses the same reader path for whole-recording callers.
 - Stage 25H replaces the live recording service's unbounded queue with a bounded queue plus explicit queue-capacity and dropped-packet diagnostics, keeping packet capture non-blocking while making overload visible to runtime/app callers.
-- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, richer recording-library indexing/query tooling, atomic/schema-versioned persistence, and packaging/release automation.
+- Stage 25I hardens app-settings, audio-profile, and P-HPR profile saves through shared atomic file replacement and adds an explicit app-settings schema version marker so future migrations have a stable footing.
+- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, richer recording-library indexing/query tooling, broader persistence-migration infrastructure, and packaging/release automation.
 
 ## Post-BT-1 Hardware Phases
 

@@ -4165,6 +4165,62 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 25I - Atomic Persistence Hardening
+
+Status: Complete.
+
+Goal: Harden app-settings and profile persistence so normal save operations no longer risk partially overwriting the last known-good JSON file, while keeping the scope tight enough for one safe production-readiness stage.
+
+Changes:
+
+- Re-audited the persistence path before editing:
+  - `AppSettingsStore.Save()` still serialized sanitized settings straight to `appsettings.json`,
+  - `HapticProfileStore.SaveAsync()` still opened the final profile path with `FileMode.Create`,
+  - `PhprEffectProfileStore.SaveAsync()` still opened the final P-HPR profile path with `FileMode.Create`,
+  - audio and P-HPR profiles already had explicit version fields, while app settings did not.
+- Added `src/HapticDrive.Asio.Core/Persistence/AtomicFileWriter.cs`:
+  - shared same-directory temp-file creation,
+  - synchronous text write helper,
+  - asynchronous stream write helper,
+  - final `File.Replace(...)` when the destination already exists,
+  - final `File.Move(...)` when the destination is new,
+  - temp/backup cleanup on failure paths.
+- Routed the existing stores through the shared atomic path:
+  - `AppSettingsStore.Save()` now writes JSON through `AtomicFileWriter.WriteAllText(...)`,
+  - `HapticProfileStore.SaveAsync()` now serializes through `AtomicFileWriter.WriteAsync(...)`,
+  - `PhprEffectProfileStore.SaveAsync()` now serializes through `AtomicFileWriter.WriteAsync(...)`.
+- Added a light schema anchor for app settings:
+  - `AppSettings` now exposes `CurrentVersion = 1`,
+  - persisted app settings now include `Version`,
+  - `AppSettingsStore.Sanitize(...)` normalizes loaded/saved settings back to the current version so older version-less files stay backward-compatible.
+- Added focused persistence tests:
+  - `AtomicFileWriterTests` prove an exception during temp-file writing preserves the prior destination file and leaves no `.tmp` or `.bak` residue,
+  - `AppSettingsStoreTests` now prove version-less legacy settings still load safely and that current saves emit the schema version marker.
+- Updated repo documentation for the new baseline:
+  - `README.md` now reports Stage 25I and calls out atomic settings/profile saves,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25I and narrow the remaining persistence work to broader migration infrastructure rather than basic atomicity.
+
+Verification:
+
+- Focused checks:
+  - `.\.dotnet\dotnet.exe build tests/HapticDrive.Asio.Core.Tests/HapticDrive.Asio.Core.Tests.csproj --no-restore -warnaserror` passed.
+  - `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Core.Tests/HapticDrive.Asio.Core.Tests.csproj --no-build` passed with 38 tests.
+  - `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.App.Tests/HapticDrive.Asio.App.Tests.csproj --no-build` passed with 266 tests.
+  - `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Audio.Tests/HapticDrive.Asio.Audio.Tests.csproj --no-build` passed with 119 tests.
+- Full repo gate:
+  - `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+  - `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+  - `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 886 passing tests and 0 skipped tests.
+  - `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+  - `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 25I intentionally hardens single-file persistence only.
+- No profile tuning defaults, parser behavior, replay format behavior, ASIO/BST-1 runtime behavior, or P-HPR HID/report behavior changed.
+- Existing settings/profile load behavior stays backward-compatible with older files; the app-settings version marker is a foothold for later migrations, not a breaking schema gate.
+- Broader persistence migration planning, history/backup retention, and multi-file transactional save behavior remain future work.
+
 ## Stage 25A - Documentation Baseline and Audit Closure
 
 Status: Complete.

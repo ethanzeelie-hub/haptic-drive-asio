@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HapticDrive.Asio.Core.Persistence;
 
 namespace HapticDrive.Asio.Audio.Profiles;
 
@@ -128,26 +129,19 @@ public sealed class HapticProfileStore
         try
         {
             var fullPath = Path.GetFullPath(path);
-            var directory = Path.GetDirectoryName(fullPath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            await using var stream = new FileStream(
-                fullPath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.Read,
-                bufferSize: 16 * 1024,
-                useAsync: true);
-            await JsonSerializer.SerializeAsync(
-                    stream,
-                    validation.Profile,
-                    JsonOptions,
+            await AtomicFileWriter.WriteAsync(
+                    fullPath,
+                    async (stream, ct) =>
+                    {
+                        await JsonSerializer.SerializeAsync(
+                                stream,
+                                validation.Profile,
+                                JsonOptions,
+                                ct)
+                            .ConfigureAwait(false);
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
-            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
 
             return HapticProfileSaveResult.Success(
                 fullPath,

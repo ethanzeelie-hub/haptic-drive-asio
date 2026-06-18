@@ -2494,3 +2494,16 @@ Stage 25H architecture result:
 - App/runtime recording status now surfaces bounded-queue/drop warnings through the existing recording status text instead of requiring a new diagnostics page.
 
 Stage 25H deliberately does not add large-recording browse/index APIs, retry/recovery policies for dropped packets, or a new `.hdrec` format version. It makes the live capture path bounded and observable first.
+
+## Stage 25I Atomic Persistence Hardening
+
+Stage 25I hardens the persisted JSON save path after the earlier recording/replay scale-up work.
+
+Stage 25I architecture result:
+
+- `HapticDrive.Asio.Core.Persistence.AtomicFileWriter` now provides a shared same-directory temp-file plus replace/move write path for persisted JSON documents.
+- `AppSettingsStore`, `HapticProfileStore`, and `PhprEffectProfileStore` now save through that shared atomic path instead of writing directly to the final file.
+- Existing on-disk files are now preserved if a save attempt fails after the temp file is created but before the final replace completes.
+- `AppSettings` now persists an explicit `Version` marker so future migrations have a stable schema anchor even though current loading remains backward-compatible with older version-less files.
+
+Stage 25I deliberately does not add a broad persistence-migration engine, cross-file transactional saves, backup retention/history, or new profile format versions. It hardens the current single-file save path first so future migration work starts from a safer baseline.

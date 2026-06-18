@@ -921,3 +921,11 @@
 - `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
 - App settings and profile writes are still sanitized but non-atomic and not yet schema-versioned for larger future migration work.
 - Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
+
+## Stage 25I
+
+- App settings, audio profiles, and P-HPR effect profiles now save atomically, and app settings now persist an explicit version marker, but the repo still does not have a broader migration framework for future multi-step schema upgrades, cross-file upgrades, or rollback/repair policies.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
+- Recording and replay are now bounded/streamed for the main hot paths, but the recording library still lacks richer seek/index/query and long-session health tooling.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.

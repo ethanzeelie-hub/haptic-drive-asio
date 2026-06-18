@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Persistence;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
@@ -49,14 +50,8 @@ internal sealed class AppSettingsStore
     public void Save(AppSettings settings)
     {
         var sanitized = Sanitize(settings);
-        var directory = Path.GetDirectoryName(SettingsPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
         var json = JsonSerializer.Serialize(sanitized, SerializerOptions);
-        File.WriteAllText(SettingsPath, json);
+        AtomicFileWriter.WriteAllText(SettingsPath, json);
     }
 
     public static string GetDefaultSettingsPath()
@@ -88,6 +83,7 @@ internal sealed class AppSettingsStore
 
         return settings with
         {
+            Version = AppSettings.CurrentVersion,
             SelectedGameId = GameTelemetryCatalog.NormalizeGameId(settings.SelectedGameId),
             PreferredOutputMode = settings.PreferredOutputMode is null
                 ? null
@@ -389,6 +385,10 @@ internal sealed class AppSettingsStore
 
 internal sealed record AppSettings
 {
+    public const int CurrentVersion = 1;
+
+    public int Version { get; init; } = CurrentVersion;
+
     public bool UseLightTheme { get; init; }
 
     public bool AdvancedDiagnosticsEnabled { get; init; }
