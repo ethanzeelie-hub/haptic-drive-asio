@@ -5,6 +5,7 @@ using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.Safety;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
+using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Asio.Telemetry.F1_25;
@@ -70,7 +71,7 @@ public sealed class HapticPipelineCoordinatorTests
         var renderResult = await coordinator.RenderNextBufferAsync();
 
         var snapshot = coordinator.GetSnapshot();
-        Assert.Equal(F125PacketParseStatus.Success, packetResult.ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, packetResult.ParseStatus);
         Assert.True(packetResult.VehicleStateUpdated);
         Assert.True(renderResult.Succeeded, renderResult.Message);
         Assert.Equal(HapticPipelineInputSource.LiveUdp, snapshot.InputSource);
@@ -137,7 +138,7 @@ public sealed class HapticPipelineCoordinatorTests
         var result = await coordinator.OfferLiveTelemetryPacketAsync(CreatePacket([1, 2, 3]));
         var snapshot = coordinator.GetSnapshot();
 
-        Assert.Equal(F125PacketParseStatus.Failure, result.ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Failure, result.ParseStatus);
         Assert.Equal(1, snapshot.ParserFailureCount);
         Assert.Equal(1, forwarder.InputPacketCount);
         Assert.Equal(0, snapshot.VehicleStateUpdateCount);
@@ -153,7 +154,7 @@ public sealed class HapticPipelineCoordinatorTests
         {
             Assert.True((await coordinator.RecordingService.StartAsync(recordingPath)).Succeeded);
             var result = await coordinator.OfferLiveTelemetryPacketAsync(CreatePacket([9, 8, 7]));
-            Assert.Equal(F125PacketParseStatus.Failure, result.ParseStatus);
+            Assert.Equal(TelemetryPacketParseStatus.Failure, result.ParseStatus);
             Assert.True((await coordinator.RecordingService.StopAsync()).Succeeded);
 
             var loadResult = await TelemetryRecordingFile.LoadAsync(recordingPath);
@@ -177,7 +178,7 @@ public sealed class HapticPipelineCoordinatorTests
         var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
-        Assert.Equal(F125PacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
 
         coordinator.ApplyProfile(HapticDriveProfile.Default with
         {
@@ -209,7 +210,7 @@ public sealed class HapticPipelineCoordinatorTests
         coordinator.ApplyProfile(HapticDriveProfile.Default with { Effects = disabledEffects });
         Assert.True((await coordinator.StartAsync()).Succeeded);
         Assert.Equal(
-            F125PacketParseStatus.Success,
+            TelemetryPacketParseStatus.Success,
             (await coordinator.OfferLiveTelemetryPacketAsync(CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7)))).ParseStatus);
         Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
 
@@ -248,7 +249,7 @@ public sealed class HapticPipelineCoordinatorTests
         var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
-        Assert.Equal(F125PacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
         await WaitUntilAsync(() => coordinator.GetSnapshot().NullOutput?.LastPeakLevel > 0f);
         await WaitUntilAsync(() =>
         {
@@ -270,7 +271,7 @@ public sealed class HapticPipelineCoordinatorTests
         var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
-        Assert.Equal(F125PacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
         await WaitUntilAsync(() => coordinator.GetSnapshot().NullOutput?.LastPeakLevel > 0f);
 
         Assert.True((await coordinator.SetEmergencyMuteAsync(true)).Succeeded);
@@ -280,6 +281,36 @@ public sealed class HapticPipelineCoordinatorTests
         Assert.True(snapshot.EmergencyMute);
         Assert.Equal(0f, snapshot.NullOutput!.LastPeakLevel);
         Assert.True(snapshot.Output.RenderCallbackCount > 0);
+    }
+
+    [Fact]
+    public async Task InjectedGameTelemetryAdapter_DrivesPacketDiagnosticsWithoutF125Parsing()
+    {
+        var adapter = new FakeGameTelemetryAdapter(
+            "Fake Racer",
+            [new TelemetryPacketDescriptor(42, "Synthetic Packet")],
+            new TelemetryPacketProcessResult(
+                TelemetryPacketParseStatus.Success,
+                42,
+                "Synthetic packet parsed.",
+                TelemetryVehicleStateUpdateResult.Applied(VehicleState.Empty, "Synthetic packet updated VehicleState.")));
+
+        await using var coordinator = new HapticPipelineCoordinator(
+            options: HapticPipelineOptions.ManualRendering,
+            telemetryGameAdapter: adapter);
+
+        var result = await coordinator.OfferLiveTelemetryPacketAsync(CreatePacket([1, 2, 3]));
+        var snapshot = coordinator.GetSnapshot();
+
+        Assert.Equal(TelemetryPacketParseStatus.Success, result.ParseStatus);
+        Assert.True(result.VehicleStateUpdated);
+        Assert.Equal("Synthetic packet parsed.", snapshot.LastPacketMessage);
+        Assert.Equal("Synthetic packet updated VehicleState.", snapshot.LastVehicleStateMessage);
+
+        var packetDiagnostics = Assert.Single(snapshot.PacketDiagnostics);
+        Assert.Equal(42, packetDiagnostics.PacketId);
+        Assert.Equal("Synthetic Packet", packetDiagnostics.Name);
+        Assert.Equal(1, packetDiagnostics.ObservedCount);
     }
 
     private static UdpTelemetryPacket CreatePacket(byte[] payload)
@@ -372,6 +403,32 @@ public sealed class HapticPipelineCoordinatorTests
         public ValueTask DisposeAsync()
         {
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FakeGameTelemetryAdapter : IGameTelemetryAdapter
+    {
+        private readonly TelemetryPacketProcessResult _result;
+
+        public FakeGameTelemetryAdapter(
+            string gameName,
+            IReadOnlyList<TelemetryPacketDescriptor> packetDescriptors,
+            TelemetryPacketProcessResult result)
+        {
+            GameName = gameName;
+            PacketDescriptors = packetDescriptors;
+            _result = result;
+        }
+
+        public string GameName { get; }
+
+        public VehicleState CurrentVehicleState => _result.VehicleStateUpdate.State;
+
+        public IReadOnlyList<TelemetryPacketDescriptor> PacketDescriptors { get; }
+
+        public TelemetryPacketProcessResult Process(UdpTelemetryPacket packet)
+        {
+            return _result;
         }
     }
 }

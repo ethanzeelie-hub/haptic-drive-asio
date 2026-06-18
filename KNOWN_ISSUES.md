@@ -870,3 +870,11 @@
 - `HapticEffectEngine` still uses a fixed-list composition model, so large future effect growth will continue to increase central orchestration pressure until a plugin/descriptor-style registration seam exists.
 - Recording and replay remain correct for current scope, but large-session indexing, richer query metadata, and backpressure visibility are still limited.
 - App settings and profile persistence remain non-atomic and are not yet schema-versioned for broader future migrations.
+
+## Stage 25C
+
+- `HapticPipelineCoordinator` now consumes a generic `IGameTelemetryAdapter`, but the runtime still defaults to F1 25 in-process; there is not yet a game catalog, selection model, or app-level adapter composition workflow.
+- Packet diagnostics now come from the active adapter descriptor list, but the broader UI, recordings metadata, and product wording are still F1-25-first rather than game-agnostic.
+- `HapticEffectEngine` still uses a fixed-list composition model, so adding more effects or game-specific effect sets will continue to increase central orchestration pressure until a registration-style seam exists.
+- App settings and profiles do not yet persist a selected game/runtime adapter identity because F1 25 remains the only shipped production game.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.

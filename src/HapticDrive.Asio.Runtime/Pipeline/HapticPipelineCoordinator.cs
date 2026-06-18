@@ -25,9 +25,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private readonly HapticPipelineOptions _options;
     private readonly string _manualAsioHardwareSessionId = Guid.NewGuid().ToString("N");
     private readonly string _localBst1PulseRendererInstanceId = $"local-bst1-renderer-{Guid.NewGuid():N}";
-    private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
-    private readonly long[] _packetIdCounts = new long[16];
-    private readonly DateTimeOffset?[] _packetIdLastObservedAtUtc = new DateTimeOffset?[16];
+    private readonly IGameTelemetryAdapter _telemetryGameAdapter;
+    private readonly long[] _packetIdCounts;
+    private readonly DateTimeOffset?[] _packetIdLastObservedAtUtc;
     private readonly bool _ownsForwarder;
     private readonly bool _ownsRecordingService;
     private readonly bool _ownsReplayService;
@@ -40,8 +40,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private DateTimeOffset? _lastVehicleStateUpdateAtUtc;
     private DateTimeOffset? _lastVehicleStateWallClockAtUtc;
     private TimeSpan? _lastRenderTelemetryAge;
-    private string _lastPacketMessage = "Waiting for F1 25 packets.";
-    private string _lastVehicleStateMessage = "Waiting for parsed F1 25 packets.";
+    private string _lastPacketMessage;
+    private string _lastVehicleStateMessage;
     private string? _lastPipelineError;
     private string? _lastManualAsioHardwareTestBlockedReason;
     private string? _lastManualAsioHardwareTestError;
@@ -82,8 +82,10 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         ITelemetryReplayService? replayService = null,
         HapticDriveProfile? profile = null,
         HapticPipelineOptions? options = null,
-        IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null)
+        IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null,
+        IGameTelemetryAdapter? telemetryGameAdapter = null)
     {
+        _telemetryGameAdapter = telemetryGameAdapter ?? new F125GameTelemetryAdapter();
         Configuration = configuration ?? AudioOutputConfiguration.Default;
         _options = options ?? HapticPipelineOptions.Default;
         Format = AudioSampleFormat.FromConfiguration(Configuration);
@@ -98,6 +100,15 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         _ownsRecordingService = recordingService is null;
         _ownsReplayService = replayService is null;
         _currentProfile = profile ?? HapticDriveProfile.Default;
+        var packetIndexLength = Math.Max(
+            16,
+            _telemetryGameAdapter.PacketDescriptors.Count == 0
+                ? 0
+                : _telemetryGameAdapter.PacketDescriptors.Max(descriptor => descriptor.PacketId + 1));
+        _packetIdCounts = new long[packetIndexLength];
+        _packetIdLastObservedAtUtc = new DateTimeOffset?[packetIndexLength];
+        _lastPacketMessage = $"Waiting for {_telemetryGameAdapter.GameName} packets.";
+        _lastVehicleStateMessage = $"Waiting for parsed {_telemetryGameAdapter.GameName} packets.";
         ApplyProfile(_currentProfile);
         _lastEffectSnapshot = EffectEngine.GetSnapshot();
         ReplayService.PacketReplayed += ReplayService_PacketReplayed;
@@ -837,7 +848,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lastPacketMessage,
             lastVehicleStateMessage,
             lastPipelineError,
-            _vehicleStateAdapter.Current,
+            _telemetryGameAdapter.CurrentVehicleState,
             _lastEffectSnapshot,
             _lastAudioSnapshot,
             OutputDevice.GetStatus(),
@@ -853,12 +864,12 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     {
         lock (_diagnosticsGate)
         {
-            return F125PacketDefinitions.All
+            return _telemetryGameAdapter.PacketDescriptors
                 .Select(definition => new HapticPipelinePacketDiagnostics(
-                    definition.Id,
+                    definition.PacketId,
                     definition.Name,
-                    definition.Id < _packetIdCounts.Length ? Interlocked.Read(ref _packetIdCounts[definition.Id]) : 0,
-                    definition.Id < _packetIdLastObservedAtUtc.Length ? _packetIdLastObservedAtUtc[definition.Id] : null))
+                    definition.PacketId < _packetIdCounts.Length ? Interlocked.Read(ref _packetIdCounts[definition.PacketId]) : 0,
+                    definition.PacketId < _packetIdLastObservedAtUtc.Length ? _packetIdLastObservedAtUtc[definition.PacketId] : null))
                 .ToArray();
         }
     }
@@ -912,11 +923,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             _lastPacketAtUtc = packet.ReceivedAtUtc;
         }
 
-        F125PacketParseResult parseResult;
+        TelemetryPacketProcessResult parseResult;
 
         try
         {
-            parseResult = F125PacketParser.Parse(packet.Payload);
+            parseResult = _telemetryGameAdapter.Process(packet);
         }
         catch (Exception ex)
         {
@@ -929,42 +940,41 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
             SetPipelineError($"Packet parser error: {ex.Message}");
             return new PacketProcessingResult(
-                F125PacketParseStatus.Failure,
+                TelemetryPacketParseStatus.Failure,
                 VehicleStateUpdated: false,
                 $"Packet parser error: {ex.Message}");
         }
 
-        switch (parseResult.Status)
+        switch (parseResult.ParseStatus)
         {
-            case F125PacketParseStatus.Success:
+            case TelemetryPacketParseStatus.Success:
                 Interlocked.Increment(ref _packetParseSuccessCount);
                 break;
-            case F125PacketParseStatus.Ignored:
+            case TelemetryPacketParseStatus.Ignored:
                 Interlocked.Increment(ref _packetParseIgnoredCount);
                 break;
-            case F125PacketParseStatus.Failure:
+            case TelemetryPacketParseStatus.Failure:
                 Interlocked.Increment(ref _packetParseFailureCount);
                 break;
         }
 
-        if (parseResult.Header is { } header
-            && header.PacketId < _packetIdCounts.Length)
+        if (parseResult.PacketId is { } packetId
+            && packetId >= 0
+            && packetId < _packetIdCounts.Length)
         {
-            Interlocked.Increment(ref _packetIdCounts[header.PacketId]);
+            Interlocked.Increment(ref _packetIdCounts[packetId]);
             lock (_diagnosticsGate)
             {
-                _packetIdLastObservedAtUtc[header.PacketId] = packet.ReceivedAtUtc;
+                _packetIdLastObservedAtUtc[packetId] = packet.ReceivedAtUtc;
             }
         }
 
         lock (_diagnosticsGate)
         {
-            _lastPacketMessage = parseResult.Succeeded && parseResult.Definition is not null
-                ? $"{parseResult.Definition.Name} packet parsed."
-                : parseResult.Message;
+            _lastPacketMessage = parseResult.PacketMessage;
         }
 
-        var vehicleStateUpdate = _vehicleStateAdapter.Apply(parseResult);
+        var vehicleStateUpdate = parseResult.VehicleStateUpdate;
         var vehicleStateUpdated = vehicleStateUpdate.WasApplied;
 
         if (vehicleStateUpdated)
@@ -986,9 +996,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         }
 
         return new PacketProcessingResult(
-            parseResult.Status,
+            parseResult.ParseStatus,
             vehicleStateUpdated,
-            parseResult.Message);
+            parseResult.PacketMessage);
     }
 
     private void SetPipelineError(string? message)
@@ -1863,7 +1873,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     }
 
     private sealed record PacketProcessingResult(
-        F125PacketParseStatus ParseStatus,
+        TelemetryPacketParseStatus ParseStatus,
         bool VehicleStateUpdated,
         string Message);
 

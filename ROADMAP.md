@@ -111,6 +111,7 @@
 - Stage 24A: Gemini REC-02 runtime-start ownership audit and closure complete.
 - Stage 25A: Documentation baseline and audit closure complete.
 - Stage 25B: Durable quality gates complete.
+- Stage 25C: Runtime game-telemetry adapter seam complete.
 
 ## Planned Stages
 
@@ -194,6 +195,7 @@
 78. Stage 24A: Gemini REC-02 runtime-start ownership audit and closure. Complete.
 79. Stage 25A: Documentation baseline and audit closure. Complete.
 80. Stage 25B: Durable quality gates. Complete.
+81. Stage 25C: Runtime game-telemetry adapter seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -236,7 +238,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 
 - Stage 25A aligned the repo documentation with the audited architecture baseline and explicitly recorded the remaining production-readiness gaps.
 - Stage 25B makes the existing verification routine durable by turning warnings into build failures, documenting the exact serial verification path, and adding a Windows GitHub Actions workflow that restores, builds, tests, format-checks, and runs launch preflight.
-- Remaining quality work still includes deeper game-adapter abstraction, effect-engine extensibility, recording/replay scaling, atomic/schema-versioned persistence, and packaging/release automation.
+- Stage 25C introduces a runtime-facing `IGameTelemetryAdapter` seam so parsing, packet descriptors, and `VehicleState` application now sit behind a game adapter contract with F1 25 as the default implementation.
+- Remaining quality work still includes game catalog/selection wiring, effect-engine extensibility, recording/replay scaling, atomic/schema-versioned persistence, and packaging/release automation.
 
 ## Post-BT-1 Hardware Phases
 

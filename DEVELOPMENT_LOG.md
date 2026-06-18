@@ -4326,6 +4326,55 @@ Self-review:
 - No runtime haptic behavior, parser behavior, HID/report behavior, or persistence format changed.
 - The new CI workflow mirrors the locally verified serial command path instead of inventing a separate build path.
 - Packaging/signing/release automation remains future work.
+
+## Stage 25C - Runtime Game-Telemetry Adapter Seam
+
+Status: Complete.
+
+Goal: Introduce the smallest safe runtime seam that separates game-specific parsing and `VehicleState` application from `HapticPipelineCoordinator`, so future game support stops requiring direct coordinator surgery.
+
+Changes:
+
+- Re-audited the runtime coupling before editing:
+  - `HapticPipelineCoordinator` directly called `F125PacketParser.Parse(...)`,
+  - packet-diagnostics names came directly from `F125PacketDefinitions`,
+  - `F125VehicleStateAdapter` state lived inside the coordinator,
+  - public runtime packet results still exposed the F1 25-specific parse-status enum.
+- Added a new shared telemetry adapter contract in `HapticDrive.Asio.Core`:
+  - `IGameTelemetryAdapter`,
+  - `TelemetryPacketDescriptor`,
+  - `TelemetryPacketParseStatus`,
+  - `TelemetryVehicleStateUpdateResult`,
+  - `TelemetryPacketProcessResult`.
+- Added `F125GameTelemetryAdapter` inside `HapticDrive.Asio.Telemetry.F1_25`:
+  - keeps F1 25 parsing and `VehicleState` application together,
+  - exposes packet descriptors for runtime diagnostics,
+  - retains current `VehicleState` internally,
+  - maps F1-specific parse/update results into the new shared contract.
+- Refactored `HapticPipelineCoordinator` to consume the new adapter seam:
+  - optional `telemetryGameAdapter` constructor dependency,
+  - F1 25 remains the default adapter when none is injected,
+  - packet parsing, packet diagnostics, initial waiting messages, and current vehicle-state access now flow through the adapter contract,
+  - public `HapticPipelinePacketResult.ParseStatus` now uses the shared game-agnostic enum.
+- Added focused tests and guardrails:
+  - updated runtime coordinator tests to the game-agnostic parse-status enum,
+  - added an injected fake-adapter test proving the coordinator can process telemetry without F1 25 parser calls,
+  - added a guardrail asserting the public packet-result parse-status type no longer exposes the F1 25-specific enum.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 876 tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed launch preflight.
+
+Self-review:
+
+- Stage 25C is intentionally a seam stage, not a multi-game feature stage.
+- F1 25 remains the only shipped production game and the default runtime adapter.
+- The runtime assembly still references the F1 25 project for the default adapter; later stages can move selection/composition further upward if needed.
+- No haptic effect behavior, ASIO/BST-1 behavior, P-HPR behavior, replay format, or persistence format changed.
 - No manual test behavior changed.
 - No validation harness behavior changed.
 - No profile/persistence boundary changed.

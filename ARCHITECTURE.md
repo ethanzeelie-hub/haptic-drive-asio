@@ -2413,3 +2413,19 @@ Stage 25B repository baseline:
 - A local one-off property escape hatch exists for warning investigation without weakening repository policy.
 
 Stage 25B does not change runtime behavior, diagnostics report behavior, parser / `VehicleState` behavior, recording/replay behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, persistence formats, or physical-validation boundaries.
+
+## Stage 25C Runtime Game-Telemetry Adapter Seam
+
+Stage 25C introduces the first explicit runtime seam for future multi-game support without claiming actual multi-game product support yet.
+
+Stage 25C architecture result:
+
+- `HapticPipelineCoordinator` now depends on a generic `IGameTelemetryAdapter` contract.
+- The active game adapter now owns:
+  - packet parsing,
+  - packet descriptor publication for diagnostics,
+  - `VehicleState` application/state retention.
+- F1 25 remains the default shipped implementation through `F125GameTelemetryAdapter`.
+- Runtime packet-result status is now expressed through a game-agnostic core parse-status enum instead of the F1 25-specific enum.
+
+Stage 25C deliberately does not add a second game, app-level game selection, game-specific profile branching, or effect/plugin registration. It narrows the main coordinator boundary first so later game additions have a smaller blast radius.

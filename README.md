@@ -8,11 +8,11 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25B: Durable quality gates complete.
+Stage 25C: Runtime game-telemetry adapter seam complete.
 
 ## Current Architecture Baseline
 
-- F1 25 is still the only production game integration. Future game support is planned, but the current shipped parser and adapter path remains F1 25 only.
+- F1 25 is still the only production game integration. Future game support is planned, but runtime now consumes a game-telemetry adapter seam instead of hard-wiring F1 25 parser/application logic directly inside `HapticPipelineCoordinator`.
 - `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
 - ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.
 - Simagic P-HPR remains a separate non-audio actuator path. It is not routed through ASIO or `IAudioOutputDevice`.
