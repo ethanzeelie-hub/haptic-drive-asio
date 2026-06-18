@@ -159,6 +159,26 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void MainWindowSourceContainsEffectsNavigationAndViewHost()
+    {
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("EffectsViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("EffectsViewControl.Visibility = page.NavigationLabel == \"Effects\"", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("EffectsViewControl.Apply(presentation);", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("EffectsStatusPresenter.Build(new EffectsStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DashboardViewDoesNotExposeRawHidOrReportCopy()
     {
         var dashboardXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DashboardView.xaml");
@@ -173,8 +193,8 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void EffectsPageUsesHardwareEffectSectionsAndMovedControls()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var effectsPanel = FindElementByXName(mainWindowXaml, "EffectsPanel");
+        var effectsXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "EffectsView.xaml");
+        var effectsPanel = FindElementByXName(effectsXaml, "EffectsPanel");
         var effectsText = GetTextValues(effectsPanel);
         var effectsNames = GetXNameValues(effectsPanel);
 
@@ -222,8 +242,8 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void EffectsPageRoadTextureCardsDoNotExposePulseDurationControls()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var effectsPanel = FindElementByXName(mainWindowXaml, "EffectsPanel");
+        var effectsXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "EffectsView.xaml");
+        var effectsPanel = FindElementByXName(effectsXaml, "EffectsPanel");
         var effectsText = GetTextValues(effectsPanel);
         var effectsNames = GetXNameValues(effectsPanel);
 
@@ -455,8 +475,9 @@ public sealed class AppThemeResourceTests
     {
         var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
         var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
+        var effectsXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "EffectsView.xaml");
         var normalText = GetTextValues(FindElementByXName(devicesXaml, "DevicesPanel"))
-            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "EffectsPanel")))
+            .Concat(GetTextValues(FindElementByXName(effectsXaml, "EffectsPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "MixerPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "ProfilesPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "TestingPanel")))

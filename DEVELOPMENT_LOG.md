@@ -4164,3 +4164,84 @@ Self-review:
 - No F1 25 parser layout, raw-packet preservation, replay format, or replay timing behavior changed.
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
+
+## Stage 23E - Effects View Extraction and Effect Tuning Presentation Seam
+
+Status: Complete.
+
+Goal: Continue the low-risk Stage 23 shell extraction strategy by moving the normal Effects page into a dedicated view/component and extracting only pure Effects status/presentation shaping without moving runtime ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Effects seam before editing:
+  - `MainWindow.xaml` was 2453 lines,
+  - `MainWindow.xaml.cs` was 5616 lines,
+  - Effects still lived inline in `MainWindow.xaml`,
+  - `UpdateEffectStatus()` still mixed pure status-string shaping with `MainWindow` orchestration,
+  - effect tuning controls still needed to preserve existing names for profile/settings hydration and runtime application.
+- Added dedicated Effects view files:
+  - `src/HapticDrive.Asio.App/Views/EffectsView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/EffectsView.xaml.cs`.
+- Added `src/HapticDrive.Asio.App/EffectsStatusPresenter.cs`:
+  - `EffectsStatusSnapshot`,
+  - `EffectsStatusPresentation`,
+  - focused nested snapshot records for shared-road, engine, gear, kerb, impact, road-texture, and slip/lock display shaping,
+  - `EffectsStatusPresenter`.
+- Moved the normal Effects layout into `EffectsView` while preserving the same operator-facing structure and control identities:
+  - `Shared / Global Effect Settings`,
+  - `BST-1 Seat Shaker`,
+  - `Brake P-HPR`,
+  - `Throttle P-HPR`.
+- Kept runtime ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - profile and app-settings hydration/application,
+  - live snapshot gathering,
+  - all tuning-control parsing and runtime application,
+  - Start/Stop/Mute/Emergency interactions,
+  - startup/shutdown cleanup.
+- Added a low-risk event-forwarding seam:
+  - `EffectsView` now forwards the existing tuning, BST-1 paddle pulse, normal P-HPR, and real P-HPR direct-control events back to the existing `MainWindow` handlers,
+  - no runtime execution moved into the view,
+  - no hardware/runtime classes moved into the presenter.
+- Centralized only pure Effects display shaping through `EffectsStatusPresenter`:
+  - shared road-signal status text,
+  - per-effect state/detail/defaults text for engine, gear, kerb, impact, road texture, and slip/lock,
+  - Effects page-status summary text.
+- Preserved existing tuning/profile/settings behavior by keeping control access in `MainWindow` through the extracted-view seam:
+  - existing control names remain intact inside `EffectsView`,
+  - `MainWindow` still owns all control snapshot builders and control-application methods,
+  - no tuning ranges, defaults, persistence schemas, or runtime application logic changed.
+- Reduced shell size while keeping the seam intentionally narrow:
+  - `MainWindow.xaml` is now 1720 lines,
+  - `MainWindow.xaml.cs` is now 5763 lines,
+  - no broad MVVM rewrite,
+  - no new dependencies,
+  - no runtime-path ownership moved.
+- Added and updated stable tests:
+  - `EffectsStatusPresenterTests`,
+  - `EffectsStatusPresenterGuardrailTests`,
+  - `AppThemeResourceTests` updates for the extracted Effects view/host boundary.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 842 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23E is intentionally Effects presentation/component extraction only.
+- `MainWindow` remains the composition/runtime owner.
+- Effects tuning behavior, control names, profile hydration, and app-settings hydration remain intact.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No F1 25 parser layout, raw-packet preservation, replay format, or replay timing behavior changed.
+- No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
+- This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.

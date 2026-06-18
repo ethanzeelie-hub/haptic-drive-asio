@@ -367,6 +367,13 @@ public partial class MainWindow : Window
         _updatingSettingsUi = true;
         InitializeComponent();
 
+        EffectsViewControl.TuningControlChanged += TuningControl_Changed;
+        EffectsViewControl.PhprPedalsControlChanged += PhprPedalsControl_Changed;
+        EffectsViewControl.PhprPedalsControlLostFocus += PhprPedalsControl_LostFocus;
+        EffectsViewControl.RealPhprDirectControlChanged += RealPhprDirectControlCheckBox_Changed;
+        EffectsViewControl.RealPhprDirectControlLostFocus += RealPhprDirectControl_LostFocus;
+        EffectsViewControl.Bst1PaddleGearPulseControlChanged += Bst1PaddleGearPulseControl_Changed;
+        EffectsViewControl.Bst1PaddleGearPulseControlLostFocus += Bst1PaddleGearPulseControl_LostFocus;
         DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
         DevicesViewControl.RefreshAsioClicked += RefreshAsioButton_Click;
         DevicesViewControl.AsioDriverSelectionChanged += AsioDriverComboBox_SelectionChanged;
@@ -530,7 +537,7 @@ public partial class MainWindow : Window
             TopBarContextText.Text = $"{page.NavigationLabel} / safe control";
             PageStatusText.Text = page.Status;
             PageItemsControl.ItemsSource = page.Items;
-            EffectsPanel.Visibility = page.NavigationLabel == "Effects"
+            EffectsViewControl.Visibility = page.NavigationLabel == "Effects"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             MixerPanel.Visibility = page.NavigationLabel == "Routing / Mixer"
@@ -5633,55 +5640,110 @@ public partial class MainWindow : Window
     private void UpdateEffectStatus()
     {
         var pipelineSnapshot = _hapticPipeline.GetSnapshot();
-        var snapshot = pipelineSnapshot.Effects;
-        var options = _hapticPipeline.EffectEngine.Options;
-
-        EngineEffectStateText.Text = snapshot.Engine.IsActive ? "Active" : "Idle";
-        EngineEffectDetailText.Text = snapshot.Engine.LastRpm is null
-            ? "Waiting for RPM telemetry."
-            : $"{snapshot.Engine.LastRpm:N0} RPM -> {snapshot.Engine.CurrentFrequencyHz:0.0} Hz, peak {snapshot.Engine.PeakLevel:0.000}.";
-        EngineEffectDefaultsText.Text = $"Tuned gain {options.Engine.Gain:P0}; base {options.Engine.MinimumFrequencyHz:0}-{options.Engine.MaximumFrequencyHz:0} Hz; enabled {options.Engine.IsEnabled}.";
-
-        GearShiftEffectStateText.Text = snapshot.GearShift.IsActive ? "Pulse active" : "Idle";
-        GearShiftEffectDetailText.Text = snapshot.GearShift.LastObservedGear is null
-            ? "Waiting for gear telemetry."
-            : $"Last gear {snapshot.GearShift.LastObservedGear}; last shift frame {snapshot.GearShift.LastShiftFrameIdentifier?.ToString("N0") ?? "none"}; peak {snapshot.GearShift.PeakLevel:0.000}.";
-        GearShiftEffectDefaultsText.Text = $"Tuned gain {options.GearShift.Gain:P0}; {options.GearShift.PulseFrequencyHz:0} Hz pulse; {options.GearShift.PulseDuration.TotalMilliseconds:0} ms; enabled {options.GearShift.IsEnabled}.";
-
-        KerbEffectStateText.Text = snapshot.Kerb.IsActive ? "Active" : "Idle";
-        KerbEffectDetailText.Text = snapshot.Kerb.DominantSurfaceTypeId is null
-            ? "Waiting for rumble strip / ridged surface telemetry."
-            : $"{snapshot.Kerb.DominantSurfaceName}; {snapshot.Kerb.ActiveWheelCount} wheel(s); {snapshot.Kerb.CurrentFrequencyHz:0.0} Hz; peak {snapshot.Kerb.PeakLevel:0.000}.";
-        KerbEffectDefaultsText.Text = $"Tuned gain {options.Kerb.Gain:P0}; {options.Kerb.BaseFrequencyHz:0} Hz + {options.Kerb.HighFrequencyHz:0} Hz; enabled {options.Kerb.IsEnabled}.";
-
-        ImpactEffectStateText.Text = snapshot.Impact.IsActive ? "Pulse active" : "Idle";
-        ImpactEffectDetailText.Text = snapshot.Impact.LastImpactFrameIdentifier is null
-            ? "Waiting for collision, vertical-G, force, or suspension spikes."
-            : $"Last impact frame {snapshot.Impact.LastImpactFrameIdentifier:N0}; intensity {snapshot.Impact.CurrentIntensity:0.00}; peak {snapshot.Impact.PeakLevel:0.000}.";
-        ImpactEffectDefaultsText.Text = $"Tuned gain {options.Impact.Gain:P0}; {options.Impact.PulseFrequencyHz:0} Hz; {options.Impact.PulseDuration.TotalMilliseconds:0} ms; enabled {options.Impact.IsEnabled}.";
-
-        var sharedRoadSignalActive = snapshot.RoadTexture.Signal.IsActive;
-        SharedRoadSignalStatusText.Text = $"Shared road signal {(options.RoadTexture.IsEnabled ? "enabled" : "disabled")}; output {snapshot.RoadTexture.Signal.OutputIntensity:0.000}; speed scale {snapshot.RoadTexture.Signal.SpeedScale:0.000}; gear ducking {snapshot.RoadTexture.Signal.GearDuckingActive}.";
-        RoadTextureEffectStateText.Text = snapshot.RoadTexture.IsActive ? "BST-1 active" : "Idle";
-        RoadTextureEffectDetailText.Text = snapshot.RoadTexture.DominantSurfaceTypeId is null
-            ? "Waiting for speed and surface telemetry."
-            : $"{snapshot.RoadTexture.DominantSurfaceName}; shared signal {(sharedRoadSignalActive ? "active" : "idle")}; mix {snapshot.RoadTexture.SurfaceMix:0.00}; speed {snapshot.RoadTexture.Signal.SpeedKph} km/h; {snapshot.RoadTexture.CurrentFrequencyHz:0.0} Hz; grain {snapshot.RoadTexture.Signal.NoiseAmount:P0}; BST-1 peak {snapshot.RoadTexture.PeakLevel:0.000}.";
-        RoadTextureEffectDefaultsText.Text = $"BST-1 / ASIO road output gain {options.RoadTexture.Gain:P0}; min {options.RoadTexture.MinimumSpeedKph:0} km/h; speed ref {options.RoadTexture.FullIntensitySpeedKph:0} km/h; {options.RoadTexture.Bst1LowSpeedFrequencyHz:0}-{options.RoadTexture.Bst1HighSpeedFrequencyHz:0} Hz; speed influence {options.RoadTexture.Bst1SpeedFrequencyInfluence:P0}; grain {options.RoadTexture.Bst1GrainAmount:P0}; shared signal {options.RoadTexture.IsEnabled}; BST-1 output {options.RoadTexture.Bst1OutputEnabled}.";
-
-        SlipEffectStateText.Text = snapshot.Slip.IsActive ? $"{snapshot.Slip.ActiveSource} active" : "Idle";
-        SlipEffectDetailText.Text = snapshot.Slip.CurrentSlipRatio <= 0f
-                                     && snapshot.Slip.CurrentSlipAngleRadians <= 0f
-                                     && Math.Abs(snapshot.Slip.CurrentMinimumWheelSpeedRatio - 1f) < 0.0001f
-            ? "Waiting for Motion Ex slip ratio / angle and wheel-speed telemetry."
-            : $"{snapshot.Slip.ActiveReason}; slip {snapshot.Slip.CurrentSlipIntensity:0.00} (ratio {snapshot.Slip.CurrentSlipRatio:0.00}, angle {snapshot.Slip.CurrentSlipAngleRadians:0.00} rad); lock {snapshot.Slip.CurrentLockIntensity:0.00} (wheel-speed ratio {snapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}); {snapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {snapshot.Slip.CurrentNoiseAmount:P0}; peak {snapshot.Slip.PeakLevel:0.000}.";
-        SlipEffectDefaultsText.Text = $"Slip {options.Slip.WheelSlipGain:P0} @ {options.Slip.WheelSlipFrequencyHz:0} Hz, roughness {options.Slip.WheelSlipNoiseAmount:P0}, threshold {options.Slip.SlipRatioThreshold:0.00}, enabled {options.Slip.WheelSlipEnabled}; lock {options.Slip.WheelLockGain:P0} @ {options.Slip.WheelLockFrequencyHz:0} Hz, roughness {options.Slip.WheelLockNoiseAmount:P0}, sensitivity {options.Slip.BrakeLockWheelSpeedRatioThreshold:0.00}, enabled {options.Slip.WheelLockEnabled}.";
+        var presentation = BuildEffectsStatusPresentation(pipelineSnapshot);
+        EffectsViewControl.Apply(presentation);
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Effects" })
         {
-            PageStatusText.Text = $"{snapshot.ActiveEffectCount} active effect source(s); engine {EngineEffectStateText.Text.ToLowerInvariant()}, gear {GearShiftEffectStateText.Text.ToLowerInvariant()}, kerb {KerbEffectStateText.Text.ToLowerInvariant()}, impact {ImpactEffectStateText.Text.ToLowerInvariant()}, road {RoadTextureEffectStateText.Text.ToLowerInvariant()}, slip {SlipEffectStateText.Text.ToLowerInvariant()}; peak {snapshot.PeakLevel:0.000}.";
+            PageStatusText.Text = presentation.EffectsPageStatusText;
         }
 
         UpdateDiagnosticsStatus();
+    }
+
+    private EffectsStatusPresentation BuildEffectsStatusPresentation(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        var snapshot = pipelineSnapshot.Effects;
+        var options = _hapticPipeline.EffectEngine.Options;
+
+        return EffectsStatusPresenter.Build(new EffectsStatusSnapshot(
+            SharedRoadSignal: new SharedRoadSignalStatusSnapshot(
+                IsEnabled: options.RoadTexture.IsEnabled,
+                OutputIntensity: snapshot.RoadTexture.Signal.OutputIntensity,
+                SpeedScale: snapshot.RoadTexture.Signal.SpeedScale,
+                GearDuckingActive: snapshot.RoadTexture.Signal.GearDuckingActive),
+            Engine: new EngineEffectStatusSnapshot(
+                IsActive: snapshot.Engine.IsActive,
+                LastRpm: snapshot.Engine.LastRpm,
+                CurrentFrequencyHz: snapshot.Engine.CurrentFrequencyHz,
+                PeakLevel: snapshot.Engine.PeakLevel,
+                Gain: options.Engine.Gain,
+                MinimumFrequencyHz: options.Engine.MinimumFrequencyHz,
+                MaximumFrequencyHz: options.Engine.MaximumFrequencyHz,
+                IsEnabled: options.Engine.IsEnabled),
+            GearShift: new GearShiftEffectStatusSnapshot(
+                IsActive: snapshot.GearShift.IsActive,
+                LastObservedGearText: snapshot.GearShift.LastObservedGear?.ToString(),
+                LastShiftFrameIdentifier: snapshot.GearShift.LastShiftFrameIdentifier,
+                PeakLevel: snapshot.GearShift.PeakLevel,
+                Gain: options.GearShift.Gain,
+                PulseFrequencyHz: options.GearShift.PulseFrequencyHz,
+                PulseDurationMs: options.GearShift.PulseDuration.TotalMilliseconds,
+                IsEnabled: options.GearShift.IsEnabled),
+            Kerb: new KerbEffectStatusSnapshot(
+                IsActive: snapshot.Kerb.IsActive,
+                DominantSurfaceName: snapshot.Kerb.DominantSurfaceTypeId is null ? null : snapshot.Kerb.DominantSurfaceName,
+                ActiveWheelCount: snapshot.Kerb.ActiveWheelCount,
+                CurrentFrequencyHz: snapshot.Kerb.CurrentFrequencyHz,
+                PeakLevel: snapshot.Kerb.PeakLevel,
+                Gain: options.Kerb.Gain,
+                BaseFrequencyHz: options.Kerb.BaseFrequencyHz,
+                HighFrequencyHz: options.Kerb.HighFrequencyHz,
+                IsEnabled: options.Kerb.IsEnabled),
+            Impact: new ImpactEffectStatusSnapshot(
+                IsActive: snapshot.Impact.IsActive,
+                LastImpactFrameIdentifier: snapshot.Impact.LastImpactFrameIdentifier,
+                CurrentIntensity: snapshot.Impact.CurrentIntensity,
+                PeakLevel: snapshot.Impact.PeakLevel,
+                Gain: options.Impact.Gain,
+                PulseFrequencyHz: options.Impact.PulseFrequencyHz,
+                PulseDurationMs: options.Impact.PulseDuration.TotalMilliseconds,
+                IsEnabled: options.Impact.IsEnabled),
+            RoadTexture: new RoadTextureEffectStatusSnapshot(
+                IsActive: snapshot.RoadTexture.IsActive,
+                DominantSurfaceName: snapshot.RoadTexture.DominantSurfaceTypeId is null ? null : snapshot.RoadTexture.DominantSurfaceName,
+                SharedSignalIsActive: snapshot.RoadTexture.Signal.IsActive,
+                SurfaceMix: snapshot.RoadTexture.SurfaceMix,
+                SpeedKph: snapshot.RoadTexture.Signal.SpeedKph,
+                CurrentFrequencyHz: snapshot.RoadTexture.CurrentFrequencyHz,
+                NoiseAmount: snapshot.RoadTexture.Signal.NoiseAmount,
+                PeakLevel: snapshot.RoadTexture.PeakLevel,
+                Gain: options.RoadTexture.Gain,
+                MinimumSpeedKph: options.RoadTexture.MinimumSpeedKph,
+                FullIntensitySpeedKph: options.RoadTexture.FullIntensitySpeedKph,
+                LowSpeedFrequencyHz: options.RoadTexture.Bst1LowSpeedFrequencyHz,
+                HighSpeedFrequencyHz: options.RoadTexture.Bst1HighSpeedFrequencyHz,
+                SpeedFrequencyInfluence: options.RoadTexture.Bst1SpeedFrequencyInfluence,
+                GrainAmount: options.RoadTexture.Bst1GrainAmount,
+                SharedSignalEnabled: options.RoadTexture.IsEnabled,
+                Bst1OutputEnabled: options.RoadTexture.Bst1OutputEnabled),
+            Slip: new SlipEffectStatusSnapshot(
+                IsActive: snapshot.Slip.IsActive,
+                ActiveSource: snapshot.Slip.ActiveSource,
+                HasMeaningfulTelemetry: snapshot.Slip.CurrentSlipRatio > 0f
+                    || snapshot.Slip.CurrentSlipAngleRadians > 0f
+                    || Math.Abs(snapshot.Slip.CurrentMinimumWheelSpeedRatio - 1f) >= 0.0001f,
+                ActiveReason: snapshot.Slip.ActiveReason,
+                CurrentSlipIntensity: snapshot.Slip.CurrentSlipIntensity,
+                CurrentSlipRatio: snapshot.Slip.CurrentSlipRatio,
+                CurrentSlipAngleRadians: snapshot.Slip.CurrentSlipAngleRadians,
+                CurrentLockIntensity: snapshot.Slip.CurrentLockIntensity,
+                CurrentMinimumWheelSpeedRatio: snapshot.Slip.CurrentMinimumWheelSpeedRatio,
+                CurrentFrequencyHz: snapshot.Slip.CurrentFrequencyHz,
+                CurrentNoiseAmount: snapshot.Slip.CurrentNoiseAmount,
+                PeakLevel: snapshot.Slip.PeakLevel,
+                WheelSlipGain: options.Slip.WheelSlipGain,
+                WheelSlipFrequencyHz: options.Slip.WheelSlipFrequencyHz,
+                WheelSlipNoiseAmount: options.Slip.WheelSlipNoiseAmount,
+                SlipRatioThreshold: options.Slip.SlipRatioThreshold,
+                WheelSlipEnabled: options.Slip.WheelSlipEnabled,
+                WheelLockGain: options.Slip.WheelLockGain,
+                WheelLockFrequencyHz: options.Slip.WheelLockFrequencyHz,
+                WheelLockNoiseAmount: options.Slip.WheelLockNoiseAmount,
+                BrakeLockWheelSpeedRatioThreshold: options.Slip.BrakeLockWheelSpeedRatioThreshold,
+                WheelLockEnabled: options.Slip.WheelLockEnabled),
+            ActiveEffectCount: snapshot.ActiveEffectCount,
+            PeakLevel: snapshot.PeakLevel));
     }
 
     private void UpdateRecordingStatus()
@@ -6136,6 +6198,168 @@ public partial class MainWindow : Window
             _settingsError = $"Shutdown diagnostic write failed: {ex.Message}";
         }
     }
+
+    private CheckBox SharedRoadSignalEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(SharedRoadSignalEnabledCheckBox));
+
+    private TextBox NormalPhprGearDurationTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprGearDurationTextBox));
+
+    private Slider RoadTextureMinimumSpeedSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureMinimumSpeedSlider));
+
+    private TextBlock RoadTextureMinimumSpeedValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureMinimumSpeedValueText));
+
+    private CheckBox GearShiftEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(GearShiftEnabledCheckBox));
+
+    private Slider GearShiftGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(GearShiftGainSlider));
+
+    private TextBlock GearShiftGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(GearShiftGainValueText));
+
+    private Slider GearShiftDurationSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(GearShiftDurationSlider));
+
+    private TextBlock GearShiftDurationValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(GearShiftDurationValueText));
+
+    private CheckBox Bst1PaddleGearPulseEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(Bst1PaddleGearPulseEnabledCheckBox));
+
+    private TextBox Bst1PaddleGearStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(Bst1PaddleGearStrengthTextBox));
+
+    private TextBox Bst1PaddleGearFrequencyTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(Bst1PaddleGearFrequencyTextBox));
+
+    private CheckBox Bst1PaddleGearSyncDurationCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(Bst1PaddleGearSyncDurationCheckBox));
+
+    private TextBox Bst1PaddleGearDurationTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(Bst1PaddleGearDurationTextBox));
+
+    private TextBlock Bst1PaddleGearEffectiveDurationText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(Bst1PaddleGearEffectiveDurationText));
+
+    private CheckBox Bst1RoadOutputEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(Bst1RoadOutputEnabledCheckBox));
+
+    private Slider RoadTextureGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureGainSlider));
+
+    private TextBlock RoadTextureGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureGainValueText));
+
+    private Slider RoadTextureLowSpeedFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureLowSpeedFrequencySlider));
+
+    private TextBlock RoadTextureLowSpeedFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureLowSpeedFrequencyValueText));
+
+    private Slider RoadTextureHighSpeedFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureHighSpeedFrequencySlider));
+
+    private TextBlock RoadTextureHighSpeedFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureHighSpeedFrequencyValueText));
+
+    private Slider RoadTextureSpeedReferenceSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureSpeedReferenceSlider));
+
+    private TextBlock RoadTextureSpeedReferenceValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureSpeedReferenceValueText));
+
+    private Slider RoadTextureSpeedFrequencyInfluenceSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureSpeedFrequencyInfluenceSlider));
+
+    private TextBlock RoadTextureSpeedFrequencyInfluenceValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureSpeedFrequencyInfluenceValueText));
+
+    private Slider RoadTextureGrainAmountSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureGrainAmountSlider));
+
+    private TextBlock RoadTextureGrainAmountValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureGrainAmountValueText));
+
+    private CheckBox EngineEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(EngineEnabledCheckBox));
+
+    private Slider EngineGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(EngineGainSlider));
+
+    private TextBlock EngineGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(EngineGainValueText));
+
+    private Slider EngineMinimumFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(EngineMinimumFrequencySlider));
+
+    private Slider EngineMaximumFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(EngineMaximumFrequencySlider));
+
+    private TextBlock EngineFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(EngineFrequencyValueText));
+
+    private CheckBox KerbEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(KerbEnabledCheckBox));
+
+    private Slider KerbGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(KerbGainSlider));
+
+    private TextBlock KerbGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(KerbGainValueText));
+
+    private Slider KerbBaseFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(KerbBaseFrequencySlider));
+
+    private TextBlock KerbFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(KerbFrequencyValueText));
+
+    private CheckBox ImpactEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(ImpactEnabledCheckBox));
+
+    private Slider ImpactGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(ImpactGainSlider));
+
+    private TextBlock ImpactGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(ImpactGainValueText));
+
+    private Slider ImpactDurationSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(ImpactDurationSlider));
+
+    private TextBlock ImpactDurationValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(ImpactDurationValueText));
+
+    private CheckBox SlipWheelSlipEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(SlipWheelSlipEnabledCheckBox));
+
+    private Slider SlipWheelSlipGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelSlipGainSlider));
+
+    private TextBlock SlipWheelSlipGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelSlipGainValueText));
+
+    private Slider SlipWheelSlipFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelSlipFrequencySlider));
+
+    private TextBlock SlipWheelSlipFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelSlipFrequencyValueText));
+
+    private Slider SlipWheelSlipNoiseSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelSlipNoiseSlider));
+
+    private TextBlock SlipWheelSlipNoiseValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelSlipNoiseValueText));
+
+    private Slider SlipThresholdSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipThresholdSlider));
+
+    private TextBlock SlipThresholdValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipThresholdValueText));
+
+    private CheckBox SlipWheelLockEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(SlipWheelLockEnabledCheckBox));
+
+    private Slider SlipWheelLockGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockGainSlider));
+
+    private TextBlock SlipWheelLockGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockGainValueText));
+
+    private Slider SlipWheelLockFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockFrequencySlider));
+
+    private TextBlock SlipWheelLockFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockFrequencyValueText));
+
+    private Slider SlipWheelLockNoiseSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockNoiseSlider));
+
+    private TextBlock SlipWheelLockNoiseValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockNoiseValueText));
+
+    private Slider SlipWheelLockSensitivitySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockSensitivitySlider));
+
+    private TextBlock SlipWheelLockSensitivityValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockSensitivityValueText));
+
+    private CheckBox NormalPhprBrakeEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(NormalPhprBrakeEnabledCheckBox));
+
+    private TextBox NormalPhprBrakeStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprBrakeStrengthTextBox));
+
+    private TextBox NormalPhprBrakeFrequencyTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprBrakeFrequencyTextBox));
+
+    private TextBox NormalPhprBrakeDurationTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprBrakeDurationTextBox));
+
+    private CheckBox RealRoadVibrationEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(RealRoadVibrationEnabledCheckBox));
+
+    private CheckBox RealRoadBrakeEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(RealRoadBrakeEnabledCheckBox));
+
+    private TextBox RealRoadBrakeStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadBrakeStrengthTextBox));
+
+    private CheckBox RealLockEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(RealLockEnabledCheckBox));
+
+    private TextBox RealLockStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealLockStrengthTextBox));
+
+    private TextBox RealLockCadenceTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealLockCadenceTextBox));
+
+    private CheckBox NormalPhprThrottleEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(NormalPhprThrottleEnabledCheckBox));
+
+    private TextBox NormalPhprThrottleStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprThrottleStrengthTextBox));
+
+    private TextBox NormalPhprThrottleFrequencyTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprThrottleFrequencyTextBox));
+
+    private TextBox NormalPhprThrottleDurationTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprThrottleDurationTextBox));
+
+    private CheckBox RealRoadThrottleEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(RealRoadThrottleEnabledCheckBox));
+
+    private TextBox RealRoadThrottleStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadThrottleStrengthTextBox));
+
+    private CheckBox RealSlipEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(RealSlipEnabledCheckBox));
+
+    private TextBox RealSlipStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipStrengthTextBox));
+
+    private TextBox RealSlipCadenceTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipCadenceTextBox));
 
     private ComboBox OutputModeComboBox => DevicesViewControl.OutputModeComboBoxControl;
 
