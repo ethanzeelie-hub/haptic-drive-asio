@@ -4275,6 +4275,56 @@ Self-review:
 - Summary loading stays streaming and bounded in memory, but it is still a sequential scan for completed recordings rather than a cached sidecar index or random-access query surface.
 - The new sequence-gap summary gives the operator a useful first-pass health signal for completed recordings, but richer packet-type histograms, search/filter views, and on-demand packet browsing remain future work.
 
+## Stage 25K - Release Packaging Automation
+
+Status: Complete.
+
+Goal: Add a repeatable publish-and-package path that works locally and in CI so release packaging stops being an ad hoc manual shell exercise.
+
+Changes:
+
+- Re-audited the packaging baseline before editing:
+  - the repo already had `ci.yml` for restore/build/test/format/preflight,
+  - there was still no repo-native publish script,
+  - there was still no workflow that produced a packaged app artifact,
+  - generated publish outputs were not yet ignored from source control.
+- Added generated-artifact ignore coverage:
+  - `.gitignore` now ignores `artifacts/`.
+- Added `Publish-HapticDrive.ps1` at the repo root:
+  - resolves repo-local `.dotnet` automatically when present,
+  - restores the WPF app project for a specific runtime (`win-x64` by default),
+  - publishes `src/HapticDrive.Asio.App/HapticDrive.Asio.App.csproj` in `Release`,
+  - writes publish output to `artifacts/publish/HapticDrive.Asio-<runtime>/`,
+  - zips the publish folder to `artifacts/release/HapticDrive.Asio-<runtime>.zip`,
+  - supports `-NoRestore` and `-NoZip` switches for controlled reuse/debug cases.
+- Added `Publish-HapticDrive.cmd` as a small Windows wrapper around the PowerShell publish script.
+- Added `.github/workflows/package.yml`:
+  - runs on `workflow_dispatch` and `v*` tags,
+  - reruns restore/build/test/format/launch-preflight before packaging,
+  - calls `Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64`,
+  - uploads the resulting zip as a GitHub Actions artifact.
+- Updated docs to reflect the new packaging baseline:
+  - `README.md` now reports Stage 25K, documents the publish command, and records the new packaged-artifact baseline,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25K and narrow the remaining delivery gap to installer/signing/release publication/support-bundle work rather than basic packaging repeatability.
+
+Verification:
+
+- Packaging validation:
+  - `.\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64` passed.
+  - Verified publish output under `artifacts/publish/HapticDrive.Asio-win-x64/`.
+  - Verified zip package at `artifacts/release/HapticDrive.Asio-win-x64.zip`.
+- Full repo gate:
+  - `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+  - `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 888 passing tests and 0 skipped tests.
+  - `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+  - `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 25K intentionally adds packaging repeatability only; it does not claim installer readiness, signed delivery, release-note publication, or update-channel support.
+- The produced package is a `win-x64` framework-dependent zip, which matches the existing Desktop Runtime expectation instead of introducing a larger self-contained delivery surface in the same stage.
+- Installer generation, signing, GitHub Releases publishing, install/uninstall smoke tests, and support-bundle style user diagnostics remain future work.
+
 ## Stage 25A - Documentation Baseline and Audit Closure
 
 Status: Complete.

@@ -19,6 +19,7 @@ TestResults/
 # Logs and generated runtime artifacts
 logs/
 recordings/
+artifacts/
 *.log
 
 # Local/private Simagic research artifacts

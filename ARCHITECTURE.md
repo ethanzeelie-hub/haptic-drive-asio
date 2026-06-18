@@ -2520,3 +2520,20 @@ Stage 25J architecture result:
 - Sequence-gap visibility now gives the operator a first-pass signal for dropped/missing captured packets in completed recordings, complementing the live bounded-queue/drop diagnostics added in Stage 25H.
 
 Stage 25J deliberately does not add packet-type histograms, random-access seek indexes, sidecar metadata caches, or full query/search/filter workflows. It strengthens the first-pass library summary first so deeper browse/index work has a more useful baseline.
+
+## Stage 25K Release Packaging Automation
+
+Stage 25K adds a repeatable packaging path on top of the earlier quality-gate work.
+
+Stage 25K architecture result:
+
+- `Publish-HapticDrive.ps1` now provides a repo-native publish path for the WPF app:
+  - runtime-specific restore,
+  - `Release` publish for `win-x64`,
+  - publish output under `artifacts/publish/`,
+  - zip artifact under `artifacts/release/`.
+- `Publish-HapticDrive.cmd` provides the same path through a simple wrapper for local Windows shell usage.
+- `.github/workflows/package.yml` now reruns restore/build/test/format/launch-preflight, then publishes and uploads the `win-x64` zip artifact.
+- `artifacts/` is now treated as generated output and ignored from source control.
+
+Stage 25K deliberately does not add MSI/installer generation, code signing, GitHub Releases publication, delta updates, or automated install/uninstall smoke tests. It establishes a real publish artifact path first so later delivery work has a stable base.
