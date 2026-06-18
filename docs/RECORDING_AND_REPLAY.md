@@ -58,6 +58,7 @@ Replay path:
 
 ```text
 .hdrec file
+-> TelemetryRecordingFile open reader
 -> TelemetryReplayService
 -> UdpTelemetryPacket event
 -> F125PacketParser.Parse(packet.Payload)
@@ -68,7 +69,7 @@ Replay path:
 -> NullAudioOutputDevice
 ```
 
-Time-preserving replay delays between packets according to recorded relative timing and an optional speed multiplier. The Telemetry / UDP UI uses time-preserving replay by default for Replay Latest and Replay Selected. Fast replay emits packets immediately for deterministic automated tests and explicit parser/debug work; it is not suitable for physical haptic feel or latency testing.
+Time-preserving replay delays between packets according to recorded relative timing and an optional speed multiplier. The Telemetry / UDP UI uses time-preserving replay by default for Replay Latest and Replay Selected. Fast replay emits packets immediately for deterministic automated tests and explicit parser/debug work; it is not suitable for physical haptic feel or latency testing. Replay from file now streams packets from the `.hdrec` reader directly instead of fully loading the entire recording before playback starts.
 
 The runtime snapshot exposes replay active/inactive state, source file path, packets replayed, and status message. Replay packet ordering and raw byte preservation remain unchanged.
 

@@ -903,3 +903,12 @@
 - Recording/replay still uses the current in-memory queue and file-loading model; it is safe for normal usage but not yet hardened for very long sessions or richer indexing/query workflows.
 - App settings and profile writes are still sanitized but non-atomic and not yet schema-versioned for larger future migration work.
 - Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
+
+## Stage 25G
+
+- Replay from `.hdrec` files now streams packets directly from disk instead of fully materializing the recording first, but the live recording writer still uses the current unbounded in-memory queue and does not yet expose bounded backpressure or queue-capacity tuning.
+- `TelemetryRecordingFile.LoadAsync` still materializes the full packet list intentionally for callers that want a complete in-memory recording object; the library does not yet expose richer seek/index/query primitives for large-session workflows.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
+- App settings and profile writes are still sanitized but non-atomic and not yet schema-versioned for larger future migration work.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.

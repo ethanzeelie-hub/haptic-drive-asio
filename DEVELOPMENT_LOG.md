@@ -4524,6 +4524,57 @@ Self-review:
 - No P-HPR HID/report behavior changed.
 - No physical validation is claimed.
 
+## Stage 25G - Replay-File Streaming Seam
+
+Status: Complete.
+
+Goal: Reduce replay memory pressure and duplicate packet-read logic by adding a streaming `.hdrec` reader seam, so replay-from-file no longer has to materialize the whole recording before playback starts.
+
+Changes:
+
+- Re-audited the post-25F recording/replay path before editing:
+  - live recording already used a background writer task rather than synchronous disk writes on the telemetry path,
+  - `ReplayFileAsync` still loaded the entire recording into memory before replay,
+  - `TelemetryRecordingFile.LoadAsync` and replay-from-file effectively owned separate packet-read paths conceptually even though they validated the same file structure.
+- Added a recording-reader seam in `TelemetryRecordingFile`:
+  - introduced an internal open-reader result plus `TelemetryRecordingFileReader`,
+  - header validation now happens once up front,
+  - packet records are now read sequentially from the open file stream with the same payload/relative-time/trailing-byte validation rules.
+- Reused the new seam across whole-load and replay paths:
+  - `TelemetryRecordingFile.LoadAsync` now opens the reader and materializes packets through the shared sequential packet-read path,
+  - `TelemetryReplayService.ReplayFileAsync` now opens the reader and streams packets directly into replay without constructing a full in-memory `TelemetryRecording` first.
+- Kept replay behavior stable:
+  - replay still preserves packet order, relative timing, created-at timestamp anchoring, and raw payload bytes,
+  - replay corruption handling now reports truncated-record and trailing-byte failures explicitly through the replay result path.
+- Added focused recording/replay tests:
+  - `ReplayFile_TrailingBytesAfterFinalPacketFailsSafely`,
+  - `ReplayFile_TruncatedPacketFailsSafely`.
+- Updated repo documentation:
+  - `README.md` now reports Stage 25G and documents the streaming replay baseline,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25G and narrow the remaining recording/replay work to live-queue hardening plus richer indexing/query surfaces,
+  - `docs/RECORDING_AND_REPLAY.md` now documents the open-reader replay path.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build src/HapticDrive.Asio.Recording/HapticDrive.Asio.Recording.csproj --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Recording.Tests/HapticDrive.Asio.Recording.Tests.csproj --no-restore` passed with 21 tests.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 882 tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed launch preflight.
+
+Self-review:
+
+- Stage 25G changes replay/load composition, not the `.hdrec` format.
+- Replay-from-file now scales better in memory, but the live recording writer queue is still unbounded and future recording-library work still needs richer index/query surfaces.
+- Whole-recording `LoadAsync` intentionally remains available for callers that truly need an in-memory recording object.
+- No telemetry parser logic changed.
+- No game-adapter/catalog behavior changed.
+- No BST-1 effect, mixer, safety, or ASIO behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+
 ## Stage 23K - MainWindow Shell-Composition Audit and Gemini REC-01 Closure
 
 Status: Complete.

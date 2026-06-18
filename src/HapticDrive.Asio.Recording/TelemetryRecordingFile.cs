@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace HapticDrive.Asio.Recording;
@@ -36,39 +37,13 @@ public static class TelemetryRecordingFile
                 FileShare.ReadWrite,
                 bufferSize: 4 * 1024,
                 useAsync: true);
-
-            var magic = await ReadBytesAsync(stream, Magic.Length, cancellationToken).ConfigureAwait(false);
-            if (!magic.SequenceEqual(Magic))
-            {
-                return TelemetryRecordingSummaryLoadResult.Corrupt("Recording header magic is invalid.");
-            }
-
-            var version = await ReadInt32Async(stream, cancellationToken).ConfigureAwait(false);
-            if (version != CurrentVersion)
-            {
-                return TelemetryRecordingSummaryLoadResult.UnsupportedVersion(
-                    $"Recording format version {version} is not supported.");
-            }
-
-            var createdAtUtcTicks = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
-            var createdAtUtc = new DateTimeOffset(createdAtUtcTicks, TimeSpan.Zero);
-            var metadata = new TelemetryRecordingMetadata(
-                createdAtUtc,
-                await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false),
-                await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false),
-                await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false));
-            var packetCount = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
-
-            if (packetCount < 0)
-            {
-                return TelemetryRecordingSummaryLoadResult.Corrupt("Recording packet count is invalid.");
-            }
+            var header = await ReadHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
 
             return TelemetryRecordingSummaryLoadResult.Success(
                 new TelemetryRecordingSummary(
                     path,
-                    metadata,
-                    packetCount,
+                    header.Metadata,
+                    header.PacketCount,
                     fileInfo.Length,
                     new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero)));
         }
@@ -99,24 +74,60 @@ public static class TelemetryRecordingFile
         int maxPayloadLength = DefaultMaxPayloadLength,
         CancellationToken cancellationToken = default)
     {
+        var openResult = await OpenReaderAsync(path, maxPayloadLength, cancellationToken).ConfigureAwait(false);
+        if (!openResult.Succeeded || openResult.Reader is null)
+        {
+            return new TelemetryRecordingLoadResult(openResult.Status, null, openResult.Message);
+        }
+
+        await using var reader = openResult.Reader;
+
+        try
+        {
+            if (reader.PacketCount > int.MaxValue)
+            {
+                return TelemetryRecordingLoadResult.Corrupt("Recording packet count is too large to load safely.");
+            }
+
+            var packets = new List<TelemetryRecordedPacket>((int)reader.PacketCount);
+            await foreach (var packet in reader.ReadPacketsAsync(cancellationToken).ConfigureAwait(false))
+            {
+                packets.Add(packet);
+            }
+
+            return TelemetryRecordingLoadResult.Success(new TelemetryRecording(reader.Metadata, packets));
+        }
+        catch (Exception ex) when (TryMapLoadFailure(ex, "Recording load was cancelled.", "Recording could not be loaded", out var failure))
+        {
+            return new TelemetryRecordingLoadResult(failure.Status, null, failure.Message);
+        }
+    }
+
+    internal static async Task<TelemetryRecordingReaderOpenResult> OpenReaderAsync(
+        string path,
+        int maxPayloadLength = DefaultMaxPayloadLength,
+        CancellationToken cancellationToken = default)
+    {
         if (string.IsNullOrWhiteSpace(path))
         {
-            return TelemetryRecordingLoadResult.Failure("Recording path is required.");
+            return TelemetryRecordingReaderOpenResult.Failure("Recording path is required.");
         }
 
         if (maxPayloadLength <= 0)
         {
-            return TelemetryRecordingLoadResult.Failure("Maximum payload length must be positive.");
+            return TelemetryRecordingReaderOpenResult.Failure("Maximum payload length must be positive.");
         }
+
+        FileStream? stream = null;
 
         try
         {
             if (!File.Exists(path))
             {
-                return TelemetryRecordingLoadResult.FileNotFound("Recording file does not exist.");
+                return TelemetryRecordingReaderOpenResult.FileNotFound("Recording file does not exist.");
             }
 
-            await using var stream = new FileStream(
+            stream = new FileStream(
                 path,
                 FileMode.Open,
                 FileAccess.Read,
@@ -124,86 +135,19 @@ public static class TelemetryRecordingFile
                 bufferSize: 16 * 1024,
                 useAsync: true);
 
-            var magic = await ReadBytesAsync(stream, Magic.Length, cancellationToken).ConfigureAwait(false);
-            if (!magic.SequenceEqual(Magic))
-            {
-                return TelemetryRecordingLoadResult.Corrupt("Recording header magic is invalid.");
-            }
-
-            var version = await ReadInt32Async(stream, cancellationToken).ConfigureAwait(false);
-            if (version != CurrentVersion)
-            {
-                return TelemetryRecordingLoadResult.UnsupportedVersion(
-                    $"Recording format version {version} is not supported.");
-            }
-
-            var createdAtUtcTicks = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
-            var createdAtUtc = new DateTimeOffset(createdAtUtcTicks, TimeSpan.Zero);
-            var sourceGame = await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false);
-            var sourceProfile = await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false);
-            var appVersion = await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false);
-            var packetCount = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
-
-            if (packetCount < 0)
-            {
-                return TelemetryRecordingLoadResult.Corrupt("Recording packet count is invalid.");
-            }
-
-            if (packetCount > int.MaxValue)
-            {
-                return TelemetryRecordingLoadResult.Corrupt("Recording packet count is too large to load safely.");
-            }
-
-            var packets = new List<TelemetryRecordedPacket>((int)packetCount);
-            for (var i = 0L; i < packetCount; i++)
-            {
-                var sequenceNumber = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
-                var relativeTicks = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
-                if (relativeTicks < 0)
-                {
-                    return TelemetryRecordingLoadResult.Corrupt("Recording packet relative timestamp is invalid.");
-                }
-
-                var payloadLength = await ReadInt32Async(stream, cancellationToken).ConfigureAwait(false);
-                if (payloadLength < 0 || payloadLength > maxPayloadLength)
-                {
-                    return TelemetryRecordingLoadResult.Corrupt(
-                        $"Recording packet payload length {payloadLength} is invalid.");
-                }
-
-                var payload = await ReadBytesAsync(stream, payloadLength, cancellationToken).ConfigureAwait(false);
-                packets.Add(new TelemetryRecordedPacket(sequenceNumber, TimeSpan.FromTicks(relativeTicks), payload));
-            }
-
-            if (stream.Position != stream.Length)
-            {
-                return TelemetryRecordingLoadResult.Corrupt("Recording contains trailing bytes after the final packet.");
-            }
-
-            return TelemetryRecordingLoadResult.Success(
-                new TelemetryRecording(
-                    new TelemetryRecordingMetadata(createdAtUtc, sourceGame, sourceProfile, appVersion),
-                    packets));
+            var header = await ReadHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
+            var reader = new TelemetryRecordingFileReader(stream, header.Metadata, header.PacketCount, maxPayloadLength);
+            stream = null;
+            return TelemetryRecordingReaderOpenResult.Success(reader);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (TryMapLoadFailure(ex, "Recording reader open was cancelled.", "Recording could not be opened", out var failure))
         {
-            return TelemetryRecordingLoadResult.Cancelled("Recording load was cancelled.");
-        }
-        catch (EndOfStreamException ex)
-        {
-            return TelemetryRecordingLoadResult.Corrupt($"Recording is truncated: {ex.Message}");
-        }
-        catch (InvalidDataException ex)
-        {
-            return TelemetryRecordingLoadResult.Corrupt(ex.Message);
-        }
-        catch (ArgumentOutOfRangeException ex)
-        {
-            return TelemetryRecordingLoadResult.Corrupt($"Recording metadata is invalid: {ex.Message}");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            return TelemetryRecordingLoadResult.Failure($"Recording could not be loaded: {ex.Message}");
+            if (stream is not null)
+            {
+                await stream.DisposeAsync().ConfigureAwait(false);
+            }
+
+            return new TelemetryRecordingReaderOpenResult(failure.Status, null, failure.Message);
         }
     }
 
@@ -245,6 +189,39 @@ public static class TelemetryRecordingFile
         stream.Seek(packetCountOffset, SeekOrigin.Begin);
         WriteInt64(stream, packetCount);
         stream.Seek(0, SeekOrigin.End);
+    }
+
+    private static async ValueTask<TelemetryRecordingFileHeader> ReadHeaderAsync(
+        FileStream stream,
+        CancellationToken cancellationToken)
+    {
+        var magic = await ReadBytesAsync(stream, Magic.Length, cancellationToken).ConfigureAwait(false);
+        if (!magic.SequenceEqual(Magic))
+        {
+            throw new InvalidDataException("Recording header magic is invalid.");
+        }
+
+        var version = await ReadInt32Async(stream, cancellationToken).ConfigureAwait(false);
+        if (version != CurrentVersion)
+        {
+            throw new UnsupportedVersionException($"Recording format version {version} is not supported.");
+        }
+
+        var createdAtUtcTicks = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
+        var createdAtUtc = new DateTimeOffset(createdAtUtcTicks, TimeSpan.Zero);
+        var metadata = new TelemetryRecordingMetadata(
+            createdAtUtc,
+            await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false),
+            await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false),
+            await ReadStringAsync(stream, cancellationToken).ConfigureAwait(false));
+        var packetCount = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
+
+        if (packetCount < 0)
+        {
+            throw new InvalidDataException("Recording packet count is invalid.");
+        }
+
+        return new TelemetryRecordingFileHeader(metadata, packetCount);
     }
 
     private static void WriteString(Stream stream, string value)
@@ -305,5 +282,151 @@ public static class TelemetryRecordingFile
         var buffer = new byte[length];
         await stream.ReadExactlyAsync(buffer, cancellationToken).ConfigureAwait(false);
         return buffer;
+    }
+
+    private static bool TryMapLoadFailure(
+        Exception ex,
+        string cancelledMessage,
+        string failurePrefix,
+        out TelemetryRecordingLoadFailure failure)
+    {
+        switch (ex)
+        {
+            case OperationCanceledException:
+                failure = new TelemetryRecordingLoadFailure(
+                    TelemetryRecordingLoadStatus.Cancelled,
+                    cancelledMessage);
+                return true;
+            case EndOfStreamException endOfStreamException:
+                failure = new TelemetryRecordingLoadFailure(
+                    TelemetryRecordingLoadStatus.Corrupt,
+                    $"Recording is truncated: {endOfStreamException.Message}");
+                return true;
+            case UnsupportedVersionException unsupportedVersionException:
+                failure = new TelemetryRecordingLoadFailure(
+                    TelemetryRecordingLoadStatus.UnsupportedVersion,
+                    unsupportedVersionException.Message);
+                return true;
+            case InvalidDataException invalidDataException:
+                failure = new TelemetryRecordingLoadFailure(
+                    TelemetryRecordingLoadStatus.Corrupt,
+                    invalidDataException.Message);
+                return true;
+            case ArgumentOutOfRangeException argumentOutOfRangeException:
+                failure = new TelemetryRecordingLoadFailure(
+                    TelemetryRecordingLoadStatus.Corrupt,
+                    $"Recording metadata is invalid: {argumentOutOfRangeException.Message}");
+                return true;
+            case IOException or UnauthorizedAccessException or NotSupportedException:
+                failure = new TelemetryRecordingLoadFailure(
+                    TelemetryRecordingLoadStatus.Failure,
+                    $"{failurePrefix}: {ex.Message}");
+                return true;
+            default:
+                failure = default;
+                return false;
+        }
+    }
+
+    internal sealed class TelemetryRecordingFileReader : IAsyncDisposable
+    {
+        private readonly FileStream _stream;
+        private readonly int _maxPayloadLength;
+        private bool _packetsReadStarted;
+
+        public TelemetryRecordingFileReader(
+            FileStream stream,
+            TelemetryRecordingMetadata metadata,
+            long packetCount,
+            int maxPayloadLength)
+        {
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+            Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
+            PacketCount = packetCount;
+            _maxPayloadLength = maxPayloadLength;
+        }
+
+        public TelemetryRecordingMetadata Metadata { get; }
+
+        public long PacketCount { get; }
+
+        public async IAsyncEnumerable<TelemetryRecordedPacket> ReadPacketsAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (_packetsReadStarted)
+            {
+                throw new InvalidOperationException("Recording packets can only be read once per open reader.");
+            }
+
+            _packetsReadStarted = true;
+
+            for (var i = 0L; i < PacketCount; i++)
+            {
+                var sequenceNumber = await ReadInt64Async(_stream, cancellationToken).ConfigureAwait(false);
+                var relativeTicks = await ReadInt64Async(_stream, cancellationToken).ConfigureAwait(false);
+                if (relativeTicks < 0)
+                {
+                    throw new InvalidDataException("Recording packet relative timestamp is invalid.");
+                }
+
+                var payloadLength = await ReadInt32Async(_stream, cancellationToken).ConfigureAwait(false);
+                if (payloadLength < 0 || payloadLength > _maxPayloadLength)
+                {
+                    throw new InvalidDataException($"Recording packet payload length {payloadLength} is invalid.");
+                }
+
+                var payload = await ReadBytesAsync(_stream, payloadLength, cancellationToken).ConfigureAwait(false);
+                yield return new TelemetryRecordedPacket(sequenceNumber, TimeSpan.FromTicks(relativeTicks), payload);
+            }
+
+            if (_stream.Position != _stream.Length)
+            {
+                throw new InvalidDataException("Recording contains trailing bytes after the final packet.");
+            }
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return _stream.DisposeAsync();
+        }
+    }
+
+    internal sealed record TelemetryRecordingReaderOpenResult(
+        TelemetryRecordingLoadStatus Status,
+        TelemetryRecordingFileReader? Reader,
+        string Message)
+    {
+        public bool Succeeded => Status == TelemetryRecordingLoadStatus.Success;
+
+        public static TelemetryRecordingReaderOpenResult Success(TelemetryRecordingFileReader reader)
+        {
+            return new(TelemetryRecordingLoadStatus.Success, reader, "Recording reader opened.");
+        }
+
+        public static TelemetryRecordingReaderOpenResult FileNotFound(string message)
+        {
+            return new(TelemetryRecordingLoadStatus.FileNotFound, null, message);
+        }
+
+        public static TelemetryRecordingReaderOpenResult Failure(string message)
+        {
+            return new(TelemetryRecordingLoadStatus.Failure, null, message);
+        }
+    }
+
+    private readonly record struct TelemetryRecordingLoadFailure(
+        TelemetryRecordingLoadStatus Status,
+        string Message);
+
+    private sealed record TelemetryRecordingFileHeader(
+        TelemetryRecordingMetadata Metadata,
+        long PacketCount);
+
+    private sealed class UnsupportedVersionException : Exception
+    {
+        public UnsupportedVersionException(string message)
+            : base(message)
+        {
+        }
     }
 }

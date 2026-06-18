@@ -209,6 +209,40 @@ public sealed class TelemetryRecordingServiceTests
     }
 
     [Fact]
+    public async Task ReplayFile_TrailingBytesAfterFinalPacketFailsSafely()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 11, 5, 0, TimeSpan.Zero);
+        await WriteRecordingAsync(path, createdAtUtc, [0x10], [0x20]);
+        await using (var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read))
+        {
+            await stream.WriteAsync(new byte[] { 0x99 });
+        }
+
+        var replay = new TelemetryReplayService();
+
+        var result = await replay.ReplayFileAsync(path, TelemetryReplayOptions.Fast);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(TelemetryReplayStatus.Failure, result.Status);
+        Assert.Contains("trailing bytes", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReplayFile_TruncatedPacketFailsSafely()
+    {
+        var path = CreateTempRecordingPath();
+        await File.WriteAllBytesAsync(path, CreateHeaderBytes(version: 1, packetCount: 1));
+        var replay = new TelemetryReplayService();
+
+        var result = await replay.ReplayFileAsync(path, TelemetryReplayOptions.Fast);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(TelemetryReplayStatus.Failure, result.Status);
+        Assert.Contains("truncated", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ReplaySnapshot_DefaultStateIsInactiveAndSafe()
     {
         var replay = new TelemetryReplayService();

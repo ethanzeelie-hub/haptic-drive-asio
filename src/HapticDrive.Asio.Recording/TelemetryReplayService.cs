@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using HapticDrive.Asio.Core.Telemetry;
 
 namespace HapticDrive.Asio.Recording;
@@ -92,13 +93,19 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         TelemetryReplayOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var loadResult = await TelemetryRecordingFile.LoadAsync(path, _maxPayloadLength, cancellationToken).ConfigureAwait(false);
-        if (!loadResult.Succeeded || loadResult.Recording is null)
+        var openResult = await TelemetryRecordingFile.OpenReaderAsync(path, _maxPayloadLength, cancellationToken).ConfigureAwait(false);
+        if (!openResult.Succeeded || openResult.Reader is null)
         {
-            return TelemetryReplayResult.Failure(0, loadResult.Message);
+            return TelemetryReplayResult.Failure(0, openResult.Message);
         }
 
-        return await ReplayCoreAsync(loadResult.Recording, options, fullPath: path, cancellationToken).ConfigureAwait(false);
+        await using var reader = openResult.Reader;
+        return await ReplayPacketStreamAsync(
+            reader.Metadata,
+            ReadPacketsAsync(reader, cancellationToken),
+            options,
+            fullPath: path,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<TelemetryReplayResult> ReplayAsync(
@@ -106,16 +113,24 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         TelemetryReplayOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        return await ReplayCoreAsync(recording, options, fullPath: null, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(recording);
+        return await ReplayPacketStreamAsync(
+            recording.Metadata,
+            ReadPacketsAsync(recording.Packets, cancellationToken),
+            options,
+            fullPath: null,
+            cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask<TelemetryReplayResult> ReplayCoreAsync(
-        TelemetryRecording recording,
+    private async ValueTask<TelemetryReplayResult> ReplayPacketStreamAsync(
+        TelemetryRecordingMetadata metadata,
+        IAsyncEnumerable<TelemetryRecordedPacket> packets,
         TelemetryReplayOptions? options,
         string? fullPath,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(recording);
+        ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentNullException.ThrowIfNull(packets);
         options ??= TelemetryReplayOptions.Fast;
 
         if (options.Speed <= 0 || double.IsNaN(options.Speed) || double.IsInfinity(options.Speed))
@@ -145,7 +160,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
 
         try
         {
-            foreach (var recordedPacket in recording.Packets)
+            await foreach (var recordedPacket in packets.ConfigureAwait(false))
             {
                 replayCts.Token.ThrowIfCancellationRequested();
 
@@ -162,7 +177,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                     recordedPacket.SequenceNumber,
                     recordedPacket.Payload.ToArray(),
                     new IPEndPoint(IPAddress.Loopback, 0),
-                    recording.Metadata.CreatedAtUtc + recordedPacket.RelativeTime);
+                    metadata.CreatedAtUtc + recordedPacket.RelativeTime);
 
                 PacketReplayed?.Invoke(
                     this,
@@ -176,6 +191,18 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         catch (OperationCanceledException)
         {
             result = TelemetryReplayResult.Cancelled(Interlocked.Read(ref _packetsReplayed));
+        }
+        catch (EndOfStreamException ex)
+        {
+            result = TelemetryReplayResult.Failure(
+                Interlocked.Read(ref _packetsReplayed),
+                $"Replay failed: Recording is truncated: {ex.Message}");
+        }
+        catch (InvalidDataException ex)
+        {
+            result = TelemetryReplayResult.Failure(
+                Interlocked.Read(ref _packetsReplayed),
+                $"Replay failed: {ex.Message}");
         }
         catch (Exception ex)
         {
@@ -236,5 +263,25 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             _statusMessage = result.Message;
             Interlocked.Exchange(ref _packetsReplayed, result.PacketsReplayed);
         }
+    }
+
+    private static async IAsyncEnumerable<TelemetryRecordedPacket> ReadPacketsAsync(
+        IReadOnlyList<TelemetryRecordedPacket> packets,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        foreach (var packet in packets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return packet;
+        }
+
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    private static IAsyncEnumerable<TelemetryRecordedPacket> ReadPacketsAsync(
+        TelemetryRecordingFile.TelemetryRecordingFileReader reader,
+        CancellationToken cancellationToken)
+    {
+        return reader.ReadPacketsAsync(cancellationToken);
     }
 }

@@ -2468,3 +2468,16 @@ Stage 25F architecture result:
 - The public surfaces stay stable: `HapticEffectEngineOptions`, `HapticEffectEngineSnapshot`, profile records, diagnostics/report text, and existing callers still expose the shipped BST-1 effect set explicitly.
 
 Stage 25F deliberately does not add new effects, a plugin marketplace, dynamic profile-driven effect discovery, or broader data-driven diagnostics/UI. It narrows the internal engine seam first so future effect additions have a smaller runtime blast radius.
+
+## Stage 25G Replay-File Streaming Seam
+
+Stage 25G reduces one of the larger recording/replay scaling costs without changing the replay behavior that the app and runtime already depend on.
+
+Stage 25G architecture result:
+
+- `TelemetryRecordingFile` now has an open-reader seam that validates header metadata once, then reads packet records sequentially from the underlying `.hdrec` stream.
+- `TelemetryReplayService.ReplayFileAsync` now replays packet streams directly from disk through that reader instead of first loading the whole recording into an in-memory `TelemetryRecording`.
+- `TelemetryRecordingFile.LoadAsync` now reuses the same reader path, so whole-recording loads and streaming replay share one packet-validation implementation.
+- Replay still preserves raw payload bytes, packet ordering, relative timing, and corruption checks, including truncated-record and trailing-byte failures.
+
+Stage 25G deliberately does not change the live recording writer queue model, add seek/index/query APIs for large recordings, or change the `.hdrec` format version. It narrows the replay/load seam first so future recording-library scaling work has a cleaner base.
