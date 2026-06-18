@@ -4165,6 +4165,110 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 23J - Advanced / Diagnostics View Extraction and Raw-Internals Presentation Seam
+
+Status: Complete.
+
+Goal: Continue the low-risk Stage 23 shell extraction strategy by moving the Advanced / Diagnostics workflow into a dedicated view/component and extracting only pure raw-internals display shaping where it was already safe, without moving runtime, diagnostics-report, settings, or hardware-capable ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Advanced / Diagnostics seam before editing:
+  - `MainWindow.xaml` was 968 lines,
+  - `MainWindow.xaml.cs` was 6697 lines,
+  - the Advanced / Diagnostics workflow still lived inline in `MainWindow.xaml`,
+  - Advanced / Diagnostics was not already extracted into a dedicated view,
+  - the page still mixed the advanced diagnostics gate, raw P-HPR direct/mock internals, settings, and runtime diagnostics in one inline shell region,
+  - the existing control names still needed to remain intact for settings hydration, diagnostics report assembly, copy-report execution, flight-recorder toggles, coexistence/direct-control handlers, and mock-routing handlers.
+- Added dedicated Advanced / Diagnostics view files:
+  - `src/HapticDrive.Asio.App/Views/AdvancedDiagnosticsView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/AdvancedDiagnosticsView.xaml.cs`.
+- Reused the existing diagnostics presentation seams instead of adding a parallel Stage 23J presenter rewrite:
+  - `DiagnosticsStatusSnapshotBuilder`,
+  - `DiagnosticsStatusPresenter`,
+  - `PhprWorkflowStatusPresenter`,
+  - `PersistedSettingsStatusPresenter`.
+- Moved the Advanced / Diagnostics layout into `AdvancedDiagnosticsView` while preserving the same troubleshooting workflow:
+  - advanced diagnostics gate and raw/internal workflow summary,
+  - live F1 validation, coexistence, and direct-write-readiness diagnostics,
+  - real direct-control candidate/report/low-level internals,
+  - mock gear-routing internals,
+  - mock pedal-effects internals,
+  - settings,
+  - runtime diagnostics, copied diagnostics report, and road texture flight recorder.
+- Kept runtime and execution ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - live snapshot gathering,
+  - diagnostics report copy execution,
+  - advanced setting persistence execution,
+  - road texture flight-recorder execution,
+  - P-HPR raw/direct diagnostics execution,
+  - mock routing diagnostics execution,
+  - coexistence diagnostics execution,
+  - validation harness execution/export execution,
+  - profile lifecycle,
+  - app settings save/load execution,
+  - ASIO runtime interactions,
+  - P-HPR runtime interactions,
+  - paddle listener/routing coordinator interactions,
+  - startup/shutdown cleanup.
+- Added a narrow event-forwarding seam:
+  - `AdvancedDiagnosticsView` forwards the existing advanced gate, direct-control, mock-routing, settings, and runtime diagnostics interactions back to the current `MainWindow` handlers,
+  - no runtime ownership moved into the view,
+  - no hardware ownership moved into the view,
+  - no diagnostics report assembly or copy execution moved into the view,
+  - no settings persistence execution moved into the view,
+  - no safety-gate ownership moved into the view.
+- Centralized only the already-safe diagnostics display shaping through the existing presenters:
+  - runtime diagnostics summary text,
+  - runtime diagnostics item list,
+  - copied diagnostics report text,
+  - previously extracted P-HPR workflow/profile-persistence diagnostics wording.
+- Preserved existing control behavior by keeping direct control access in `MainWindow` through the extracted-view seam:
+  - existing control names remain intact inside `AdvancedDiagnosticsView`,
+  - `MainWindow` still owns direct control parsing/hydration for advanced controls,
+  - `MainWindow` still owns diagnostics snapshot gathering, page gating, settings status updates, and raw/internal status updates,
+  - no diagnostics report behavior, manual-test behavior, validation behavior, persistence behavior, or runtime behavior changed.
+- Continued the shell reduction without broad architectural churn:
+  - `MainWindow.xaml` now hosts `AdvancedDiagnosticsViewControl` instead of the inline Advanced / Diagnostics, Settings, and Diagnostics layout,
+  - `MainWindow.xaml.cs` now applies `DiagnosticsStatusPresentation` through `AdvancedDiagnosticsViewControl.Apply(...)`,
+  - `MainWindow.xaml` is now 226 lines,
+  - `MainWindow.xaml.cs` is now 6900 lines,
+  - no MVVM rewrite,
+  - no new dependencies,
+  - no hardware/runtime-path ownership changes.
+- Added and updated stable tests:
+  - `AppThemeResourceTests` updates for the extracted Advanced / Diagnostics view and host boundary.
+- Audited `KNOWN_ISSUES.md`:
+  - updated the cumulative Stage 23 shell-extraction entry from `Stage 23I` wording to `Stage 23J` wording instead of adding another repetitive limitation note.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23J is intentionally Advanced / Diagnostics presentation/component extraction only.
+- `MainWindow` remains the composition/runtime/diagnostics-execution owner.
+- Advanced / Diagnostics remains raw internals and troubleshooting only.
+- No diagnostics report behavior changed.
+- No manual test behavior changed.
+- No validation harness behavior changed.
+- No profile/persistence boundary changed.
+- No UDP listener, forwarding, recording/replay, parser, or `VehicleState` behavior changed.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+
 ## Stage 23I - Testing / Validation View Extraction and Manual-Tools Presentation Seam
 
 Status: Complete.

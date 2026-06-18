@@ -2215,3 +2215,73 @@ Normal workflow boundary after Stage 23I:
 Stage 23I intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
 
 Stage 23I does not change manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
+
+## Stage 23J Advanced / Diagnostics View Extraction and Raw-Internals Presentation Seam
+
+Stage 23J continues the same page-by-page shell extraction strategy used in Stages 23C through 23I.
+
+Advanced / Diagnostics extraction result:
+
+- The Advanced / Diagnostics workflow now lives in a dedicated WPF component:
+  - `Views/AdvancedDiagnosticsView.xaml`
+  - `Views/AdvancedDiagnosticsView.xaml.cs`
+- The extracted view still presents the same workflow role:
+  - P-HPR workflow summary,
+  - live F1 validation checklist,
+  - coexistence diagnostics,
+  - direct-write readiness,
+  - real direct-control internals,
+  - mock gear-routing internals,
+  - mock pedal-effects internals,
+  - settings,
+  - runtime diagnostics,
+  - copy-report and road flight-recorder controls.
+- The extracted view does not own runtime objects, hardware output, diagnostics report assembly, settings persistence, validation/export execution, file IO, or safety gates. It renders already-shaped state and forwards user interactions back to the existing `MainWindow` handlers.
+
+Presentation-seam result:
+
+- Stage 23J reuses existing App-layer diagnostics presentation seams instead of creating a parallel rewrite:
+  - `DiagnosticsStatusSnapshotBuilder`
+  - `DiagnosticsStatusPresenter`
+  - `PhprWorkflowStatusPresenter`
+  - `PersistedSettingsStatusPresenter`
+- Runtime diagnostics summary/items/clipboard report shaping still flows through `DiagnosticsStatusPresenter`.
+- `MainWindow` now applies shaped diagnostics presentation through `AdvancedDiagnosticsViewControl.Apply(...)` instead of keeping the Advanced / Diagnostics page layout inline in `MainWindow.xaml`.
+
+Residual `MainWindow` boundary:
+
+- `MainWindow` still owns:
+  - app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - live snapshot gathering,
+  - diagnostics report copy execution,
+  - advanced setting persistence execution,
+  - road texture flight-recorder execution,
+  - P-HPR raw/direct diagnostics execution,
+  - mock routing diagnostics execution,
+  - coexistence diagnostics execution,
+  - validation harness execution and export execution,
+  - profile lifecycle,
+  - app settings save/load execution,
+  - ASIO runtime interactions,
+  - P-HPR runtime interactions,
+  - paddle listener/routing coordinator interactions,
+  - startup/shutdown cleanup,
+  - Start Haptics / Stop Haptics,
+  - Emergency Mute / Stop All execution.
+
+Normal workflow boundary after Stage 23J:
+
+- Dashboard remains operational overview.
+- Devices remains setup/readiness only.
+- Effects remains normal effect tuning only.
+- Routing / Mixer remains output routing, gain, mute, limiter summary, priority, ducking, and active-effect summary only.
+- Telemetry / UDP remains normal F1 25 UDP, recording, replay, recording-library, and forwarding workflow only.
+- Profiles remains the normal audio profile and P-HPR profile workflow only.
+- Testing / Validation remains deliberate manual tools only.
+- Advanced / Diagnostics remains the home for raw internals and troubleshooting.
+
+Stage 23J intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
+
+Stage 23J does not change diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.

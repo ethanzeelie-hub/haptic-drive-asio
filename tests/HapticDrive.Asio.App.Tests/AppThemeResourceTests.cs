@@ -96,6 +96,27 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void MainWindowSourceContainsAdvancedDiagnosticsNavigationAndViewHost()
+    {
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("AdvancedDiagnosticsViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("\"Advanced / Diagnostics\"", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("AdvancedDiagnosticsViewControl.Visibility = isAdvancedPage", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("AdvancedDiagnosticsViewControl.Apply(presentation);", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("DiagnosticsStatusPresenter.Build(snapshot)", mainWindowCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ShellCopyDoesNotExposeLegacyStage18ChromeText()
     {
         var xamlSource = File.ReadAllText(Path.Combine(
@@ -432,10 +453,12 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void AdvancedDiagnosticsContainsDirectMockAndLowLevelDiagnostics()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var advancedPanel = FindElementByXName(mainWindowXaml, "AdvancedPhprDiagnosticsPanel");
+        var advancedXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "AdvancedDiagnosticsView.xaml");
+        var advancedPanel = FindElementByXName(advancedXaml, "AdvancedPhprDiagnosticsPanel");
         var advancedText = GetTextValues(advancedPanel);
         var advancedNames = GetXNameValues(advancedPanel);
+        var diagnosticsNames = GetXNameValues(FindElementByXName(advancedXaml, "DiagnosticsPanel"));
+        var diagnosticsText = GetTextValues(FindElementByXName(advancedXaml, "DiagnosticsPanel"));
 
         Assert.Contains("RealPhprCandidateComboBox", advancedNames);
         Assert.Contains("RealPhprReportIdTextBox", advancedNames);
@@ -446,6 +469,17 @@ public sealed class AppThemeResourceTests
 
         Assert.Contains("MockGearPulseEnabledCheckBox", advancedNames);
         Assert.Contains("MockPedalEffectsEnabledCheckBox", advancedNames);
+        Assert.Contains("RoadTextureFlightRecorderCheckBox", diagnosticsNames);
+        Assert.Contains("DiagnosticsItemsControl", diagnosticsNames);
+        Assert.Contains("Advanced Diagnostics", advancedText);
+        Assert.Contains("P-HPR Real Direct Control", advancedText);
+        Assert.Contains("Runtime Diagnostics", diagnosticsText);
+        Assert.Contains("Copy Report", File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "Views",
+            "AdvancedDiagnosticsView.xaml")), StringComparison.Ordinal);
         Assert.DoesNotContain("Paddle Gear Bench Test", advancedText);
         Assert.DoesNotContain("LocalGearTestModeCheckBox", advancedNames);
         Assert.DoesNotContain("PaddleGearBenchEnabledCheckBox", advancedNames);

@@ -409,6 +409,36 @@ public partial class MainWindow : Window
         TestingValidationViewControl.PhprValidationControlLostFocus += PhprValidationControl_LostFocus;
         TestingValidationViewControl.RefreshPhprValidationChecklistClicked += RefreshPhprValidationChecklistButton_Click;
         TestingValidationViewControl.ExportPhprValidationResultClicked += ExportPhprValidationResultButton_Click;
+        AdvancedDiagnosticsViewControl.AdvancedDiagnosticsEnabledChanged += AdvancedDiagnosticsEnabledCheckBox_Changed;
+        AdvancedDiagnosticsViewControl.RealPhprDirectControlChanged += RealPhprDirectControlCheckBox_Changed;
+        AdvancedDiagnosticsViewControl.RealPhprDirectControlSelectionChanged += RealPhprDirectControlCheckBox_Changed;
+        AdvancedDiagnosticsViewControl.RefreshRealPhprCandidatesClicked += RefreshRealPhprCandidatesButton_Click;
+        AdvancedDiagnosticsViewControl.DryRunRealPhprSelectionClicked += DryRunRealPhprSelectionButton_Click;
+        AdvancedDiagnosticsViewControl.OpenCheckRealPhprSelectionClicked += OpenCheckRealPhprSelectionButton_Click;
+        AdvancedDiagnosticsViewControl.RealPhprCandidateSelectionChanged += RealPhprCandidateComboBox_SelectionChanged;
+        AdvancedDiagnosticsViewControl.ApplyRealPhprSelectionClicked += ApplyRealPhprSelectionButton_Click;
+        AdvancedDiagnosticsViewControl.RealPhprDirectControlLostFocus += RealPhprDirectControl_LostFocus;
+        AdvancedDiagnosticsViewControl.TestRealPhprBrakePulseClicked += TestRealPhprBrakePulseButton_Click;
+        AdvancedDiagnosticsViewControl.TestRealPhprThrottlePulseClicked += TestRealPhprThrottlePulseButton_Click;
+        AdvancedDiagnosticsViewControl.RealPhprEmergencyStopClicked += RealPhprEmergencyStopButton_Click;
+        AdvancedDiagnosticsViewControl.ClearRealPhprEmergencyStopClicked += ClearRealPhprEmergencyStopButton_Click;
+        AdvancedDiagnosticsViewControl.MockGearPulseControlChanged += MockGearPulseControl_Changed;
+        AdvancedDiagnosticsViewControl.MockGearPulseControlSelectionChanged += MockGearPulseControl_Changed;
+        AdvancedDiagnosticsViewControl.MockGearPulseControlLostFocus += MockGearPulseControl_LostFocus;
+        AdvancedDiagnosticsViewControl.ClearMockGearPulseDiagnosticsClicked += ClearMockGearPulseDiagnosticsButton_Click;
+        AdvancedDiagnosticsViewControl.MockGearPulseEmergencyStopClicked += MockGearPulseEmergencyStopButton_Click;
+        AdvancedDiagnosticsViewControl.ClearMockGearPulseEmergencyStopClicked += ClearMockGearPulseEmergencyStopButton_Click;
+        AdvancedDiagnosticsViewControl.MockPedalEffectsControlChanged += MockPedalEffectsControl_Changed;
+        AdvancedDiagnosticsViewControl.MockPedalEffectsControlSelectionChanged += MockPedalEffectsControl_Changed;
+        AdvancedDiagnosticsViewControl.MockPedalEffectsControlLostFocus += MockPedalEffectsControl_LostFocus;
+        AdvancedDiagnosticsViewControl.ClearMockPedalEffectsDiagnosticsClicked += ClearMockPedalEffectsDiagnosticsButton_Click;
+        AdvancedDiagnosticsViewControl.MockPedalEffectsEmergencyStopClicked += MockPedalEffectsEmergencyStopButton_Click;
+        AdvancedDiagnosticsViewControl.ClearMockPedalEffectsEmergencyStopClicked += ClearMockPedalEffectsEmergencyStopButton_Click;
+        AdvancedDiagnosticsViewControl.ThemeSettingChanged += ThemeSettingCheckBox_Changed;
+        AdvancedDiagnosticsViewControl.ResetProfileClicked += ResetProfileButton_Click;
+        AdvancedDiagnosticsViewControl.RefreshDiagnosticsClicked += RefreshDiagnosticsButton_Click;
+        AdvancedDiagnosticsViewControl.CopyDiagnosticsClicked += CopyDiagnosticsButton_Click;
+        AdvancedDiagnosticsViewControl.RoadTextureFlightRecorderChanged += RoadTextureFlightRecorderCheckBox_Changed;
         DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
         DevicesViewControl.RefreshAsioClicked += RefreshAsioButton_Click;
         DevicesViewControl.AsioDriverSelectionChanged += AsioDriverComboBox_SelectionChanged;
@@ -593,6 +623,9 @@ public partial class MainWindow : Window
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             var isAdvancedPage = page.NavigationLabel == "Advanced / Diagnostics";
+            AdvancedDiagnosticsViewControl.Visibility = isAdvancedPage
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             AdvancedPhprDiagnosticsPanel.Visibility = isAdvancedPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -4683,9 +4716,7 @@ public partial class MainWindow : Window
 
     private void ApplyDiagnosticsStatusPresentation(DiagnosticsStatusPresentation presentation)
     {
-        RoadTextureFlightRecorderStatusText.Text = presentation.RoadRecorderStatusText;
-        DiagnosticsSummaryText.Text = presentation.SummaryText;
-        DiagnosticsItemsControl.ItemsSource = presentation.Items;
+        AdvancedDiagnosticsViewControl.Apply(presentation);
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
         {
@@ -6469,6 +6500,178 @@ public partial class MainWindow : Window
     private ComboBox ReplayTimingModeComboBox => TelemetryUdpViewControl.GetRequiredControl<ComboBox>(nameof(ReplayTimingModeComboBox));
 
     private TextBlock ReplayTimingModeHelpText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(ReplayTimingModeHelpText));
+
+    private Border AdvancedPhprDiagnosticsPanel => AdvancedDiagnosticsViewControl.GetRequiredControl<Border>(nameof(AdvancedPhprDiagnosticsPanel));
+
+    private CheckBox AdvancedDiagnosticsEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(AdvancedDiagnosticsEnabledCheckBox));
+
+    private TextBlock AdvancedDiagnosticsGateText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(AdvancedDiagnosticsGateText));
+
+    private StackPanel AdvancedDiagnosticsContentPanel => AdvancedDiagnosticsViewControl.GetRequiredControl<StackPanel>(nameof(AdvancedDiagnosticsContentPanel));
+
+    private TextBlock PhprWorkflowStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(PhprWorkflowStatusText));
+
+    private ItemsControl PhprWorkflowItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(PhprWorkflowItemsControl));
+
+    private TextBlock PhprLiveF1ValidationStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(PhprLiveF1ValidationStatusText));
+
+    private ItemsControl PhprLiveF1ValidationItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(PhprLiveF1ValidationItemsControl));
+
+    private TextBlock PhprCoexistenceStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(PhprCoexistenceStatusText));
+
+    private ItemsControl PhprCoexistenceItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(PhprCoexistenceItemsControl));
+
+    private TextBlock PhprControlledWriteReadinessStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(PhprControlledWriteReadinessStatusText));
+
+    private ItemsControl PhprControlledWriteReadinessItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(PhprControlledWriteReadinessItemsControl));
+
+    private CheckBox RealPhprDirectControlEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RealPhprDirectControlEnabledCheckBox));
+
+    private CheckBox RealPhprDirectControlArmCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RealPhprDirectControlArmCheckBox));
+
+    private ComboBox RealPhprCandidateComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(RealPhprCandidateComboBox));
+
+    private TextBlock RealPhprCandidatePickerStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(RealPhprCandidatePickerStatusText));
+
+    private TextBox RealPhprInterfaceTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprInterfaceTextBox));
+
+    private TextBox RealPhprReportIdTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprReportIdTextBox));
+
+    private TextBox RealPhprReportLengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprReportLengthTextBox));
+
+    private ComboBox RealPhprReportTransportComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(RealPhprReportTransportComboBox));
+
+    private TextBox RealPhprApprovalPhraseTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprApprovalPhraseTextBox));
+
+    private CheckBox RealPhprBrakeEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RealPhprBrakeEnabledCheckBox));
+
+    private TextBox RealPhprBrakeStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprBrakeStrengthTextBox));
+
+    private TextBox RealPhprBrakeFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprBrakeFrequencyTextBox));
+
+    private TextBox RealPhprBrakeDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprBrakeDurationTextBox));
+
+    private CheckBox RealPhprThrottleEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RealPhprThrottleEnabledCheckBox));
+
+    private TextBox RealPhprThrottleStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprThrottleStrengthTextBox));
+
+    private TextBox RealPhprThrottleFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprThrottleFrequencyTextBox));
+
+    private TextBox RealPhprThrottleDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprThrottleDurationTextBox));
+
+    private TextBox RealRoadBrakeMinStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadBrakeMinStrengthTextBox));
+
+    private TextBox RealRoadBrakeMinFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadBrakeMinFrequencyTextBox));
+
+    private TextBox RealRoadBrakeFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadBrakeFrequencyTextBox));
+
+    private TextBox RealRoadBrakeDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadBrakeDurationTextBox));
+
+    private TextBox RealRoadThrottleMinStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadThrottleMinStrengthTextBox));
+
+    private TextBox RealRoadThrottleMinFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadThrottleMinFrequencyTextBox));
+
+    private TextBox RealRoadThrottleFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadThrottleFrequencyTextBox));
+
+    private TextBox RealRoadThrottleDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealRoadThrottleDurationTextBox));
+
+    private ComboBox RealSlipTargetComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(RealSlipTargetComboBox));
+
+    private TextBox RealSlipMinStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipMinStrengthTextBox));
+
+    private TextBox RealSlipMinFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipMinFrequencyTextBox));
+
+    private TextBox RealSlipFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipFrequencyTextBox));
+
+    private TextBox RealSlipDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipDurationTextBox));
+
+    private ComboBox RealLockTargetComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(RealLockTargetComboBox));
+
+    private TextBox RealLockMinStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealLockMinStrengthTextBox));
+
+    private TextBox RealLockMinFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealLockMinFrequencyTextBox));
+
+    private TextBox RealLockFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealLockFrequencyTextBox));
+
+    private TextBox RealLockDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealLockDurationTextBox));
+
+    private Button TestRealPhprBrakePulseButton => AdvancedDiagnosticsViewControl.GetRequiredControl<Button>(nameof(TestRealPhprBrakePulseButton));
+
+    private Button TestRealPhprThrottlePulseButton => AdvancedDiagnosticsViewControl.GetRequiredControl<Button>(nameof(TestRealPhprThrottlePulseButton));
+
+    private TextBlock RealPhprDirectStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(RealPhprDirectStatusText));
+
+    private ItemsControl RealPhprDirectItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(RealPhprDirectItemsControl));
+
+    private CheckBox MockGearPulseEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(MockGearPulseEnabledCheckBox));
+
+    private ComboBox MockGearPulseTargetComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(MockGearPulseTargetComboBox));
+
+    private TextBox MockGearPulseStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(MockGearPulseStrengthTextBox));
+
+    private TextBox MockGearPulseFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(MockGearPulseFrequencyTextBox));
+
+    private TextBox MockGearPulseDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(MockGearPulseDurationTextBox));
+
+    private TextBlock MockGearPulseStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(MockGearPulseStatusText));
+
+    private ItemsControl MockGearPulseItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(MockGearPulseItemsControl));
+
+    private CheckBox MockPedalEffectsEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(MockPedalEffectsEnabledCheckBox));
+
+    private CheckBox RoadPedalEffectEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RoadPedalEffectEnabledCheckBox));
+
+    private ComboBox RoadPedalEffectTargetComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(RoadPedalEffectTargetComboBox));
+
+    private TextBox RoadPedalEffectStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RoadPedalEffectStrengthTextBox));
+
+    private TextBox RoadPedalEffectFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RoadPedalEffectFrequencyTextBox));
+
+    private TextBox RoadPedalEffectDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RoadPedalEffectDurationTextBox));
+
+    private CheckBox SlipPedalEffectEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(SlipPedalEffectEnabledCheckBox));
+
+    private ComboBox SlipPedalEffectTargetComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(SlipPedalEffectTargetComboBox));
+
+    private TextBox SlipPedalEffectStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(SlipPedalEffectStrengthTextBox));
+
+    private TextBox SlipPedalEffectFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(SlipPedalEffectFrequencyTextBox));
+
+    private TextBox SlipPedalEffectDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(SlipPedalEffectDurationTextBox));
+
+    private CheckBox LockPedalEffectEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(LockPedalEffectEnabledCheckBox));
+
+    private ComboBox LockPedalEffectTargetComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(LockPedalEffectTargetComboBox));
+
+    private TextBox LockPedalEffectStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(LockPedalEffectStrengthTextBox));
+
+    private TextBox LockPedalEffectFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(LockPedalEffectFrequencyTextBox));
+
+    private TextBox LockPedalEffectDurationTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(LockPedalEffectDurationTextBox));
+
+    private TextBlock MockPedalEffectsStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(MockPedalEffectsStatusText));
+
+    private ItemsControl MockPedalEffectsItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(MockPedalEffectsItemsControl));
+
+    private Border SettingsPanel => AdvancedDiagnosticsViewControl.GetRequiredControl<Border>(nameof(SettingsPanel));
+
+    private CheckBox SettingsLightThemeCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(SettingsLightThemeCheckBox));
+
+    private TextBlock SettingsStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(SettingsStatusText));
+
+    private TextBlock SettingsPathText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(SettingsPathText));
+
+    private TextBlock RuntimePrerequisiteText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(RuntimePrerequisiteText));
+
+    private Border DiagnosticsPanel => AdvancedDiagnosticsViewControl.GetRequiredControl<Border>(nameof(DiagnosticsPanel));
+
+    private CheckBox RoadTextureFlightRecorderCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RoadTextureFlightRecorderCheckBox));
+
+    private TextBlock RoadTextureFlightRecorderStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureFlightRecorderStatusText));
+
+    private TextBlock DiagnosticsSummaryText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(DiagnosticsSummaryText));
+
+    private ItemsControl DiagnosticsItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(DiagnosticsItemsControl));
 
     private TextBox ProfileNameTextBox => ProfilesViewControl.GetRequiredControl<TextBox>(nameof(ProfileNameTextBox));
 

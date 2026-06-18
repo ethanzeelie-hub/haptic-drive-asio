@@ -106,6 +106,7 @@
 - Stage 23G: Telemetry / UDP view extraction and replay-forwarding presentation seam complete.
 - Stage 23H: Profiles view extraction and profile workflow presentation seam complete.
 - Stage 23I: Testing / Validation view extraction and manual-tools presentation seam complete.
+- Stage 23J: Advanced / Diagnostics view extraction and raw-internals presentation seam complete.
 
 ## Planned Stages
 
@@ -184,6 +185,7 @@
 73. Stage 23G: Telemetry / UDP view extraction and replay-forwarding presentation seam. Complete.
 74. Stage 23H: Profiles view extraction and profile workflow presentation seam. Complete.
 75. Stage 23I: Testing / Validation view extraction and manual-tools presentation seam. Complete.
+76. Stage 23J: Advanced / Diagnostics view extraction and raw-internals presentation seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -320,3 +322,5 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 23H keeps Profiles as the normal audio/BST-1 plus P-HPR profile workflow only, keeps Telemetry / UDP as normal F1 25 UDP/recording/replay/forwarding workflow, keeps Advanced / Diagnostics as raw internals/troubleshooting, and does not change profile schema, profile save/load/reset behavior, persistence boundaries, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, parser/replay/forwarding behavior, or physical-validation boundaries.
 - Stage 23I extracts the Testing / Validation workflow into `Views/TestingValidationView` and moves only deterministic synthetic-bench display/page-summary wording into `TestingValidationStatusPresenter`, while keeping `MainWindow` as the composition root, runtime owner, manual-tool owner, event-handler owner, and validation/export executor.
 - Stage 23I keeps Testing / Validation as deliberate manual tools only, keeps Devices/Effects/Routing/Telemetry/Profiles focused on their normal workflows, keeps Advanced / Diagnostics as raw internals/troubleshooting, and does not change manual test behavior, validation harness behavior, persistence boundaries, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or parser/replay/forwarding behavior.
+- Stage 23J extracts the Advanced / Diagnostics workflow into `Views/AdvancedDiagnosticsView` and reuses the existing `DiagnosticsStatusPresenter`, `DiagnosticsStatusSnapshotBuilder`, `PhprWorkflowStatusPresenter`, and `PersistedSettingsStatusPresenter` seams instead of introducing a parallel diagnostics rewrite, while keeping `MainWindow` as the composition root, runtime owner, event-handler owner, diagnostics-report executor, and settings/runtime orchestration owner.
+- Stage 23J keeps Advanced / Diagnostics as raw internals and troubleshooting only, leaves Dashboard/Devices/Effects/Routing/Telemetry/Profiles/Testing focused on their normal workflows, and does not change diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener/forwarding/recording/replay/parser behavior, ASIO/BST-1 runtime behavior, or P-HPR HID/report behavior.
