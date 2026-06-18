@@ -2348,3 +2348,33 @@ Gemini REC-01 status decision:
 - Gemini REC-02 runtime-start ownership, if pursued later, should remain a separate audit-only stage rather than being mixed into the Stage 23 shell closure.
 
 Stage 23K does not change runtime behavior, diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
+
+## Stage 24A Gemini REC-02 Runtime-Start Ownership Audit and Closure
+
+Stage 24A is an audit, guardrail, and documentation stage layered on top of Stage 23K rather than another runtime-extraction stage.
+
+Runtime-start ownership decision after the audit:
+
+- Gemini REC-01 was already closed by Stage 23K for the current phase.
+- Gemini REC-02 was audited by Stage 24A and is considered closed for the current phase without moving runtime-start ownership out of `MainWindow`.
+- This is deliberate because the remaining `MainWindow.xaml.cs` startup/shutdown and safety paths are still composition-heavy, WPF-bound, hardware-capable, or cross-runtime in nature rather than another clearly pure presentation seam.
+
+Deliberate Stage 24A ownership split:
+
+- Extracted view code-behind remains limited to presentation application and event forwarding. Views do not own Start/Stop, Emergency Mute, telemetry startup, ASIO startup, direct-runtime startup cleanup, or P-HPR output start/stop execution.
+- `MainWindow.xaml.cs` remains the owner of:
+  - runtime object composition,
+  - extracted-view event hookups,
+  - `InitializeStartupCleanupAsync` startup cleanup execution,
+  - telemetry receiver startup,
+  - continuous P-HPR runtime start/stop orchestration,
+  - Start Haptics / Stop Haptics execution,
+  - Emergency Mute execution,
+  - P-HPR Stop All / Emergency Stop execution,
+  - shutdown-plan execution.
+- `PHprContinuousEffectsRuntimeCoordinator` remains the owner of the background continuous road/slip/lock loop mechanics and stop-timeout handling outside `HapticDrive.Asio.App`.
+- `PaddleInputRoutingCoordinator` remains the owner of the paddle-routing body and bench/direct routing flow inside `HapticDrive.Asio.App` but outside `MainWindow`.
+- `PHprDirectRuntimeCoordinator` remains outside `HapticDrive.Asio.App` and outside `MainWindow`, in the Windows P-HPR output assembly.
+- `StartupReadinessPlanner` and `ShutdownCleanupPlanner` remain pure planning helpers. They describe readiness/cleanup plans but do not execute runtime start, stop, emergency, or hardware operations themselves.
+
+Stage 24A does not change runtime behavior, diagnostics report behavior, manual test behavior, validation harness behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.

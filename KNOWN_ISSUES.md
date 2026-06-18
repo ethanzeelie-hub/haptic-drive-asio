@@ -846,3 +846,10 @@
 - This cumulative shell limitation is intentional during the gradual page-by-page extraction strategy. The app is still code-behind-driven by design, and the remaining `MainWindow` ownership is accepted because it keeps hardware-capable and safety-critical execution paths explicit instead of hiding them behind a broad MVVM conversion.
 - Start Haptics / Stop Haptics, Emergency Mute, Stop All, ASIO ownership, telemetry ownership, replay ownership, profile persistence execution, manual validation/export execution, P-HPR direct-runtime ownership, and hardware write call sites remain explicitly anchored in `MainWindow`.
 - No ASIO/BST-1 runtime behavior changed, no P-HPR HID/report behavior changed, no profile/persistence boundary changed, and no parser/replay/forwarding behavior changed as part of this cumulative shell-extraction work.
+
+## Stage 24A
+
+- Stage 24A audits Gemini REC-02 on top of the Stage 23 shell work and keeps the same deliberate boundary: extracted views remain presentation/event-forwarding seams, while `MainWindow.xaml.cs` remains the composition/runtime shell for startup/shutdown, Start/Stop/Emergency execution, telemetry startup, direct-runtime startup cleanup, and cross-page runtime orchestration.
+- This remaining ownership is still intentional. The app continues to prefer explicit code-behind ownership for safety-critical and hardware-capable execution paths instead of a broad MVVM/runtime-start migration.
+- `PHprContinuousEffectsRuntimeCoordinator` continues to own the background road/slip/lock loop bodies, `PaddleInputRoutingCoordinator` continues to own paddle-routing bodies, and `PHprDirectRuntimeCoordinator` continues to live outside `HapticDrive.Asio.App`.
+- No ASIO/BST-1 runtime behavior changed, no P-HPR HID/report behavior changed, no planner purity boundary changed, and no parser/replay/forwarding behavior changed as part of this audit/closure stage.

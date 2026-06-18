@@ -4165,6 +4165,77 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 24A - Gemini REC-02 Runtime-Start Ownership Audit and Closure
+
+Status: Complete.
+
+Goal: Audit Gemini REC-02 runtime-start ownership after the Stage 23 shell extraction stream, decide whether any startup/runtime ownership should move again, and close the recommendation with explicit guardrails and documentation without changing behavior unless a clearly safe fix is justified.
+
+Changes:
+
+- Re-audited the attached Stage 24A prompt and supporting Gemini review files before editing.
+- Re-audited the current startup, start/stop, emergency, and shutdown ownership in `MainWindow.xaml.cs`:
+  - `InitializeStartupCleanupAsync` remains called from startup,
+  - `_telemetryReceiver.StartAsync()` remains called from startup,
+  - `_realPhprContinuousEffectsRuntime.StartSlipLockRuntime()` and `StartRoadVibrationRuntime()` remain called from startup,
+  - `StartStopButton_Click` still delegates to `_hapticPipeline.StartAsync()` / `StopAsync()`,
+  - `EmergencyMuteButton_Click` still delegates to `_hapticPipeline.SetEmergencyMuteAsync(...)`,
+  - P-HPR Stop All / Emergency Stop still delegate directly to `_phprDirectRuntime`,
+  - shutdown still executes `ShutdownCleanupPlanner.BuildAppShutdownPlan()` and then performs the real stop/dispose work inline, including `_realPhprContinuousEffectsRuntime.StopAsync(...)`.
+- Re-confirmed the intentional runtime split outside `MainWindow`:
+  - `PHprContinuousEffectsRuntimeCoordinator` still owns the continuous road/slip/lock loop bodies in `HapticDrive.Actuation`,
+  - `PaddleInputRoutingCoordinator` still owns the paddle-routing body in `HapticDrive.Asio.App`,
+  - `PHprDirectRuntimeCoordinator` still lives in `HapticDrive.Simagic.PHPR.Output.Windows`,
+  - `StartupReadinessPlanner` and `ShutdownCleanupPlanner` still remain pure planning helpers rather than runtime executors.
+- Added Stage 24A ownership guardrails in `tests/HapticDrive.Asio.App.Tests/GeminiRuntimeStartOwnershipAuditGuardrailTests.cs` to prove:
+  - extracted view code-behind remains event-forwarding-only and does not absorb runtime start/stop/emergency execution,
+  - `MainWindow.xaml.cs` still owns composition, startup, Start/Stop, Emergency Mute, P-HPR Stop All / Emergency Stop, and shutdown execution,
+  - `PHprContinuousEffectsRuntimeCoordinator` still owns the background continuous loop bodies,
+  - `PaddleInputRoutingCoordinator`, `PHprDirectRuntimeCoordinator`, and `HapticPipelineCoordinator` remain separated from extracted-view execution ownership,
+  - startup/shutdown planners remain pure planning helpers.
+- Updated architecture/roadmap/known-issues documentation to record the closure decision:
+  - Gemini REC-01 was closed by Stage 23K,
+  - Gemini REC-02 was audited by Stage 24A,
+  - the remaining `MainWindow` runtime-start ownership is deliberate for the current phase,
+  - no runtime behavior changed as part of the audit.
+- Deliberately did not move production runtime ownership again:
+  - no new MVVM layer,
+  - no startup orchestration migration into views,
+  - no ASIO start ownership move,
+  - no P-HPR direct-runtime ownership move,
+  - no planner execution creep.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 24A is intentionally audit/guardrail/documentation-only.
+- Gemini REC-01 remains closed by Stage 23K.
+- Gemini REC-02 is considered audited and closed for the current phase without another runtime ownership move.
+- Extracted views remain presentation/event-forwarding seams only.
+- `MainWindow.xaml.cs` remains the deliberate composition/runtime/startup/shutdown/safety owner.
+- `PHprContinuousEffectsRuntimeCoordinator` still owns continuous loop bodies.
+- `PaddleInputRoutingCoordinator` still owns paddle-routing bodies.
+- `PHprDirectRuntimeCoordinator` still remains outside `HapticDrive.Asio.App`.
+- No runtime behavior changed.
+- No diagnostics report behavior changed.
+- No manual test behavior changed.
+- No validation harness behavior changed.
+- No profile/persistence boundary changed.
+- No UDP listener, forwarding, recording/replay, parser, or `VehicleState` behavior changed.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+
 ## Stage 23K - MainWindow Shell-Composition Audit and Gemini REC-01 Closure
 
 Status: Complete.
