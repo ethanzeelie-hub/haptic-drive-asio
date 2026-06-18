@@ -110,6 +110,7 @@
 - Stage 23K: MainWindow shell-composition audit and Gemini REC-01 closure complete.
 - Stage 24A: Gemini REC-02 runtime-start ownership audit and closure complete.
 - Stage 25A: Documentation baseline and audit closure complete.
+- Stage 25B: Durable quality gates complete.
 
 ## Planned Stages
 
@@ -192,6 +193,7 @@
 77. Stage 23K: MainWindow shell-composition audit and Gemini REC-01 closure. Complete.
 78. Stage 24A: Gemini REC-02 runtime-start ownership audit and closure. Complete.
 79. Stage 25A: Documentation baseline and audit closure. Complete.
+80. Stage 25B: Durable quality gates. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -229,6 +231,12 @@ Phase 2 safe sequence:
 28. Phase 3J: Final controlled P-HPR hardware readiness and zero-skip test reporting. Complete.
 
 The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated Stage 2Q code path, controlled validation harness, adapter hardening, instant gear-pulse route, road-vibration route, wheel-slip/wheel-lock route, P-HPR UI/profile/diagnostics workflow, integrated replay validation, manual live F1 validation workflow, final P-HPR acceptance package, and the final controlled-write CLI after Ethan supplied the exact approval phrase. It does not authorize unattended hardware vibration, automated real writes, startup pulses, persisted arming, or physical validation claims.
+
+## Stage 25 Quality Follow-Up
+
+- Stage 25A aligned the repo documentation with the audited architecture baseline and explicitly recorded the remaining production-readiness gaps.
+- Stage 25B makes the existing verification routine durable by turning warnings into build failures, documenting the exact serial verification path, and adding a Windows GitHub Actions workflow that restores, builds, tests, format-checks, and runs launch preflight.
+- Remaining quality work still includes deeper game-adapter abstraction, effect-engine extensibility, recording/replay scaling, atomic/schema-versioned persistence, and packaging/release automation.
 
 ## Post-BT-1 Hardware Phases
 

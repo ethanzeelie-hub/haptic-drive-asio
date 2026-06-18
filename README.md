@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 24A: Gemini REC-02 runtime-start ownership audit and closure complete.
+Stage 25B: Durable quality gates complete.
 
 ## Current Architecture Baseline
 
@@ -41,6 +41,21 @@ Stage 2A starts the Simagic P-HPR / GT Neo paddle-input phase with documentation
 Phase 3J follow-up: direct P-HPR output selection now distinguishes Raw Input metadata, safe HID registry metadata, and openable Windows HID device-interface candidates. Raw Input and registry metadata-only candidates cannot pass real direct-output gates. `can pulse` requires a successful no-report open-check plus selected HID output-report or feature-report capability, matching selected transport, successful no-command report-shape validation, clear coexistence, and clear emergency stop. The current `VID_3670/PID_0905` path can surface feature report ID `0xF1`, which is shown as the likely F1 EC SET_REPORT-style transport without changing the confirmed F1 EC protocol bytes. Stage 18b direct starts now schedule matching stop reports after `DurationMs`, and emergency stop or disposal cancels pending stop work and sends stop reports when active.
 
 The app does not yet implement advanced routing matrices, live graphing, real WASAPI output, physical shaker calibration, or physical shaker validation. Physical shaker feel, safe gain, physical latency, and final frequency tuning remain unvalidated until the Dayton BST-1 arrives and the full chain is tested locally.
+
+## Verification
+
+Use the serial verification path below before closing a stage or opening a pull request:
+
+```powershell
+$env:DOTNET_CLI_HOME = Join-Path (Get-Location) '.dotnet-home'
+& .\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config
+& .\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror
+& .\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build
+& .\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore
+.\Run-HapticDrive.cmd -NoBuild -CheckOnly
+```
+
+Warnings now fail the build by default. If a local investigation needs a temporary one-off escape hatch, use `-p:HapticDriveRelaxWarningsAsErrors=true` on that local build command rather than changing repository policy.
 
 ## Solution Layout
 

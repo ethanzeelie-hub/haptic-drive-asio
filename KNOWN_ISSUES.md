@@ -218,7 +218,6 @@
 - No left/right paddle mapping exists yet because user-visible button IDs from Windows controller tools, Device Manager, USBView, SimPro Manager, and optional SimHub screenshots are still required.
 - DirectInput-specific enumeration and HID input-report reading are deferred unless Raw Input and the built-in Windows game-controller capability path are insufficient.
 - Candidate scoring is non-authoritative and uses names, HID usage metadata, and broad device class hints until exact Alpha Evo / GT Neo / P700 VID/PID and button data are supplied.
-- No haptic routing, P-HPR output, USB output report, write-capable feature report, controlled write testing, SimPro control, or SimHub integration is implemented.
 
 ## Stage 2E
 
@@ -862,3 +861,12 @@
 - Recording/replay remains production-safe for current normal usage, but the recording path still uses an unbounded in-memory queue model and the replay/file-loading path still has room for long-session scalability hardening.
 - App settings and profile persistence remain functional and guarded by sanitization/tests, but writes are not yet atomic or schema-versioned for future migration-heavy changes.
 - Production packaging remains incomplete: the repo has strong local verification and passing tests, but it still needs durable CI/release automation, publish/install flow, and support-bundle style diagnostics/export hardening for a more production-ready delivery story.
+
+## Stage 25B
+
+- GitHub Actions now enforces restore/build/test/format/preflight on Windows, but packaging, installer creation, signed release publication, and installer smoke validation are still manual.
+- Warnings now fail normal builds by default, but the repo still does not enforce a broader analyzer baseline such as nullable enablement, `.editorconfig` severity hardening, or custom architectural analyzers beyond the existing targeted guardrail tests.
+- Runtime still needs a cleaner game-adapter boundary before adding more games becomes low-risk.
+- `HapticEffectEngine` still uses a fixed-list composition model, so large future effect growth will continue to increase central orchestration pressure until a plugin/descriptor-style registration seam exists.
+- Recording and replay remain correct for current scope, but large-session indexing, richer query metadata, and backpressure visibility are still limited.
+- App settings and profile persistence remain non-atomic and are not yet schema-versioned for broader future migrations.

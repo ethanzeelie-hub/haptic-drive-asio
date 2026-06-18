@@ -2400,3 +2400,16 @@ Documentation baseline result:
   - Release automation, packaging, and support-bundle diagnostics are still incomplete.
 
 Stage 25A does not change runtime behavior, diagnostics report behavior, parser / `VehicleState` behavior, recording/replay behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
+
+## Stage 25B Durable Quality Gates
+
+Stage 25B is an engineering-hardening stage layered on top of the Stage 25A documentation baseline.
+
+Stage 25B repository baseline:
+
+- Build warnings now fail by default.
+- The serial verification path is documented as the repository baseline.
+- A Windows GitHub Actions workflow now runs restore, build, test, format verification, and launch preflight.
+- A local one-off property escape hatch exists for warning investigation without weakening repository policy.
+
+Stage 25B does not change runtime behavior, diagnostics report behavior, parser / `VehicleState` behavior, recording/replay behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, persistence formats, or physical-validation boundaries.

@@ -4277,6 +4277,55 @@ Self-review:
 - `PHprDirectRuntimeCoordinator` still remains outside `HapticDrive.Asio.App`.
 - No runtime behavior changed.
 - No diagnostics report behavior changed.
+
+## Stage 25B - Durable Quality Gates
+
+Status: Complete.
+
+Goal: Convert the existing manual verification discipline into durable repository policy so production-readiness work has a stable baseline before broader architectural change continues.
+
+Changes:
+
+- Re-audited the current build and launch workflow before editing:
+  - the full solution already built warning-free,
+  - the repo had no GitHub Actions workflow,
+  - `Directory.Build.props` still allowed warnings,
+  - verification commands existed in practice but were not captured as one canonical serial sequence.
+- Hardened build policy in `Directory.Build.props`:
+  - warnings now fail by default,
+  - a single explicit local investigation escape hatch exists through `HapticDriveRelaxWarningsAsErrors=true`,
+  - repository policy stays strict without forcing permanent local edits.
+- Added the first repository CI workflow:
+  - `.github/workflows/ci.yml`,
+  - Windows runner for WPF compatibility,
+  - restore with `NuGet.Config`,
+  - build with `--no-restore -warnaserror`,
+  - test with `--no-build`,
+  - `dotnet format --verify-no-changes`,
+  - launch-wrapper preflight via `Run-HapticDrive.cmd -NoBuild -CheckOnly`.
+- Documented the canonical verification path in `README.md`:
+  - exact serial commands,
+  - explicit warning policy,
+  - explicit local one-off warning-relaxation note for investigation only.
+- Updated project tracking documents:
+  - `ROADMAP.md` now records Stage 25B as complete and summarizes the quality-gate milestone,
+  - `KNOWN_ISSUES.md` now distinguishes the new CI/build-policy improvements from the remaining release-engineering and architecture gaps,
+  - `ARCHITECTURE.md` now records Stage 25B as an engineering-hardening stage with no runtime-behavior changes.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed launch preflight.
+
+Self-review:
+
+- Stage 25B intentionally hardens engineering policy and automation only.
+- No runtime haptic behavior, parser behavior, HID/report behavior, or persistence format changed.
+- The new CI workflow mirrors the locally verified serial command path instead of inventing a separate build path.
+- Packaging/signing/release automation remains future work.
 - No manual test behavior changed.
 - No validation harness behavior changed.
 - No profile/persistence boundary changed.
