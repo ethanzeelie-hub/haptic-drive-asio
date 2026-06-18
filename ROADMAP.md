@@ -104,6 +104,7 @@
 - Stage 23E: Effects view extraction and effect tuning presentation seam complete.
 - Stage 23F: Routing / Mixer view extraction and safety-routing presentation seam complete.
 - Stage 23G: Telemetry / UDP view extraction and replay-forwarding presentation seam complete.
+- Stage 23H: Profiles view extraction and profile workflow presentation seam complete.
 
 ## Planned Stages
 
@@ -177,6 +178,10 @@
 68. Stage 23B: Post-23A product UI polish, first-run workflow clarity, and normal-mode diagnostics reduction. Complete.
 69. Stage 23C: Dashboard view extraction and shell presentation seam. Complete.
 70. Stage 23D: Devices view extraction and hardware setup presentation seam. Complete.
+71. Stage 23E: Effects view extraction and effect tuning presentation seam. Complete.
+72. Stage 23F: Routing / Mixer view extraction and safety-routing presentation seam. Complete.
+73. Stage 23G: Telemetry / UDP view extraction and replay-forwarding presentation seam. Complete.
+74. Stage 23H: Profiles view extraction and profile workflow presentation seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -309,3 +314,5 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 23C begins gradual shell component extraction only. It does not introduce a broad MVVM rewrite, move Start/Stop/Mute ownership, change ASIO/BST-1 runtime behavior, change P-HPR HID/report behavior, change parser/replay format behavior, or make any physical-validation claim.
 - Stage 23D extracts the normal Devices page into `Views/DevicesView` and moves Devices-only setup/readiness presentation shaping into `DevicesStatusPresenter`, while keeping `MainWindow` as the composition root, runtime owner, event-handler owner, and live snapshot gatherer.
 - Stage 23D keeps Devices as setup/readiness only, keeps Testing / Validation as deliberate manual tools, keeps Advanced / Diagnostics as raw internals/troubleshooting, and does not change ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, parser/replay format behavior, or physical-validation boundaries.
+- Stage 23H extracts the normal Profiles page into `Views/ProfilesView` and moves only deterministic profile workflow status/path wording into `ProfilesStatusPresenter`, while keeping `MainWindow` as the composition root, runtime owner, profile owner, event-handler owner, and persistence executor.
+- Stage 23H keeps Profiles as the normal audio/BST-1 plus P-HPR profile workflow only, keeps Telemetry / UDP as normal F1 25 UDP/recording/replay/forwarding workflow, keeps Advanced / Diagnostics as raw internals/troubleshooting, and does not change profile schema, profile save/load/reset behavior, persistence boundaries, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, parser/replay/forwarding behavior, or physical-validation boundaries.

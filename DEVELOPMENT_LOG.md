@@ -4165,6 +4165,106 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 23H - Profiles View Extraction and Profile Workflow Presentation Seam
+
+Status: Complete.
+
+Goal: Continue the low-risk Stage 23 shell extraction strategy by moving the normal Profiles page into a dedicated view/component and extracting only pure profile workflow display shaping without moving runtime or persistence ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Profiles seam before editing:
+  - `MainWindow.xaml` was 1477 lines,
+  - `MainWindow.xaml.cs` was 6551 lines,
+  - the normal Profiles page still lived inline in `MainWindow.xaml`,
+  - profile status/path/persistence wording still lived directly in `MainWindow.xaml.cs`,
+  - `ProfileNameTextBox` still needed to preserve its existing name for profile hydration and persistence-sensitive handler wiring.
+- Added dedicated Profiles view files:
+  - `src/HapticDrive.Asio.App/Views/ProfilesView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/ProfilesView.xaml.cs`.
+- Added `src/HapticDrive.Asio.App/ProfilesStatusPresenter.cs`:
+  - `ProfilesStatusSnapshot`,
+  - `ProfilesStatusPresentation`,
+  - `ProfilesStatusPresenter`.
+- Moved the normal Profiles layout into `ProfilesView` while preserving the same operator-facing workflow:
+  - profile name,
+  - save profile,
+  - load profile,
+  - reset defaults,
+  - profile status/path/validation summaries.
+- Kept runtime and persistence ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - live snapshot gathering,
+  - audio profile store calls and file IO,
+  - P-HPR profile store calls and file IO,
+  - audio profile save/load/reset execution,
+  - P-HPR profile save/load/reset execution,
+  - app settings save/load execution,
+  - applying loaded profile settings to controls and runtime,
+  - ASIO runtime interactions,
+  - P-HPR runtime interactions,
+  - startup/shutdown cleanup.
+- Added a narrow event-forwarding seam:
+  - `ProfilesView` forwards the existing profile name lost-focus, save, load, and reset interactions back to the current `MainWindow` handlers,
+  - no profile-store ownership moved into the view,
+  - no file IO moved into the view,
+  - no settings persistence moved into the view,
+  - no runtime or hardware ownership moved into the view.
+- Centralized only pure Profiles display shaping through `ProfilesStatusPresenter`:
+  - active/saved profile status text,
+  - audio profile path summary,
+  - P-HPR profile path and persistence-boundary summary,
+  - validation text,
+  - Profiles page-status summary.
+- Preserved existing control behavior by keeping control access in `MainWindow` through the extracted-view seam:
+  - existing control names remain intact inside `ProfilesView`,
+  - `MainWindow` still owns `AudioProfileControlSnapshotBuilder` inputs and hydration,
+  - `MainWindow` still owns `AppSettingsSnapshotBuilder` / app-settings save-load paths,
+  - `MainWindow` still owns audio profile and P-HPR profile save/load/reset execution,
+  - no profile schema, default tuning, persistence boundary, or runtime behavior changed.
+- Continued the shell reduction without broad architectural churn:
+  - `MainWindow.xaml` now hosts `ProfilesViewControl` instead of the inline normal Profiles page,
+  - `MainWindow.xaml.cs` now applies `ProfilesStatusPresentation` instead of shaping the normal Profiles workflow strings inline,
+  - `MainWindow.xaml` is now 1435 lines,
+  - `MainWindow.xaml.cs` is now 6578 lines,
+  - no MVVM rewrite,
+  - no new dependencies,
+  - no hardware/runtime-path ownership changes.
+- Added and updated stable tests:
+  - `ProfilesStatusPresenterTests`,
+  - `ProfilesStatusPresenterGuardrailTests`,
+  - `AppThemeResourceTests` updates for the extracted Profiles view and host boundary.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+- Build verification was briefly blocked by a running local `HapticDrive.Asio.App.exe` instance locking the app binary; after stopping that process, the required build passed cleanly.
+
+Self-review:
+
+- Stage 23H is intentionally Profiles presentation/component extraction only.
+- `MainWindow` remains the composition/runtime/profile owner.
+- Profiles remains the normal audio profile and P-HPR profile workflow only.
+- No profile schema changed.
+- No audio profile save/load/reset behavior changed.
+- No P-HPR profile save/load/reset behavior changed.
+- No default/tuning behavior changed.
+- No profile/persistence boundary changed.
+- No UDP listener, forwarding, recording/replay, parser, or `VehicleState` behavior changed.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+- This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
+
 ## Stage 23G - Telemetry / UDP View Extraction and Replay-Forwarding Presentation Seam
 
 Status: Complete.

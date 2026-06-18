@@ -219,6 +219,26 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void MainWindowSourceContainsProfilesNavigationAndViewHost()
+    {
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("ProfilesViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("ProfilesViewControl.Visibility = isProfilesPage", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("ProfilesViewControl.Apply(BuildProfilesStatusPresentation(message, validationMessages));", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("ProfilesStatusPresenter.Build(new ProfilesStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DashboardViewDoesNotExposeRawHidOrReportCopy()
     {
         var dashboardXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DashboardView.xaml");
@@ -523,13 +543,40 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void ProfilesPageStatesLiveHardwareStateIsNotSaved()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var profilesPanel = FindElementByXName(mainWindowXaml, "ProfilesPanel");
+        var profilesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "ProfilesView.xaml");
+        var profilesPanel = FindElementByXName(profilesXaml, "ProfilesPanel");
         var profileText = GetTextValues(profilesPanel);
 
         Assert.Contains(
             profileText,
             text => text.Contains("Live output, emergency state, private device paths, and running hardware state are not saved.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ProfilesViewContainsExpectedWorkflowConceptsAndNamedControls()
+    {
+        var profilesMarkup = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "Views",
+            "ProfilesView.xaml"));
+        var profilesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "ProfilesView.xaml");
+        var profilesPanel = FindElementByXName(profilesXaml, "ProfilesPanel");
+        var profileText = GetTextValues(profilesPanel);
+        var profileNames = GetXNameValues(profilesPanel);
+
+        Assert.Contains("ProfileNameTextBox", profileNames);
+        Assert.Contains("ProfileStatusText", profileNames);
+        Assert.Contains("ProfilePathText", profileNames);
+        Assert.Contains("ProfilePhprStatusText", profileNames);
+        Assert.Contains("ProfileValidationText", profileNames);
+
+        Assert.Contains("Profiles", profileText);
+        Assert.Contains("Profile name", profileText);
+        Assert.Contains("Content=\"Save Profile\"", profilesMarkup, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Load Profile\"", profilesMarkup, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Reset Defaults\"", profilesMarkup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -540,11 +587,12 @@ public sealed class AppThemeResourceTests
         var effectsXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "EffectsView.xaml");
         var routingMixerXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "RoutingMixerView.xaml");
         var telemetryXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TelemetryUdpView.xaml");
+        var profilesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "ProfilesView.xaml");
         var normalText = GetTextValues(FindElementByXName(devicesXaml, "DevicesPanel"))
             .Concat(GetTextValues(FindElementByXName(effectsXaml, "EffectsPanel")))
             .Concat(GetTextValues(FindElementByXName(routingMixerXaml, "MixerPanel")))
             .Concat(GetTextValues(FindElementByXName(telemetryXaml, "TelemetryUdpPanel")))
-            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "ProfilesPanel")))
+            .Concat(GetTextValues(FindElementByXName(profilesXaml, "ProfilesPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "TestingPanel")))
             .ToArray();
 

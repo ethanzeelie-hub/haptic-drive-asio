@@ -2084,3 +2084,67 @@ Normal workflow boundary after Stage 23G:
 Stage 23G intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
 
 Stage 23G does not change UDP listener behavior, forwarding behavior, recording/replay format or timing behavior, parser / `VehicleState` behavior, profile/persistence behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
+
+## Stage 23H Profiles View Extraction and Profile Workflow Presentation Seam
+
+Stage 23H continues the same page-by-page shell extraction strategy used in Stages 23C, 23D, 23E, 23F, and 23G.
+
+Profiles extraction result:
+
+- The normal Profiles workflow page now lives in a dedicated WPF component:
+  - `Views/ProfilesView.xaml`
+  - `Views/ProfilesView.xaml.cs`
+- The extracted normal Profiles view still presents the same workflow role:
+  - audio / BST-1 profile name and save/load/reset workflow,
+  - profile path and persistence boundary summary,
+  - P-HPR profile persistence summary,
+  - profile validation/status summary.
+- The extracted view does not own profile stores, file IO, app-settings persistence, runtime application, ASIO interactions, P-HPR interactions, or hardware output. It renders already-shaped state and forwards user interactions back to the existing `MainWindow` handlers.
+
+Presentation-seam result:
+
+- Profiles display shaping now flows through `ProfilesStatusPresenter` with immutable App-layer inputs:
+  - `ProfilesStatusSnapshot`
+  - `ProfilesStatusPresentation`
+- The presenter owns only deterministic Profiles wording/status shaping for:
+  - active/saved profile status text,
+  - audio profile path summary,
+  - P-HPR profile path and persistence-boundary summary,
+  - profile validation text,
+  - Profiles page-status summary.
+- The presenter does not own WPF controls, `System.Windows` types, ASIO backend classes, HID/report writers, runtime start/stop calls, profile-store execution, or file IO ownership.
+
+Residual `MainWindow` boundary:
+
+- `MainWindow` still owns:
+  - app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - live snapshot gathering,
+  - audio profile store calls and file IO,
+  - P-HPR profile store calls and file IO,
+  - audio profile save/load/reset execution,
+  - P-HPR profile save/load/reset execution,
+  - app settings save/load execution,
+  - applying loaded profile settings to controls and runtime,
+  - ASIO runtime interactions,
+  - P-HPR runtime interactions,
+  - startup/shutdown cleanup,
+  - Start Haptics / Stop Haptics,
+  - Emergency Mute / Stop All execution.
+- `MainWindow` now applies shaped Profiles presentation through `ProfilesViewControl.Apply(...)` instead of keeping the normal Profiles page layout inline in `MainWindow.xaml`.
+
+Normal workflow boundary after Stage 23H:
+
+- Dashboard remains operational overview.
+- Devices remains setup/readiness only.
+- Effects remains normal effect tuning only.
+- Routing / Mixer remains output routing, gain, mute, limiter summary, priority, ducking, and active-effect summary only.
+- Telemetry / UDP remains normal F1 25 UDP, recording, replay, recording-library, and forwarding workflow only.
+- Profiles remains the normal audio profile and P-HPR profile workflow only.
+- Testing / Validation remains the deliberate home for manual tools.
+- Advanced / Diagnostics remains the home for raw internals and troubleshooting.
+
+Stage 23H intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
+
+Stage 23H does not change profile schema behavior, profile save/load/reset behavior, default/tuning behavior, profile/persistence boundaries, UDP listener behavior, forwarding behavior, recording/replay behavior, parser / `VehicleState` behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.

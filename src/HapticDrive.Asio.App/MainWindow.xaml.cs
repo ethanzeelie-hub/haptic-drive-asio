@@ -387,6 +387,10 @@ public partial class MainWindow : Window
         TelemetryUdpViewControl.RemoveForwardingDestinationClicked += RemoveForwardingDestinationButton_Click;
         TelemetryUdpViewControl.ClearForwardingDestinationClicked += ClearForwardingDestinationButton_Click;
         TelemetryUdpViewControl.ForwardingDestinationsSelectionChanged += ForwardingDestinationsListBox_SelectionChanged;
+        ProfilesViewControl.ProfileNameLostFocus += ProfileNameTextBox_LostFocus;
+        ProfilesViewControl.SaveProfileClicked += SaveProfileButton_Click;
+        ProfilesViewControl.LoadProfileClicked += LoadProfileButton_Click;
+        ProfilesViewControl.ResetProfileClicked += ResetProfileButton_Click;
         DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
         DevicesViewControl.RefreshAsioClicked += RefreshAsioButton_Click;
         DevicesViewControl.AsioDriverSelectionChanged += AsioDriverComboBox_SelectionChanged;
@@ -560,7 +564,11 @@ public partial class MainWindow : Window
                 : Visibility.Collapsed;
             var isTelemetryPage = page.NavigationLabel == "Telemetry / UDP";
             var isTestingPage = page.NavigationLabel == "Testing / Validation";
+            var isProfilesPage = page.NavigationLabel == "Profiles";
             TelemetryUdpViewControl.Visibility = isTelemetryPage
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            ProfilesViewControl.Visibility = isProfilesPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             TestingPanel.Visibility = isTestingPage
@@ -571,9 +579,6 @@ public partial class MainWindow : Window
                 : Visibility.Collapsed;
             var isAdvancedPage = page.NavigationLabel == "Advanced / Diagnostics";
             AdvancedPhprDiagnosticsPanel.Visibility = isAdvancedPage
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            ProfilesPanel.Visibility = page.NavigationLabel == "Profiles"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             SettingsPanel.Visibility = isAdvancedPage && _advancedDiagnosticsEnabled
@@ -4175,15 +4180,8 @@ public partial class MainWindow : Window
 
     private void UpdateProfileStatus(string? message = null, IReadOnlyList<string>? validationMessages = null)
     {
-        var path = HapticProfileStore.GetDefaultProfilePath();
-        var phprPath = PhprEffectProfileStore.GetDefaultProfilePath();
+        UpdateProfilesPresentation(message, validationMessages);
         var settingsPresentation = BuildPersistedSettingsStatusPresentation();
-        ProfileStatusText.Text = message ?? $"Active profile: {_currentProfile.Name}.";
-        ProfilePathText.Text = $"Audio profile path: {path}; normal BST-1/audio tuning auto-saves here for the next launch.";
-        ProfilePhprStatusText.Text = $"P-HPR profile path: {phprPath}; saves shift intent plus gear, road, slip, and lock preferences. Live output, emergency state, private device paths, direct arming, and paddle bench state remain runtime-only.";
-        ProfileValidationText.Text = validationMessages is { Count: > 0 }
-            ? string.Join(" ", validationMessages)
-            : "Profile values are repaired to the current software ranges on load and save.";
         SettingsStatusText.Text = settingsPresentation.StatusText;
         SettingsPathText.Text = settingsPresentation.PathText;
         RuntimePrerequisiteText.Text = $".NET Desktop runtime is available for this running WPF app. Launch script sets DOTNET_ROOT to the repo-local .NET 8 runtime before starting the executable.";
@@ -4191,7 +4189,7 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Profiles" })
         {
-            PageStatusText.Text = $"Active profile {_currentProfile.Name}; audio JSON version {HapticDriveProfile.CurrentVersion}; P-HPR JSON version {PhprEffectProfile.CurrentVersion}; startup restores saved tuning without restoring live hardware state.";
+            PageStatusText.Text = BuildProfilesStatusPresentation(message, validationMessages).ProfilesPageStatusText;
         }
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Advanced / Diagnostics" })
@@ -5792,6 +5790,11 @@ public partial class MainWindow : Window
         TelemetryUdpViewControl.Apply(BuildTelemetryUdpStatusPresentation());
     }
 
+    private void UpdateProfilesPresentation(string? message = null, IReadOnlyList<string>? validationMessages = null)
+    {
+        ProfilesViewControl.Apply(BuildProfilesStatusPresentation(message, validationMessages));
+    }
+
     private TelemetryUdpStatusPresentation BuildTelemetryUdpStatusPresentation()
     {
         return BuildTelemetryUdpStatusPresentation(
@@ -5846,6 +5849,20 @@ public partial class MainWindow : Window
             : snapshot.IsRunning
                 ? "Listening"
                 : "Stopped";
+    }
+
+    private ProfilesStatusPresentation BuildProfilesStatusPresentation(
+        string? message = null,
+        IReadOnlyList<string>? validationMessages = null)
+    {
+        return ProfilesStatusPresenter.Build(new ProfilesStatusSnapshot(
+            CurrentProfileName: _currentProfile.Name,
+            StatusMessage: message,
+            ValidationMessages: validationMessages ?? [],
+            AudioProfilePath: HapticProfileStore.GetDefaultProfilePath(),
+            PhprProfilePath: PhprEffectProfileStore.GetDefaultProfilePath(),
+            AudioProfileVersion: HapticDriveProfile.CurrentVersion,
+            PhprProfileVersion: PhprEffectProfile.CurrentVersion));
     }
 
     private ReplayTimingModeOption GetSelectedReplayTimingMode()
@@ -6431,6 +6448,16 @@ public partial class MainWindow : Window
     private ComboBox ReplayTimingModeComboBox => TelemetryUdpViewControl.GetRequiredControl<ComboBox>(nameof(ReplayTimingModeComboBox));
 
     private TextBlock ReplayTimingModeHelpText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(ReplayTimingModeHelpText));
+
+    private TextBox ProfileNameTextBox => ProfilesViewControl.GetRequiredControl<TextBox>(nameof(ProfileNameTextBox));
+
+    private TextBlock ProfileStatusText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfileStatusText));
+
+    private TextBlock ProfilePathText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfilePathText));
+
+    private TextBlock ProfilePhprStatusText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfilePhprStatusText));
+
+    private TextBlock ProfileValidationText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfileValidationText));
 
     private TextBox RecordingRenameTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(RecordingRenameTextBox));
 

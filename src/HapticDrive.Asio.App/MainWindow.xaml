@@ -160,6 +160,10 @@
                                             Margin="0,0,0,24"
                                             Visibility="Collapsed" />
 
+                    <views:ProfilesView x:Name="ProfilesViewControl"
+                                        Margin="0,0,0,24"
+                                        Visibility="Collapsed" />
+
                     <Border x:Name="TestBenchPanel"
                             Style="{StaticResource CardBorderStyle}"
                             Visibility="Collapsed">
@@ -1305,52 +1309,6 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Border x:Name="ProfilesPanel"
-                            Style="{StaticResource CardBorderStyle}"
-                            Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Text="Profiles" />
-                            <TextBlock Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Profiles save tuning and preferences. Live output, emergency state, private device paths, and running hardware state are not saved." />
-                            <TextBlock Margin="0,16,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="Profile name" />
-                            <TextBox x:Name="ProfileNameTextBox"
-                                     MaxWidth="360"
-                                     LostFocus="ProfileNameTextBox_LostFocus"
-                                     HorizontalAlignment="Left" />
-                            <WrapPanel Margin="0,14,0,0">
-                                <Button Width="120"
-                                        Margin="0,0,8,0"
-                                        Click="SaveProfileButton_Click"
-                                        Content="Save Profile" />
-                                <Button Width="120"
-                                        Margin="0,0,8,0"
-                                        Click="LoadProfileButton_Click"
-                                        Content="Load Profile" />
-                                <Button Width="150"
-                                        Click="ResetProfileButton_Click"
-                                        Content="Reset Defaults" />
-                            </WrapPanel>
-                            <TextBlock x:Name="ProfileStatusText"
-                                       Margin="0,14,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
-                            <TextBlock x:Name="ProfilePathText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
-                            <TextBlock x:Name="ProfilePhprStatusText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       TextWrapping="Wrap" />
-                            <TextBlock x:Name="ProfileValidationText"
-                                       Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}" />
                         </StackPanel>
                     </Border>
 
