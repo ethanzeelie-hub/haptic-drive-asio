@@ -2507,3 +2507,16 @@ Stage 25I architecture result:
 - `AppSettings` now persists an explicit `Version` marker so future migrations have a stable schema anchor even though current loading remains backward-compatible with older version-less files.
 
 Stage 25I deliberately does not add a broad persistence-migration engine, cross-file transactional saves, backup retention/history, or new profile format versions. It hardens the current single-file save path first so future migration work starts from a safer baseline.
+
+## Stage 25J Recording Library Health Summaries
+
+Stage 25J improves the operator-facing recording library without changing the `.hdrec` format or replay behavior.
+
+Stage 25J architecture result:
+
+- `TelemetryRecordingFile.LoadSummaryAsync(...)` now performs a streamed packet-summary pass after header validation instead of stopping at header metadata only.
+- Recording summaries now include duration, payload-byte total, missing-sequence count, and largest sequence gap without allocating the full packet list in memory.
+- `RecordingLibraryManager.LoadAsync(...)` now surfaces that richer summary data in the app's recording-library display text and detail text.
+- Sequence-gap visibility now gives the operator a first-pass signal for dropped/missing captured packets in completed recordings, complementing the live bounded-queue/drop diagnostics added in Stage 25H.
+
+Stage 25J deliberately does not add packet-type histograms, random-access seek indexes, sidecar metadata caches, or full query/search/filter workflows. It strengthens the first-pass library summary first so deeper browse/index work has a more useful baseline.

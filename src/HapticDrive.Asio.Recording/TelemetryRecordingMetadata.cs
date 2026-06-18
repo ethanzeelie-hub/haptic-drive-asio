@@ -52,4 +52,8 @@ public sealed record TelemetryRecordingSummary(
     TelemetryRecordingMetadata Metadata,
     long PacketCount,
     long FileSizeBytes,
-    DateTimeOffset LastModifiedAtUtc);
+    DateTimeOffset LastModifiedAtUtc,
+    TimeSpan Duration = default,
+    long PayloadBytes = 0,
+    long MissingSequenceCount = 0,
+    long LargestSequenceGap = 0);

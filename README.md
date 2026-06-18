@@ -8,14 +8,14 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25I: Atomic persistence hardening complete.
+Stage 25J: Recording library health summaries complete.
 
 ## Current Architecture Baseline
 
 - F1 25 is still the only production game integration. Future game support is planned, runtime now consumes an injected game-telemetry adapter, and the app resolves the active adapter through a selected-game catalog path. The current catalog still contains F1 25 only.
 - `HapticEffectEngine` now composes the shipped BST-1 effects through an internal registered-slot seam instead of hand-wired per-effect orchestration, but options, profiles, diagnostics, and snapshots remain explicitly typed to the current effect set.
 - Replay from `.hdrec` files now streams packets directly from disk through the replay service instead of fully materializing the whole recording first.
-- Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, although richer recording-library indexing/query work still remains.
+- Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries without loading whole recordings into memory.
 - App settings, audio profiles, and P-HPR effect profiles now save through atomic same-directory temp-file replacement, and app settings now persist an explicit schema version marker for future migrations.
 - `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
 - ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.

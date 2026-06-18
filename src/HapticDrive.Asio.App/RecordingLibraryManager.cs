@@ -101,14 +101,17 @@ internal static class RecordingLibraryManager
             if (result.Succeeded && result.Summary is not null)
             {
                 var summary = result.Summary;
-                var sizeText = summary.FileSizeBytes >= 1024 * 1024
-                    ? $"{summary.FileSizeBytes / 1024d / 1024d:0.0} MB"
-                    : $"{summary.FileSizeBytes / 1024d:0.0} KB";
+                var sizeText = FormatByteSize(summary.FileSizeBytes);
                 var createdLocal = summary.Metadata.CreatedAtUtc.ToLocalTime();
+                var payloadText = FormatByteSize(summary.PayloadBytes);
+                var durationText = FormatDuration(summary.Duration);
+                var sequenceHealthText = summary.MissingSequenceCount == 0
+                    ? "sequence continuous"
+                    : $"sequence gaps {summary.MissingSequenceCount:N0} (largest {summary.LargestSequenceGap:N0})";
                 items.Add(new RecordingLibraryItem(
                     path,
-                    $"{Path.GetFileName(path)} - {summary.PacketCount:N0} packet(s) - {sizeText}",
-                    $"Created {createdLocal:g}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}."));
+                    $"{Path.GetFileName(path)} - {summary.PacketCount:N0} packet(s) - {durationText} - {sizeText}",
+                    $"Created {createdLocal:g}; duration {durationText}; payload {payloadText}; {sequenceHealthText}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}."));
                 continue;
             }
 
@@ -342,5 +345,35 @@ internal static class RecordingLibraryManager
         }
 
         return new string(sanitized).Trim().TrimEnd('.');
+    }
+
+    private static string FormatByteSize(long byteCount)
+    {
+        if (byteCount >= 1024 * 1024)
+        {
+            return $"{byteCount / 1024d / 1024d:0.0} MB";
+        }
+
+        if (byteCount >= 1024)
+        {
+            return $"{byteCount / 1024d:0.0} KB";
+        }
+
+        return $"{byteCount:N0} B";
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+        {
+            return "0 ms";
+        }
+
+        if (duration < TimeSpan.FromSeconds(1))
+        {
+            return $"{duration.TotalMilliseconds:0} ms";
+        }
+
+        return duration.ToString(@"hh\:mm\:ss\.fff");
     }
 }

@@ -929,3 +929,11 @@
 - `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
 - Recording and replay are now bounded/streamed for the main hot paths, but the recording library still lacks richer seek/index/query and long-session health tooling.
 - Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
+
+## Stage 25J
+
+- The recording library now shows streamed duration, payload-size, and sequence-gap health summaries, but it still does not expose deeper seek/index/query workflows such as load-on-demand packet browsing, per-recording packet-type histograms, or filterable health/search views.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
+- App settings and profiles now save atomically, but broader persistence migration/repair infrastructure remains future work.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.

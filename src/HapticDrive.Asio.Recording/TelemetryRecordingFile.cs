@@ -38,6 +38,12 @@ public static class TelemetryRecordingFile
                 bufferSize: 4 * 1024,
                 useAsync: true);
             var header = await ReadHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
+            var packetSummary = await SummarizePacketsAsync(
+                    stream,
+                    header.PacketCount,
+                    DefaultMaxPayloadLength,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             return TelemetryRecordingSummaryLoadResult.Success(
                 new TelemetryRecordingSummary(
@@ -45,7 +51,11 @@ public static class TelemetryRecordingFile
                     header.Metadata,
                     header.PacketCount,
                     fileInfo.Length,
-                    new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero)));
+                    new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero),
+                    packetSummary.Duration,
+                    packetSummary.PayloadBytes,
+                    packetSummary.MissingSequenceCount,
+                    packetSummary.LargestSequenceGap));
         }
         catch (OperationCanceledException)
         {
@@ -284,6 +294,60 @@ public static class TelemetryRecordingFile
         return buffer;
     }
 
+    private static async ValueTask<TelemetryRecordingPacketSummary> SummarizePacketsAsync(
+        FileStream stream,
+        long packetCount,
+        int maxPayloadLength,
+        CancellationToken cancellationToken)
+    {
+        var duration = TimeSpan.Zero;
+        long payloadBytes = 0;
+        long missingSequenceCount = 0;
+        long largestSequenceGap = 0;
+        long? previousSequenceNumber = null;
+
+        for (var i = 0L; i < packetCount; i++)
+        {
+            var sequenceNumber = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
+            var relativeTicks = await ReadInt64Async(stream, cancellationToken).ConfigureAwait(false);
+            if (relativeTicks < 0)
+            {
+                throw new InvalidDataException("Recording packet relative timestamp is invalid.");
+            }
+
+            duration = TimeSpan.FromTicks(Math.Max(duration.Ticks, relativeTicks));
+
+            var payloadLength = await ReadInt32Async(stream, cancellationToken).ConfigureAwait(false);
+            if (payloadLength < 0 || payloadLength > maxPayloadLength)
+            {
+                throw new InvalidDataException($"Recording packet payload length {payloadLength} is invalid.");
+            }
+
+            payloadBytes += payloadLength;
+            await ReadBytesAsync(stream, payloadLength, cancellationToken).ConfigureAwait(false);
+
+            if (previousSequenceNumber.HasValue && sequenceNumber > previousSequenceNumber.Value + 1)
+            {
+                var gap = sequenceNumber - previousSequenceNumber.Value - 1;
+                missingSequenceCount += gap;
+                largestSequenceGap = Math.Max(largestSequenceGap, gap);
+            }
+
+            previousSequenceNumber = sequenceNumber;
+        }
+
+        if (stream.Position != stream.Length)
+        {
+            throw new InvalidDataException("Recording contains trailing bytes after the final packet.");
+        }
+
+        return new TelemetryRecordingPacketSummary(
+            duration,
+            payloadBytes,
+            missingSequenceCount,
+            largestSequenceGap);
+    }
+
     private static bool TryMapLoadFailure(
         Exception ex,
         string cancelledMessage,
@@ -421,6 +485,12 @@ public static class TelemetryRecordingFile
     private sealed record TelemetryRecordingFileHeader(
         TelemetryRecordingMetadata Metadata,
         long PacketCount);
+
+    private readonly record struct TelemetryRecordingPacketSummary(
+        TimeSpan Duration,
+        long PayloadBytes,
+        long MissingSequenceCount,
+        long LargestSequenceGap);
 
     private sealed class UnsupportedVersionException : Exception
     {

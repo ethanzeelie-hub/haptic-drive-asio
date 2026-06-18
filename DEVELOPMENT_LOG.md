@@ -4221,6 +4221,60 @@ Self-review:
 - Existing settings/profile load behavior stays backward-compatible with older files; the app-settings version marker is a foothold for later migrations, not a breaking schema gate.
 - Broader persistence migration planning, history/backup retention, and multi-file transactional save behavior remain future work.
 
+## Stage 25J - Recording Library Health Summaries
+
+Status: Complete.
+
+Goal: Make the recording library more production-useful by surfacing richer per-recording health information without changing the `.hdrec` format or falling back to full in-memory recording loads.
+
+Changes:
+
+- Re-audited the recording-library summary path before editing:
+  - `TelemetryRecordingFile.LoadSummaryAsync(...)` still stopped after header metadata plus packet-count load,
+  - `RecordingLibraryManager.LoadAsync(...)` could only show file size plus top-level metadata,
+  - the library had no first-pass visibility into duration, payload volume, or missing-sequence gaps inside completed recordings.
+- Extended `TelemetryRecordingSummary` with streamed summary fields:
+  - `Duration`,
+  - `PayloadBytes`,
+  - `MissingSequenceCount`,
+  - `LargestSequenceGap`.
+- Updated `TelemetryRecordingFile.LoadSummaryAsync(...)` so it now performs a streamed packet-summary pass after header validation:
+  - keeps the existing no-full-materialization behavior,
+  - sums payload bytes,
+  - tracks the maximum relative timestamp as recording duration,
+  - counts missing sequence numbers between recorded packets,
+  - records the largest observed sequence gap,
+  - still rejects truncated/trailing/invalid packet data through the existing corruption path.
+- Updated `RecordingLibraryManager.LoadAsync(...)` so library rows now present richer operator-facing text:
+  - display text now includes duration alongside packet count and file size,
+  - detail text now includes duration, payload size, and sequence-health wording (`sequence continuous` or explicit gap counts).
+- Added focused tests:
+  - `TelemetryRecordingServiceTests` now verify streamed summaries report duration/payload totals for a normal recording,
+  - added a manual `.hdrec` fixture proving sequence-gap summaries load correctly without full replay load,
+  - `RecordingLibraryManagerTests` now verify the library text includes duration, payload size, and sequence-health wording.
+- Updated stage docs:
+  - `README.md` now reports Stage 25J and calls out the richer recording-library health summary baseline,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25J and narrow the remaining recording work to deeper seek/index/query tooling instead of first-pass health summaries.
+
+Verification:
+
+- Focused checks:
+  - `.\.dotnet\dotnet.exe build tests/HapticDrive.Asio.Recording.Tests/HapticDrive.Asio.Recording.Tests.csproj --no-restore -warnaserror` passed.
+  - `.\.dotnet\dotnet.exe build tests/HapticDrive.Asio.App.Tests/HapticDrive.Asio.App.Tests.csproj --no-restore -warnaserror` passed.
+  - `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Recording.Tests/HapticDrive.Asio.Recording.Tests.csproj --no-build` passed with 23 tests.
+  - `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.App.Tests/HapticDrive.Asio.App.Tests.csproj --no-build` passed with 267 tests.
+- Full repo gate:
+  - `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+  - `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 888 passing tests and 0 skipped tests.
+  - `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+  - `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 25J intentionally improves library summaries only; it does not change `.hdrec` bytes, replay timing, live recording flow control, parser behavior, or output/runtime behavior.
+- Summary loading stays streaming and bounded in memory, but it is still a sequential scan for completed recordings rather than a cached sidecar index or random-access query surface.
+- The new sequence-gap summary gives the operator a useful first-pass health signal for completed recordings, but richer packet-type histograms, search/filter views, and on-demand packet browsing remain future work.
+
 ## Stage 25A - Documentation Baseline and Audit Closure
 
 Status: Complete.

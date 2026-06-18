@@ -84,6 +84,7 @@ public sealed class TelemetryRecordingServiceTests
             path,
             new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Summary Test", "stage-18-test"))).Succeeded);
         Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01, 0x02], createdAtUtc)).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(2, [0x03, 0x04, 0x05], createdAtUtc.AddMilliseconds(15))).Succeeded);
         Assert.True((await recorder.StopAsync()).Succeeded);
 
         var result = await TelemetryRecordingFile.LoadSummaryAsync(path);
@@ -93,8 +94,41 @@ public sealed class TelemetryRecordingServiceTests
         Assert.Equal(path, result.Summary.Path);
         Assert.Equal(createdAtUtc, result.Summary.Metadata.CreatedAtUtc);
         Assert.Equal("Summary Test", result.Summary.Metadata.SourceProfile);
-        Assert.Equal(1, result.Summary.PacketCount);
+        Assert.Equal(2, result.Summary.PacketCount);
         Assert.True(result.Summary.FileSizeBytes > 0);
+        Assert.Equal(TimeSpan.FromMilliseconds(15), result.Summary.Duration);
+        Assert.Equal(5, result.Summary.PayloadBytes);
+        Assert.Equal(0, result.Summary.MissingSequenceCount);
+        Assert.Equal(0, result.Summary.LargestSequenceGap);
+    }
+
+    [Fact]
+    public async Task RecordingSummary_ReportsSequenceGapsWithoutFullReplayLoad()
+    {
+        var path = CreateTempRecordingPath();
+        await using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+        {
+            stream.Write(CreateHeaderBytes(TelemetryRecordingFile.CurrentVersion, packetCount: 2));
+            WriteInt64(stream, 1);
+            WriteInt64(stream, 0);
+            WriteInt32(stream, 1);
+            stream.WriteByte(0x01);
+            WriteInt64(stream, 4);
+            WriteInt64(stream, TimeSpan.FromMilliseconds(20).Ticks);
+            WriteInt32(stream, 2);
+            stream.Write([0x02, 0x03]);
+            await stream.FlushAsync();
+        }
+
+        var result = await TelemetryRecordingFile.LoadSummaryAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Summary);
+        Assert.Equal(2, result.Summary.PacketCount);
+        Assert.Equal(TimeSpan.FromMilliseconds(20), result.Summary.Duration);
+        Assert.Equal(3, result.Summary.PayloadBytes);
+        Assert.Equal(2, result.Summary.MissingSequenceCount);
+        Assert.Equal(2, result.Summary.LargestSequenceGap);
     }
 
     [Fact]

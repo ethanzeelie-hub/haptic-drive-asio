@@ -118,6 +118,7 @@
 - Stage 25G: Replay-file streaming seam complete.
 - Stage 25H: Live recording queue/backpressure hardening complete.
 - Stage 25I: Atomic persistence hardening complete.
+- Stage 25J: Recording library health summaries complete.
 
 ## Planned Stages
 
@@ -208,6 +209,7 @@
 85. Stage 25G: Replay-file streaming seam. Complete.
 86. Stage 25H: Live recording queue/backpressure hardening. Complete.
 87. Stage 25I: Atomic persistence hardening. Complete.
+88. Stage 25J: Recording library health summaries. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -257,7 +259,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25G adds a streaming replay-file seam so `ReplayFileAsync` now reads `.hdrec` packets directly from disk through an open reader instead of first loading the whole recording into memory, while `LoadAsync` reuses the same reader path for whole-recording callers.
 - Stage 25H replaces the live recording service's unbounded queue with a bounded queue plus explicit queue-capacity and dropped-packet diagnostics, keeping packet capture non-blocking while making overload visible to runtime/app callers.
 - Stage 25I hardens app-settings, audio-profile, and P-HPR profile saves through shared atomic file replacement and adds an explicit app-settings schema version marker so future migrations have a stable footing.
-- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, richer recording-library indexing/query tooling, broader persistence-migration infrastructure, and packaging/release automation.
+- Stage 25J extends recording-library summaries with streamed duration, payload-size, and sequence-gap health diagnostics so the app can surface richer recording quality information without full in-memory loads.
+- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, deeper recording-library seek/index/query tooling, broader persistence-migration infrastructure, and packaging/release automation.
 
 ## Post-BT-1 Hardware Phases
 

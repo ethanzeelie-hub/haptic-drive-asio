@@ -138,6 +138,26 @@ public sealed class RecordingLibraryManagerTests
     }
 
     [Fact]
+    public async Task LoadAsync_IncludesDurationPayloadAndSequenceHealthInLibraryText()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        var path = Path.Combine(temp.Path, "session.hdrec");
+        await CreateRecordingAsync(
+            path,
+            [
+                new RecordedPacketTemplate(1, [0x01, 0x02], TimeSpan.Zero),
+                new RecordedPacketTemplate(2, [0x03, 0x04, 0x05], TimeSpan.FromMilliseconds(15))
+            ]);
+
+        var items = await RecordingLibraryManager.LoadAsync(temp.Path);
+
+        var item = Assert.Single(items);
+        Assert.Contains("15 ms", item.DisplayText);
+        Assert.Contains("payload 5 B", item.DetailText);
+        Assert.Contains("sequence continuous", item.DetailText);
+    }
+
+    [Fact]
     public async Task RenameSelectedRecording_EnforcesHdrecExtension()
     {
         using var temp = TempRecordingDirectory.Create();
@@ -204,20 +224,36 @@ public sealed class RecordingLibraryManagerTests
         Assert.True(File.Exists(second));
     }
 
-    private static async Task CreateRecordingAsync(string path)
+    private static async Task CreateRecordingAsync(
+        string path,
+        IReadOnlyList<RecordedPacketTemplate>? packets = null)
     {
         var createdAtUtc = new DateTimeOffset(2026, 6, 12, 1, 0, 0, TimeSpan.Zero);
+        packets ??=
+        [
+            new RecordedPacketTemplate(1, [0x01, 0x02], TimeSpan.Zero)
+        ];
+
         await using var recorder = new TelemetryRecordingService();
         Assert.True((await recorder.StartAsync(
             path,
             new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "App Test", "stage-18p-b"))).Succeeded);
-        Assert.True(recorder.RecordPacket(new UdpTelemetryPacket(
-            1,
-            [0x01, 0x02],
-            new IPEndPoint(IPAddress.Loopback, 20_778),
-            createdAtUtc)).Succeeded);
+        foreach (var packet in packets)
+        {
+            Assert.True(recorder.RecordPacket(new UdpTelemetryPacket(
+                packet.SequenceNumber,
+                packet.Payload,
+                new IPEndPoint(IPAddress.Loopback, 20_778),
+                createdAtUtc + packet.RelativeTime)).Succeeded);
+        }
+
         Assert.True((await recorder.StopAsync()).Succeeded);
     }
+
+    private sealed record RecordedPacketTemplate(
+        long SequenceNumber,
+        byte[] Payload,
+        TimeSpan RelativeTime);
 
     private sealed class TempRecordingDirectory : IDisposable
     {
