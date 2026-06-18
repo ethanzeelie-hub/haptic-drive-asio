@@ -2022,3 +2022,65 @@ Normal workflow boundary after Stage 23D:
 Stage 23D intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
 
 Stage 23D does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, command encoding, parser layouts, replay format behavior, or physical-validation boundaries.
+
+## Stage 23G Telemetry / UDP View Extraction and Replay-Forwarding Presentation Seam
+
+Stage 23G continues the same page-by-page shell extraction strategy used in Stages 23C, 23D, 23E, and 23F.
+
+Telemetry / UDP extraction result:
+
+- The normal Telemetry / UDP workflow page now lives in a dedicated WPF component:
+  - `Views/TelemetryUdpView.xaml`
+  - `Views/TelemetryUdpView.xaml.cs`
+- The extracted normal Telemetry / UDP view still presents the same workflow role:
+  - recording and replay,
+  - recording library selection / rename / delete,
+  - UDP forwarding destination editing and configured-destination summary.
+- The extracted view does not own runtime objects, UDP sockets, parser integration, replay/recording file IO, or forwarding-destination persistence. It renders already-shaped state and forwards user interactions back to the existing `MainWindow` handlers.
+
+Presentation-seam result:
+
+- Telemetry / UDP display shaping now flows through `TelemetryUdpStatusPresenter` with immutable App-layer inputs:
+  - `TelemetryUdpStatusSnapshot`
+  - `TelemetryUdpStatusPresentation`
+- The presenter owns only deterministic Telemetry / UDP wording/status shaping for:
+  - replay timing help text,
+  - recording button text,
+  - replay button text,
+  - recording detail text,
+  - replay detail text,
+  - forwarding-destination summary text,
+  - Telemetry / UDP page-status summary.
+- The presenter does not own WPF controls, `System.Windows` types, ASIO backend classes, HID/report writers, runtime start/stop calls, parser ownership, recording/replay services, or forwarding persistence execution.
+
+Residual `MainWindow` boundary:
+
+- `MainWindow` still owns:
+  - app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - UDP receiver ownership,
+  - parser / `VehicleState` adapter integration,
+  - forwarding-destination mutation and persistence,
+  - recording start/stop and library refresh execution,
+  - replay latest / selected / timing-mode execution,
+  - app settings save/load,
+  - startup/shutdown cleanup,
+  - live snapshot gathering,
+  - Start Haptics / Stop Haptics,
+  - Emergency Mute / Stop All execution.
+- `MainWindow` now applies shaped Telemetry / UDP presentation through `TelemetryUdpViewControl.Apply(...)` instead of keeping the normal Telemetry / UDP page layout inline in `MainWindow.xaml`.
+
+Normal workflow boundary after Stage 23G:
+
+- Dashboard remains operational overview.
+- Devices remains setup/readiness only.
+- Effects remains normal effect tuning only.
+- Routing / Mixer remains output routing, gain, mute, limiter summary, priority, ducking, and active-effect summary only.
+- Telemetry / UDP remains normal F1 25 UDP, recording, replay, recording-library, and forwarding workflow only.
+- Testing / Validation remains the deliberate home for manual tools.
+- Advanced / Diagnostics remains the home for raw internals and troubleshooting.
+
+Stage 23G intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
+
+Stage 23G does not change UDP listener behavior, forwarding behavior, recording/replay format or timing behavior, parser / `VehicleState` behavior, profile/persistence behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.

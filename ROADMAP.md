@@ -103,6 +103,7 @@
 - Stage 23D: Devices view extraction and hardware setup presentation seam complete.
 - Stage 23E: Effects view extraction and effect tuning presentation seam complete.
 - Stage 23F: Routing / Mixer view extraction and safety-routing presentation seam complete.
+- Stage 23G: Telemetry / UDP view extraction and replay-forwarding presentation seam complete.
 
 ## Planned Stages
 

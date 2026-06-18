@@ -375,6 +375,18 @@ public partial class MainWindow : Window
         EffectsViewControl.Bst1PaddleGearPulseControlChanged += Bst1PaddleGearPulseControl_Changed;
         EffectsViewControl.Bst1PaddleGearPulseControlLostFocus += Bst1PaddleGearPulseControl_LostFocus;
         RoutingMixerViewControl.TuningControlChanged += TuningControl_Changed;
+        TelemetryUdpViewControl.ReplayTimingModeSelectionChanged += ReplayTimingModeComboBox_SelectionChanged;
+        TelemetryUdpViewControl.StartRecordingClicked += StartRecordingButton_Click;
+        TelemetryUdpViewControl.StartReplayClicked += StartReplayButton_Click;
+        TelemetryUdpViewControl.ReplaySelectedRecordingClicked += ReplaySelectedRecordingButton_Click;
+        TelemetryUdpViewControl.RefreshRecordingsClicked += RefreshRecordingsButton_Click;
+        TelemetryUdpViewControl.DeleteSelectedRecordingClicked += DeleteSelectedRecordingButton_Click;
+        TelemetryUdpViewControl.RenameSelectedRecordingClicked += RenameSelectedRecordingButton_Click;
+        TelemetryUdpViewControl.RecordingLibrarySelectionChanged += RecordingLibraryListBox_SelectionChanged;
+        TelemetryUdpViewControl.SaveForwardingDestinationClicked += SaveForwardingDestinationButton_Click;
+        TelemetryUdpViewControl.RemoveForwardingDestinationClicked += RemoveForwardingDestinationButton_Click;
+        TelemetryUdpViewControl.ClearForwardingDestinationClicked += ClearForwardingDestinationButton_Click;
+        TelemetryUdpViewControl.ForwardingDestinationsSelectionChanged += ForwardingDestinationsListBox_SelectionChanged;
         DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
         DevicesViewControl.RefreshAsioClicked += RefreshAsioButton_Click;
         DevicesViewControl.AsioDriverSelectionChanged += AsioDriverComboBox_SelectionChanged;
@@ -420,7 +432,6 @@ public partial class MainWindow : Window
         RealPhprReportTransportComboBox.SelectedItem = PHprHidReportTransport.OutputReport;
         ReplayTimingModeComboBox.ItemsSource = _replayTimingModeOptions;
         ReplayTimingModeComboBox.SelectedItem = ControlSettingsSnapshotBuilder.GetReplayTimingModeOption(appSettings.ReplayTimingPreference);
-        ReplayTimingModeHelpText.Text = GetSelectedReplayTimingMode().HelpText;
         ApplyTheme(_lightTheme);
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
@@ -549,10 +560,7 @@ public partial class MainWindow : Window
                 : Visibility.Collapsed;
             var isTelemetryPage = page.NavigationLabel == "Telemetry / UDP";
             var isTestingPage = page.NavigationLabel == "Testing / Validation";
-            ForwardingPanel.Visibility = isTelemetryPage
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            RecordingsPanel.Visibility = isTelemetryPage
+            TelemetryUdpViewControl.Visibility = isTelemetryPage
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             TestingPanel.Visibility = isTestingPage
@@ -1726,15 +1734,12 @@ public partial class MainWindow : Window
 
     private void UpdateForwardingEditorStatus()
     {
-        var enabled = _forwardingDestinations.Count(destination => destination.Enabled);
-        ForwardingDestinationsSummaryText.Text = _forwardingDestinations.Count == 0
-            ? "No forwarding destinations configured. Recording and parsing still work normally."
-            : $"{enabled}/{_forwardingDestinations.Count} destination(s) enabled. Loopback to UDP {UdpTelemetryReceiverOptions.DefaultPort} is blocked.";
-
         if (string.IsNullOrWhiteSpace(ForwardingEditorStatusText.Text))
         {
             ForwardingEditorStatusText.Text = "Use 127.0.0.1 or localhost for local tools; choose a port other than the listener port.";
         }
+
+        UpdateTelemetryUdpPresentation();
     }
 
     private void UpdatePaddleDeviceSelectionItems()
@@ -2994,8 +2999,6 @@ public partial class MainWindow : Window
 
     private void ReplayTimingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var replayMode = GetSelectedReplayTimingMode();
-        ReplayTimingModeHelpText.Text = replayMode.HelpText;
         SaveAppSettings();
         UpdateRecordingStatus();
     }
@@ -3093,6 +3096,8 @@ public partial class MainWindow : Window
         {
             RecordingLibraryStatusText.Text = $"Recording library could not be refreshed: {ex.Message}";
         }
+
+        UpdateTelemetryUdpPresentation();
     }
 
     private async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
@@ -5659,11 +5664,10 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Telemetry / UDP" })
         {
-            var forwardingSnapshot = pipelineSnapshot.Forwarding;
-            var parsedPackets = pipelineSnapshot.ParserSuccessCount;
-            var vehicleStateUpdates = pipelineSnapshot.VehicleStateUpdateCount;
-            var recordingSnapshot = pipelineSnapshot.Recording;
-            PageStatusText.Text = $"{status} on port {snapshot.BoundPort}; forwarding {forwardingSnapshot.ForwardedDatagramCount:N0} packet(s); recording {recordingSnapshot.PacketCount:N0}; parsed {parsedPackets:N0}; vehicle samples {vehicleStateUpdates:N0}.";
+            PageStatusText.Text = BuildTelemetryUdpStatusPresentation(
+                pipelineSnapshot,
+                snapshot,
+                status).TelemetryUdpPageStatusText;
         }
     }
 
@@ -5778,47 +5782,70 @@ public partial class MainWindow : Window
 
     private void UpdateRecordingStatus()
     {
-        var snapshot = _hapticPipeline.GetSnapshot().Recording;
-        var replaySnapshot = _hapticPipeline.GetSnapshot().Replay;
-        var buttonText = snapshot.IsRecording ? "Stop Recording" : "Start Recording";
-        StartRecordingButton.Content = buttonText;
-        RecordingsStartStopButton.Content = buttonText;
-        ReplayStartStopButton.Content = replaySnapshot.IsReplaying ? "Stop Replay" : "Replay Latest";
-
-        if (_recordingError is not null)
-        {
-            RecordingsDetailText.Text = _recordingError;
-            UpdateDashboardStatus();
-            return;
-        }
-        if (snapshot.IsRecording)
-        {
-            RecordingsDetailText.Text = snapshot.LastPacketRelativeTime is null
-                ? $"Writing {Path.GetFileName(snapshot.FilePath)}; waiting for first packet."
-                : $"Writing {Path.GetFileName(snapshot.FilePath)}; last packet {snapshot.LastPacketRelativeTime.Value.TotalSeconds:0.000}s.";
-            ReplayDetailText.Text = BuildReplayStatusText();
-            UpdateDashboardStatus();
-            return;
-        }
-
-        RecordingsDetailText.Text = "Ready to capture F1 25 UDP packets to replay files.";
-        ReplayDetailText.Text = BuildReplayStatusText();
+        UpdateTelemetryUdpPresentation();
         UpdateDashboardStatus();
         UpdateDiagnosticsStatus();
     }
 
-    private string BuildReplayStatusText()
+    private void UpdateTelemetryUdpPresentation()
     {
-        var snapshot = _hapticPipeline.GetSnapshot().Replay;
+        TelemetryUdpViewControl.Apply(BuildTelemetryUdpStatusPresentation());
+    }
+
+    private TelemetryUdpStatusPresentation BuildTelemetryUdpStatusPresentation()
+    {
+        return BuildTelemetryUdpStatusPresentation(
+            _hapticPipeline.GetSnapshot(),
+            _telemetryReceiver.GetSnapshot(),
+            GetTelemetryListenerPageStatus());
+    }
+
+    private TelemetryUdpStatusPresentation BuildTelemetryUdpStatusPresentation(
+        HapticPipelineSnapshot pipelineSnapshot,
+        UdpTelemetryReceiverSnapshot receiverSnapshot,
+        string listenerStatusText)
+    {
+        var recordingSnapshot = pipelineSnapshot.Recording;
+        var replaySnapshot = pipelineSnapshot.Replay;
         var replayMode = GetSelectedReplayTimingMode();
-        if (_replayError is not null)
+        var forwardingSnapshot = pipelineSnapshot.Forwarding;
+
+        return TelemetryUdpStatusPresenter.Build(new TelemetryUdpStatusSnapshot(
+            ReplayTimingModeHelpText: replayMode.HelpText,
+            RecordingActive: recordingSnapshot.IsRecording,
+            RecordingFileName: recordingSnapshot.FilePath is null ? string.Empty : Path.GetFileName(recordingSnapshot.FilePath),
+            RecordingLastPacketRelativeTime: recordingSnapshot.LastPacketRelativeTime,
+            RecordingError: _recordingError,
+            ReplayActive: replaySnapshot.IsReplaying,
+            ReplayModeLabel: replayMode.Label,
+            ReplaySourceFileName: replaySnapshot.SourceFilePath is null ? string.Empty : Path.GetFileName(replaySnapshot.SourceFilePath),
+            ReplayPacketCount: replaySnapshot.PacketsReplayed,
+            ReplayStatusMessage: replaySnapshot.StatusMessage,
+            ReplayError: _replayError,
+            ListenerStatusText: listenerStatusText,
+            ListenerPort: receiverSnapshot.BoundPort,
+            ForwardedDatagramCount: forwardingSnapshot.ForwardedDatagramCount,
+            RecordingPacketCount: recordingSnapshot.PacketCount,
+            ParserSuccessCount: pipelineSnapshot.ParserSuccessCount,
+            VehicleStateUpdateCount: pipelineSnapshot.VehicleStateUpdateCount,
+            ForwardingDestinationCount: _forwardingDestinations.Count,
+            ForwardingEnabledDestinationCount: _forwardingDestinations.Count(destination => destination.Enabled),
+            ListenerDefaultPort: UdpTelemetryReceiverOptions.DefaultPort));
+    }
+
+    private string GetTelemetryListenerPageStatus()
+    {
+        if (_telemetryStartError is not null)
         {
-            return $"{_replayError} Replay mode: {replayMode.Label}.";
+            return "unavailable";
         }
 
-        return snapshot.IsReplaying
-            ? $"Replay active from {Path.GetFileName(snapshot.SourceFilePath)}; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s)."
-            : $"Replay idle; mode {replayMode.Label}; {snapshot.PacketsReplayed:N0} packet(s) were replayed last time. {snapshot.StatusMessage}";
+        var snapshot = _telemetryReceiver.GetSnapshot();
+        return snapshot.HasNoPacketWarning
+            ? "No packets yet"
+            : snapshot.IsRunning
+                ? "Listening"
+                : "Stopped";
     }
 
     private ReplayTimingModeOption GetSelectedReplayTimingMode()
@@ -6400,6 +6427,30 @@ public partial class MainWindow : Window
     private Slider SafetyOutputGainSlider => RoutingMixerViewControl.GetRequiredControl<Slider>(nameof(SafetyOutputGainSlider));
 
     private TextBlock SafetyOutputGainValueText => RoutingMixerViewControl.GetRequiredControl<TextBlock>(nameof(SafetyOutputGainValueText));
+
+    private ComboBox ReplayTimingModeComboBox => TelemetryUdpViewControl.GetRequiredControl<ComboBox>(nameof(ReplayTimingModeComboBox));
+
+    private TextBlock ReplayTimingModeHelpText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(ReplayTimingModeHelpText));
+
+    private TextBox RecordingRenameTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(RecordingRenameTextBox));
+
+    private ListBox RecordingLibraryListBox => TelemetryUdpViewControl.GetRequiredControl<ListBox>(nameof(RecordingLibraryListBox));
+
+    private TextBlock RecordingLibraryStatusText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(RecordingLibraryStatusText));
+
+    private TextBox ForwardingNameTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(ForwardingNameTextBox));
+
+    private TextBox ForwardingHostTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(ForwardingHostTextBox));
+
+    private TextBox ForwardingPortTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(ForwardingPortTextBox));
+
+    private CheckBox ForwardingEnabledCheckBox => TelemetryUdpViewControl.GetRequiredControl<CheckBox>(nameof(ForwardingEnabledCheckBox));
+
+    private TextBlock ForwardingEditorStatusText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(ForwardingEditorStatusText));
+
+    private ListBox ForwardingDestinationsListBox => TelemetryUdpViewControl.GetRequiredControl<ListBox>(nameof(ForwardingDestinationsListBox));
+
+    private TextBlock ForwardingDestinationsSummaryText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(ForwardingDestinationsSummaryText));
 
     private ComboBox OutputModeComboBox => DevicesViewControl.OutputModeComboBoxControl;
 

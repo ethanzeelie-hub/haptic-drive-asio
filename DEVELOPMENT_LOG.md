@@ -4165,6 +4165,94 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 23G - Telemetry / UDP View Extraction and Replay-Forwarding Presentation Seam
+
+Status: Complete.
+
+Goal: Continue the low-risk Stage 23 shell extraction strategy by moving the normal Telemetry / UDP page into a dedicated view/component and extracting only pure telemetry, recording, replay, and forwarding display shaping without moving runtime ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Telemetry / UDP seam before editing:
+  - `MainWindow.xaml` was 1640 lines,
+  - `MainWindow.xaml.cs` was 6500 lines,
+  - the normal Telemetry / UDP page still lived inline in `MainWindow.xaml`,
+  - replay/recording/forwarding display wording still lived directly in `MainWindow.xaml.cs`,
+  - replay timing, recording library, and forwarding controls still needed to preserve their existing names for settings, library refresh, and handler wiring.
+- Added dedicated Telemetry / UDP view files:
+  - `src/HapticDrive.Asio.App/Views/TelemetryUdpView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/TelemetryUdpView.xaml.cs`.
+- Added `src/HapticDrive.Asio.App/TelemetryUdpStatusPresenter.cs`:
+  - `TelemetryUdpStatusSnapshot`,
+  - `TelemetryUdpStatusPresentation`,
+  - `TelemetryUdpStatusPresenter`.
+- Moved the normal Telemetry / UDP layout into `TelemetryUdpView` while preserving the same operator-facing workflow sections and control identities:
+  - `Recording And Replay`,
+  - `UDP Forwarding Destinations`.
+- Kept runtime ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - UDP receiver ownership,
+  - parser / `VehicleState` integration,
+  - forwarding destination mutation and persistence execution,
+  - recording start/stop and library refresh execution,
+  - replay latest / selected / timing-mode execution,
+  - app settings save/load,
+  - startup/shutdown cleanup.
+- Added a narrow event-forwarding seam:
+  - `TelemetryUdpView` forwards the existing replay, recording-library, and forwarding interactions back to the current `MainWindow` handlers,
+  - no UDP socket ownership moved into the view,
+  - no replay/recording file IO moved into the view,
+  - no forwarding-destination persistence moved into the view.
+- Centralized only pure Telemetry / UDP display shaping through `TelemetryUdpStatusPresenter`:
+  - replay timing help text,
+  - recording button/status text,
+  - replay button/status text,
+  - forwarding-destination summary text,
+  - Telemetry / UDP page-status summary text.
+- Preserved existing control behavior by keeping control access in `MainWindow` through the extracted-view seam:
+  - existing control names remain intact inside `TelemetryUdpView`,
+  - `MainWindow` still owns replay timing preference persistence,
+  - `MainWindow` still owns recording-library refresh, selected-item mutation, rename/delete operations, and forwarding editor mutations,
+  - no UDP listener, replay timing, recording format, forwarding, parser, or persistence behavior changed.
+- Continued the shell reduction without broad architectural churn:
+  - `MainWindow.xaml` now hosts `TelemetryUdpViewControl` instead of the inline normal Telemetry / UDP page,
+  - `MainWindow.xaml.cs` now applies `TelemetryUdpStatusPresentation` instead of shaping those normal workflow strings inline,
+  - no MVVM rewrite,
+  - no new dependencies,
+  - no hardware/runtime-path ownership changes.
+- Added and updated stable tests:
+  - `TelemetryUdpStatusPresenterTests`,
+  - `TelemetryUdpStatusPresenterGuardrailTests`,
+  - `AppThemeResourceTests` updates for the extracted Telemetry / UDP view and host boundary.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+- Build verification was briefly blocked by a running local `HapticDrive.Asio.App.exe` instance locking the app binary; after stopping that process, the required build passed cleanly.
+
+Self-review:
+
+- Stage 23G is intentionally Telemetry / UDP presentation/component extraction only.
+- `MainWindow` remains the composition/runtime owner.
+- Telemetry / UDP remains the normal F1 25 UDP, recording, replay, recording-library, and forwarding workflow only.
+- No UDP listener behavior changed.
+- No forwarding behavior changed.
+- No recording/replay format or timing behavior changed.
+- No parser or `VehicleState` behavior changed.
+- No profile/persistence behavior changed.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
+
 ## Stage 23F - Routing / Mixer View Extraction and Safety-Routing Presentation Seam
 
 Status: Complete.

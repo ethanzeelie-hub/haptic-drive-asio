@@ -1,0 +1,175 @@
+<UserControl x:Class="HapticDrive.Asio.App.Views.TelemetryUdpView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="760"
+             d:DesignWidth="980">
+    <StackPanel x:Name="TelemetryUdpPanel">
+        <Border x:Name="RecordingsPanel"
+                Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <TextBlock FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="Recording And Replay" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           Text="Recording captures raw F1 25 UDP packets. Replay uses those saved packets for software testing through the same app pipeline." />
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               VerticalAlignment="Center"
+                               Text="Replay mode:" />
+                    <ComboBox x:Name="ReplayTimingModeComboBox"
+                              Grid.Column="1"
+                              Width="150"
+                              Margin="8,0,12,0"
+                              DisplayMemberPath="Label"
+                              SelectionChanged="ReplayTimingModeComboBox_SelectionChanged" />
+                    <TextBlock x:Name="ReplayTimingModeHelpText"
+                               Grid.Column="2"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource AppMutedTextBrush}"
+                               TextWrapping="Wrap" />
+                </Grid>
+                <WrapPanel Margin="0,16,0,0">
+                    <Button x:Name="RecordingsStartStopButton"
+                            Width="150"
+                            Margin="0,0,8,0"
+                            HorizontalAlignment="Left"
+                            Click="StartRecordingButton_Click"
+                            Content="Start Recording" />
+                    <Button x:Name="ReplayStartStopButton"
+                            Width="140"
+                            Margin="0,0,8,0"
+                            HorizontalAlignment="Left"
+                            Click="StartReplayButton_Click"
+                            Content="Replay Latest" />
+                    <Button Width="150"
+                            Margin="0,0,8,0"
+                            HorizontalAlignment="Left"
+                            Click="ReplaySelectedRecordingButton_Click"
+                            Content="Replay Selected" />
+                    <Button Width="130"
+                            Margin="0,0,8,0"
+                            HorizontalAlignment="Left"
+                            Click="RefreshRecordingsButton_Click"
+                            Content="Refresh Library" />
+                    <Button x:Name="DeleteSelectedRecordingButton"
+                            Width="140"
+                            Margin="0,0,8,0"
+                            HorizontalAlignment="Left"
+                            Click="DeleteSelectedRecordingButton_Click"
+                            Content="Delete Selected" />
+                    <Button x:Name="RenameSelectedRecordingButton"
+                            Width="150"
+                            HorizontalAlignment="Left"
+                            Click="RenameSelectedRecordingButton_Click"
+                            Content="Rename Selected" />
+                </WrapPanel>
+                <WrapPanel Margin="0,12,0,0">
+                    <TextBlock Margin="0,4,8,8"
+                               Foreground="{DynamicResource AppMutedTextBrush}"
+                               Text="Rename to" />
+                    <TextBox x:Name="RecordingRenameTextBox"
+                             Width="280"
+                             Margin="0,0,8,8"
+                             Style="{StaticResource FieldTextBoxStyle}" />
+                </WrapPanel>
+                <TextBlock x:Name="RecordingsDetailText"
+                           Margin="0,14,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}" />
+                <TextBlock x:Name="ReplayDetailText"
+                           Margin="0,8,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}" />
+                <ListBox x:Name="RecordingLibraryListBox"
+                         Height="180"
+                         Margin="0,14,0,0"
+                         Background="{DynamicResource AppSurfaceAltBrush}"
+                         BorderBrush="{DynamicResource AppBorderBrush}"
+                         DisplayMemberPath="DisplayText"
+                         Foreground="{DynamicResource AppTextBrush}"
+                         SelectionChanged="RecordingLibraryListBox_SelectionChanged" />
+                <TextBlock x:Name="RecordingLibraryStatusText"
+                           Margin="0,8,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}" />
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="ForwardingPanel"
+                Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <TextBlock FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="UDP Forwarding Destinations" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           Text="Forwarding sends the incoming F1 25 UDP packets byte-for-byte to each enabled destination." />
+                <UniformGrid Columns="2"
+                             Margin="0,18,0,0">
+                    <StackPanel Margin="0,0,24,0">
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Name" />
+                        <TextBox x:Name="ForwardingNameTextBox"
+                                 MaxWidth="320"
+                                 HorizontalAlignment="Left" />
+                        <TextBlock Margin="0,10,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Host / IP" />
+                        <TextBox x:Name="ForwardingHostTextBox"
+                                 MaxWidth="320"
+                                 HorizontalAlignment="Left"
+                                 Text="127.0.0.1" />
+                        <TextBlock Margin="0,10,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Port" />
+                        <TextBox x:Name="ForwardingPortTextBox"
+                                 MaxWidth="140"
+                                 HorizontalAlignment="Left"
+                                 Text="20779" />
+                        <CheckBox x:Name="ForwardingEnabledCheckBox"
+                                  Margin="0,12,0,0"
+                                  Content="Destination enabled"
+                                  IsChecked="True" />
+                        <WrapPanel Margin="0,14,0,0">
+                            <Button Width="150"
+                                    Margin="0,0,8,0"
+                                    Click="SaveForwardingDestinationButton_Click"
+                                    Content="Save Destination" />
+                            <Button Width="150"
+                                    Margin="0,0,8,0"
+                                    Click="RemoveForwardingDestinationButton_Click"
+                                    Content="Remove Selected" />
+                            <Button Width="90"
+                                    Click="ClearForwardingDestinationButton_Click"
+                                    Content="Clear" />
+                        </WrapPanel>
+                        <TextBlock x:Name="ForwardingEditorStatusText"
+                                   Margin="0,14,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="Configured destinations" />
+                        <ListBox x:Name="ForwardingDestinationsListBox"
+                                 Height="190"
+                                 Margin="0,8,0,0"
+                                 Background="{DynamicResource AppSurfaceAltBrush}"
+                                 BorderBrush="{DynamicResource AppBorderBrush}"
+                                 DisplayMemberPath="DisplayText"
+                                 Foreground="{DynamicResource AppTextBrush}"
+                                 SelectionChanged="ForwardingDestinationsListBox_SelectionChanged" />
+                        <TextBlock x:Name="ForwardingDestinationsSummaryText"
+                                   Margin="0,8,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+                    </StackPanel>
+                </UniformGrid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

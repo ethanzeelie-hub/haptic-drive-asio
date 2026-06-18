@@ -199,6 +199,26 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void MainWindowSourceContainsTelemetryUdpNavigationAndViewHost()
+    {
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("TelemetryUdpViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("TelemetryUdpViewControl.Visibility = isTelemetryPage", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("TelemetryUdpViewControl.Apply(BuildTelemetryUdpStatusPresentation());", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("TelemetryUdpStatusPresenter.Build(new TelemetryUdpStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DashboardViewDoesNotExposeRawHidOrReportCopy()
     {
         var dashboardXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DashboardView.xaml");
@@ -433,8 +453,8 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void RecordingsPageContainsReplayModeAndRenameControls()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var recordingsPanel = FindElementByXName(mainWindowXaml, "RecordingsPanel");
+        var telemetryXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TelemetryUdpView.xaml");
+        var recordingsPanel = FindElementByXName(telemetryXaml, "RecordingsPanel");
         var recordingsText = GetTextValues(recordingsPanel);
         var recordingsNames = GetXNameValues(recordingsPanel);
 
@@ -451,6 +471,28 @@ public sealed class AppThemeResourceTests
         Assert.Contains(
             recordingsText,
             text => text.Contains("Recording captures raw F1 25 UDP packets.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TelemetryUdpViewContainsForwardingEditorAndTopLevelWorkflowConcepts()
+    {
+        var telemetryXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TelemetryUdpView.xaml");
+        var telemetryPanel = FindElementByXName(telemetryXaml, "TelemetryUdpPanel");
+        var forwardingPanel = FindElementByXName(telemetryXaml, "ForwardingPanel");
+        var telemetryText = GetTextValues(telemetryPanel);
+        var forwardingNames = GetXNameValues(forwardingPanel);
+
+        Assert.Contains("ForwardingNameTextBox", forwardingNames);
+        Assert.Contains("ForwardingHostTextBox", forwardingNames);
+        Assert.Contains("ForwardingPortTextBox", forwardingNames);
+        Assert.Contains("ForwardingEnabledCheckBox", forwardingNames);
+        Assert.Contains("ForwardingDestinationsListBox", forwardingNames);
+        Assert.Contains(
+            telemetryText,
+            text => text.Contains("F1 25 UDP", StringComparison.Ordinal));
+        Assert.Contains("Recording And Replay", telemetryText);
+        Assert.Contains("Replay mode:", telemetryText);
+        Assert.Contains("UDP Forwarding Destinations", telemetryText);
     }
 
     [Fact]
@@ -497,12 +539,13 @@ public sealed class AppThemeResourceTests
         var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
         var effectsXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "EffectsView.xaml");
         var routingMixerXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "RoutingMixerView.xaml");
+        var telemetryXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TelemetryUdpView.xaml");
         var normalText = GetTextValues(FindElementByXName(devicesXaml, "DevicesPanel"))
             .Concat(GetTextValues(FindElementByXName(effectsXaml, "EffectsPanel")))
             .Concat(GetTextValues(FindElementByXName(routingMixerXaml, "MixerPanel")))
+            .Concat(GetTextValues(FindElementByXName(telemetryXaml, "TelemetryUdpPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "ProfilesPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "TestingPanel")))
-            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "RecordingsPanel")))
             .ToArray();
 
         Assert.DoesNotContain(normalText, text => text.Contains("Report ID", StringComparison.Ordinal));
