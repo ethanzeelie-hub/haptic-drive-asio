@@ -112,6 +112,7 @@
 - Stage 25A: Documentation baseline and audit closure complete.
 - Stage 25B: Durable quality gates complete.
 - Stage 25C: Runtime game-telemetry adapter seam complete.
+- Stage 25D: App-side game telemetry catalog and selected-game persistence baseline complete.
 
 ## Planned Stages
 
@@ -196,6 +197,7 @@
 79. Stage 25A: Documentation baseline and audit closure. Complete.
 80. Stage 25B: Durable quality gates. Complete.
 81. Stage 25C: Runtime game-telemetry adapter seam. Complete.
+82. Stage 25D: App-side game telemetry catalog and selected-game persistence baseline. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -239,7 +241,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25A aligned the repo documentation with the audited architecture baseline and explicitly recorded the remaining production-readiness gaps.
 - Stage 25B makes the existing verification routine durable by turning warnings into build failures, documenting the exact serial verification path, and adding a Windows GitHub Actions workflow that restores, builds, tests, format-checks, and runs launch preflight.
 - Stage 25C introduces a runtime-facing `IGameTelemetryAdapter` seam so parsing, packet descriptors, and `VehicleState` application now sit behind a game adapter contract with F1 25 as the default implementation.
-- Remaining quality work still includes game catalog/selection wiring, effect-engine extensibility, recording/replay scaling, atomic/schema-versioned persistence, and packaging/release automation.
+- Stage 25D adds an app-side game telemetry catalog plus persisted `SelectedGameId`, so the production app path now composes the runtime adapter explicitly even though the shipped catalog still contains only F1 25.
+- Remaining quality work still includes visible game selection UX when a second game exists, effect-engine extensibility, recording/replay scaling, atomic/schema-versioned persistence, and packaging/release automation.
 
 ## Post-BT-1 Hardware Phases
 

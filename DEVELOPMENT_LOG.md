@@ -4375,6 +4375,54 @@ Self-review:
 - F1 25 remains the only shipped production game and the default runtime adapter.
 - The runtime assembly still references the F1 25 project for the default adapter; later stages can move selection/composition further upward if needed.
 - No haptic effect behavior, ASIO/BST-1 behavior, P-HPR behavior, replay format, or persistence format changed.
+
+## Stage 25D - App-Side Game Telemetry Catalog and Selected-Game Persistence Baseline
+
+Status: Complete.
+
+Goal: Move the production app path onto explicit game-adapter composition and persisted selected-game identity without pretending the product already supports multiple shipped games.
+
+Changes:
+
+- Re-audited the post-25C composition path before editing:
+  - the runtime seam existed,
+  - the app still relied on the runtime's internal F1 default in normal pipeline construction,
+  - app settings had no selected-game identity,
+  - persisted-settings diagnostics could not report which game the runtime path was targeting.
+- Added `GameTelemetryCatalog` in `HapticDrive.Asio.App`:
+  - normalized game-id handling,
+  - current catalog entry for `f1-25`,
+  - adapter creation for the selected game,
+  - display-name lookup for diagnostics/status text.
+- Extended app settings and snapshot builders:
+  - persisted `SelectedGameId`,
+  - hydration snapshot support,
+  - save-input support,
+  - persisted-settings presentation now includes selected-game identity.
+- Updated `MainWindow` composition:
+  - selected game id now hydrates from persisted settings,
+  - normal pipeline creation now injects `GameTelemetryCatalog.CreateAdapter(_selectedGameId)` into `HapticPipelineCoordinator`,
+  - no runtime behavior, output behavior, or effect behavior changed.
+- Added focused tests:
+  - `GameTelemetryCatalogTests`,
+  - app-settings default/sanitization coverage for `SelectedGameId`,
+  - persisted-settings presenter assertions for the selected-game text.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 879 tests.
+- One first-pass full-solution run saw a transient failure in `PHprContinuousEffectsRuntimeCoordinatorTests.StartingSlipLockRuntimeWithValidTelemetry_RoutesThroughSlipLockRouterPath`; isolated rerun of `HapticDrive.Actuation.Tests` passed, and the repeated full-solution run passed cleanly.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed launch preflight.
+
+Self-review:
+
+- Stage 25D is still a baseline/composition stage, not visible multi-game UX.
+- F1 25 remains the only shipped production game and the only catalog entry.
+- The app now composes the adapter explicitly, but non-app callers can still rely on the runtime fallback until a later cleanup stage removes it.
+- No parser behavior, haptic effect behavior, ASIO/BST-1 behavior, P-HPR behavior, replay format, or persistence format beyond `SelectedGameId` changed.
 - No manual test behavior changed.
 - No validation harness behavior changed.
 - No profile/persistence boundary changed.

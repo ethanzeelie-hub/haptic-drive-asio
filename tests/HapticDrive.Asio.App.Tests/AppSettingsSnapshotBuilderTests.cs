@@ -137,6 +137,7 @@ public sealed class AppSettingsSnapshotBuilderTests
         var settings = AppSettingsSnapshotBuilder.BuildAppSettings(new AppSettingsSaveInputs(
             UseLightTheme: true,
             AdvancedDiagnosticsEnabled: true,
+            SelectedGameId: GameTelemetryCatalog.DefaultGameId,
             SelectedOutputKind: AudioOutputDeviceKind.Asio,
             PhprPedalsEnabledPreference: true,
             PhprPedalsModePreference: PhprPedalsModePreference.Direct,
@@ -267,6 +268,8 @@ public sealed class AppSettingsSnapshotBuilderTests
             SettingsError: null,
             UseLightTheme: false,
             ActiveProfileName: "Race",
+            SelectedGameId: GameTelemetryCatalog.DefaultGameId,
+            SelectedGameDisplayName: GameTelemetryCatalog.GetDisplayName(GameTelemetryCatalog.DefaultGameId),
             SelectedOutputKind: AudioOutputDeviceKind.Asio,
             PhprPedalsEnabledPreference: true,
             PhprPedalsModePreference: PhprPedalsModePreference.Direct,
@@ -297,6 +300,7 @@ public sealed class AppSettingsSnapshotBuilderTests
             MockPedalEffectsEnabled: true));
 
         Assert.Contains("Theme: Dark. Active profile: Race.", presentation.StatusText, StringComparison.Ordinal);
+        Assert.Contains("Saved game F1 25 (f1-25).", presentation.StatusText, StringComparison.Ordinal);
         Assert.Contains("Saved ASIO driver M-Audio; channel 1; Arm ASIO preference True.", presentation.StatusText, StringComparison.Ordinal);
         Assert.Contains("Saved P-HPR pedals enabled in Direct mode.", presentation.StatusText, StringComparison.Ordinal);
         Assert.Contains("Real P-HPR direct control disabled runtime-only.", presentation.StatusText, StringComparison.Ordinal);
@@ -304,6 +308,7 @@ public sealed class AppSettingsSnapshotBuilderTests
         Assert.Equal(
             @"App settings path: C:\Users\ethan\AppData\Local\HapticDrive.Asio\appsettings.json",
             presentation.PathText);
+        Assert.Contains("game F1 25 (f1-25)", presentation.DiagnosticsText, StringComparison.Ordinal);
         Assert.Contains("persisted P-HPR pedals enabled mode Direct", presentation.DiagnosticsText, StringComparison.Ordinal);
         Assert.Contains("persisted paddle mapping device wheel-1 left button 14 right button 13 debounce 6 ms", presentation.DiagnosticsText, StringComparison.Ordinal);
         Assert.Contains("flight-recorder history, and mock histories are not persisted.", presentation.DiagnosticsText, StringComparison.Ordinal);

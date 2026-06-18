@@ -878,3 +878,11 @@
 - `HapticEffectEngine` still uses a fixed-list composition model, so adding more effects or game-specific effect sets will continue to increase central orchestration pressure until a registration-style seam exists.
 - App settings and profiles do not yet persist a selected game/runtime adapter identity because F1 25 remains the only shipped production game.
 - Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
+
+## Stage 25D
+
+- The app now persists `SelectedGameId` and composes the runtime adapter through `GameTelemetryCatalog`, but the catalog still contains only F1 25 and there is no user-facing game picker yet.
+- The runtime still keeps an internal F1 25 default adapter as a compatibility fallback for non-app callers and older tests; removing that fallback remains future cleanup once composition is explicit everywhere.
+- Packet diagnostics and persisted-settings status now carry selected-game information, but recordings metadata, profile naming, and broader UX are still F1-25-first rather than fully game-agnostic.
+- `HapticEffectEngine` still uses a fixed-list composition model, so adding more effects or game-specific effect sets will continue to increase central orchestration pressure until a registration-style seam exists.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.

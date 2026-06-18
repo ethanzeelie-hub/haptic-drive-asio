@@ -12,6 +12,8 @@ public sealed class AppSettingsStoreTests
     [Fact]
     public void RealPhprGearPulseDefaultsUseTenPercentFiftyHzFiftyMs()
     {
+        Assert.Equal(GameTelemetryCatalog.DefaultGameId, AppSettings.Default.SelectedGameId);
+
         var brake = AppSettings.Default.RealPhprGearPulseRouting.Brake;
         var throttle = AppSettings.Default.RealPhprGearPulseRouting.Throttle;
 
@@ -126,6 +128,23 @@ public sealed class AppSettingsStoreTests
         Assert.DoesNotContain("DirectControlEnabled", json, StringComparison.Ordinal);
         Assert.DoesNotContain("DirectControlArmed", json, StringComparison.Ordinal);
         Assert.DoesNotContain("DevicePath", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SelectedGameId_IsSanitizedToKnownCatalogValue()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var store = new AppSettingsStore(path);
+
+        store.Save(new AppSettings
+        {
+            SelectedGameId = "not-a-real-game"
+        });
+
+        var loaded = store.Load();
+
+        Assert.Equal(GameTelemetryCatalog.DefaultGameId, loaded.SelectedGameId);
     }
 
     [Fact]

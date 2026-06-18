@@ -88,6 +88,7 @@ internal sealed class AppSettingsStore
 
         return settings with
         {
+            SelectedGameId = GameTelemetryCatalog.NormalizeGameId(settings.SelectedGameId),
             PreferredOutputMode = settings.PreferredOutputMode is null
                 ? null
                 : Enum.IsDefined(settings.PreferredOutputMode.Value)
@@ -391,6 +392,8 @@ internal sealed record AppSettings
     public bool UseLightTheme { get; init; }
 
     public bool AdvancedDiagnosticsEnabled { get; init; }
+
+    public string SelectedGameId { get; init; } = GameTelemetryCatalog.DefaultGameId;
 
     public AudioOutputDeviceKind? PreferredOutputMode { get; init; }
 

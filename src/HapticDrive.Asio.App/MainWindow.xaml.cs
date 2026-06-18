@@ -203,6 +203,7 @@ public partial class MainWindow : Window
     private bool _startupAsioDefaultsApplied;
     private bool _shutdownCleanupStarted;
     private bool _shutdownCleanupCompleted;
+    private string _selectedGameId = GameTelemetryCatalog.DefaultGameId;
     private AudioOutputDeviceKind _selectedOutputKind = AudioOutputDeviceKind.Null;
     private string? _selectedAsioDriverName;
     private int? _selectedAsioOutputChannel;
@@ -278,6 +279,7 @@ public partial class MainWindow : Window
         _settingsError = appSettings.SettingsError;
         _lightTheme = appSettings.UseLightTheme;
         _advancedDiagnosticsEnabled = appSettings.AdvancedDiagnosticsEnabled;
+        _selectedGameId = appSettings.SelectedGameId;
         _hasPersistedOutputModePreference = appSettings.HasPersistedOutputModePreference;
         _phprPedalsEnabledPreference = appSettings.PhprPedalsEnabledPreference;
         _phprPedalsModePreference = appSettings.PhprPedalsModePreference;
@@ -1627,7 +1629,8 @@ public partial class MainWindow : Window
             configuration,
             CreateSelectedOutputDevice(),
             profile: _currentProfile,
-            forwardingDestinations: CreateForwardingDestinations());
+            forwardingDestinations: CreateForwardingDestinations(),
+            telemetryGameAdapter: GameTelemetryCatalog.CreateAdapter(_selectedGameId));
         pipeline.SetManualAsioHardwareTestFlightRecorder(
             new FileManualAsioHardwareTestFlightRecorder(GetLocalValidationResultsDirectory()));
         return pipeline;
@@ -2886,6 +2889,7 @@ public partial class MainWindow : Window
         return new AppSettingsSaveInputs(
             UseLightTheme: _lightTheme,
             AdvancedDiagnosticsEnabled: _advancedDiagnosticsEnabled,
+            SelectedGameId: _selectedGameId,
             SelectedOutputKind: _selectedOutputKind,
             PhprPedalsEnabledPreference: _phprPedalsEnabledPreference,
             PhprPedalsModePreference: _phprPedalsModePreference,
@@ -4244,6 +4248,8 @@ public partial class MainWindow : Window
             SettingsError: _settingsError,
             UseLightTheme: _lightTheme,
             ActiveProfileName: _currentProfile.Name,
+            SelectedGameId: _selectedGameId,
+            SelectedGameDisplayName: GameTelemetryCatalog.GetDisplayName(_selectedGameId),
             SelectedOutputKind: _selectedOutputKind,
             PhprPedalsEnabledPreference: _phprPedalsEnabledPreference,
             PhprPedalsModePreference: _phprPedalsModePreference,

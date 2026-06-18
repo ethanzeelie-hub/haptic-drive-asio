@@ -2429,3 +2429,16 @@ Stage 25C architecture result:
 - Runtime packet-result status is now expressed through a game-agnostic core parse-status enum instead of the F1 25-specific enum.
 
 Stage 25C deliberately does not add a second game, app-level game selection, game-specific profile branching, or effect/plugin registration. It narrows the main coordinator boundary first so later game additions have a smaller blast radius.
+
+## Stage 25D App-Side Game Telemetry Catalog Baseline
+
+Stage 25D moves the production app path one step further toward future multi-game support without claiming a second shipped game.
+
+Stage 25D architecture result:
+
+- The app now owns the selected-game composition path through `GameTelemetryCatalog`.
+- App settings now persist a normalized `SelectedGameId`.
+- `MainWindow` now creates `HapticPipelineCoordinator` with an explicit adapter from the catalog instead of relying on the runtime default in the normal app path.
+- Persisted-settings status/diagnostics now include the selected game identity.
+
+Stage 25D deliberately does not add a visible game-selection UI, a second game adapter, game-specific recordings metadata, or game-specific profile branching. It establishes the settings/composition baseline first.
