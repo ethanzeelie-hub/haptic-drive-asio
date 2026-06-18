@@ -1,0 +1,260 @@
+<UserControl x:Class="HapticDrive.Asio.App.Views.DevicesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="760"
+             d:DesignWidth="980">
+    <StackPanel x:Name="DevicesPanel">
+        <Border Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                               Text="Bass Shaker / ASIO" />
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource StatusBadgeTextBlockStyle}"
+                               Text="Audio path" />
+                </Grid>
+                <TextBlock x:Name="CurrentOutputStatusText"
+                           Margin="0,12,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <TextBlock x:Name="NullOutputStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <TextBlock x:Name="WasapiDebugStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <TextBlock x:Name="AsioStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <WrapPanel Margin="0,16,0,0">
+                    <ComboBox x:Name="OutputModeComboBox"
+                              Width="160"
+                              Margin="0,0,8,8"
+                              DisplayMemberPath="Label"
+                              SelectionChanged="OutputModeComboBox_SelectionChanged" />
+                    <Button Width="132"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="RefreshAsioButton_Click"
+                            Content="Refresh ASIO" />
+                    <ComboBox x:Name="AsioDriverComboBox"
+                              Width="280"
+                              Margin="0,0,8,8"
+                              SelectionChanged="AsioDriverComboBox_SelectionChanged" />
+                    <ComboBox x:Name="AsioOutputChannelComboBox"
+                              Width="120"
+                              Margin="0,0,8,8"
+                              SelectionChanged="AsioOutputChannelComboBox_SelectionChanged" />
+                    <CheckBox x:Name="AsioArmCheckBox"
+                              Margin="0,4,8,8"
+                              Checked="AsioArmCheckBox_Changed"
+                              Unchecked="AsioArmCheckBox_Changed"
+                              Content="Arm ASIO" />
+                </WrapPanel>
+                <TextBlock x:Name="AsioReadinessStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <TextBlock x:Name="HardwareChainStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+
+                <TextBlock x:Name="TrueAsioStatusText"
+                           Margin="0,10,0,0"
+                           FontWeight="SemiBold"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <TextBlock Margin="0,18,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}"
+                           Text="Manual BST-1 pulse checks now live on Testing / Validation. Devices keeps ASIO selection, readiness, and quick status." />
+                <TextBlock Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}"
+                           Text="Use Testing / Validation for short BST-1 pulse checks and channel confirmation." />
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                               Text="Simagic P-HPR Pedals" />
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource StatusBadgeTextBlockStyle}"
+                               Text="Ready state" />
+                </Grid>
+                <WrapPanel Margin="0,16,0,0">
+                    <CheckBox x:Name="PhprPedalsMasterEnableCheckBox"
+                              Margin="0,4,18,8"
+                              Checked="PhprPedalsControl_Changed"
+                              Unchecked="PhprPedalsControl_Changed"
+                              Content="Enable P-HPR Pedals" />
+                    <ComboBox x:Name="PhprPedalsModeComboBox"
+                              Width="160"
+                              Margin="0,0,8,8"
+                              DisplayMemberPath="Label"
+                              SelectionChanged="PhprPedalsModeComboBox_SelectionChanged" />
+                    <Button Width="150"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource DangerButtonStyle}"
+                            Click="PhprPedalsEmergencyStopButton_Click"
+                            Content="Emergency Stop" />
+                    <Button Width="190"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="ClearPhprPedalsEmergencyStopButton_Click"
+                            Content="Clear Emergency Stop" />
+                    <Button Width="230"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="PhprPedalsStopAllClearDeviceStateButton_Click"
+                            Content="P-HPR Stop All / Clear Device State" />
+                </WrapPanel>
+                <TextBlock Margin="0,14,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}"
+                           Text="Choose Disabled, Mock, or Direct here. Normal gear, road, slip, and lock tuning stays on Effects. Manual pedal checks stay on Testing / Validation." />
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource SectionHeadingTextBlockStyle}"
+                               Text="Simagic Wheel / Shift Paddles" />
+                    <TextBlock x:Name="PaddleInputBadgeText"
+                               Grid.Column="1"
+                               Style="{StaticResource StatusBadgeTextBlockStyle}"
+                               Text="Listener stopped" />
+                </Grid>
+                <WrapPanel Margin="0,16,0,0">
+                    <Button Width="170"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="RefreshInputDevicesButton_Click"
+                            Content="Refresh Input Devices" />
+                    <ComboBox x:Name="PaddleInputDeviceComboBox"
+                              Width="360"
+                              Margin="0,0,8,8"
+                              SelectionChanged="PaddleInputDeviceComboBox_SelectionChanged" />
+                    <Button x:Name="StartPaddleInputListenerButton"
+                            Width="145"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Click="StartPaddleInputListenerButton_Click"
+                            Content="Start Listener" />
+                    <Button x:Name="StopPaddleInputListenerButton"
+                            Width="135"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="StopPaddleInputListenerButton_Click"
+                            Content="Stop Listener" />
+                </WrapPanel>
+                <WrapPanel Margin="0,2,0,0">
+                    <TextBlock Margin="0,4,6,8"
+                               Style="{StaticResource MutedTextBlockStyle}"
+                               Text="Left" />
+                    <TextBox x:Name="LeftPaddleButtonTextBox"
+                             Width="72"
+                             Margin="0,0,8,8"
+                             Style="{StaticResource FieldTextBoxStyle}"
+                             LostFocus="PaddleMappingControl_LostFocus" />
+                    <Button Width="210"
+                            Margin="0,0,14,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="SetLeftPaddleFromLastChangedButton_Click"
+                            Content="Set Left From Last Button" />
+                    <TextBlock Margin="0,4,6,8"
+                               Style="{StaticResource MutedTextBlockStyle}"
+                               Text="Right" />
+                    <TextBox x:Name="RightPaddleButtonTextBox"
+                             Width="72"
+                             Margin="0,0,8,8"
+                             Style="{StaticResource FieldTextBoxStyle}"
+                             LostFocus="PaddleMappingControl_LostFocus" />
+                    <Button Width="220"
+                            Margin="0,0,14,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="SetRightPaddleFromLastChangedButton_Click"
+                            Content="Set Right From Last Button" />
+                    <TextBlock Margin="0,4,6,8"
+                               Style="{StaticResource MutedTextBlockStyle}"
+                               Text="Debounce ms" />
+                    <TextBox x:Name="PaddleDebounceTextBox"
+                             Width="72"
+                             Margin="0,0,8,8"
+                             Style="{StaticResource FieldTextBoxStyle}"
+                             LostFocus="PaddleMappingControl_LostFocus" />
+                </WrapPanel>
+                <TextBlock x:Name="InputDiscoveryStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <ItemsControl x:Name="InputDiscoveryItemsControl"
+                              Margin="0,10,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Margin="0,0,0,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="PaddleInputStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <ItemsControl x:Name="PaddleInputItemsControl"
+                              Margin="0,10,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Margin="0,0,0,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <WrapPanel Margin="0,12,0,0">
+                    <CheckBox x:Name="ShiftIntentEnabledCheckBox"
+                              Margin="0,4,12,8"
+                              Checked="ShiftIntentEnabledCheckBox_Changed"
+                              Unchecked="ShiftIntentEnabledCheckBox_Changed"
+                              Content="Enable Shift Intent" />
+                    <ComboBox x:Name="ShiftIntentModeComboBox"
+                              Width="260"
+                              Margin="0,0,8,8"
+                              SelectionChanged="ShiftIntentModeComboBox_SelectionChanged" />
+                    <Button Width="190"
+                            Margin="0,0,8,8"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="ClearShiftIntentDiagnosticsButton_Click"
+                            Content="Clear Intent Counters" />
+                </WrapPanel>
+                <TextBlock x:Name="ShiftIntentStatusText"
+                           Margin="0,8,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}" />
+                <ItemsControl x:Name="ShiftIntentItemsControl"
+                              Margin="0,10,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Margin="0,0,0,8"
+                                       Style="{StaticResource MutedTextBlockStyle}"
+                                       Text="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Margin="0,18,0,0"
+                           Style="{StaticResource MutedTextBlockStyle}"
+                           Text="Detailed paddle bench and validation tools now live on Testing / Validation. Devices keeps wheel setup, mapping, and readiness status." />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

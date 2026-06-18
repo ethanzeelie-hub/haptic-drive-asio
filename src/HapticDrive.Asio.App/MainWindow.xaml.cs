@@ -367,6 +367,27 @@ public partial class MainWindow : Window
         _updatingSettingsUi = true;
         InitializeComponent();
 
+        DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
+        DevicesViewControl.RefreshAsioClicked += RefreshAsioButton_Click;
+        DevicesViewControl.AsioDriverSelectionChanged += AsioDriverComboBox_SelectionChanged;
+        DevicesViewControl.AsioOutputChannelSelectionChanged += AsioOutputChannelComboBox_SelectionChanged;
+        DevicesViewControl.AsioArmChanged += AsioArmCheckBox_Changed;
+        DevicesViewControl.PhprPedalsControlChanged += PhprPedalsControl_Changed;
+        DevicesViewControl.PhprPedalsModeSelectionChanged += PhprPedalsModeComboBox_SelectionChanged;
+        DevicesViewControl.PhprPedalsEmergencyStopClicked += PhprPedalsEmergencyStopButton_Click;
+        DevicesViewControl.ClearPhprPedalsEmergencyStopClicked += ClearPhprPedalsEmergencyStopButton_Click;
+        DevicesViewControl.PhprPedalsStopAllClearDeviceStateClicked += PhprPedalsStopAllClearDeviceStateButton_Click;
+        DevicesViewControl.RefreshInputDevicesClicked += RefreshInputDevicesButton_Click;
+        DevicesViewControl.PaddleInputDeviceSelectionChanged += PaddleInputDeviceComboBox_SelectionChanged;
+        DevicesViewControl.StartPaddleInputListenerClicked += StartPaddleInputListenerButton_Click;
+        DevicesViewControl.StopPaddleInputListenerClicked += StopPaddleInputListenerButton_Click;
+        DevicesViewControl.PaddleMappingLostFocus += PaddleMappingControl_LostFocus;
+        DevicesViewControl.SetLeftPaddleFromLastChangedClicked += SetLeftPaddleFromLastChangedButton_Click;
+        DevicesViewControl.SetRightPaddleFromLastChangedClicked += SetRightPaddleFromLastChangedButton_Click;
+        DevicesViewControl.ShiftIntentEnabledChanged += ShiftIntentEnabledCheckBox_Changed;
+        DevicesViewControl.ShiftIntentModeSelectionChanged += ShiftIntentModeComboBox_SelectionChanged;
+        DevicesViewControl.ClearShiftIntentDiagnosticsClicked += ClearShiftIntentDiagnosticsButton_Click;
+
         NavigationList.ItemsSource = _pages;
         NavigationList.SelectedIndex = 0;
         OutputModeComboBox.ItemsSource = _outputModeOptions;
@@ -515,7 +536,7 @@ public partial class MainWindow : Window
             MixerPanel.Visibility = page.NavigationLabel == "Routing / Mixer"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            DevicesPanel.Visibility = page.NavigationLabel == "Devices"
+            DevicesViewControl.Visibility = page.NavigationLabel == "Devices"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             var isTelemetryPage = page.NavigationLabel == "Telemetry / UDP";
@@ -3812,12 +3833,12 @@ public partial class MainWindow : Window
     private void UpdateManualAsioHardwareTestStatus()
     {
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
-        TrueAsioStatusText.Text = BuildTrueAsioStatusText(snapshot);
         ManualAsioHardwareStatusText.Text =
             $"BST-1 channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; driver {snapshot.SelectedAsioDriver}; armed {snapshot.AsioArmed}; haptics {(snapshot.HapticsRunning ? "running" : "stopped")}; peak {snapshot.ManualPulsePeak:0.000}.";
         ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason is null
             ? $"{Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot)}; {_lastBst1PaddleGearPulseMessage}"
             : Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot);
+        UpdateDevicesPresentation();
     }
 
     private void ApplyBst1PulseSettingsToControls()
@@ -4007,12 +4028,8 @@ public partial class MainWindow : Window
     {
         var snapshot = _hapticPipeline.GetSnapshot();
         var status = snapshot.Output;
-        CurrentOutputStatusText.Text = $"Current output: {status.DisplayName} ({status.State}); {status.StatusMessage}";
-        NullOutputStatusText.Text = "Null output: the safe default when you are not ready to drive hardware.";
-        WasapiDebugStatusText.Text = "WASAPI debug: manual fallback only. It is never selected automatically.";
-        AsioStatusText.Text = _asioVisibilitySnapshot.Message;
-        AsioReadinessStatusText.Text = $"{BuildTrueAsioStatusText(_hapticPipeline.GetManualAsioHardwareTestSnapshot())}; driver {(_selectedAsioDriverName ?? "none")}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {FormatOnOff(_asioArmed)}.";
-        HardwareChainStatusText.Text = _asioReadinessSnapshot.HardwareChainWarning;
+        var presentation = BuildDevicesStatusPresentation();
+        DevicesViewControl.Apply(presentation);
         UpdateManualAsioHardwareTestStatus();
         UpdatePhprSoftwareCoexistenceStatus();
         UpdatePhprControlledWriteReadinessStatus();
@@ -4031,10 +4048,87 @@ public partial class MainWindow : Window
 
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Devices" })
         {
-            PageStatusText.Text = status.RequiresPhysicalHardware
-                ? "Hardware output is selected. Confirm readiness here, use Testing / Validation for checks, and keep haptics stopped until you are ready."
-                : $"Safe startup mode active; output {status.DisplayName}; input devices {(_inputDiscoverySnapshot.HasRun ? _inputDiscoverySnapshot.DeviceCount.ToString("N0") : "not refreshed")}; paddle listener {_paddleInputSource.GetPaddleSnapshot().Status}; P-HPR mode {GetSelectedPhprPedalsMode()}.";
+            PageStatusText.Text = presentation.DevicesPageStatusText;
         }
+    }
+
+    private void UpdateDevicesPresentation()
+    {
+        DevicesViewControl.Apply(BuildDevicesStatusPresentation());
+    }
+
+    private DevicesStatusPresentation BuildDevicesStatusPresentation()
+    {
+        var outputSnapshot = _hapticPipeline.GetSnapshot().Output;
+        var manualAsioSnapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
+        var inputDiscoverySnapshot = _inputDiscoverySnapshot;
+        var paddleSnapshot = _paddleInputSource.GetPaddleSnapshot();
+        var selectedComboItem = PaddleInputDeviceComboBox.SelectedItem as PaddleDeviceListItem;
+        var selectionBlocker = BuildPaddleInputSelectionBlocker();
+        var selectedText = paddleSnapshot.SelectedDevice is null
+            ? selectedComboItem is not null
+                ? selectedComboItem.DisplayText
+                : _paddleMapping.SelectedDeviceId is null ? "none" : $"saved {_paddleMapping.SelectedDeviceId}"
+            : $"{paddleSnapshot.SelectedDevice.DisplayName} ({paddleSnapshot.SelectedDevice.Method})";
+        var selectedButtonCount = selectedComboItem is null
+            ? "none"
+            : $"{PaddleInputDeviceSelector.GetUsableButtonCount(selectedComboItem.Device):N0}";
+        var shiftIntentDiagnostics = _shiftIntentProcessor.GetDiagnosticsSnapshot();
+        var drivingSnapshot = _drivingArmedStateService.GetSnapshot();
+        var wheelInputCandidates = inputDiscoverySnapshot.HasRun
+            ? _wheelInputCandidateProvider.GetCandidates(inputDiscoverySnapshot)
+            : [];
+
+        return DevicesStatusPresenter.Build(new DevicesStatusSnapshot(
+            CurrentOutputDisplayName: outputSnapshot.DisplayName,
+            CurrentOutputState: outputSnapshot.State.ToString(),
+            CurrentOutputStatusMessage: outputSnapshot.StatusMessage,
+            AsioVisibilityMessage: _asioVisibilitySnapshot.Message,
+            TrueAsioStatusText: BuildTrueAsioStatusText(manualAsioSnapshot),
+            SelectedAsioDriverName: _selectedAsioDriverName,
+            SelectedAsioOutputChannel: _selectedAsioOutputChannel,
+            AsioArmed: _asioArmed,
+            HardwareChainWarning: _asioReadinessSnapshot.HardwareChainWarning,
+            OutputRequiresPhysicalHardware: outputSnapshot.RequiresPhysicalHardware,
+            InputDiscoveryHasRun: inputDiscoverySnapshot.HasRun,
+            InputDiscoveryLocalRefreshText: inputDiscoverySnapshot.HasRun ? inputDiscoverySnapshot.DiscoveredAtUtc.ToLocalTime().ToString("g") : null,
+            InputDiscoveryDeviceCount: inputDiscoverySnapshot.DeviceCount,
+            InputDiscoveryReadOnlyDiscoverySucceeded: inputDiscoverySnapshot.ReadOnlyDiscoverySucceeded,
+            InputDiscoveryLikelyCandidatesText: FormatInputCandidates(inputDiscoverySnapshot.LikelyGtNeoWheelInputCandidates),
+            InputDiscoverySavedCandidatesText: FormatInputCandidates(wheelInputCandidates),
+            InputDiscoveryMethodText: FormatDiscoveryMethods(inputDiscoverySnapshot.Methods),
+            InputDiscoveryErrorText: inputDiscoverySnapshot.Errors.Count == 0 ? "none" : string.Join("; ", inputDiscoverySnapshot.Errors),
+            PaddleListenerStatus: paddleSnapshot.Status,
+            PaddleSelectedText: selectedText,
+            PaddlePressCount: paddleSnapshot.PaddlePressCount,
+            PaddleLastMappedText: paddleSnapshot.LastPaddleEvent is null
+                ? "none"
+                : $"{paddleSnapshot.LastPaddleEvent.PaddleSide} paddle button {paddleSnapshot.LastPaddleEvent.ButtonId} at {paddleSnapshot.LastPaddleEvent.TimestampUtc.ToLocalTime():T}",
+            PaddleLeftButtonMappingText: FormatButtonMapping(paddleSnapshot.Mapping.LeftPaddleButtonId),
+            PaddleRightButtonMappingText: FormatButtonMapping(paddleSnapshot.Mapping.RightPaddleButtonId),
+            PaddleDebounceMilliseconds: paddleSnapshot.Mapping.DebounceDuration.TotalMilliseconds,
+            PaddleSelectedButtonCountText: selectedButtonCount,
+            PaddleLastRawText: paddleSnapshot.LastChangedButtonId is null
+                ? "none"
+                : $"button {paddleSnapshot.LastChangedButtonId} {paddleSnapshot.LastChangedButtonState}",
+            PaddleErrorText: paddleSnapshot.LastErrorMessage ?? "none",
+            PaddleSelectionBlocker: selectionBlocker,
+            ShiftIntentEnabled: shiftIntentDiagnostics.IsEnabled,
+            ShiftIntentModeText: shiftIntentDiagnostics.Mode.ToString(),
+            DrivingArmed: drivingSnapshot.Current.IsArmed,
+            ShiftIntentAcceptedCount: shiftIntentDiagnostics.AcceptedShiftIntentCount,
+            ShiftIntentSuppressedCount: shiftIntentDiagnostics.SuppressedShiftIntentCount,
+            ShiftIntentTelemetryAgeText: drivingSnapshot.LastTelemetryAge is null
+                ? "none"
+                : $"{drivingSnapshot.LastTelemetryAge.Value.TotalMilliseconds:0} ms",
+            ShiftIntentMenuSafeModeEnabled: drivingSnapshot.MenuSafeModeEnabled,
+            ShiftIntentLastAcceptedText: shiftIntentDiagnostics.LastAcceptedEvent is null
+                ? "none"
+                : $"{shiftIntentDiagnostics.LastAcceptedEvent.Direction} at {shiftIntentDiagnostics.LastAcceptedEvent.TimestampUtc.ToLocalTime():T}, gear {FormatOptionalInt(shiftIntentDiagnostics.LastAcceptedEvent.LastTelemetryGear)}",
+            ShiftIntentLastSuppressedText: shiftIntentDiagnostics.LastSuppressedEvent is null
+                ? "none"
+                : $"{shiftIntentDiagnostics.LastSuppressedEvent.PaddleEvent.PaddleSide} at {shiftIntentDiagnostics.LastSuppressedEvent.EvaluatedAtUtc.ToLocalTime():T}: {shiftIntentDiagnostics.LastSuppressedEvent.SuppressionReason}",
+            SelectedPhprModeText: GetSelectedPhprPedalsMode().ToString()));
     }
 
     private void UpdateProfileStatus(string? message = null, IReadOnlyList<string>? validationMessages = null)
@@ -4099,78 +4193,12 @@ public partial class MainWindow : Window
 
     private void UpdateInputDiscoveryStatus()
     {
-        if (!_inputDiscoverySnapshot.HasRun)
-        {
-            InputDiscoveryStatusText.Text = "Input devices have not been refreshed yet. Use Refresh Input Devices before choosing the wheel input.";
-            InputDiscoveryItemsControl.ItemsSource = new[]
-            {
-                "Refresh is read-only and safe.",
-                "Choose the wheel input after refresh.",
-                "Start the listener only when you want live paddle input."
-            };
-            return;
-        }
-
-        var snapshot = _inputDiscoverySnapshot;
-        var localRefreshTime = snapshot.DiscoveredAtUtc.ToLocalTime().ToString("g");
-        var methodText = FormatDiscoveryMethods(snapshot.Methods);
-        var errorText = snapshot.Errors.Count == 0 ? "none" : string.Join("; ", snapshot.Errors);
-        var candidates = _wheelInputCandidateProvider.GetCandidates(snapshot);
-
-        InputDiscoveryStatusText.Text =
-            $"Input devices refreshed {localRefreshTime}; {snapshot.DeviceCount:N0} device(s) found; status {(snapshot.ReadOnlyDiscoverySucceeded ? "ready" : "warnings")}.";
-        InputDiscoveryItemsControl.ItemsSource = new[]
-        {
-            $"Wheel input options: {FormatInputCandidates(snapshot.LikelyGtNeoWheelInputCandidates)}",
-            $"Saved selection candidates: {FormatInputCandidates(candidates)}",
-            $"Refresh methods {methodText}; errors {errorText}"
-        };
+        UpdateDevicesPresentation();
     }
 
     private void UpdatePaddleInputStatus()
     {
-        var snapshot = _paddleInputSource.GetPaddleSnapshot();
-        var selectedComboItem = PaddleInputDeviceComboBox.SelectedItem as PaddleDeviceListItem;
-        var selectedText = snapshot.SelectedDevice is null
-            ? selectedComboItem is not null
-                ? $"{selectedComboItem.DisplayText}"
-                : _paddleMapping.SelectedDeviceId is null ? "none" : $"saved {_paddleMapping.SelectedDeviceId}"
-            : $"{snapshot.SelectedDevice.DisplayName} ({snapshot.SelectedDevice.Method})";
-        var lastRaw = snapshot.LastChangedButtonId is null
-            ? "none"
-            : $"button {snapshot.LastChangedButtonId} {snapshot.LastChangedButtonState}";
-        var lastMapped = snapshot.LastPaddleEvent is null
-            ? "none"
-            : $"{snapshot.LastPaddleEvent.PaddleSide} paddle button {snapshot.LastPaddleEvent.ButtonId} at {snapshot.LastPaddleEvent.TimestampUtc.ToLocalTime():T}";
-        var error = snapshot.LastErrorMessage ?? "none";
-        var selectionBlocker = BuildPaddleInputSelectionBlocker();
-        var selectedButtonCount = selectedComboItem is null
-            ? "none"
-            : $"{PaddleInputDeviceSelector.GetUsableButtonCount(selectedComboItem.Device):N0}";
-
-        StartPaddleInputListenerButton.IsEnabled = snapshot.Status is not InputListenerStatus.Listening
-            and not InputListenerStatus.Starting
-            && selectionBlocker is null;
-        StartPaddleInputListenerButton.ToolTip = selectionBlocker is null
-            ? "Start the read-only Windows game-controller paddle listener."
-            : $"Blocked: {selectionBlocker}";
-        StopPaddleInputListenerButton.IsEnabled = snapshot.Status is InputListenerStatus.Listening
-            or InputListenerStatus.Starting
-            or InputListenerStatus.Error
-            or InputListenerStatus.Disconnected;
-        PaddleInputBadgeText.Text = snapshot.Status is InputListenerStatus.Listening
-            ? "Listening"
-            : "Listener stopped";
-        PaddleInputStatusText.Text =
-            snapshot.Status is InputListenerStatus.Listening
-                ? $"Paddle listener is running on {selectedText}; mapped presses {snapshot.PaddlePressCount:N0}; last mapped input {lastMapped}."
-                : $"Paddle listener is stopped; selected {selectedText}; {(selectionBlocker is null ? "ready to start" : $"blocked: {selectionBlocker}")}.";
-        PaddleInputItemsControl.ItemsSource = new[]
-        {
-            $"Mappings: left {FormatButtonMapping(snapshot.Mapping.LeftPaddleButtonId)}, right {FormatButtonMapping(snapshot.Mapping.RightPaddleButtonId)}.",
-            $"Debounce {snapshot.Mapping.DebounceDuration.TotalMilliseconds:0} ms; usable buttons {selectedButtonCount}.",
-            $"Last raw input {lastRaw}; error {error}"
-        };
+        UpdateDevicesPresentation();
     }
 
     private string? BuildPaddleInputSelectionBlocker()
@@ -4205,26 +4233,7 @@ public partial class MainWindow : Window
 
     private void UpdateShiftIntentStatus()
     {
-        var diagnostics = _shiftIntentProcessor.GetDiagnosticsSnapshot();
-        var driving = _drivingArmedStateService.GetSnapshot();
-        var lastAccepted = diagnostics.LastAcceptedEvent is null
-            ? "none"
-            : $"{diagnostics.LastAcceptedEvent.Direction} at {diagnostics.LastAcceptedEvent.TimestampUtc.ToLocalTime():T}, gear {FormatOptionalInt(diagnostics.LastAcceptedEvent.LastTelemetryGear)}";
-        var lastSuppressed = diagnostics.LastSuppressedEvent is null
-            ? "none"
-            : $"{diagnostics.LastSuppressedEvent.PaddleEvent.PaddleSide} at {diagnostics.LastSuppressedEvent.EvaluatedAtUtc.ToLocalTime():T}: {diagnostics.LastSuppressedEvent.SuppressionReason}";
-        var telemetryAge = driving.LastTelemetryAge is null
-            ? "none"
-            : $"{driving.LastTelemetryAge.Value.TotalMilliseconds:0} ms";
-
-        ShiftIntentStatusText.Text =
-            $"Shift intent {(diagnostics.IsEnabled ? "enabled" : "disabled")}; mode {diagnostics.Mode}; driving state {(driving.Current.IsArmed ? "armed" : "not armed")}; accepted {diagnostics.AcceptedShiftIntentCount:N0}; suppressed {diagnostics.SuppressedShiftIntentCount:N0}.";
-        ShiftIntentItemsControl.ItemsSource = new[]
-        {
-            "Mapped paddle presses can become local gear-shift haptics when enabled.",
-            $"Driving state {(driving.Current.IsArmed ? "armed" : "not armed")}; telemetry age {telemetryAge}; menu safe {driving.MenuSafeModeEnabled}.",
-            $"Last accepted {lastAccepted}; last blocked {lastSuppressed}"
-        };
+        UpdateDevicesPresentation();
     }
 
     private void UpdatePaddleGearBenchStatus()
@@ -6127,6 +6136,40 @@ public partial class MainWindow : Window
             _settingsError = $"Shutdown diagnostic write failed: {ex.Message}";
         }
     }
+
+    private ComboBox OutputModeComboBox => DevicesViewControl.OutputModeComboBoxControl;
+
+    private ComboBox AsioDriverComboBox => DevicesViewControl.AsioDriverComboBoxControl;
+
+    private ComboBox AsioOutputChannelComboBox => DevicesViewControl.AsioOutputChannelComboBoxControl;
+
+    private CheckBox AsioArmCheckBox => DevicesViewControl.AsioArmCheckBoxControl;
+
+    private CheckBox PhprPedalsMasterEnableCheckBox => DevicesViewControl.PhprPedalsMasterEnableCheckBoxControl;
+
+    private ComboBox PhprPedalsModeComboBox => DevicesViewControl.PhprPedalsModeComboBoxControl;
+
+    private ComboBox PaddleInputDeviceComboBox => DevicesViewControl.PaddleInputDeviceComboBoxControl;
+
+    private Button StartPaddleInputListenerButton => DevicesViewControl.StartPaddleInputListenerButtonControl;
+
+    private Button StopPaddleInputListenerButton => DevicesViewControl.StopPaddleInputListenerButtonControl;
+
+    private TextBox LeftPaddleButtonTextBox => DevicesViewControl.LeftPaddleButtonTextBoxControl;
+
+    private TextBox RightPaddleButtonTextBox => DevicesViewControl.RightPaddleButtonTextBoxControl;
+
+    private TextBox PaddleDebounceTextBox => DevicesViewControl.PaddleDebounceTextBoxControl;
+
+    private CheckBox ShiftIntentEnabledCheckBox => DevicesViewControl.ShiftIntentEnabledCheckBoxControl;
+
+    private ComboBox ShiftIntentModeComboBox => DevicesViewControl.ShiftIntentModeComboBoxControl;
+
+    private TextBlock InputDiscoveryStatusText => DevicesViewControl.InputDiscoveryStatusTextBlock;
+
+    private ItemsControl InputDiscoveryItemsControl => DevicesViewControl.InputDiscoveryItemsControlView;
+
+    private TextBlock PaddleInputStatusText => DevicesViewControl.PaddleInputStatusTextBlock;
 
     private sealed record ShellPageDefinition(
         string NavigationLabel,

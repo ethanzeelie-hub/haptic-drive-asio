@@ -4083,3 +4083,84 @@ Self-review:
 - No F1 25 parser layout, raw-packet preservation, replay format, or replay timing behavior changed.
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This begins gradual shell component extraction only; it does not claim a broad MVVM rewrite.
+
+## Stage 23D - Devices View Extraction and Hardware Setup Presentation Seam
+
+Status: Complete.
+
+Goal: Continue the low-risk Stage 23 shell extraction strategy by moving the normal Devices page into a dedicated view/component and extracting Devices-only setup/readiness presentation shaping without moving runtime ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Devices seam before editing:
+  - `MainWindow.xaml` was 2752 lines,
+  - `MainWindow.xaml.cs` was 6193 lines,
+  - Devices still lived inline in `MainWindow.xaml`,
+  - Devices still mixed setup controls with ASIO/input/shift-intent status shaping inside `MainWindow.xaml.cs`,
+  - Testing / Validation still owned the deliberate manual tools.
+- Added dedicated Devices view files:
+  - `src/HapticDrive.Asio.App/Views/DevicesView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/DevicesView.xaml.cs`.
+- Added `src/HapticDrive.Asio.App/DevicesStatusPresenter.cs`:
+  - `DevicesStatusSnapshot`,
+  - `DevicesStatusPresentation`,
+  - `DevicesStatusPresenter`.
+- Moved the normal Devices layout into `DevicesView` while preserving the same three operator-facing setup sections:
+  - `Bass Shaker / ASIO`,
+  - `Simagic P-HPR Pedals`,
+  - `Simagic Wheel / Shift Paddles`.
+- Kept runtime ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - ASIO selection/arming/start interactions,
+  - P-HPR direct runtime and emergency-stop interactions,
+  - paddle listener/routing interactions,
+  - startup/shutdown cleanup,
+  - live snapshot gathering.
+- Added a low-risk event-forwarding seam:
+  - `DevicesView` now forwards user interactions back to the existing `MainWindow` handlers,
+  - no Start/Stop/Mute/Emergency runtime execution moved into the view,
+  - no hardware/runtime classes were moved into the presenter.
+- Centralized Devices-only display shaping through `DevicesStatusPresenter`:
+  - ASIO setup/readiness strings,
+  - input discovery summary/items,
+  - paddle listener badge/status/items,
+  - shift-intent status/items,
+  - Devices page-status summary.
+- Kept the extraction intentionally narrow:
+  - Devices remains setup/readiness only,
+  - Testing / Validation still owns deliberate manual tools,
+  - Advanced / Diagnostics still owns raw HID/report/candidate/debug internals,
+  - no broad MVVM rewrite,
+  - no new dependencies,
+  - no runtime-path ownership moved.
+- Added and updated stable tests:
+  - `DevicesStatusPresenterTests`,
+  - `DevicesStatusPresenterGuardrailTests`,
+  - `AppThemeResourceTests` updates for the extracted Devices view/host boundary.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 837 passing tests and 0 skipped tests.
+- The first full-solution `test --no-build` run surfaced one transient failure in `PHprDirectRuntimeTests.BenchRetriggerStartsWhileRuntimeIsActiveAndOldObserverIsIgnored`; the app test project passed immediately on rerun, and the required full-solution rerun then passed cleanly.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23D is intentionally Devices presentation/component extraction only.
+- `MainWindow` remains the composition/runtime owner.
+- Devices remains setup/readiness only.
+- Testing / Validation remains deliberate manual tools.
+- Advanced / Diagnostics remains raw internals and troubleshooting.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No F1 25 parser layout, raw-packet preservation, replay format, or replay timing behavior changed.
+- No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
+- This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.

@@ -831,3 +831,11 @@
 - The new Dashboard seam intentionally avoids a broad MVVM rewrite. It reduces one maintainability hotspot, but the broader shell is still code-behind-driven by design and future page-by-page extraction should remain optional and low-risk.
 - Start Haptics / Stop Haptics, Emergency Mute, Stop All, ASIO ownership, telemetry ownership, replay ownership, P-HPR direct runtime ownership, and hardware write call sites remain explicitly anchored in `MainWindow` after this stage.
 - No ASIO/BST-1 runtime behavior changed, no P-HPR HID/report behavior changed, and no parser/replay format behavior changed in this stage.
+
+## Stage 23D
+
+- Stage 23D extracts the normal Devices page into `Views/DevicesView` and moves Devices-only setup/readiness wording/status shaping into `DevicesStatusPresenter`, but `MainWindow.xaml` and `MainWindow.xaml.cs` remain large shell files that still own the rest of the shell, page selection, direct WPF control assignment outside the extracted views, runtime snapshot gathering, startup/shutdown sequencing, and execution-heavy lifecycle/safety work.
+- The new Devices seam intentionally avoids a broad MVVM rewrite. It reduces another maintainability hotspot, but the broader shell is still code-behind-driven by design and future page-by-page extraction should remain optional and low-risk.
+- ASIO selection/arming/start ownership, P-HPR direct-runtime ownership, paddle listener/routing ownership, Start Haptics / Stop Haptics, Emergency Mute, Stop All, and hardware write call sites remain explicitly anchored in `MainWindow` after this stage.
+- Devices still intentionally remains setup/readiness only, while Testing / Validation remains the deliberate home for manual tools and Advanced / Diagnostics remains the home for raw internals/troubleshooting.
+- No ASIO/BST-1 runtime behavior changed, no P-HPR HID/report behavior changed, and no parser/replay format behavior changed in this stage.

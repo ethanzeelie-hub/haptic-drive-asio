@@ -1969,3 +1969,56 @@ Residual `MainWindow` boundary:
 Stage 23C intentionally does not start a broad MVVM rewrite. It extracts one low-risk page/component seam while leaving runtime ownership explicit and visible.
 
 Stage 23C does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, command encoding, parser layouts, replay format behavior, or physical-validation boundaries.
+
+## Stage 23D Devices View Extraction and Hardware Setup Presentation Seam
+
+Stage 23D continues the same page-by-page shell extraction strategy used in Stage 23C.
+
+Devices extraction result:
+
+- The normal Devices page now lives in a dedicated WPF component:
+  - `Views/DevicesView.xaml`
+  - `Views/DevicesView.xaml.cs`
+- The extracted normal Devices view still presents the same setup/readiness role:
+  - `Bass Shaker / ASIO`
+  - `Simagic P-HPR Pedals`
+  - `Simagic Wheel / Shift Paddles`
+- The extracted Devices view does not own runtime objects, hardware calls, or snapshot gathering. It only renders already-shaped setup/readiness state and forwards user interactions back to the existing `MainWindow` handlers.
+
+Presentation-seam result:
+
+- Devices-only setup/readiness display shaping now flows through `DevicesStatusPresenter` with immutable App-layer inputs:
+  - `DevicesStatusSnapshot`
+  - `DevicesStatusPresentation`
+- The presenter owns only deterministic Devices wording/status shaping for:
+  - current output / ASIO readiness text
+  - input discovery summaries
+  - paddle listener badge/status/items
+  - shift-intent status/items
+  - Devices page-status summary
+- The presenter does not own WPF controls, `System.Windows` types, ASIO backend classes, HID/report writers, or hardware start/stop/emergency execution.
+
+Residual `MainWindow` boundary:
+
+- `MainWindow` still owns:
+  - app composition
+  - navigation/page selection
+  - runtime object ownership
+  - ASIO selection/arming/start interactions
+  - P-HPR direct-runtime interactions
+  - paddle listener/routing interactions
+  - Start Haptics / Stop Haptics
+  - Emergency Mute / Stop All execution
+  - startup/shutdown cleanup
+  - live snapshot gathering
+- `MainWindow` now applies shaped Devices presentation through `DevicesViewControl.Apply(...)` instead of keeping the full Devices layout inline in `MainWindow.xaml`.
+
+Normal workflow boundary after Stage 23D:
+
+- Devices remains setup/readiness only.
+- Testing / Validation remains the deliberate home for manual pulse checks, paddle bench tooling, and controlled validation harnesses.
+- Advanced / Diagnostics remains the home for raw HID/report/candidate internals and deeper troubleshooting.
+
+Stage 23D intentionally does not start a broad MVVM rewrite. It extracts one additional low-risk page/component seam while leaving runtime ownership explicit and visible.
+
+Stage 23D does not change ASIO/BST-1 runtime behavior, P-HPR HID/report bytes, command encoding, parser layouts, replay format behavior, or physical-validation boundaries.

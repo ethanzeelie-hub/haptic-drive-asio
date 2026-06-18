@@ -100,6 +100,7 @@
 - Stage 23A: Product workflow cleanup, Testing / Validation tab extraction, and safe normal-user P-HPR preference persistence complete.
 - Stage 23B: Post-23A product UI polish, first-run workflow clarity, and normal-mode diagnostics reduction complete.
 - Stage 23C: Dashboard view extraction and shell presentation seam complete.
+- Stage 23D: Devices view extraction and hardware setup presentation seam complete.
 
 ## Planned Stages
 
@@ -172,6 +173,7 @@
 67. Stage 23A: Product workflow cleanup, Testing / Validation tab extraction, and safe normal-user P-HPR preference persistence. Complete.
 68. Stage 23B: Post-23A product UI polish, first-run workflow clarity, and normal-mode diagnostics reduction. Complete.
 69. Stage 23C: Dashboard view extraction and shell presentation seam. Complete.
+70. Stage 23D: Devices view extraction and hardware setup presentation seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -302,3 +304,5 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 23B intentionally does not change ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, parser/replay format behavior, or physical-validation boundaries; Stage 22B remains the local hardware validation/fine-tune guide for Ethan's later physical testing.
 - Stage 23C extracts the Dashboard XAML into `Views/DashboardView` and moves Dashboard-only status/checklist/next-step shaping into `DashboardStatusPresenter`, while keeping `MainWindow` as the composition root, runtime owner, and live snapshot gatherer.
 - Stage 23C begins gradual shell component extraction only. It does not introduce a broad MVVM rewrite, move Start/Stop/Mute ownership, change ASIO/BST-1 runtime behavior, change P-HPR HID/report behavior, change parser/replay format behavior, or make any physical-validation claim.
+- Stage 23D extracts the normal Devices page into `Views/DevicesView` and moves Devices-only setup/readiness presentation shaping into `DevicesStatusPresenter`, while keeping `MainWindow` as the composition root, runtime owner, event-handler owner, and live snapshot gatherer.
+- Stage 23D keeps Devices as setup/readiness only, keeps Testing / Validation as deliberate manual tools, keeps Advanced / Diagnostics as raw internals/troubleshooting, and does not change ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, parser/replay format behavior, or physical-validation boundaries.

@@ -139,6 +139,26 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void MainWindowSourceContainsDevicesNavigationAndViewHost()
+    {
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("DevicesViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("DevicesViewControl.Visibility = page.NavigationLabel == \"Devices\"", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("DevicesViewControl.Apply(presentation);", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("DevicesStatusPresenter.Build(new DevicesStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DashboardViewDoesNotExposeRawHidOrReportCopy()
     {
         var dashboardXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DashboardView.xaml");
@@ -193,7 +213,8 @@ public sealed class AppThemeResourceTests
         Assert.Contains("RealSlipCadenceTextBox", effectsNames);
         Assert.DoesNotContain("RealSlipLockEnabledCheckBox", effectsNames);
 
-        var devicesPanelNames = GetXNameValues(FindElementByXName(mainWindowXaml, "DevicesPanel"));
+        var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
+        var devicesPanelNames = GetXNameValues(FindElementByXName(devicesXaml, "DevicesPanel"));
         Assert.DoesNotContain("NormalPhprGearDurationTextBox", devicesPanelNames);
         Assert.DoesNotContain("Bst1PaddleGearPulseEnabledCheckBox", devicesPanelNames);
     }
@@ -216,8 +237,8 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void DevicesPageKeepsHardwareReadinessAndSetupControls()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var devicesPanel = FindElementByXName(mainWindowXaml, "DevicesPanel");
+        var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
+        var devicesPanel = FindElementByXName(devicesXaml, "DevicesPanel");
         var devicesText = GetTextValues(devicesPanel);
         var devicesNames = GetXNameValues(devicesPanel);
 
@@ -254,8 +275,8 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void DevicesPageDoesNotContainAdvancedValidationOrLowLevelControls()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var devicesNames = GetXNameValues(FindElementByXName(mainWindowXaml, "DevicesPanel"));
+        var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
+        var devicesNames = GetXNameValues(FindElementByXName(devicesXaml, "DevicesPanel"));
 
         Assert.DoesNotContain("LocalGearTestModeCheckBox", devicesNames);
         Assert.DoesNotContain("StartGearTestListenerButton", devicesNames);
@@ -271,6 +292,18 @@ public sealed class AppThemeResourceTests
         Assert.DoesNotContain("ManualBst1DurationTextBox", devicesNames);
         Assert.DoesNotContain("TestPhprBrakePulseButton", devicesNames);
         Assert.DoesNotContain("TestPhprThrottlePulseButton", devicesNames);
+    }
+
+    [Fact]
+    public void DevicesViewDoesNotExposeRawHidOrReportCopy()
+    {
+        var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
+        var devicesText = GetTextValues(FindElementByXName(devicesXaml, "DevicesPanel"));
+
+        Assert.DoesNotContain(devicesText, text => text.Contains("Report ID", StringComparison.Ordinal));
+        Assert.DoesNotContain(devicesText, text => text.Contains("FeatureReport", StringComparison.Ordinal));
+        Assert.DoesNotContain(devicesText, text => text.Contains("HID", StringComparison.Ordinal));
+        Assert.DoesNotContain(devicesText, text => text.Contains("candidate", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -421,7 +454,8 @@ public sealed class AppThemeResourceTests
     public void NormalWorkflowPanelsDoNotExposeRawHidOrReportCopy()
     {
         var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var normalText = GetTextValues(FindElementByXName(mainWindowXaml, "DevicesPanel"))
+        var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
+        var normalText = GetTextValues(FindElementByXName(devicesXaml, "DevicesPanel"))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "EffectsPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "MixerPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "ProfilesPanel")))
