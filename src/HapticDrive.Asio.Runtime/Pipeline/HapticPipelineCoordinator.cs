@@ -7,7 +7,6 @@ using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
-using HapticDrive.Asio.Telemetry.F1_25;
 
 namespace HapticDrive.Asio.Runtime.Pipeline;
 
@@ -75,6 +74,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private long _renderedBufferCount;
 
     public HapticPipelineCoordinator(
+        IGameTelemetryAdapter telemetryGameAdapter,
         AudioOutputConfiguration? configuration = null,
         IAudioOutputDevice? outputDevice = null,
         IUdpTelemetryForwarder? telemetryForwarder = null,
@@ -82,10 +82,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         ITelemetryReplayService? replayService = null,
         HapticDriveProfile? profile = null,
         HapticPipelineOptions? options = null,
-        IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null,
-        IGameTelemetryAdapter? telemetryGameAdapter = null)
+        IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null)
     {
-        _telemetryGameAdapter = telemetryGameAdapter ?? new F125GameTelemetryAdapter();
+        _telemetryGameAdapter = telemetryGameAdapter ?? throw new ArgumentNullException(nameof(telemetryGameAdapter));
         Configuration = configuration ?? AudioOutputConfiguration.Default;
         _options = options ?? HapticPipelineOptions.Default;
         Format = AudioSampleFormat.FromConfiguration(Configuration);

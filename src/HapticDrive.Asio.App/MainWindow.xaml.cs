@@ -1626,11 +1626,11 @@ public partial class MainWindow : Window
     {
         var configuration = BuildSelectedOutputConfiguration();
         var pipeline = new HapticPipelineCoordinator(
+            GameTelemetryCatalog.CreateAdapter(_selectedGameId),
             configuration,
             CreateSelectedOutputDevice(),
             profile: _currentProfile,
-            forwardingDestinations: CreateForwardingDestinations(),
-            telemetryGameAdapter: GameTelemetryCatalog.CreateAdapter(_selectedGameId));
+            forwardingDestinations: CreateForwardingDestinations());
         pipeline.SetManualAsioHardwareTestFlightRecorder(
             new FileManualAsioHardwareTestFlightRecorder(GetLocalValidationResultsDirectory()));
         return pipeline;

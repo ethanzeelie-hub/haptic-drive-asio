@@ -11,7 +11,7 @@ public sealed class HapticPipelineAsioReadinessTests
     [Fact]
     public async Task DefaultPipelineOutputMode_RemainsNull()
     {
-        await using var coordinator = new HapticPipelineCoordinator();
+        await using var coordinator = RuntimeTestPipelineFactory.Create();
 
         var snapshot = coordinator.GetSnapshot();
 
@@ -23,7 +23,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task StopHaptics_StopsFakeAsioOutput()
     {
         var backend = new FakeAsioOutputBackend();
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
 
@@ -41,14 +41,14 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task SwitchingAwayFromAsio_StopsFakeAsioOutputBeforeNullPipelineStarts()
     {
         var backend = new FakeAsioOutputBackend();
-        await using var asioCoordinator = new HapticPipelineCoordinator(
+        await using var asioCoordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
 
         Assert.True((await asioCoordinator.StartAsync()).Succeeded);
         Assert.True((await asioCoordinator.StopAsync()).Succeeded);
 
-        await using var nullCoordinator = new HapticPipelineCoordinator();
+        await using var nullCoordinator = RuntimeTestPipelineFactory.Create();
 
         Assert.False(backend.IsRunning);
         Assert.Equal(AudioOutputDeviceKind.Null, nullCoordinator.GetSnapshot().Output.Kind);
@@ -57,7 +57,7 @@ public sealed class HapticPipelineAsioReadinessTests
     [Fact]
     public async Task ManualAsioHardwareTest_DefaultPipelineBlocksOnNullOutput()
     {
-        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
 
         var result = coordinator.StartManualAsioHardwareTest(new ManualAsioHardwareTestRequest(
             40f,
@@ -71,7 +71,7 @@ public sealed class HapticPipelineAsioReadinessTests
     [Fact]
     public async Task ManualAsioHardwareTest_BlocksUnlessAsioIsArmed()
     {
-        await using var unarmed = new HapticPipelineCoordinator(
+        await using var unarmed = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration() with { IsHardwareArmed = false },
             new AsioAudioOutputDevice(
                 new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]),
@@ -85,7 +85,7 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.False(unarmedResult.Succeeded);
         Assert.Contains("armed", unarmedResult.Message, StringComparison.OrdinalIgnoreCase);
 
-        await using var stopped = new HapticPipelineCoordinator(
+        await using var stopped = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(),
             new AsioAudioOutputDevice(
                 new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]),
@@ -104,7 +104,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_BlockedByEmergencyMute()
     {
         var backend = new FakeAsioOutputBackend();
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -122,7 +122,7 @@ public sealed class HapticPipelineAsioReadinessTests
     [Fact]
     public async Task ManualAsioHardwareTest_BlockedByInvalidChannelDiagnostics()
     {
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(),
             new FakeStartedAsioOutputDevice(selectedChannel: 2, outputChannelCount: 2),
             options: HapticPipelineOptions.ManualRendering);
@@ -142,7 +142,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_RendersSafetyProcessedBuffersToFakeAsio(float frequencyHz)
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -173,7 +173,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_UsesRequestedStrengthFrequencyDurationAndClampsRange()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -197,7 +197,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_OutputTrimScalesBeforeLimiterAndKeepsLimiterActive()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -221,7 +221,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_BlockedUnarmedDoesNotEmitPartialOutput()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1) with { IsHardwareArmed = false },
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -241,7 +241,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task HydrateOutputReadiness_OpensAsioCapabilitiesWithoutStartingOutput()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
 
@@ -264,7 +264,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task DisposeAsync_DisposesExplicitAsioOutputDevice()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        var coordinator = new HapticPipelineCoordinator(
+        var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
 
@@ -277,7 +277,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_ChannelOneDoesNotFailOnPreOpenZeroChannelSnapshot()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -303,7 +303,7 @@ public sealed class HapticPipelineAsioReadinessTests
         using var directory = new TempDirectory();
         var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -331,7 +331,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_PaddleGearSourceRecordsLastGearPulseUsedAsio()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -355,7 +355,7 @@ public sealed class HapticPipelineAsioReadinessTests
         using var directory = new TempDirectory();
         var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -369,7 +369,7 @@ public sealed class HapticPipelineAsioReadinessTests
             AcceptedPaddleEventSequence: 42,
             PaddleSide: "Left",
             PaddleButtonId: 14));
-        await using var nullCoordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        await using var nullCoordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         nullCoordinator.SetManualAsioHardwareTestFlightRecorder(recorder);
         var blocked = await nullCoordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
             50f,
@@ -388,7 +388,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task ManualAsioHardwareTest_CompletesWithoutLeavingHapticsRunning()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -407,7 +407,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task StandaloneManualBst1Pulse_RendersAllRequiredFramesWithoutOverfillingBoundedQueue(int durationMs)
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -435,7 +435,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task StandaloneManualBst1Pulse_BlocksWithoutPartialOutputWhenAsioCannotStart()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, failStart: true);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -455,7 +455,7 @@ public sealed class HapticPipelineAsioReadinessTests
         using var directory = new TempDirectory();
         var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3, initialQueuedBufferCount: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -477,7 +477,7 @@ public sealed class HapticPipelineAsioReadinessTests
     public async Task PaddleGearBst1Pulse_UsesStandaloneAsioPathWithoutHapticsOrTelemetry()
     {
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
             options: HapticPipelineOptions.ManualRendering);
@@ -506,7 +506,7 @@ public sealed class HapticPipelineAsioReadinessTests
         using var directory = new TempDirectory();
         var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
         coordinator.SetManualAsioHardwareTestFlightRecorder(recorder);
@@ -544,7 +544,7 @@ public sealed class HapticPipelineAsioReadinessTests
         using var directory = new TempDirectory();
         var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
         coordinator.SetManualAsioHardwareTestFlightRecorder(recorder);
@@ -615,7 +615,7 @@ public sealed class HapticPipelineAsioReadinessTests
         using var directory = new TempDirectory();
         var recorder = new FileManualAsioHardwareTestFlightRecorder(directory.Path);
         var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
-        await using var coordinator = new HapticPipelineCoordinator(
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
             ArmedConfiguration(channel: 1),
             new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
         coordinator.SetManualAsioHardwareTestFlightRecorder(recorder);

@@ -1,6 +1,7 @@
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Asio.Telemetry.F1_25;
 
 namespace HapticDrive.Actuation.Tests;
 
@@ -162,7 +163,9 @@ public sealed class DrivingArmedStateServiceTests
     public async Task UpdateFromPipelineSnapshot_UsesCachedSnapshotWithoutBlocking()
     {
         var service = new DrivingArmedStateService();
-        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        await using var coordinator = new HapticPipelineCoordinator(
+            options: HapticPipelineOptions.ManualRendering,
+            telemetryGameAdapter: new F125GameTelemetryAdapter());
         var now = DateTimeOffset.UtcNow;
         var snapshot = coordinator.GetSnapshot() with
         {

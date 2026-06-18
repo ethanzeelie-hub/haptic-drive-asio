@@ -14,6 +14,7 @@ public sealed class RuntimeProjectGraphGuardrailTests
 
         Assert.DoesNotContain("HapticDrive.Actuation", references, StringComparer.Ordinal);
         Assert.DoesNotContain("HapticDrive.Asio.App", references, StringComparer.Ordinal);
+        Assert.DoesNotContain("HapticDrive.Asio.Telemetry.F1_25", references, StringComparer.Ordinal);
     }
 
     [Fact]

@@ -2442,3 +2442,16 @@ Stage 25D architecture result:
 - Persisted-settings status/diagnostics now include the selected game identity.
 
 Stage 25D deliberately does not add a visible game-selection UI, a second game adapter, game-specific recordings metadata, or game-specific profile branching. It establishes the settings/composition baseline first.
+
+## Stage 25E Explicit Adapter Composition
+
+Stage 25E completes the first composition cleanup that Stage 25C and 25D were preparing for.
+
+Stage 25E architecture result:
+
+- `HapticPipelineCoordinator` now requires an explicit `IGameTelemetryAdapter`.
+- The runtime assembly no longer references `HapticDrive.Asio.Telemetry.F1_25`.
+- App/test callers now compose the runtime with explicit adapters instead of relying on a hidden runtime fallback.
+- Runtime project guardrails now protect that dependency direction.
+
+Stage 25E deliberately does not add a second game, a visible game picker, or game-specific recordings/profile partitioning. It removes hidden composition behavior first so future work stays explicit.

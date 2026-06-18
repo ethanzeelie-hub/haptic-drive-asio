@@ -4,7 +4,6 @@
     <ProjectReference Include="..\HapticDrive.Asio.Audio\HapticDrive.Asio.Audio.csproj" />
     <ProjectReference Include="..\HapticDrive.Asio.Core\HapticDrive.Asio.Core.csproj" />
     <ProjectReference Include="..\HapticDrive.Asio.Recording\HapticDrive.Asio.Recording.csproj" />
-    <ProjectReference Include="..\HapticDrive.Asio.Telemetry.F1_25\HapticDrive.Asio.Telemetry.F1_25.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -14,4 +13,3 @@
   </PropertyGroup>
 
 </Project>
-

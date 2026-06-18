@@ -4423,6 +4423,45 @@ Self-review:
 - F1 25 remains the only shipped production game and the only catalog entry.
 - The app now composes the adapter explicitly, but non-app callers can still rely on the runtime fallback until a later cleanup stage removes it.
 - No parser behavior, haptic effect behavior, ASIO/BST-1 behavior, P-HPR behavior, replay format, or persistence format beyond `SelectedGameId` changed.
+
+## Stage 25E - Explicit Telemetry Adapter Composition and Runtime Fallback Removal
+
+Status: Complete.
+
+Goal: Remove the runtime assembly's hidden built-in F1 adapter fallback now that the app has an explicit catalog/composition path, so dependency direction and game selection stay visible at every caller.
+
+Changes:
+
+- Re-audited the post-25D state before editing:
+  - runtime still created its own default F1 adapter internally,
+  - `HapticDrive.Asio.Runtime` still referenced `HapticDrive.Asio.Telemetry.F1_25`,
+  - the app path was explicit, but several tests still relied on the hidden fallback.
+- Removed the remaining hidden runtime fallback:
+  - `HapticPipelineCoordinator` now requires an explicit `IGameTelemetryAdapter`,
+  - the runtime project file no longer references `HapticDrive.Asio.Telemetry.F1_25`,
+  - runtime keeps the game-agnostic contract but no longer owns a concrete game implementation.
+- Updated composition callers:
+  - the app continues to inject the adapter through `GameTelemetryCatalog`,
+  - runtime tests now use `RuntimeTestPipelineFactory`,
+  - the actuation test that used a live coordinator now injects `F125GameTelemetryAdapter` explicitly.
+- Strengthened dependency guardrails:
+  - project-graph tests now assert `HapticDrive.Asio.Runtime` does not reference the F1 telemetry project,
+  - runtime assembly guardrails now assert the runtime binary does not reference the F1 telemetry assembly.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 879 tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed launch preflight.
+
+Self-review:
+
+- Stage 25E removes hidden composition, not product scope limits.
+- F1 25 remains the only shipped production game and the only catalog entry.
+- The runtime dependency direction is now cleaner, but a visible game-selection UX and broader game-aware persistence/recording behavior are still future work.
+- No parser logic, haptic effect behavior, ASIO/BST-1 behavior, P-HPR behavior, replay format, or safety behavior changed.
 - No manual test behavior changed.
 - No validation harness behavior changed.
 - No profile/persistence boundary changed.

@@ -886,3 +886,11 @@
 - Packet diagnostics and persisted-settings status now carry selected-game information, but recordings metadata, profile naming, and broader UX are still F1-25-first rather than fully game-agnostic.
 - `HapticEffectEngine` still uses a fixed-list composition model, so adding more effects or game-specific effect sets will continue to increase central orchestration pressure until a registration-style seam exists.
 - Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
+
+## Stage 25E
+
+- `HapticPipelineCoordinator` now requires an explicit `IGameTelemetryAdapter`, and the runtime assembly no longer references the F1 telemetry project directly. The product path is cleaner, but the app/test composition surface still has only one shipped adapter choice: F1 25.
+- The app persists `SelectedGameId`, but there is still no visible game picker or broader multi-game UX because a second production game does not exist yet.
+- Packet diagnostics and persisted-settings status now carry selected-game information, but recordings metadata, profile naming, and broader UX are still F1-25-first rather than fully game-agnostic.
+- `HapticEffectEngine` still uses a fixed-list composition model, so adding more effects or game-specific effect sets will continue to increase central orchestration pressure until a registration-style seam exists.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.

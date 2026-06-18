@@ -18,7 +18,7 @@ public sealed class HapticPipelinePhprReplayValidationTests
     [Fact]
     public async Task ReplayTelemetryUpdatesDrivingArmedAndRoutesRoadEffect()
     {
-        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
             CreateLapDatagram(frame: 2),
@@ -55,7 +55,7 @@ public sealed class HapticPipelinePhprReplayValidationTests
     [Fact]
     public async Task ReplayTelemetryRoutesSlipAndLockWithoutSyntheticGearEvents()
     {
-        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
             CreateLapDatagram(frame: 2),
@@ -84,7 +84,7 @@ public sealed class HapticPipelinePhprReplayValidationTests
     [Fact]
     public async Task ReplayPedalEffectsRespectProfileSettings()
     {
-        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
             CreateLapDatagram(frame: 2),
@@ -120,7 +120,7 @@ public sealed class HapticPipelinePhprReplayValidationTests
     [Fact]
     public async Task ReplayPedalEffectsRejectStaleTelemetryAndEmergencyMute()
     {
-        await using var coordinator = new HapticPipelineCoordinator(options: HapticPipelineOptions.ManualRendering);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
             CreateLapDatagram(frame: 2),
