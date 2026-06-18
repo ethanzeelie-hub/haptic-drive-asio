@@ -179,6 +179,26 @@ public sealed class AppThemeResourceTests
     }
 
     [Fact]
+    public void MainWindowSourceContainsRoutingMixerNavigationAndViewHost()
+    {
+        var mainWindowXaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml"));
+        var mainWindowCode = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("RoutingMixerViewControl", mainWindowXaml, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerViewControl.Visibility = page.NavigationLabel == \"Routing / Mixer\"", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerViewControl.Apply(presentation);", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerStatusPresenter.Build(new RoutingMixerStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DashboardViewDoesNotExposeRawHidOrReportCopy()
     {
         var dashboardXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DashboardView.xaml");
@@ -386,8 +406,8 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void RoutingMixerPageContainsMixerSafetyControlsAndSummaries()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var mixerPanel = FindElementByXName(mainWindowXaml, "MixerPanel");
+        var routingMixerXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "RoutingMixerView.xaml");
+        var mixerPanel = FindElementByXName(routingMixerXaml, "MixerPanel");
         var mixerText = GetTextValues(mixerPanel);
         var mixerNames = GetXNameValues(mixerPanel);
 
@@ -436,8 +456,8 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void RoutingMixerPageContainsOutputRouteAndPrioritySummaries()
     {
-        var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
-        var mixerPanel = FindElementByXName(mainWindowXaml, "MixerPanel");
+        var routingMixerXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "RoutingMixerView.xaml");
+        var mixerPanel = FindElementByXName(routingMixerXaml, "MixerPanel");
         var mixerText = GetTextValues(mixerPanel);
         var mixerNames = GetXNameValues(mixerPanel);
 
@@ -476,9 +496,10 @@ public sealed class AppThemeResourceTests
         var mainWindowXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "MainWindow.xaml");
         var devicesXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "DevicesView.xaml");
         var effectsXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "EffectsView.xaml");
+        var routingMixerXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "RoutingMixerView.xaml");
         var normalText = GetTextValues(FindElementByXName(devicesXaml, "DevicesPanel"))
             .Concat(GetTextValues(FindElementByXName(effectsXaml, "EffectsPanel")))
-            .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "MixerPanel")))
+            .Concat(GetTextValues(FindElementByXName(routingMixerXaml, "MixerPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "ProfilesPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "TestingPanel")))
             .Concat(GetTextValues(FindElementByXName(mainWindowXaml, "RecordingsPanel")))

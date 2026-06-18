@@ -102,6 +102,7 @@
 - Stage 23C: Dashboard view extraction and shell presentation seam complete.
 - Stage 23D: Devices view extraction and hardware setup presentation seam complete.
 - Stage 23E: Effects view extraction and effect tuning presentation seam complete.
+- Stage 23F: Routing / Mixer view extraction and safety-routing presentation seam complete.
 
 ## Planned Stages
 

@@ -374,6 +374,7 @@ public partial class MainWindow : Window
         EffectsViewControl.RealPhprDirectControlLostFocus += RealPhprDirectControl_LostFocus;
         EffectsViewControl.Bst1PaddleGearPulseControlChanged += Bst1PaddleGearPulseControl_Changed;
         EffectsViewControl.Bst1PaddleGearPulseControlLostFocus += Bst1PaddleGearPulseControl_LostFocus;
+        RoutingMixerViewControl.TuningControlChanged += TuningControl_Changed;
         DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
         DevicesViewControl.RefreshAsioClicked += RefreshAsioButton_Click;
         DevicesViewControl.AsioDriverSelectionChanged += AsioDriverComboBox_SelectionChanged;
@@ -540,7 +541,7 @@ public partial class MainWindow : Window
             EffectsViewControl.Visibility = page.NavigationLabel == "Effects"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            MixerPanel.Visibility = page.NavigationLabel == "Routing / Mixer"
+            RoutingMixerViewControl.Visibility = page.NavigationLabel == "Routing / Mixer"
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             DevicesViewControl.Visibility = page.NavigationLabel == "Devices"
@@ -3971,6 +3972,17 @@ public partial class MainWindow : Window
 
     private void UpdateMixerStatus()
     {
+        var presentation = BuildRoutingMixerStatusPresentation();
+        RoutingMixerViewControl.Apply(presentation);
+
+        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Routing / Mixer" })
+        {
+            PageStatusText.Text = presentation.RoutingMixerPageStatusText;
+        }
+    }
+
+    private RoutingMixerStatusPresentation BuildRoutingMixerStatusPresentation()
+    {
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         var effectSnapshot = pipelineSnapshot.Effects;
         var audioDiagnostics = AudioRuntimeDiagnosticsSnapshot.Create(
@@ -3980,24 +3992,10 @@ public partial class MainWindow : Window
             _testBench.GetSnapshot());
         var mixer = _currentProfile.ToMixerSettings(_emergencyMuted);
         var safety = _currentProfile.ToSafetyOptions(_emergencyMuted);
-        MasterGainValueText.Text = $"{mixer.MasterGain:P0}";
-        SafetyOutputGainValueText.Text = $"{safety.OutputGain:P0}";
-        MixerEmergencyMuteStatusText.Text = $"Emergency mute: {FormatOnOff(_emergencyMuted)}; normal mute: {FormatOnOff(pipelineSnapshot.IsMuted)}.";
-        MixerOutputPeakStatusText.Text = $"Output peak: {audioDiagnostics.OutputPeakLevel:0.000}; mixer peak {audioDiagnostics.MixerPeakLevel:0.000}.";
-        MixerLimiterActivityStatusText.Text =
-            audioDiagnostics.LimitedSampleCount > 0 || audioDiagnostics.ClippedSampleCount > 0
-                ? "Limiter protection is active and has reduced peaks during this session."
-                : "Limiter protection stays on automatically to protect the output path.";
-
-        var outputStatus = pipelineSnapshot.Output;
         var manualAsio = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
         var selectedOutputMode = OutputModeComboBox.SelectedItem is OutputModeOption selectedMode
             ? selectedMode.Label
-            : outputStatus.DisplayName;
-        Bst1RoutingSummaryText.Text =
-            $"Output mode {selectedOutputMode}; selected driver {_selectedAsioDriverName ?? "none"}; channel {(_selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel)}; armed {_asioArmed}; readiness {BuildTrueAsioStatusText(manualAsio)}.";
-        Bst1EffectsSummaryText.Text =
-            $"Effects: gear {FormatEnabledActive(_bst1PaddleGearPulseEnabled, effectSnapshot.GearShift.IsActive)}; road {FormatEnabledActive(effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive)}; engine {FormatEnabledActive(effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive)}; kerb {FormatEnabledActive(effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive)}; impact {FormatEnabledActive(effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive)}; slip {FormatEnabledActive(effectSnapshot.Slip.WheelSlipEnabled, effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel slip", StringComparison.Ordinal))}; lock {FormatEnabledActive(effectSnapshot.Slip.WheelLockEnabled, effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel lock", StringComparison.Ordinal))}.";
+            : pipelineSnapshot.Output.DisplayName;
 
         ConfigurePhprDirectRuntime();
         var directRuntime = _phprDirectRuntime.GetSnapshot();
@@ -4011,24 +4009,56 @@ public partial class MainWindow : Window
         var directReadiness = directRuntime.DirectReady
             ? "direct ready"
             : $"direct blocked: {(string.IsNullOrWhiteSpace(directRuntime.BlockedReason) ? "safety gate" : directRuntime.BlockedReason)}";
-        BrakePhprRoutingSummaryText.Text =
-            $"Mode {PhprPedalsModeComboBox.SelectedItem}; brake pedal output {FormatEnabled(_realPhprOptions.BrakeGearPulse.IsEnabled)}; {directReadiness}; connection {realOutput.Connection.State}.";
-        BrakePhprEffectsSummaryText.Text =
-            $"Effects: gear {FormatEnabledActive(_realPhprOptions.BrakeGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled, continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true)}; lock {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled, brakeSlipLockActive)}.";
-        ThrottlePhprRoutingSummaryText.Text =
-            $"Mode {PhprPedalsModeComboBox.SelectedItem}; throttle pedal output {FormatEnabled(_realPhprOptions.ThrottleGearPulse.IsEnabled)}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realOutput.Output.IsEmergencyStopActive)}.";
-        ThrottlePhprEffectsSummaryText.Text =
-            $"Effects: gear {FormatEnabledActive(_realPhprOptions.ThrottleGearPulse.IsEnabled, directRuntime.HardwareBelievedActive)}; road {FormatEnabledActive(_realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled, continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true)}; slip {FormatEnabledActive(_realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled, throttleSlipLockActive)}.";
 
-        ActiveEffectsSummaryText.Text =
-            $"{effectSnapshot.ActiveEffectCount:N0} active source(s); engine {FormatActiveIdle(effectSnapshot.Engine.IsActive)}; gear {FormatActiveIdle(effectSnapshot.GearShift.IsActive)}; road {FormatActiveIdle(effectSnapshot.RoadTexture.IsActive)}; kerb {FormatActiveIdle(effectSnapshot.Kerb.IsActive)}; impact {FormatActiveIdle(effectSnapshot.Impact.IsActive)}; slip/lock {FormatActiveIdle(effectSnapshot.Slip.IsActive)}; output peak {audioDiagnostics.OutputPeakLevel:0.000}.";
-        PriorityDuckingSummaryText.Text =
-            "Emergency stop and emergency mute override all output. Gear pulses take priority on P-HPR, and continuous pedal effects back off when higher-priority safety or gear activity needs the path.";
-
-        if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Routing / Mixer" })
-        {
-            PageStatusText.Text = $"Master {mixer.MasterGain:P0}; mute {FormatOnOff(pipelineSnapshot.IsMuted)}; emergency mute {FormatOnOff(_emergencyMuted)}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; active effects {effectSnapshot.ActiveEffectCount:N0}.";
-        }
+        return RoutingMixerStatusPresenter.Build(new RoutingMixerStatusSnapshot(
+            MasterGain: mixer.MasterGain,
+            SafetyOutputGain: safety.OutputGain,
+            EmergencyMuted: _emergencyMuted,
+            NormalMuted: pipelineSnapshot.IsMuted,
+            OutputPeakLevel: audioDiagnostics.OutputPeakLevel,
+            MixerPeakLevel: audioDiagnostics.MixerPeakLevel,
+            LimitedSampleCount: audioDiagnostics.LimitedSampleCount,
+            ClippedSampleCount: audioDiagnostics.ClippedSampleCount,
+            SelectedOutputModeText: selectedOutputMode,
+            SelectedAsioDriverNameText: _selectedAsioDriverName ?? "none",
+            SelectedAsioOutputChannelText: _selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel.ToString()!,
+            AsioArmed: _asioArmed,
+            TrueAsioStatusText: BuildTrueAsioStatusText(manualAsio),
+            Bst1GearEnabled: _bst1PaddleGearPulseEnabled,
+            Bst1GearActive: effectSnapshot.GearShift.IsActive,
+            Bst1RoadEnabled: effectSnapshot.RoadTexture.Bst1OutputEnabled,
+            Bst1RoadActive: effectSnapshot.RoadTexture.IsActive,
+            EngineEnabled: effectSnapshot.Engine.IsEnabled,
+            EngineActive: effectSnapshot.Engine.IsActive,
+            KerbEnabled: effectSnapshot.Kerb.IsEnabled,
+            KerbActive: effectSnapshot.Kerb.IsActive,
+            ImpactEnabled: effectSnapshot.Impact.IsEnabled,
+            ImpactActive: effectSnapshot.Impact.IsActive,
+            WheelSlipEnabled: effectSnapshot.Slip.WheelSlipEnabled,
+            WheelSlipActive: effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel slip", StringComparison.Ordinal),
+            WheelLockEnabled: effectSnapshot.Slip.WheelLockEnabled,
+            WheelLockActive: effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel lock", StringComparison.Ordinal),
+            PhprPedalsModeText: PhprPedalsModeComboBox.SelectedItem?.ToString() ?? "none",
+            BrakeGearPulseEnabled: _realPhprOptions.BrakeGearPulse.IsEnabled,
+            DirectReadinessText: directReadiness,
+            DirectConnectionStateText: realOutput.Connection.State.ToString(),
+            BrakeGearActive: directRuntime.HardwareBelievedActive,
+            BrakeRoadEnabled: _realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled,
+            BrakeRoadActive: continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true,
+            BrakeLockEnabled: _realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled,
+            BrakeLockActive: brakeSlipLockActive,
+            ThrottleGearPulseEnabled: _realPhprOptions.ThrottleGearPulse.IsEnabled,
+            PhprSoftwareCoexistenceStatusText: _phprSoftwareCoexistenceSnapshot.Status.ToString(),
+            RealEmergencyStopActive: realOutput.Output.IsEmergencyStopActive,
+            ThrottleGearActive: directRuntime.HardwareBelievedActive,
+            ThrottleRoadEnabled: _realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled,
+            ThrottleRoadActive: continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true,
+            ThrottleSlipEnabled: _realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled,
+            ThrottleSlipActive: throttleSlipLockActive,
+            ActiveEffectCount: effectSnapshot.ActiveEffectCount,
+            GearShiftActive: effectSnapshot.GearShift.IsActive,
+            RoadTextureActive: effectSnapshot.RoadTexture.IsActive,
+            SlipLockActive: effectSnapshot.Slip.IsActive));
     }
 
     private void UpdateDeviceStatus()
@@ -6360,6 +6390,16 @@ public partial class MainWindow : Window
     private TextBox RealSlipStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipStrengthTextBox));
 
     private TextBox RealSlipCadenceTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipCadenceTextBox));
+
+    private Slider MasterGainSlider => RoutingMixerViewControl.GetRequiredControl<Slider>(nameof(MasterGainSlider));
+
+    private TextBlock MasterGainValueText => RoutingMixerViewControl.GetRequiredControl<TextBlock>(nameof(MasterGainValueText));
+
+    private CheckBox MixerMuteCheckBox => RoutingMixerViewControl.GetRequiredControl<CheckBox>(nameof(MixerMuteCheckBox));
+
+    private Slider SafetyOutputGainSlider => RoutingMixerViewControl.GetRequiredControl<Slider>(nameof(SafetyOutputGainSlider));
+
+    private TextBlock SafetyOutputGainValueText => RoutingMixerViewControl.GetRequiredControl<TextBlock>(nameof(SafetyOutputGainValueText));
 
     private ComboBox OutputModeComboBox => DevicesViewControl.OutputModeComboBoxControl;
 

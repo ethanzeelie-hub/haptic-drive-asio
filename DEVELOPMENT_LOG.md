@@ -4165,6 +4165,87 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 23F - Routing / Mixer View Extraction and Safety-Routing Presentation Seam
+
+Status: Complete.
+
+Goal: Continue the low-risk Stage 23 shell extraction strategy by moving the normal Routing / Mixer page into a dedicated view/component and extracting only pure routing, safety, and summary display shaping without moving runtime ownership out of `MainWindow`.
+
+Changes:
+
+- Re-audited the Routing / Mixer seam before editing:
+  - `MainWindow.xaml` was 1752 lines,
+  - `MainWindow.xaml.cs` was 6460 lines,
+  - the Routing / Mixer page still lived inline in `MainWindow.xaml`,
+  - `UpdateMixerStatus()` still mixed pure display-string shaping with runtime sequencing,
+  - mixer controls still needed to preserve existing names for profile hydration and snapshot builders.
+- Added dedicated Routing / Mixer view files:
+  - `src/HapticDrive.Asio.App/Views/RoutingMixerView.xaml`,
+  - `src/HapticDrive.Asio.App/Views/RoutingMixerView.xaml.cs`.
+- Added `src/HapticDrive.Asio.App/RoutingMixerStatusPresenter.cs`:
+  - `RoutingMixerStatusSnapshot`,
+  - `RoutingMixerStatusPresentation`,
+  - `RoutingMixerStatusPresenter`.
+- Moved the normal Routing / Mixer layout into `RoutingMixerView` while preserving the same operator-facing structure and control identities:
+  - `Mixer And Safety`,
+  - `Output Routing Summary`,
+  - `Active Effects`,
+  - `Priority And Ducking`.
+- Kept runtime ownership exactly where it already was:
+  - `MainWindow` still owns app composition,
+  - navigation/page selection,
+  - runtime object ownership,
+  - profile hydration and application,
+  - live snapshot gathering,
+  - `ConfigurePhprDirectRuntime()` sequencing,
+  - startup/shutdown cleanup,
+  - mute/emergency/safety interactions.
+- Added a narrow event-forwarding seam:
+  - `RoutingMixerView` forwards the existing mixer tuning events back to `MainWindow`,
+  - no runtime execution moved into the view,
+  - no hardware/runtime classes moved into the presenter.
+- Centralized only pure Routing / Mixer display shaping through `RoutingMixerStatusPresenter`:
+  - master/safety gain display text,
+  - mute and limiter summary text,
+  - BST-1, brake P-HPR, and throttle P-HPR routing summaries,
+  - active-effects and priority/ducking summaries,
+  - Routing / Mixer page-status summary text.
+- Preserved existing profile and control behavior by keeping control access in `MainWindow` through the extracted-view seam:
+  - existing control names remain intact inside `RoutingMixerView`,
+  - `MainWindow` still owns profile control snapshot builders and control-application methods,
+  - no persistence schema, tuning defaults, or runtime routing behavior changed.
+- Continued the shell reduction without broad architectural churn:
+  - `MainWindow.xaml` now hosts `RoutingMixerViewControl` instead of the inline Routing / Mixer page,
+  - `MainWindow.xaml.cs` now applies `RoutingMixerStatusPresentation` instead of writing those summary/status strings directly,
+  - no MVVM rewrite,
+  - no new dependencies,
+  - no hardware/runtime-path ownership changes.
+- Added and updated stable tests:
+  - `RoutingMixerStatusPresenterTests`,
+  - `RoutingMixerStatusPresenterGuardrailTests`,
+  - `AppThemeResourceTests` updates for the extracted Routing / Mixer view and host boundary.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 847 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- --help` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- mock-protocol-examples` passed.
+- `.\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- safety-examples` passed.
+
+Self-review:
+
+- Stage 23F is intentionally Routing / Mixer presentation/component extraction only.
+- `MainWindow` remains the composition/runtime owner.
+- Mixer control names, profile hydration, and runtime sequencing remain intact.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No F1 25 parser, replay, forwarding, or persistence behavior changed.
+- This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
+
 ## Stage 23E - Effects View Extraction and Effect Tuning Presentation Seam
 
 Status: Complete.
