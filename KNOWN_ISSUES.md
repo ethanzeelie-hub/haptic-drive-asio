@@ -912,3 +912,12 @@
 - `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
 - App settings and profile writes are still sanitized but non-atomic and not yet schema-versioned for larger future migration work.
 - Packaging, installer creation, signed release publication, and installer smoke validation remain manual.
+
+## Stage 25H
+
+- Live recording now uses a bounded queue and reports queue capacity, current queued packets, and dropped packets, but the app still does not expose richer long-session recording analytics such as seek/index views, load-on-demand browsing, or per-recording health summaries beyond the current status text and metadata list.
+- `TelemetryRecordingFile.LoadAsync` still materializes the full packet list intentionally for callers that want a complete in-memory recording object; the library does not yet expose richer seek/index/query primitives for large-session workflows.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
+- App settings and profile writes are still sanitized but non-atomic and not yet schema-versioned for larger future migration work.
+- Packaging, installer creation, signed release publication, and installer smoke validation remain manual.

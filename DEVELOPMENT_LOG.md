@@ -4575,6 +4575,61 @@ Self-review:
 - No P-HPR HID/report behavior changed.
 - No physical validation is claimed.
 
+## Stage 25H - Live Recording Queue/Backpressure Hardening
+
+Status: Complete.
+
+Goal: Replace the live recording service's unbounded writer queue with a bounded, observable queue so overload becomes explicit without blocking telemetry receive or haptics runtime paths.
+
+Changes:
+
+- Re-audited the post-25G recording path before editing:
+  - replay-from-file now streamed from disk cleanly,
+  - live recording still used an unbounded background channel,
+  - overload visibility was limited to indirect file/result behavior rather than explicit queue/drop diagnostics.
+- Hardened `TelemetryRecordingService`:
+  - added a bounded queue capacity setting with a default production value,
+  - replaced the unbounded background channel with a bounded channel,
+  - kept `RecordPacket` non-blocking by using `TryWrite` and explicit drop behavior when the queue is full,
+  - added test seam support for injected recording streams so queue/backpressure behavior can be exercised deterministically without hardware or slow real disks.
+- Added live-recording observability:
+  - `TelemetryRecordingSnapshot` now carries queue capacity, queued-packet count, and dropped-packet count,
+  - queue-full overload now records a clear recording-status warning message,
+  - `TelemetryRecordingOperationStatus` now includes `Dropped` for overload cases that are visible but not terminal.
+- Threaded the new status through runtime/app surfaces:
+  - `HapticPipelinePacketResult` now carries the recording message separately from the parser message,
+  - `MainWindow` now uses the explicit recording message/status path,
+  - Dashboard and Telemetry / UDP status text now surface queue/dropped-packet information when overload occurs while keeping normal text unchanged when there is no backpressure.
+- Added focused tests:
+  - `Recording_QueueFullDropsPacketsAndReportsBackpressureSafely`,
+  - snapshot assertions for default queue-capacity visibility on a normal recording path.
+- Updated repo documentation:
+  - `README.md` now reports Stage 25H and records the bounded live-recording baseline,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25H and narrow the remaining recording work to richer recording-library indexing/query tooling,
+  - `docs/RECORDING_AND_REPLAY.md` now documents the bounded non-blocking capture queue.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build src/HapticDrive.Asio.Recording/HapticDrive.Asio.Recording.csproj --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Recording.Tests/HapticDrive.Asio.Recording.Tests.csproj --no-restore` passed with 22 tests.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed with 882 tests.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed launch preflight.
+
+Self-review:
+
+- Stage 25H changes live recording flow control and visibility, not the `.hdrec` format.
+- Telemetry receive stays non-blocking under recording overload, but dropped packets remain possible under sustained pressure and are now made explicit instead of hidden.
+- Replay/load behavior from Stage 25G remains unchanged.
+- Large-recording browse/index/query tooling is still future work.
+- No telemetry parser logic changed.
+- No game-adapter/catalog behavior changed.
+- No BST-1 effect, mixer, safety, or ASIO behavior changed.
+- No P-HPR HID/report behavior changed.
+- No physical validation is claimed.
+
 ## Stage 23K - MainWindow Shell-Composition Audit and Gemini REC-01 Closure
 
 Status: Complete.

@@ -5,24 +5,37 @@ namespace HapticDrive.Asio.Recording;
 
 public sealed class TelemetryRecordingService : IAsyncDisposable
 {
+    public const int DefaultQueueCapacityPackets = 4_096;
+
     private readonly object _gate = new();
     private readonly TimeProvider _timeProvider;
     private readonly int _maxPayloadLength;
+    private readonly int _queueCapacityPackets;
+    private readonly Func<string, Stream> _recordingStreamFactory;
     private RecordingSession? _session;
     private string? _lastErrorMessage;
     private bool _disposed;
 
     public TelemetryRecordingService(
         TimeProvider? timeProvider = null,
-        int maxPayloadLength = TelemetryRecordingFile.DefaultMaxPayloadLength)
+        int maxPayloadLength = TelemetryRecordingFile.DefaultMaxPayloadLength,
+        int queueCapacityPackets = DefaultQueueCapacityPackets,
+        Func<string, Stream>? recordingStreamFactory = null)
     {
         if (maxPayloadLength <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(maxPayloadLength), "Maximum payload length must be positive.");
         }
 
+        if (queueCapacityPackets <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueCapacityPackets), "Recording queue capacity must be positive.");
+        }
+
         _timeProvider = timeProvider ?? TimeProvider.System;
         _maxPayloadLength = maxPayloadLength;
+        _queueCapacityPackets = queueCapacityPackets;
+        _recordingStreamFactory = recordingStreamFactory ?? CreateFileStream;
     }
 
     public TelemetryRecordingSnapshot GetSnapshot()
@@ -34,7 +47,10 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
                 _session?.FilePath,
                 _session?.PacketCount ?? 0,
                 _session?.LastPacketRelativeTime,
-                _lastErrorMessage);
+                _lastErrorMessage,
+                _session?.QueueCapacityPackets,
+                _session?.QueuedPacketCount ?? 0,
+                _session?.DroppedPacketCount ?? 0);
         }
     }
 
@@ -66,7 +82,7 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             return ValueTask.FromResult(TelemetryRecordingOperationResult.Failure("Recording path is required."));
         }
 
-        FileStream? stream = null;
+        Stream? stream = null;
 
         try
         {
@@ -80,27 +96,24 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             var createdAtUtc = _timeProvider.GetUtcNow();
             metadata ??= TelemetryRecordingMetadata.CreateDefault(createdAtUtc);
 
-            stream = new FileStream(
-                fullPath,
-                FileMode.Create,
-                FileAccess.ReadWrite,
-                FileShare.Read,
-                bufferSize: 16 * 1024,
-                useAsync: true);
+            stream = _recordingStreamFactory(fullPath);
 
             var packetCountOffset = TelemetryRecordingFile.WriteHeader(stream, metadata);
             var recordingStream = stream;
             stream = null;
-            var channel = Channel.CreateUnbounded<TelemetryRecordedPacket>(
-                new UnboundedChannelOptions
+            var channel = Channel.CreateBounded<TelemetryRecordedPacket>(
+                new BoundedChannelOptions(_queueCapacityPackets)
                 {
                     SingleReader = true,
-                    SingleWriter = false
+                    SingleWriter = false,
+                    FullMode = BoundedChannelFullMode.Wait
                 });
-            var writerTask = Task.Run(
-                () => WriteLoopAsync(recordingStream, packetCountOffset, channel.Reader, _maxPayloadLength),
+            Task<RecordingWriterResult>? writerTask = null;
+            var session = new RecordingSession(fullPath, metadata.CreatedAtUtc, channel, writerTask: null!, _queueCapacityPackets);
+            writerTask = Task.Run(
+                () => WriteLoopAsync(recordingStream, packetCountOffset, channel.Reader, _maxPayloadLength, session.MarkPacketDequeued),
                 CancellationToken.None);
-            var session = new RecordingSession(fullPath, metadata.CreatedAtUtc, channel, writerTask);
+            session.AttachWriterTask(writerTask);
 
             lock (_gate)
             {
@@ -165,7 +178,18 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         var recordedPacket = new TelemetryRecordedPacket(packet.SequenceNumber, relativeTime, packet.Payload);
         if (!session.Channel.Writer.TryWrite(recordedPacket))
         {
-            return SetSessionError(session, "Recording writer is not accepting packets.");
+            if (session.Channel.Reader.Completion.IsCompleted || session.WriterTask.IsCompleted)
+            {
+                return SetSessionError(session, "Recording writer is not accepting packets.");
+            }
+
+            session.MarkPacketDropped();
+            lock (_gate)
+            {
+                _lastErrorMessage = $"Recording queue full at capacity {_queueCapacityPackets:N0}; packet dropped.";
+            }
+
+            return TelemetryRecordingOperationResult.Dropped(_lastErrorMessage);
         }
 
         session.MarkPacketRecorded(relativeTime);
@@ -245,10 +269,11 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
     }
 
     private static async Task<RecordingWriterResult> WriteLoopAsync(
-        FileStream stream,
+        Stream stream,
         long packetCountOffset,
         ChannelReader<TelemetryRecordedPacket> reader,
-        int maxPayloadLength)
+        int maxPayloadLength,
+        Action packetDequeued)
     {
         var packetCount = 0L;
 
@@ -256,6 +281,7 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         {
             await foreach (var packet in reader.ReadAllAsync().ConfigureAwait(false))
             {
+                packetDequeued();
                 TelemetryRecordingFile.WritePacket(
                     stream,
                     packet,
@@ -283,12 +309,14 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             string filePath,
             DateTimeOffset startedAtUtc,
             Channel<TelemetryRecordedPacket> channel,
-            Task<RecordingWriterResult> writerTask)
+            Task<RecordingWriterResult> writerTask,
+            int queueCapacityPackets)
         {
             FilePath = filePath;
             StartedAtUtc = startedAtUtc;
             Channel = channel;
             WriterTask = writerTask;
+            QueueCapacityPackets = queueCapacityPackets;
         }
 
         public string FilePath { get; }
@@ -297,18 +325,43 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
 
         public Channel<TelemetryRecordedPacket> Channel { get; }
 
-        public Task<RecordingWriterResult> WriterTask { get; }
+        public Task<RecordingWriterResult> WriterTask { get; private set; }
+
+        public int QueueCapacityPackets { get; }
 
         public long PacketCount => Interlocked.Read(ref _packetCount);
+
+        public int QueuedPacketCount => Math.Max(0, (int)(Interlocked.Read(ref _enqueuedPacketCount) - Interlocked.Read(ref _dequeuedPacketCount)));
+
+        public long DroppedPacketCount => Interlocked.Read(ref _droppedPacketCount);
 
         public TimeSpan? LastPacketRelativeTime { get; private set; }
 
         private long _packetCount;
+        private long _enqueuedPacketCount;
+        private long _dequeuedPacketCount;
+        private long _droppedPacketCount;
 
         public void MarkPacketRecorded(TimeSpan relativeTime)
         {
             Interlocked.Increment(ref _packetCount);
+            Interlocked.Increment(ref _enqueuedPacketCount);
             LastPacketRelativeTime = relativeTime;
+        }
+
+        public void MarkPacketDequeued()
+        {
+            Interlocked.Increment(ref _dequeuedPacketCount);
+        }
+
+        public void MarkPacketDropped()
+        {
+            Interlocked.Increment(ref _droppedPacketCount);
+        }
+
+        public void AttachWriterTask(Task<RecordingWriterResult> writerTask)
+        {
+            WriterTask = writerTask ?? throw new ArgumentNullException(nameof(writerTask));
         }
     }
 
@@ -323,5 +376,16 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         {
             return new(false, packetCount, message);
         }
+    }
+
+    private static Stream CreateFileStream(string fullPath)
+    {
+        return new FileStream(
+            fullPath,
+            FileMode.Create,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            bufferSize: 16 * 1024,
+            useAsync: true);
     }
 }

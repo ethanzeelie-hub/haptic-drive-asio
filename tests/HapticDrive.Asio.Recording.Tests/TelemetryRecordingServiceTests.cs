@@ -47,6 +47,8 @@ public sealed class TelemetryRecordingServiceTests
         Assert.Equal(TimeSpan.FromMilliseconds(25), loadResult.Recording.Packets[1].RelativeTime);
         Assert.Equal([0x01, 0x02, 0x03], loadResult.Recording.Packets[0].Payload);
         Assert.Equal(secondPayload, loadResult.Recording.Packets[1].Payload);
+        Assert.Equal(TelemetryRecordingService.DefaultQueueCapacityPackets, snapshot.QueueCapacityPackets);
+        Assert.Equal(0, snapshot.DroppedPacketCount);
     }
 
     [Fact]
@@ -124,6 +126,43 @@ public sealed class TelemetryRecordingServiceTests
         Assert.False(recordResult.Succeeded);
         Assert.Contains("exceeds 3 bytes", recordResult.Message);
         Assert.False(stopResult.Succeeded);
+    }
+
+    [Fact]
+    public async Task Recording_QueueFullDropsPacketsAndReportsBackpressureSafely()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 10, 30, 0, TimeSpan.Zero);
+        var blockingStream = new BlockingPacketWriteStream();
+        await using var recorder = new TelemetryRecordingService(
+            queueCapacityPackets: 1,
+            recordingStreamFactory: _ => blockingStream);
+
+        var startResult = await recorder.StartAsync(
+            path,
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Backpressure Test", "stage-25h-test"));
+        blockingStream.BlockPacketWrites = true;
+
+        var firstRecordResult = recorder.RecordPacket(CreatePacket(1, [0x01], createdAtUtc));
+        Assert.True(startResult.Succeeded, startResult.Message);
+        Assert.True(firstRecordResult.Succeeded, firstRecordResult.Message);
+        Assert.True(blockingStream.WaitForBlockedPacketWrite(TimeSpan.FromSeconds(3)));
+
+        var secondRecordResult = recorder.RecordPacket(CreatePacket(2, [0x02], createdAtUtc.AddMilliseconds(5)));
+        var thirdRecordResult = recorder.RecordPacket(CreatePacket(3, [0x03], createdAtUtc.AddMilliseconds(10)));
+        var snapshot = recorder.GetSnapshot();
+
+        Assert.True(secondRecordResult.Succeeded, secondRecordResult.Message);
+        Assert.Equal(TelemetryRecordingOperationStatus.Dropped, thirdRecordResult.Status);
+        Assert.Equal(1, snapshot.QueueCapacityPackets);
+        Assert.Equal(1, snapshot.QueuedPacketCount);
+        Assert.Equal(1, snapshot.DroppedPacketCount);
+        Assert.Contains("queue full", snapshot.LastErrorMessage, StringComparison.OrdinalIgnoreCase);
+
+        blockingStream.ReleaseBlockedWrites();
+        var stopResult = await recorder.StopAsync();
+
+        Assert.True(stopResult.Succeeded, stopResult.Message);
     }
 
     [Fact]
@@ -515,6 +554,102 @@ public sealed class TelemetryRecordingServiceTests
             cancellationToken.ThrowIfCancellationRequested();
             Delays.Add(delay);
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingPacketWriteStream : Stream
+    {
+        private readonly MemoryStream _inner = new();
+        private readonly ManualResetEventSlim _packetWriteBlocked = new(false);
+        private readonly ManualResetEventSlim _releasePacketWrites = new(false);
+
+        public bool BlockPacketWrites { get; set; }
+
+        public override bool CanRead => _inner.CanRead;
+
+        public override bool CanSeek => _inner.CanSeek;
+
+        public override bool CanWrite => _inner.CanWrite;
+
+        public override long Length => _inner.Length;
+
+        public override long Position
+        {
+            get => _inner.Position;
+            set => _inner.Position = value;
+        }
+
+        public bool WaitForBlockedPacketWrite(TimeSpan timeout)
+        {
+            return _packetWriteBlocked.Wait(timeout);
+        }
+
+        public void ReleaseBlockedWrites()
+        {
+            _releasePacketWrites.Set();
+        }
+
+        public override void Flush()
+        {
+            _inner.Flush();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return _inner.Read(buffer, offset, count);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            return _inner.Seek(offset, origin);
+        }
+
+        public override void SetLength(long value)
+        {
+            _inner.SetLength(value);
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            MaybeBlockPacketWrite();
+            _inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            MaybeBlockPacketWrite();
+            _inner.Write(buffer);
+        }
+
+        public override ValueTask DisposeAsync()
+        {
+            _packetWriteBlocked.Dispose();
+            _releasePacketWrites.Dispose();
+            _inner.Dispose();
+            return ValueTask.CompletedTask;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _packetWriteBlocked.Dispose();
+                _releasePacketWrites.Dispose();
+                _inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private void MaybeBlockPacketWrite()
+        {
+            if (!BlockPacketWrites)
+            {
+                return;
+            }
+
+            _packetWriteBlocked.Set();
+            _releasePacketWrites.Wait(TimeSpan.FromSeconds(3));
         }
     }
 }

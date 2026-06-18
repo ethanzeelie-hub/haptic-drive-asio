@@ -3,6 +3,7 @@ namespace HapticDrive.Asio.Recording;
 public enum TelemetryRecordingOperationStatus
 {
     Success,
+    Dropped,
     NotRecording,
     AlreadyRecording,
     Cancelled,
@@ -18,6 +19,11 @@ public sealed record TelemetryRecordingOperationResult(
     public static TelemetryRecordingOperationResult Success(string message)
     {
         return new(TelemetryRecordingOperationStatus.Success, message);
+    }
+
+    public static TelemetryRecordingOperationResult Dropped(string message)
+    {
+        return new(TelemetryRecordingOperationStatus.Dropped, message);
     }
 
     public static TelemetryRecordingOperationResult NotRecording(string message)
@@ -162,7 +168,10 @@ public sealed record TelemetryRecordingSnapshot(
     string? FilePath,
     long PacketCount,
     TimeSpan? LastPacketRelativeTime,
-    string? LastErrorMessage);
+    string? LastErrorMessage,
+    int? QueueCapacityPackets = null,
+    int QueuedPacketCount = 0,
+    long DroppedPacketCount = 0);
 
 public sealed record TelemetryReplaySnapshot(
     bool IsReplaying,

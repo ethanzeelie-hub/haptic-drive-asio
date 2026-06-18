@@ -58,7 +58,10 @@ internal sealed record DashboardStatusSnapshot(
     InputListenerStatus PaddleListenerStatus,
     bool PaddleMappingReady,
     bool Bst1PaddleGearPulseEnabled,
-    bool ShiftIntentEnabled);
+    bool ShiftIntentEnabled,
+    int? RecordingQueueCapacityPackets = null,
+    int RecordingQueuedPacketCount = 0,
+    long RecordingDroppedPacketCount = 0);
 
 internal sealed record DashboardStatusPresentation(
     bool ShowWorkflowCard,
@@ -192,9 +195,16 @@ internal static class DashboardStatusPresenter
 
         if (snapshot.RecordingActive)
         {
-            return snapshot.RecordingLastPacketRelativeTime is null
+            var detail = snapshot.RecordingLastPacketRelativeTime is null
                 ? $"Writing {Normalize(snapshot.RecordingFileName, "recording")}; waiting for first packet."
                 : $"Writing {Normalize(snapshot.RecordingFileName, "recording")}; last packet {snapshot.RecordingLastPacketRelativeTime.Value.TotalSeconds:0.000}s.";
+
+            if (snapshot.RecordingDroppedPacketCount > 0)
+            {
+                detail += $" Queue {snapshot.RecordingQueuedPacketCount:N0}/{snapshot.RecordingQueueCapacityPackets ?? 0:N0}; dropped {snapshot.RecordingDroppedPacketCount:N0}.";
+            }
+
+            return detail;
         }
 
         return "Ready to capture F1 25 UDP packets to replay files.";
@@ -339,7 +349,9 @@ internal static class DashboardStatusPresenter
     {
         if (snapshot.RecordingActive)
         {
-            return $"Recording is active to {Normalize(snapshot.RecordingFileName, "recording")}.";
+            return snapshot.RecordingDroppedPacketCount > 0
+                ? $"Recording is active to {Normalize(snapshot.RecordingFileName, "recording")}; queue {snapshot.RecordingQueuedPacketCount:N0}/{snapshot.RecordingQueueCapacityPackets ?? 0:N0}; dropped {snapshot.RecordingDroppedPacketCount:N0}."
+                : $"Recording is active to {Normalize(snapshot.RecordingFileName, "recording")}.";
         }
 
         return snapshot.ReplayActive

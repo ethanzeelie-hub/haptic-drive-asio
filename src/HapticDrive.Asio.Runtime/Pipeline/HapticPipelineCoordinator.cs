@@ -706,6 +706,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             parseResult.ParseStatus,
             parseResult.VehicleStateUpdated,
             recordingResult.Status,
+            recordingResult.Message,
             forwardingAttempted,
             parseResult.Message);
     }
@@ -721,6 +722,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             parseResult.ParseStatus,
             parseResult.VehicleStateUpdated,
             TelemetryRecordingOperationStatus.NotRecording,
+            null,
             ForwardingAttempted: false,
             parseResult.Message);
     }

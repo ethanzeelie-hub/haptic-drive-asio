@@ -48,11 +48,13 @@ Live capture path:
 ```text
 UdpTelemetryReceiver
 -> TelemetryRecordingService.RecordPacket
--> background recording writer queue
+-> bounded background recording writer queue
 -> .hdrec file
 ```
 
 The recorder is fed before parser validation, so parser failures never prevent raw packet capture.
+
+Live recording keeps the telemetry path non-blocking. If the bounded recording queue is full, the service drops the newest packet, increments dropped-packet diagnostics, and reports the overload through recording status rather than stalling telemetry receive or the haptics path.
 
 Replay path:
 

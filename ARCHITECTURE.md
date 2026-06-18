@@ -2481,3 +2481,16 @@ Stage 25G architecture result:
 - Replay still preserves raw payload bytes, packet ordering, relative timing, and corruption checks, including truncated-record and trailing-byte failures.
 
 Stage 25G deliberately does not change the live recording writer queue model, add seek/index/query APIs for large recordings, or change the `.hdrec` format version. It narrows the replay/load seam first so future recording-library scaling work has a cleaner base.
+
+## Stage 25H Live Recording Queue/Backpressure Hardening
+
+Stage 25H hardens the live recording path itself after Stage 25G reduced replay-side memory pressure.
+
+Stage 25H architecture result:
+
+- `TelemetryRecordingService` now uses a bounded channel instead of an unbounded queue for background packet-to-disk handoff.
+- The live telemetry path still remains non-blocking: when the recording queue is full, packets are dropped explicitly rather than stalling the caller.
+- Recording snapshots now expose queue capacity, current queued packets, and dropped-packet count so runtime/app callers can see overload instead of inferring it from a future file discrepancy.
+- App/runtime recording status now surfaces bounded-queue/drop warnings through the existing recording status text instead of requiring a new diagnostics page.
+
+Stage 25H deliberately does not add large-recording browse/index APIs, retry/recovery policies for dropped packets, or a new `.hdrec` format version. It makes the live capture path bounded and observable first.

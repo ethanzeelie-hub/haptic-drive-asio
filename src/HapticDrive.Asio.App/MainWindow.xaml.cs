@@ -2966,10 +2966,7 @@ public partial class MainWindow : Window
         {
             var stopResult = await _hapticPipeline.RecordingService.StopAsync();
             FooterStatusText.Text = stopResult.Message;
-            if (!stopResult.Succeeded)
-            {
-                _recordingError = stopResult.Message;
-            }
+            _recordingError = stopResult.Succeeded ? null : stopResult.Message;
 
             UpdateRecordingStatus();
             return;
@@ -3271,12 +3268,15 @@ public partial class MainWindow : Window
             VehicleSpeedKph: pipelineSnapshot.VehicleState.Telemetry?.Value.SpeedKph,
             VehicleGear: pipelineSnapshot.VehicleState.Telemetry?.Value.Gear,
             LastVehicleStateMessage: pipelineSnapshot.LastVehicleStateMessage,
-            RecordingHasError: _recordingError is not null,
-            RecordingError: _recordingError,
+            RecordingHasError: (_recordingError ?? recordingSnapshot.LastErrorMessage) is not null,
+            RecordingError: _recordingError ?? recordingSnapshot.LastErrorMessage,
             RecordingActive: recordingSnapshot.IsRecording,
             RecordingPacketCount: recordingSnapshot.PacketCount,
             RecordingFileName: recordingSnapshot.FilePath is null ? null : Path.GetFileName(recordingSnapshot.FilePath),
             RecordingLastPacketRelativeTime: recordingSnapshot.LastPacketRelativeTime,
+            RecordingQueueCapacityPackets: recordingSnapshot.QueueCapacityPackets,
+            RecordingQueuedPacketCount: recordingSnapshot.QueuedPacketCount,
+            RecordingDroppedPacketCount: recordingSnapshot.DroppedPacketCount,
             ReplayActive: replaySnapshot.IsReplaying,
             ReplayPacketCount: replaySnapshot.PacketsReplayed,
             ReplayFileName: replaySnapshot.SourceFilePath is null ? null : Path.GetFileName(replaySnapshot.SourceFilePath),
@@ -5460,9 +5460,9 @@ public partial class MainWindow : Window
         try
         {
             var result = await _hapticPipeline.OfferLiveTelemetryPacketAsync(packet);
-            if (result.RecordingStatus == TelemetryRecordingOperationStatus.Failure)
+            if (result.RecordingStatus is TelemetryRecordingOperationStatus.Failure or TelemetryRecordingOperationStatus.Dropped)
             {
-                _recordingError = result.Message;
+                _recordingError = result.RecordingMessage;
             }
         }
         catch (Exception ex)
@@ -5863,7 +5863,7 @@ public partial class MainWindow : Window
             RecordingActive: recordingSnapshot.IsRecording,
             RecordingFileName: recordingSnapshot.FilePath is null ? string.Empty : Path.GetFileName(recordingSnapshot.FilePath),
             RecordingLastPacketRelativeTime: recordingSnapshot.LastPacketRelativeTime,
-            RecordingError: _recordingError,
+            RecordingError: _recordingError ?? recordingSnapshot.LastErrorMessage,
             ReplayActive: replaySnapshot.IsReplaying,
             ReplayModeLabel: replayMode.Label,
             ReplaySourceFileName: replaySnapshot.SourceFilePath is null ? string.Empty : Path.GetFileName(replaySnapshot.SourceFilePath),
@@ -5874,6 +5874,9 @@ public partial class MainWindow : Window
             ListenerPort: receiverSnapshot.BoundPort,
             ForwardedDatagramCount: forwardingSnapshot.ForwardedDatagramCount,
             RecordingPacketCount: recordingSnapshot.PacketCount,
+            RecordingQueuedPacketCount: recordingSnapshot.QueuedPacketCount,
+            RecordingQueueCapacityPackets: recordingSnapshot.QueueCapacityPackets,
+            RecordingDroppedPacketCount: recordingSnapshot.DroppedPacketCount,
             ParserSuccessCount: pipelineSnapshot.ParserSuccessCount,
             VehicleStateUpdateCount: pipelineSnapshot.VehicleStateUpdateCount,
             ForwardingDestinationCount: _forwardingDestinations.Count,

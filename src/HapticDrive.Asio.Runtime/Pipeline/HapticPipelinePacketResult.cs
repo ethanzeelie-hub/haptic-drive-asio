@@ -8,5 +8,6 @@ public sealed record HapticPipelinePacketResult(
     TelemetryPacketParseStatus ParseStatus,
     bool VehicleStateUpdated,
     TelemetryRecordingOperationStatus RecordingStatus,
+    string? RecordingMessage,
     bool ForwardingAttempted,
     string Message);
