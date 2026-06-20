@@ -10,7 +10,9 @@ internal sealed record SupportBundleExportInputs(
     DateTimeOffset GeneratedAtUtc,
     string SelectedGameId,
     string SelectedGameDisplayName,
-    DiagnosticsStatusPresentation DiagnosticsPresentation);
+    DiagnosticsStatusPresentation DiagnosticsPresentation,
+    string? SelectedRecordingFileName = null,
+    string? SelectedRecordingDetailText = null);
 
 internal sealed class SupportBundleExporter
 {
@@ -49,6 +51,14 @@ internal sealed class SupportBundleExporter
                 WriteStringEntry(archive, "README.txt", BuildReadme());
                 WriteStringEntry(archive, "diagnostics-report.txt", NormalizeLineEndings(inputs.DiagnosticsPresentation.ClipboardReportText));
                 WriteStringEntry(archive, "diagnostics-summary.json", BuildDiagnosticsSummaryJson(inputs));
+                if (!string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText))
+                {
+                    WriteStringEntry(
+                        archive,
+                        "selected-recording-detail.txt",
+                        NormalizeLineEndings(inputs.SelectedRecordingDetailText));
+                }
+
                 WriteStringEntry(archive, "manifest.json", BuildManifestJson(inputs));
             }
 
@@ -77,7 +87,7 @@ internal sealed class SupportBundleExporter
             """
             Haptic Drive ASIO support bundle
 
-            Private local export. This bundle contains sanitized diagnostics text only.
+            Private local export. This bundle contains sanitized diagnostics text plus optional selected-recording detail text only.
             No hardware output is triggered by export.
             Do not commit raw captures, serial numbers, or private device paths.
             """);
@@ -88,6 +98,7 @@ internal sealed class SupportBundleExporter
         var payload = new
         {
             GeneratedAtUtc = inputs.GeneratedAtUtc,
+            inputs.SelectedRecordingFileName,
             inputs.DiagnosticsPresentation.RoadRecorderStatusText,
             inputs.DiagnosticsPresentation.SummaryText,
             Items = inputs.DiagnosticsPresentation.Items
@@ -106,18 +117,31 @@ internal sealed class SupportBundleExporter
             GeneratedAtUtc = inputs.GeneratedAtUtc,
             inputs.SelectedGameId,
             inputs.SelectedGameDisplayName,
+            ContainsSelectedRecordingDetail = !string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText),
             ContainsRawCaptures = false,
             ContainsPrivateDevicePaths = false,
-            Files = new[]
-            {
-                "README.txt",
-                "diagnostics-report.txt",
-                "diagnostics-summary.json",
-                "manifest.json"
-            }
+            Files = BuildManifestFiles(inputs)
         };
 
         return JsonSerializer.Serialize(payload, JsonOptions);
+    }
+
+    private static IReadOnlyList<string> BuildManifestFiles(SupportBundleExportInputs inputs)
+    {
+        var files = new List<string>
+        {
+            "README.txt",
+            "diagnostics-report.txt",
+            "diagnostics-summary.json"
+        };
+
+        if (!string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText))
+        {
+            files.Add("selected-recording-detail.txt");
+        }
+
+        files.Add("manifest.json");
+        return files;
     }
 
     private static string ResolveApplicationVersion()

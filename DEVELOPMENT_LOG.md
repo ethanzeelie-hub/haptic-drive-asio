@@ -4713,6 +4713,53 @@ Self-review:
 - Reusing the existing analysis cache keeps the incremental complexity low and avoids creating a second analysis/export code path that could drift over time.
 - The deeper recording-library gap is still browse/index depth, not basic ability to move the current inspection output into another tool or conversation.
 
+## Stage 25Y - Support-Bundle Selected-Recording Detail Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Extend the existing local support-bundle export so it can optionally include the currently selected recording's sanitized detail report, linking the recording-inspection path with the support-artifact path without exporting raw capture files.
+
+Notes:
+
+- Re-audited the Stage 25L support-bundle seam and the Stage 25X selected-recording detail seam before editing:
+  - support bundles already exported diagnostics text/summary/manifest,
+  - selected recordings already had a sanitized detail report shape,
+  - the missing link was that support export could not carry the currently inspected recording context.
+- Extended `SupportBundleExportInputs` and `SupportBundleExporter`:
+  - added optional selected-recording file-name/detail inputs,
+  - bundle export now writes `selected-recording-detail.txt` when that detail exists,
+  - manifest/summary data now records the optional selected-recording attachment state.
+- Kept the export sanitized and deliberately narrow:
+  - no raw `.hdrec` file attachment,
+  - no packet payload export,
+  - no additional hardware-private data.
+- Reused the existing selected-recording detail contract instead of inventing a new support-only formatter:
+  - the support bundle exports the same selected-recording detail shape used by the UI and clipboard path,
+  - `MainWindow` can now populate analysis on demand before bundle export when a recording is selected.
+- Added focused app coverage for the new bundle behavior:
+  - support-bundle tests now prove the optional selected-recording detail file is included when requested,
+  - manifest and summary content now prove the attachment is surfaced in the exported metadata.
+- Verification again included the same known broad-suite timing wobble:
+  - the first full solution test pass hit an existing-looking `PHprDirectRuntimeTests` race in the broad parallel suite,
+  - the immediate rerun passed cleanly with no code changes between runs,
+  - the final stage status is green.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed on rerun.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25Y is a good production-support step because it compounds two existing features into one more useful artifact instead of widening the product surface for its own sake.
+- The export path stays honest about privacy: the bundle gains recording context, not raw recording payloads.
+- The remaining support/export gap is now about broader incident packaging and optional raw attachments, not lack of any connection between recording inspection and support-bundle export.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

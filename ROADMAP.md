@@ -133,6 +133,7 @@
 - Stage 25V: Selected-recording packet preview baseline complete.
 - Stage 25W: Retained backup history baseline complete.
 - Stage 25X: Selected-recording detail clipboard baseline complete.
+- Stage 25Y: Support-bundle selected-recording detail baseline complete.
 
 ## Planned Stages
 
@@ -238,6 +239,7 @@
 100. Stage 25V: Selected-recording packet preview baseline. Complete.
 101. Stage 25W: Retained backup history baseline. Complete.
 102. Stage 25X: Selected-recording detail clipboard baseline. Complete.
+103. Stage 25Y: Support-bundle selected-recording detail baseline. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -302,6 +304,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25V extends that same app-side recording analysis seam with a first-pass packet preview, so the Telemetry / UDP detail panel now shows sample packet order, relative timing, packet kind/ID, and payload size for the selected F1 25 recording.
 - Stage 25W extends the persistence recovery path with retained backup history: app settings, audio profiles, and P-HPR profiles now keep a small rolling snapshot set and fall back through primary, single backup, then retained history when corruption reaches more than one file copy.
 - Stage 25X extends the selected-recording inspection path with a copyable clipboard detail report, so operators can lift the already-available summary, histogram, and preview text directly into bug reports or support notes without leaving the app.
+- Stage 25Y extends the local support-bundle seam so export can optionally include the currently selected recording's sanitized detail report, connecting recording inspection to support artifacts without bundling raw captures.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index tooling such as richer per-packet browse/index views, broader cross-file persistence repair/rollback orchestration across multiple documents, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases

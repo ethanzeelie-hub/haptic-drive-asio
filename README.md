@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25X: Selected-recording detail clipboard baseline complete.
+Stage 25Y: Support-bundle selected-recording detail baseline complete.
 
 ## Current Architecture Baseline
 
@@ -24,7 +24,7 @@ Stage 25X: Selected-recording detail clipboard baseline complete.
 - Local and GitHub Actions packaging now share a real publish path through `Publish-HapticDrive.ps1`, producing a `win-x64` framework-dependent zip artifact plus checksum, JSON manifest, and Markdown release summary under `artifacts/release/`.
 - Release packaging now also includes a repo-native smoke check through `Test-ReleaseArtifact.ps1`, which verifies the publish folder, zip payload, checksum, manifest, release summary, and extracted artifact structure both locally and in the packaging workflow.
 - Local release preparation now also has a single staged-release command through `Prepare-ReleaseArtifact.ps1`, which runs restore/build/test/format/launch-preflight, publishes, smoke-checks, and gathers the final release files into `artifacts/staged-release/`.
-- Advanced / Diagnostics can now export a private local support-bundle zip under `local-validation-results/support-bundles/`, containing sanitized diagnostics text plus structured summary/manifest files without attaching raw captures or private device paths.
+- Advanced / Diagnostics can now export a private local support-bundle zip under `local-validation-results/support-bundles/`, containing sanitized diagnostics text plus structured summary/manifest files and optional selected-recording detail text without attaching raw captures or private device paths.
 - `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
 - ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.
 - Simagic P-HPR remains a separate non-audio actuator path. It is not routed through ASIO or `IAudioOutputDevice`.

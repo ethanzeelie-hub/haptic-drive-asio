@@ -47,7 +47,7 @@ public sealed class SupportBundleExporterTests
         var summaryJson = ReadEntryText(archive, "diagnostics-summary.json");
         var manifestJson = ReadEntryText(archive, "manifest.json");
 
-        Assert.Contains("sanitized diagnostics text only", readme, StringComparison.Ordinal);
+        Assert.Contains("sanitized diagnostics text plus optional selected-recording detail text only", readme, StringComparison.Ordinal);
         Assert.Contains("No hardware output is triggered by export.", readme, StringComparison.Ordinal);
         Assert.Contains("Haptic Drive ASIO diagnostics", report, StringComparison.Ordinal);
         Assert.Contains("private path held in memory only", report, StringComparison.Ordinal);
@@ -57,6 +57,44 @@ public sealed class SupportBundleExporterTests
         Assert.Contains(@"""ContainsPrivateDevicePaths"": false", manifestJson, StringComparison.Ordinal);
         Assert.Contains(@"""RoadRecorderStatusText"": ""Road recorder: disabled; path disabled; last fallback none.""", summaryJson, StringComparison.Ordinal);
         Assert.Contains(@"""Items"": [", summaryJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportZip_IncludesSelectedRecordingDetailWhenProvided()
+    {
+        using var directory = new TemporaryDirectory();
+        var exporter = new SupportBundleExporter();
+        var generatedAt = new DateTimeOffset(2026, 6, 20, 5, 6, 7, TimeSpan.Zero);
+        var inputs = new SupportBundleExportInputs(
+            generatedAt,
+            SelectedGameId: "f1-25",
+            SelectedGameDisplayName: "F1 25",
+            new DiagnosticsStatusPresentation(
+                RoadRecorderStatusText: "Road recorder: disabled.",
+                SummaryText: "Diagnostics summary.",
+                Items: ["Pipeline: stopped"],
+                ClipboardReportText: "Haptic Drive ASIO diagnostics"),
+            SelectedRecordingFileName: "session.hdrec",
+            SelectedRecordingDetailText:
+            """
+            Recording: session.hdrec
+            Summary: session.hdrec - 3 packet(s)
+            Detail: Packet histogram: Motion#0: 2.
+            """);
+
+        var path = exporter.ExportZip(inputs, directory.Path);
+
+        using var archive = ZipFile.OpenRead(path);
+        Assert.Contains("selected-recording-detail.txt", archive.Entries.Select(entry => entry.FullName));
+
+        var selectedRecordingDetail = ReadEntryText(archive, "selected-recording-detail.txt");
+        var summaryJson = ReadEntryText(archive, "diagnostics-summary.json");
+        var manifestJson = ReadEntryText(archive, "manifest.json");
+
+        Assert.Contains("Recording: session.hdrec", selectedRecordingDetail, StringComparison.Ordinal);
+        Assert.Contains(@"""SelectedRecordingFileName"": ""session.hdrec""", summaryJson, StringComparison.Ordinal);
+        Assert.Contains(@"""ContainsSelectedRecordingDetail"": true", manifestJson, StringComparison.Ordinal);
+        Assert.Contains(@"""selected-recording-detail.txt""", manifestJson, StringComparison.Ordinal);
     }
 
     private static string ReadEntryText(ZipArchive archive, string entryName)

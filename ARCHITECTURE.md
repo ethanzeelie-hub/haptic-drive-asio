@@ -2816,3 +2816,24 @@ Stage 25X architecture result:
 - The result materially improves production supportability because operators can now move selected-recording context into bug reports and notes without manually retyping or screenshotting the detail panel.
 
 Stage 25X deliberately does not add persistent recording indexes, packet-body drill-down, random-access packet browsing, raw capture export, or cross-game detailed analyzers. It adds a copyable inspection artifact first so later browse/support tooling can build on a proven selected-recording detail contract.
+
+## Stage 25Y Support-Bundle Selected-Recording Detail Baseline
+
+Stage 25Y connects the selected-recording inspection lane to the existing local support-bundle lane without introducing raw-capture attachment behavior.
+
+Stage 25Y architecture result:
+
+- `SupportBundleExportInputs` and `SupportBundleExporter` now carry one optional selected-recording detail artifact:
+  - when present, the bundle includes `selected-recording-detail.txt`,
+  - manifest and summary content now record that optional attachment in a sanitized way,
+  - the bundle still remains text-only and local-only.
+- The export path reuses the existing selected-recording formatter/analysis contract instead of building a second support-only packet summary:
+  - the app can populate selected-recording analysis on demand before export,
+  - the support bundle therefore carries the same selected-recording detail shape the UI and clipboard path already use.
+- Privacy and hardware-safety boundaries remain unchanged:
+  - no raw `.hdrec` file is attached,
+  - no packet payload bytes are exported separately,
+  - no extra device-path or raw-hardware data is added to the bundle.
+- The result improves production supportability because a local support bundle can now carry the operator's currently inspected recording context alongside the diagnostics report, reducing context loss between issue observation and artifact export.
+
+Stage 25Y deliberately does not add raw recording attachment, remote upload, packet-body decode exports, automatic log harvesting, or broader incident bundle packaging. It adds one selected-recording detail attachment first so later support tooling can build on a proven sanitized bundle contract.

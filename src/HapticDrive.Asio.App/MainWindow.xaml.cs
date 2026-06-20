@@ -4202,21 +4202,39 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ExportSupportBundleButton_Click(object sender, RoutedEventArgs e)
+    private async void ExportSupportBundleButton_Click(object sender, RoutedEventArgs e)
     {
         var presentation = BuildDiagnosticsStatusPresentation();
         ApplyDiagnosticsStatusPresentation(presentation);
 
         try
         {
+            string? selectedRecordingFileName = null;
+            string? selectedRecordingDetailText = null;
+            if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem item)
+            {
+                selectedRecordingFileName = Path.GetFileName(item.Path);
+                var analysisText = await GetRecordingLibraryAnalysisTextAsync(item).ConfigureAwait(true);
+                selectedRecordingDetailText = RecordingLibraryDetailFormatter.BuildClipboardText(
+                    item.Path,
+                    item.DisplayText,
+                    item.DetailText,
+                    analysisText);
+            }
+
             var directory = GetLocalValidationResultsDirectory();
             var inputs = new SupportBundleExportInputs(
                 DateTimeOffset.UtcNow,
                 GameTelemetryCatalog.NormalizeGameId(_selectedGameId),
                 GameTelemetryCatalog.GetDisplayName(_selectedGameId),
-                presentation);
+                presentation,
+                selectedRecordingFileName,
+                selectedRecordingDetailText);
             _lastSupportBundleExportPath = _supportBundleExporter.ExportZip(inputs, directory);
             FooterStatusText.Text = $"Support bundle exported locally to {_lastSupportBundleExportPath}.";
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
