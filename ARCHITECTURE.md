@@ -2749,3 +2749,27 @@ Stage 25U architecture result:
   - large-library list refresh still stays focused on the earlier generic streamed summaries rather than eagerly parsing every recording for game-specific details.
 
 Stage 25U deliberately does not add random-access packet browsing, persistent sidecar indexes, cross-game histogram analyzers, packet-content drill-down views, or a new `.hdrec` format version. It adds one on-demand selected-recording inspection seam first so deeper browse/index work can build on a visible product surface without breaking the generic recording boundary.
+
+## Stage 25V Selected-Recording Packet Preview Baseline
+
+Stage 25V extends the Stage 25U selected-recording analysis seam by adding one first-pass packet preview instead of stopping at aggregate histogram counts only.
+
+Stage 25V architecture result:
+
+- `RecordingPacketHistogramAnalyzer` now produces both:
+  - aggregate F1 25 packet-ID histogram text,
+  - a short selected-recording packet preview sample.
+- The preview intentionally stays narrow and on-demand:
+  - it captures only the first few packets from the selected recording,
+  - it shows sequence number, relative time, packet kind/ID, and payload size,
+  - it reports unknown packet IDs and invalid headers in the same preview stream when encountered.
+- The app still computes and caches that analysis only after the user selects a recording, so list refresh behavior remains unchanged.
+- The recording/core boundary remains intact:
+  - no new `.hdrec` metadata or sidecar format was added,
+  - no game-specific preview schema was moved into `HapticDrive.Asio.Recording`,
+  - replay and summary-loading behavior remain unchanged.
+- The result narrows one more inspection gap:
+  - operators can now see both the mix of packet types and a first-pass view of packet order/timing for the selected recording,
+  - later packet-browser work can build on an already-visible selected-recording inspection surface instead of appearing from nowhere.
+
+Stage 25V deliberately does not add random-access packet browsing, packet-body decode views, persistent indexes, cross-game preview analyzers, or a new `.hdrec` format version. It adds a small preview rung first so deeper browse/index work can evolve from a proven selected-recording UI path.

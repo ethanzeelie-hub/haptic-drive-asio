@@ -28,6 +28,9 @@ public sealed class RecordingPacketHistogramAnalyzerTests
         Assert.Contains("Packet histogram:", analysis, StringComparison.Ordinal);
         Assert.Contains("Motion#0: 2", analysis, StringComparison.Ordinal);
         Assert.Contains("Car Telemetry#6: 1", analysis, StringComparison.Ordinal);
+        Assert.Contains("Packet preview:", analysis, StringComparison.Ordinal);
+        Assert.Contains("seq 1; 0 ms; Motion#0; 1,349 B", analysis, StringComparison.Ordinal);
+        Assert.Contains("seq 3; 20 ms; Car Telemetry#6; 1,352 B", analysis, StringComparison.Ordinal);
     }
 
     [Fact]

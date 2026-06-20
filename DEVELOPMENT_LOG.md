@@ -4563,6 +4563,55 @@ Self-review:
 - The lazy selected-item path keeps the library refresh fast while still giving the user a real deeper look at recorded packet mix.
 - This is a solid base for a later stage that adds packet drill-down, richer recording browse surfaces, or cross-game analyzers without breaking the generic recording boundary that earlier stages established.
 
+## Stage 25V - Selected-Recording Packet Preview Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Extend the Stage 25U selected-recording histogram seam with a first-pass packet preview so the Telemetry / UDP detail panel shows not just aggregate packet counts, but also sample packet order, timing, and size for the selected F1 25 recording.
+
+Notes:
+
+- Re-audited the Stage 25U seam before editing:
+  - the app already had an on-demand/cached selected-recording analysis path,
+  - the remaining product gap was that operators could see the packet mix but still not see any sample packet order/timing details without leaving the app.
+- Extended `RecordingPacketHistogramAnalyzer`:
+  - keeps the existing histogram output,
+  - now also captures a short preview of the first few packets,
+  - preview entries include:
+    - sequence number,
+    - relative time,
+    - packet kind and ID when parse succeeds,
+    - payload size,
+    - fallback text for unknown packet IDs and invalid headers.
+- Kept the preview deliberately narrow:
+  - no packet-body decoding,
+  - no random-access browsing,
+  - no new sidecar/index format,
+  - no change to `.hdrec` bytes or recording/replay behavior.
+- Updated focused app tests so the selected-recording analysis now proves:
+  - histogram output still contains the expected counts,
+  - preview output contains expected packet order/timing/sample payload-size text.
+- Verification again included one transient rerun:
+  - the first full solution test pass hit the same existing-looking `PHprDirectRuntimeTests.BenchRetriggerStartsWhileRuntimeIsActiveAndOldObserverIsIgnored` timing wobble seen in the prior stage,
+  - the immediate rerun passed cleanly with no code changes between runs,
+  - the final stage status is green.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed on rerun.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25V is still intentionally conservative, but it makes the selected-recording analysis materially more useful without turning the Telemetry / UDP page into a full packet-browser surface.
+- The preview builds directly on the existing app-side analysis cache, so the incremental complexity stays low and the recording-core boundary stays clean.
+- This is a strong setup for a later stage that adds richer browse/index behavior, because the user-visible selected-recording inspection path now has both aggregate and sample-level context.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

@@ -130,6 +130,7 @@
 - Stage 25S: Release staging command baseline complete.
 - Stage 25T: Release summary artifact baseline complete.
 - Stage 25U: Selected-recording packet histogram baseline complete.
+- Stage 25V: Selected-recording packet preview baseline complete.
 
 ## Planned Stages
 
@@ -232,6 +233,7 @@
 97. Stage 25S: Release staging command baseline. Complete.
 98. Stage 25T: Release summary artifact baseline. Complete.
 99. Stage 25U: Selected-recording packet histogram baseline. Complete.
+100. Stage 25V: Selected-recording packet preview baseline. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -293,7 +295,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25S adds a single local release-staging command: `Prepare-ReleaseArtifact.ps1` now runs the repo verification gate, performs the targeted runtime restore needed for `win-x64` publish, publishes, smoke-checks, and gathers the final zip/checksum/manifest into one staged-release folder.
 - Stage 25T adds a release-summary artifact: the publish script now emits a Markdown summary alongside the zip/checksum/manifest, the smoke script validates that summary against the actual artifact metadata, CI uploads it, and local staged-release output carries the same handoff document.
 - Stage 25U adds an on-demand selected-recording packet histogram seam in the app layer: F1 25 recordings can now surface cached packet-ID histograms from the Telemetry / UDP detail panel without coupling the generic recording assembly to game-specific packet analysis.
-- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index/query tooling such as per-packet browse/index views, broader cross-file persistence repair/rollback orchestration/history, and installer/signing/release publication.
+- Stage 25V extends that same app-side recording analysis seam with a first-pass packet preview, so the Telemetry / UDP detail panel now shows sample packet order, relative timing, packet kind/ID, and payload size for the selected F1 25 recording.
+- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index tooling such as richer per-packet browse/index views, broader cross-file persistence repair/rollback orchestration/history, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases
 
