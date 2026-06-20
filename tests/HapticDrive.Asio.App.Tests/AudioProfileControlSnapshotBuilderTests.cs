@@ -227,20 +227,22 @@ public sealed class AudioProfileControlSnapshotBuilderTests
         };
 
         var plan = AudioProfileControlSnapshotBuilder.BuildApplicationPlan(profile);
+        var effects = plan.ControlValues.Effects;
+        var effectText = plan.TextValues.Effects;
 
         Assert.Equal("Legacy", plan.SafeProfile.Name);
-        Assert.True(plan.ControlValues.SharedRoadSignalEnabled);
-        Assert.True(plan.ControlValues.Bst1RoadOutputEnabled);
-        Assert.True(plan.ControlValues.SlipWheelSlipEnabled);
-        Assert.True(plan.ControlValues.SlipWheelLockEnabled);
-        Assert.Equal(0.37f, plan.ControlValues.SlipWheelSlipGain, precision: 6);
-        Assert.Equal(54f, plan.ControlValues.SlipWheelSlipFrequencyHz, precision: 6);
-        Assert.Equal(0.37f, plan.ControlValues.SlipWheelLockGain, precision: 6);
-        Assert.Equal(0.12f, plan.ControlValues.SlipThreshold, precision: 6);
-        Assert.Equal("37%", plan.TextValues.SlipWheelSlipGainText);
-        Assert.Equal("54 Hz", plan.TextValues.SlipWheelSlipFrequencyText);
-        Assert.Equal($"{SlipEffectOptions.Default.WheelLockFrequencyHz:0} Hz", plan.TextValues.SlipWheelLockFrequencyText);
-        Assert.Equal($"{SlipEffectOptions.Default.WheelLockNoiseAmount:P0}", plan.TextValues.SlipWheelLockNoiseText);
+        Assert.True(effects.SharedRoadSignalEnabled);
+        Assert.True(effects.Bst1RoadOutputEnabled);
+        Assert.True(effects.SlipWheelSlipEnabled);
+        Assert.True(effects.SlipWheelLockEnabled);
+        Assert.Equal(0.37f, effects.SlipWheelSlipGain, precision: 6);
+        Assert.Equal(54f, effects.SlipWheelSlipFrequencyHz, precision: 6);
+        Assert.Equal(0.37f, effects.SlipWheelLockGain, precision: 6);
+        Assert.Equal(0.12f, effects.SlipThreshold, precision: 6);
+        Assert.Equal("37%", effectText.SlipWheelSlipGainText);
+        Assert.Equal("54 Hz", effectText.SlipWheelSlipFrequencyText);
+        Assert.Equal($"{SlipEffectOptions.Default.WheelLockFrequencyHz:0} Hz", effectText.SlipWheelLockFrequencyText);
+        Assert.Equal($"{SlipEffectOptions.Default.WheelLockNoiseAmount:P0}", effectText.SlipWheelLockNoiseText);
         Assert.Equal("45%", plan.TextValues.MasterGainText);
         Assert.Equal("65%", plan.TextValues.SafetyOutputGainText);
     }

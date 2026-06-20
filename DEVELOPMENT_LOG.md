@@ -4923,6 +4923,46 @@ Self-review:
 - The repo still is not at dynamic effect-card generation, but we are now removing summary/report duplication in a disciplined order instead of scattering half-finished abstractions.
 - The next strong effect-extensibility target remains schema/UI generalization rather than more summary cleanup.
 
+## Stage 25AD - Audio-Profile BST-1 Effect Control Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Reduce the flat audio-profile effect-control contract by grouping BST-1 effect control values and display text behind one typed app-side snapshot, without changing the current WPF controls or persisted audio-profile JSON schema.
+
+Notes:
+
+- Re-audited the Stage 25AB and 25AC effect-surface cleanup before editing:
+  - presenter/report summary seams were now cleaner,
+  - the next weak spot was the audio-profile builder still owning one large flat effect-control mapping contract.
+- Added `Bst1AudioProfileEffectControlSnapshotBuilder` plus typed effect-control records:
+  - grouped effect-side control values,
+  - grouped effect-side display text,
+  - one effect-focused application snapshot for audio-profile hydration.
+- Updated `AudioProfileControlSnapshotBuilder` to compose that new effect-side seam instead of directly mapping every BST-1 effect field itself.
+- Updated `MainWindow` profile hydration/text application to consume grouped effect-control values/text while keeping the same WPF controls and user-visible behavior.
+- Kept the stage intentionally narrow:
+  - no persisted profile schema change,
+  - no WPF layout rewrite,
+  - no dynamic control generation,
+  - no runtime haptic-behavior change.
+- Added focused app coverage proving the updated audio-profile application plan still produces the expected BST-1 slip/road fallback values and text.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter AudioProfileControlSnapshotBuilder` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AD is a solid next step because it attacks a real maintenance hotspot while staying far away from runtime risk.
+- The repo still is not at data-driven effect editors, but the profile-control seam is now noticeably less brittle than it was one stage ago.
+- The next best effect-extensibility work should keep pushing on schema/control generalization rather than circling back to already-cleaned summary paths.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

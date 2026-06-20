@@ -138,6 +138,7 @@
 - Stage 25AA: Structured recording inspection seam complete.
 - Stage 25AB: Structured BST-1 effect summary seam complete.
 - Stage 25AC: Effects-page status summary seam complete.
+- Stage 25AD: Audio-profile BST-1 effect control seam complete.
 
 ## Planned Stages
 
@@ -248,6 +249,7 @@
 105. Stage 25AA: Structured recording inspection seam. Complete.
 106. Stage 25AB: Structured BST-1 effect summary seam. Complete.
 107. Stage 25AC: Effects-page status summary seam. Complete.
+108. Stage 25AD: Audio-profile BST-1 effect control seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -317,6 +319,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25AA refactors that selected-recording inspection path onto a structured analysis model plus dedicated formatter, keeping today's output stable while giving later packet-browser/index work a stronger app-side seam.
 - Stage 25AB adds a shared structured BST-1 effect-summary model plus formatter for diagnostics and routing/mixer presenters, keeping today's visible summaries stable while reducing one more fixed-list presenter seam before broader effect-surface generalization.
 - Stage 25AC extends that same effect-extensibility cleanup into the Effects page by moving its active-summary fallback onto a typed app-side summary list, so future effect additions do not need another bespoke presenter-local status string.
+- Stage 25AD extends the effect-extensibility cleanup into the audio-profile control path by grouping BST-1 effect control values/text behind one typed app-side snapshot, reducing profile-side flat-contract sprawl without changing the current WPF controls or persisted JSON shape.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index tooling such as richer per-packet browse/index views, broader cross-file persistence repair/rollback orchestration across multiple documents, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases

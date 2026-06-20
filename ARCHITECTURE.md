@@ -2925,3 +2925,28 @@ Stage 25AC architecture result:
 - The result improves maintainability because app-side effect summary/report surfaces now converge on typed contracts instead of drifting across presenters.
 
 Stage 25AC deliberately does not add data-driven effect cards, dynamic effect registration in the WPF layer, plugin-style effect metadata, or broader effect-schema generalization across persisted settings and tuning UI. It removes one more presenter-local status seam first so those larger changes can build on a cleaner app-side baseline.
+
+## Stage 25AD Audio-Profile BST-1 Effect Control Seam
+
+Stage 25AD keeps working down the same effect-extensibility backlog by reducing one of the remaining flat app-side effect-control contracts instead of jumping straight to a full dynamic UI/schema rewrite.
+
+Stage 25AD architecture result:
+
+- The audio-profile control path now has a typed BST-1 effect-control contract:
+  - `Bst1AudioProfileEffectControlValues` groups effect-side slider/toggle values,
+  - `Bst1AudioProfileEffectControlTextValues` groups effect-side display text,
+  - `Bst1AudioProfileEffectControlApplicationSnapshot` gives the app one effect-focused profile-hydration seam.
+- `Bst1AudioProfileEffectControlSnapshotBuilder` now owns the BST-1 effect portion of profile mapping:
+  - profile-to-controls hydration,
+  - effect-side display-text shaping,
+  - control-input-to-profile-effects application.
+- `AudioProfileControlSnapshotBuilder` now composes that effect-specific seam with the still-separate profile name, mixer, and safety values instead of directly owning every effect field mapping itself.
+- `MainWindow` still renders the same WPF controls and persists the same JSON schema, but it now consumes grouped effect-control values/text instead of a completely flat effect contract.
+- The stage stays intentionally narrow:
+  - no persisted schema change,
+  - no WPF layout rewrite,
+  - no dynamic control generation,
+  - no runtime haptic-behavior change.
+- The result improves maintainability because future BST-1 effect additions now have one cleaner profile-control seam to extend before any larger UI/schema generalization happens.
+
+Stage 25AD deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across every persisted/settings surface. It narrows the audio-profile control seam first so those larger changes can build on a less brittle app-side contract.
