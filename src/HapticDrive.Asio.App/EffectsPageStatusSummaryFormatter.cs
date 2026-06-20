@@ -6,8 +6,6 @@ internal sealed record EffectStatusSummaryItem(
 
 internal static class EffectsPageStatusSummaryFormatter
 {
-    private static readonly string[] DefaultOrder = ["engine", "gear", "kerb", "impact", "road", "slip"];
-
     public static string Format(
         IReadOnlyList<EffectStatusSummaryItem>? items,
         string fallback)
@@ -26,7 +24,7 @@ internal static class EffectsPageStatusSummaryFormatter
         var map = items.ToDictionary(item => item.Key, StringComparer.OrdinalIgnoreCase);
         var ordered = new List<EffectStatusSummaryItem>(items.Count);
 
-        foreach (var key in DefaultOrder)
+        foreach (var key in Bst1EffectCatalog.EffectsPageOrderKeys)
         {
             if (map.TryGetValue(key, out var item))
             {

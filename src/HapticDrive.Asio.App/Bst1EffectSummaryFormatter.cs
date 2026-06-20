@@ -13,14 +13,11 @@ internal sealed record Bst1EffectSummarySnapshot(
 
 internal static class Bst1EffectSummaryFormatter
 {
-    private static readonly string[] DiagnosticsOrder = ["engine", "gear", "kerb", "impact", "road", "slip", "lock"];
-    private static readonly string[] RoutingOrder = ["gear", "road", "engine", "kerb", "impact", "slip", "lock"];
-
     public static string FormatDiagnosticsText(Bst1EffectSummarySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        var orderedItems = OrderItems(snapshot.Items, DiagnosticsOrder);
+        var orderedItems = OrderItems(snapshot.Items, Bst1EffectCatalog.DiagnosticsOrderKeys);
         var entries = orderedItems.Select(item => $"{item.Key} {item.IsEnabled}");
         return $"enabled {string.Join(", ", entries)}; overall slip/lock {snapshot.OverallSlipLockEnabled}; peak {snapshot.PeakLevel:0.000}.";
     }
@@ -34,7 +31,7 @@ internal static class Bst1EffectSummaryFormatter
             return fallback;
         }
 
-        var orderedItems = OrderItems(items, RoutingOrder);
+        var orderedItems = OrderItems(items, Bst1EffectCatalog.RoutingOrderKeys);
         return $"Effects: {string.Join("; ", orderedItems.Select(FormatRoutingEntry))}.";
     }
 

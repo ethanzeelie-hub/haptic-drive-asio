@@ -1133,3 +1133,11 @@
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
 - Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.
+
+## Stage 25AI
+
+- Effects-page, Routing / Mixer, diagnostics section, and shipped BST-1 effect metadata now all have stronger app-side seams, but the broader effect surface still remains explicitly typed across tuning controls, persisted profile schema, settings hydration, and detailed per-effect diagnostics. Adding a brand-new effect still requires coordinated work across those surfaces.
+- The new shared catalog reduces key/label/order drift for the current shipped BST-1 effects, but it does not yet make the effect system data-driven, dynamically registered through the WPF layer, or plugin-style at the tuning/profile schema level.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+- Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.

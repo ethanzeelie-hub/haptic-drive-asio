@@ -34,12 +34,12 @@ public sealed class Bst1EffectSummarySnapshotBuilderTests
         Assert.Equal(0.44f, snapshot.PeakLevel);
         Assert.Collection(
             snapshot.Items,
-            item => Assert.Equal(("engine", false), (item.Key, item.IsActive)),
-            item => Assert.Equal(("gear", true), (item.Key, item.IsActive)),
-            item => Assert.Equal(("kerb", false), (item.Key, item.IsActive)),
-            item => Assert.Equal(("impact", true), (item.Key, item.IsActive)),
-            item => Assert.Equal(("road", true), (item.Key, item.IsActive)),
-            item => Assert.Equal(("slip", true), (item.Key, item.IsActive)),
-            item => Assert.Equal(("lock", true), (item.Key, item.IsActive)));
+            item => Assert.Equal(("engine", "engine", false), (item.Key, item.DisplayName, item.IsActive)),
+            item => Assert.Equal(("gear", "gear", true), (item.Key, item.DisplayName, item.IsActive)),
+            item => Assert.Equal(("kerb", "kerb", false), (item.Key, item.DisplayName, item.IsActive)),
+            item => Assert.Equal(("impact", "impact", true), (item.Key, item.DisplayName, item.IsActive)),
+            item => Assert.Equal(("road", "road", true), (item.Key, item.DisplayName, item.IsActive)),
+            item => Assert.Equal(("slip", "slip", true), (item.Key, item.DisplayName, item.IsActive)),
+            item => Assert.Equal(("lock", "lock", true), (item.Key, item.DisplayName, item.IsActive)));
     }
 }

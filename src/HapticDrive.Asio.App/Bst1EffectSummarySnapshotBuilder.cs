@@ -10,15 +10,25 @@ internal static class Bst1EffectSummarySnapshotBuilder
 
         return new Bst1EffectSummarySnapshot(
             [
-                new Bst1EffectSummaryItem("engine", "engine", effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive),
-                new Bst1EffectSummaryItem("gear", "gear", effectSnapshot.GearShift.IsEnabled, effectSnapshot.GearShift.IsActive),
-                new Bst1EffectSummaryItem("kerb", "kerb", effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive),
-                new Bst1EffectSummaryItem("impact", "impact", effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive),
-                new Bst1EffectSummaryItem("road", "road", effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive),
-                new Bst1EffectSummaryItem("slip", "slip", effectSnapshot.Slip.WheelSlipEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentSlipIntensity > 0f),
-                new Bst1EffectSummaryItem("lock", "lock", effectSnapshot.Slip.WheelLockEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentLockIntensity > 0f)
+                BuildItem(Bst1EffectCatalog.GetRequired("engine"), effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive),
+                BuildItem(Bst1EffectCatalog.GetRequired("gear"), effectSnapshot.GearShift.IsEnabled, effectSnapshot.GearShift.IsActive),
+                BuildItem(Bst1EffectCatalog.GetRequired("kerb"), effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive),
+                BuildItem(Bst1EffectCatalog.GetRequired("impact"), effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive),
+                BuildItem(Bst1EffectCatalog.GetRequired("road"), effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive),
+                BuildItem(Bst1EffectCatalog.GetRequired("slip"), effectSnapshot.Slip.WheelSlipEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentSlipIntensity > 0f),
+                BuildItem(Bst1EffectCatalog.GetRequired("lock"), effectSnapshot.Slip.WheelLockEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentLockIntensity > 0f)
             ],
             effectSnapshot.Slip.IsEnabled,
             effectSnapshot.PeakLevel);
+    }
+
+    private static Bst1EffectSummaryItem BuildItem(
+        Bst1EffectCatalogItem descriptor,
+        bool isEnabled,
+        bool isActive)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        return new Bst1EffectSummaryItem(descriptor.Key, descriptor.DisplayName, isEnabled, isActive);
     }
 }

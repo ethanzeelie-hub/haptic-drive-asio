@@ -3045,3 +3045,27 @@ Stage 25AH architecture result:
 - The result improves maintainability because future BST-1 effect additions now have one more explicit diagnostics seam instead of needing additional inline effect-diagnostics string work inside `MainWindow`.
 
 Stage 25AH deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic WPF control generation, or broader effect-schema generalization across profiles/settings/diagnostics. It removes one more app-side effect-diagnostics hotspot first so later metadata/schema work can build on a less tangled diagnostics path.
+
+## Stage 25AI Shared BST-1 Effect Catalog Seam
+
+Stage 25AI continues the same effect-extensibility work by centralizing the shipped BST-1 effect metadata that was still duplicated across multiple summary builders and formatters.
+
+Stage 25AI architecture result:
+
+- The app now has one shared BST-1 effect catalog:
+  - `Bst1EffectCatalog` defines the current shipped effect keys,
+  - carries display labels,
+  - owns per-surface ordering for diagnostics, routing, and Effects-page fallback summary flows.
+- The catalog is now consumed by the existing app-side effect seams:
+  - `Bst1EffectSummarySnapshotBuilder` now gets effect keys/labels from the catalog instead of embedding a fixed list locally,
+  - `Bst1EffectSummaryFormatter` now uses catalog-owned diagnostics/routing ordering,
+  - `EffectsPageStatusSummaryFormatter` now uses catalog-owned ordering for the Effects-page fallback summary path,
+  - `EffectsStatusSnapshotBuilder` now aligns its structured summary-item keys with the shared catalog instead of carrying another duplicate key set.
+- The stage stays intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no WPF layout rewrite,
+  - no persisted profile or settings schema change,
+  - no dynamic effect registration yet.
+- The result improves maintainability because adding or renaming a shipped BST-1 effect now has one clearer metadata seam instead of multiple scattered key/order lists across the app layer.
+
+Stage 25AI deliberately does not turn the full effect surface into a data-driven registry, dynamic WPF control system, or plugin-style schema. It centralizes the remaining duplicated shipped-effect metadata first so those later changes can build on a more coherent baseline.

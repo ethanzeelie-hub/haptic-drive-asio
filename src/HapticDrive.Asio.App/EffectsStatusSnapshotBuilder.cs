@@ -118,13 +118,13 @@ internal static class EffectsStatusSnapshotBuilder
 
         return
         [
-            new EffectStatusSummaryItem("engine", snapshot.Engine.IsActive ? "engine active" : "engine idle"),
-            new EffectStatusSummaryItem("gear", snapshot.GearShift.IsActive ? "gear pulse active" : "gear idle"),
-            new EffectStatusSummaryItem("kerb", snapshot.Kerb.IsActive ? "kerb active" : "kerb idle"),
-            new EffectStatusSummaryItem("impact", snapshot.Impact.IsActive ? "impact pulse active" : "impact idle"),
-            new EffectStatusSummaryItem("road", snapshot.RoadTexture.IsActive ? "road bst-1 active" : "road idle"),
+            new EffectStatusSummaryItem(Bst1EffectCatalog.GetRequired("engine").Key, snapshot.Engine.IsActive ? "engine active" : "engine idle"),
+            new EffectStatusSummaryItem(Bst1EffectCatalog.GetRequired("gear").Key, snapshot.GearShift.IsActive ? "gear pulse active" : "gear idle"),
+            new EffectStatusSummaryItem(Bst1EffectCatalog.GetRequired("kerb").Key, snapshot.Kerb.IsActive ? "kerb active" : "kerb idle"),
+            new EffectStatusSummaryItem(Bst1EffectCatalog.GetRequired("impact").Key, snapshot.Impact.IsActive ? "impact pulse active" : "impact idle"),
+            new EffectStatusSummaryItem(Bst1EffectCatalog.GetRequired("road").Key, snapshot.RoadTexture.IsActive ? "road bst-1 active" : "road idle"),
             new EffectStatusSummaryItem(
-                "slip",
+                Bst1EffectCatalog.GetRequired("slip").Key,
                 snapshot.Slip.IsActive
                     ? $"{snapshot.Slip.ActiveSource?.ToLowerInvariant() ?? "slip"} active"
                     : "slip idle")

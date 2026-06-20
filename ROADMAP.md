@@ -143,6 +143,7 @@
 - Stage 25AF: Effects-status snapshot seam complete.
 - Stage 25AG: Routing/mixer status snapshot seam complete.
 - Stage 25AH: BST-1 diagnostics section seam complete.
+- Stage 25AI: Shared BST-1 effect catalog seam complete.
 
 ## Planned Stages
 
@@ -258,6 +259,7 @@
 110. Stage 25AF: Effects-status snapshot seam. Complete.
 111. Stage 25AG: Routing/mixer status snapshot seam. Complete.
 112. Stage 25AH: BST-1 diagnostics section seam. Complete.
+113. Stage 25AI: Shared BST-1 effect catalog seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -332,6 +334,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25AF extends the effect-extensibility stream back into live status assembly by moving the full runtime/options-to-effects-status mapping behind a dedicated builder, so future effect additions do not have to grow another long `MainWindow` mapping block just to reach the existing presenter/view path.
 - Stage 25AG extends that same status-assembly cleanup into the Routing / Mixer path by moving its runtime/effect-routing snapshot assembly behind a dedicated builder and by centralizing BST-1 effect-summary snapshot creation, so future effect additions do not have to maintain another `MainWindow`-local fixed-list mapping path across routing and diagnostics.
 - Stage 25AH extends the same effect-extensibility cleanup into Advanced / Diagnostics by moving the BST-1-specific diagnostics section behind a dedicated builder, so future effect additions do not have to keep growing inline slip/lock and mixer-safety diagnostic text assembly inside `MainWindow`.
+- Stage 25AI extends that same effect-extensibility stream from mapping cleanup into metadata cleanup by centralizing shipped BST-1 effect keys, labels, and ordering behind one shared catalog used by the app-side summary builders and formatters.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index tooling such as richer per-packet browse/index views, broader cross-file persistence repair/rollback orchestration across multiple documents, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases

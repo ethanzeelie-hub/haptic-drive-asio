@@ -5121,6 +5121,48 @@ Self-review:
 - This still does not solve the full data-driven effect-schema/UI problem, but it keeps effect-growth work moving off inline window code and onto explicit app-side contracts.
 - The next strong target remains broader effect metadata/control/schema generalization rather than endless micro-refactors with no architectural destination.
 
+## Stage 25AI - Shared BST-1 Effect Catalog Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Centralize the shipped BST-1 effect keys, labels, and per-surface ordering behind one shared app-side catalog so future effect additions do not have to keep updating multiple duplicate metadata lists across summary builders and formatters.
+
+Notes:
+
+- Re-audited the post-25AH effect-extensibility path:
+  - status and diagnostics assembly had dedicated builders,
+  - BST-1 effect-summary snapshot creation was shared,
+  - but the shipped effect metadata itself still remained duplicated across multiple app-side formatters/builders through separate hardcoded key/order lists.
+- Added `Bst1EffectCatalog` so the current shipped BST-1 effects now have one shared metadata seam covering:
+  - stable effect keys,
+  - display labels,
+  - diagnostics ordering,
+  - routing ordering,
+  - Effects-page fallback ordering.
+- Updated `Bst1EffectSummarySnapshotBuilder`, `Bst1EffectSummaryFormatter`, `EffectsPageStatusSummaryFormatter`, and `EffectsStatusSnapshotBuilder` to consume the catalog instead of each keeping another local hardcoded key/order list.
+- Added focused catalog tests plus extended BST-1 summary coverage so the current shipped ordering/labels stay visible and intentional.
+- Kept the stage intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no WPF layout rewrite,
+  - no persisted schema change,
+  - no dynamic effect registration yet.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "Bst1Effect|EffectsStatus|RoutingMixerStatus|DiagnosticsStatusPresenterTests"` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AI is a nice pivot from pure mapping cleanup into shared metadata cleanup, which is exactly the direction this stream needed.
+- The catalog does not magically make the effect system data-driven, but it does remove one more easy-to-forget duplication trap that would have hurt future effect growth.
+- The next strong target remains broader effect metadata/control/schema generalization across the tuning/profile surfaces, not more isolated string cleanup.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.
