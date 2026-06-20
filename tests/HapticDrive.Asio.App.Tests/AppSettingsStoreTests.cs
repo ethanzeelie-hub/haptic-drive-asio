@@ -499,6 +499,21 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public void Load_VersionlessSettings_MigratesToCurrentVersionWithStatusMessage()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        File.WriteAllText(path, """{"UseLightTheme":true}""");
+        var store = new AppSettingsStore(path);
+
+        var loaded = store.Load();
+
+        Assert.True(loaded.UseLightTheme);
+        Assert.Equal(AppSettings.CurrentVersion, loaded.Version);
+        Assert.Equal("Legacy document version 0 was migrated to version 1.", loaded.LastStatusMessage);
+    }
+
+    [Fact]
     public void AppSettingsJson_DoesNotPersistRuntimeOnlyStates()
     {
         using var directory = new TempDirectory();

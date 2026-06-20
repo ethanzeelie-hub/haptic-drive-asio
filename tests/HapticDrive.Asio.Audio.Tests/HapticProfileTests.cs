@@ -162,6 +162,36 @@ public sealed class HapticProfileTests
     }
 
     [Fact]
+    public async Task ProfileLoad_VersionlessLegacyProfileMigratesToCurrentVersion()
+    {
+        var path = CreateTempProfilePath();
+        await File.WriteAllTextAsync(
+            path,
+            """
+            {
+              "Name": "Legacy",
+              "Effects": {
+                "Engine": {
+                  "IsEnabled": false,
+                  "Gain": 0.2,
+                  "MinimumFrequencyHz": 30,
+                  "MaximumFrequencyHz": 60
+                }
+              }
+            }
+            """);
+        var store = new HapticProfileStore();
+
+        var result = await store.LoadAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Profile);
+        Assert.Equal(HapticDriveProfile.CurrentVersion, result.Profile.Version);
+        Assert.True(result.WasRepaired);
+        Assert.Contains(result.ValidationMessages, message => message.Contains("migrated to version 1", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ProfileValidation_RepairsInvalidValuesToSafeBounds()
     {
         var profile = HapticDriveProfile.Default with

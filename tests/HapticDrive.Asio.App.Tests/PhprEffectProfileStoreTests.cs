@@ -152,6 +152,33 @@ public sealed class PhprEffectProfileStoreTests
         Assert.Equal(PhprEffectProfileLoadStatus.UnsupportedVersion, future.Status);
     }
 
+    [Fact]
+    public async Task PhprProfileLoad_VersionlessLegacyProfileMigratesToCurrentVersion()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "legacy.json");
+        await File.WriteAllTextAsync(
+            path,
+            """
+            {
+              "Name": "Legacy P-HPR",
+              "ShiftIntent": {
+                "IsEnabled": true,
+                "Mode": 0
+              }
+            }
+            """);
+        var store = new PhprEffectProfileStore();
+
+        var result = await store.LoadAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Profile);
+        Assert.Equal(PhprEffectProfile.CurrentVersion, result.Profile.Version);
+        Assert.True(result.WasRepaired);
+        Assert.Contains(result.ValidationMessages, message => message.Contains("migrated to version 1", StringComparison.Ordinal));
+    }
+
     private sealed class TempDirectory : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(

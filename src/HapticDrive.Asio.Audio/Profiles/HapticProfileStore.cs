@@ -178,6 +178,7 @@ public sealed class HapticProfileStore
                 FileShare.Read,
                 bufferSize: 16 * 1024,
                 useAsync: true);
+            var sourceVersion = VersionedDocumentMigration.ReadDeclaredVersion(await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false));
             var profile = await JsonSerializer.DeserializeAsync<HapticDriveProfile>(
                     stream,
                     JsonOptions,
@@ -189,16 +190,24 @@ public sealed class HapticProfileStore
                 return HapticProfileLoadResult.Corrupt("Profile file did not contain a profile.");
             }
 
-            if (profile.Version != HapticDriveProfile.CurrentVersion)
+            var migration = VersionedDocumentMigration.Plan(
+                profile,
+                sourceVersion,
+                HapticDriveProfile.CurrentVersion,
+                legacy => legacy with { Version = HapticDriveProfile.CurrentVersion },
+                version => $"Profile version {version} is not supported.");
+
+            if (!migration.IsSupportedVersion || migration.Document is null)
             {
-                return HapticProfileLoadResult.UnsupportedVersion($"Profile version {profile.Version} is not supported.");
+                return HapticProfileLoadResult.UnsupportedVersion(migration.Messages[0]);
             }
 
-            var validation = HapticProfileValidator.Validate(profile);
+            var validation = HapticProfileValidator.Validate(migration.Document);
+            var messages = migration.Messages.Concat(validation.Messages).ToArray();
             return HapticProfileLoadResult.Success(
                 validation.Profile,
-                validation.WasRepaired,
-                validation.Messages);
+                migration.WasMigrated || validation.WasRepaired,
+                messages);
         }
         catch (JsonException ex)
         {

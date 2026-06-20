@@ -35,8 +35,33 @@ internal sealed class AppSettingsStore
             }
 
             var json = File.ReadAllText(SettingsPath);
+            var sourceVersion = VersionedDocumentMigration.ReadDeclaredVersion(json);
             var settings = JsonSerializer.Deserialize<AppSettings>(json, SerializerOptions);
-            return Sanitize(settings);
+            var migration = VersionedDocumentMigration.Plan(
+                settings ?? AppSettings.Default,
+                sourceVersion,
+                AppSettings.CurrentVersion,
+                legacy => legacy with { Version = AppSettings.CurrentVersion },
+                version => $"App settings version {version} is not supported.");
+
+            if (!migration.IsSupportedVersion || migration.Document is null)
+            {
+                return AppSettings.Default with
+                {
+                    LastStatusMessage = migration.Messages[0]
+                };
+            }
+
+            var sanitized = Sanitize(migration.Document);
+            if (!migration.WasMigrated)
+            {
+                return sanitized;
+            }
+
+            return sanitized with
+            {
+                LastStatusMessage = migration.Messages[0]
+            };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
         {

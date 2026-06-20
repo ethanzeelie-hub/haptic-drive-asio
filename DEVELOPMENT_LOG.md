@@ -4226,6 +4226,52 @@ Self-review:
 - No parser, replay, recording-format, forwarding, or persistence behavior changed.
 - No raw captures, private device paths, serial numbers, or hardware-triggering export behavior were introduced.
 
+## Stage 25M - Persistence Migration Baseline
+
+Status: Complete.
+
+Goal: Add one shared migration-planning seam for persisted JSON documents so app settings, audio profiles, and P-HPR profiles can upgrade legacy version-0 files consistently instead of each store carrying its own ad hoc logic.
+
+Changes:
+
+- Added `src/HapticDrive.Asio.Core/Persistence/VersionedDocumentMigration.cs`:
+  - declared-version discovery from JSON text,
+  - shared version-0 migration planning,
+  - unsupported-version classification,
+  - migration message reporting.
+- Updated `src/HapticDrive.Asio.App/AppSettingsStore.cs`:
+  - load now detects missing/legacy `Version`,
+  - versionless settings now upgrade to the current schema baseline,
+  - migration status is surfaced through `LastStatusMessage`.
+- Updated `src/HapticDrive.Asio.Audio/Profiles/HapticProfileStore.cs`:
+  - load now plans version handling through the shared migration seam before validation,
+  - versionless audio profiles now migrate to the current version baseline instead of failing as unsupported.
+- Updated `src/HapticDrive.Asio.App/PhprEffectProfileStore.cs`:
+  - load now plans version handling through the shared migration seam before validation,
+  - versionless P-HPR profiles now migrate to the current version baseline instead of failing as unsupported.
+- Added focused regression coverage:
+  - `tests/HapticDrive.Asio.Core.Tests/VersionedDocumentMigrationTests.cs`,
+  - `tests/HapticDrive.Asio.App.Tests/AppSettingsStoreTests.cs` migration coverage,
+  - `tests/HapticDrive.Asio.App.Tests/PhprEffectProfileStoreTests.cs` migration coverage,
+  - `tests/HapticDrive.Asio.Audio.Tests/HapticProfileTests.cs` migration coverage.
+- Updated stage tracking/docs:
+  - `README.md` now reports Stage 25M and records the shared migration baseline,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25M and narrow the remaining persistence work to broader cross-file repair/rollback concerns instead of first-pass migration planning.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+
+Self-review:
+
+- Stage 25M intentionally adds migration planning only.
+- Atomic save behavior remains unchanged from Stage 25I.
+- Persisted-document validation still remains with each owning store; only version handling is now shared.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No parser, replay, recording-format, forwarding, or support-bundle behavior changed.
+
 ## Stage 25I - Atomic Persistence Hardening
 
 Status: Complete.

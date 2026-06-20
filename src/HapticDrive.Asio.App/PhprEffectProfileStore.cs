@@ -328,6 +328,7 @@ internal sealed class PhprEffectProfileStore
                 FileShare.Read,
                 bufferSize: 16 * 1024,
                 useAsync: true);
+            var sourceVersion = VersionedDocumentMigration.ReadDeclaredVersion(await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false));
             var profile = await JsonSerializer.DeserializeAsync<PhprEffectProfile>(
                     stream,
                     JsonOptions,
@@ -339,16 +340,24 @@ internal sealed class PhprEffectProfileStore
                 return PhprEffectProfileLoadResult.Corrupt("P-HPR profile file did not contain a profile.");
             }
 
-            if (profile.Version != PhprEffectProfile.CurrentVersion)
+            var migration = VersionedDocumentMigration.Plan(
+                profile,
+                sourceVersion,
+                PhprEffectProfile.CurrentVersion,
+                legacy => legacy with { Version = PhprEffectProfile.CurrentVersion },
+                version => $"P-HPR profile version {version} is not supported.");
+
+            if (!migration.IsSupportedVersion || migration.Document is null)
             {
-                return PhprEffectProfileLoadResult.UnsupportedVersion($"P-HPR profile version {profile.Version} is not supported.");
+                return PhprEffectProfileLoadResult.UnsupportedVersion(migration.Messages[0]);
             }
 
-            var validation = PhprEffectProfileValidator.Validate(profile);
+            var validation = PhprEffectProfileValidator.Validate(migration.Document);
+            var messages = migration.Messages.Concat(validation.Messages).ToArray();
             return PhprEffectProfileLoadResult.Success(
                 validation.Profile,
-                validation.WasRepaired,
-                validation.Messages);
+                migration.WasMigrated || validation.WasRepaired,
+                messages);
         }
         catch (JsonException ex)
         {

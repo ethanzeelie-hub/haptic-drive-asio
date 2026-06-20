@@ -2558,3 +2558,23 @@ Stage 25L architecture result:
   - no hardware output.
 
 Stage 25L deliberately does not add automatic log harvesting, opt-in recording attachment workflows, remote upload/report submission, or installer/runtime dump packaging. It establishes a safe local operator-support artifact first so later support tooling can build on a stable export format.
+
+## Stage 25M Persistence Migration Baseline
+
+Stage 25M extends the earlier atomic-save work by adding one shared migration-planning seam for versioned persisted documents.
+
+Stage 25M architecture result:
+
+- `VersionedDocumentMigration` now provides:
+  - declared-version discovery from persisted JSON,
+  - version-0 legacy upgrade planning,
+  - unsupported-version classification,
+  - shared migration messages for callers.
+- `AppSettingsStore`, `HapticProfileStore`, and `PhprEffectProfileStore` now all use that same planner instead of each store deciding legacy version handling independently.
+- Versionless or version-0 persisted documents now upgrade to the current schema baseline with explicit migration reporting rather than failing or silently diverging by store.
+- Future persisted-format work now has one stable place to extend first:
+  - new per-version upgrade steps,
+  - shared unsupported-version policy,
+  - shared migration diagnostics.
+
+Stage 25M deliberately does not add cross-file transactional migrations, backup retention/history, automatic rollback across multiple documents, or broader persisted-artifact repair orchestration. It establishes the first shared migration seam so later schema growth starts from one explicit baseline.
