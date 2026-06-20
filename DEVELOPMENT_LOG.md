@@ -5041,6 +5041,46 @@ Self-review:
 - This still does not solve the full data-driven effect-schema/UI problem, but it keeps one more effect-growth surface from being hardwired in the window code-behind.
 - The next strong target remains broader effect metadata/control/schema generalization rather than more presenter-local string cleanup.
 
+## Stage 25AG - Routing/Mixer Status Snapshot Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Remove the Routing / Mixer page's large runtime/effect-routing status assembly block from `MainWindow` by moving it behind one dedicated app-side builder, and centralize BST-1 effect-summary snapshot creation for routing plus diagnostics without changing visible behavior.
+
+Notes:
+
+- Re-audited the post-25AF effect-extensibility path:
+  - Effects-page status mapping now had a dedicated builder,
+  - routing/mixer status still had its own long effect/runtime assembly block in `MainWindow`,
+  - BST-1 effect-summary snapshot construction still lived as a `MainWindow`-local fixed-list helper even though both routing and diagnostics depended on that summary shape.
+- Added `RoutingMixerStatusSnapshotBuilder` so the Routing / Mixer page now gets one dedicated app-side status seam that:
+  - builds `RoutingMixerStatusSnapshot` from already-collected runtime/device/effect inputs,
+  - maps BST-1 enabled/active state from the effect snapshot in one place,
+  - preserves the existing presenter contract and visible summary text.
+- Added `Bst1EffectSummarySnapshotBuilder` and updated both routing and diagnostics to consume the shared summary-snapshot seam instead of a `MainWindow`-local builder.
+- Added focused snapshot-builder tests plus updated routing source-guardrail checks so this status/snapshot seam remains explicit and does not silently collapse back into `MainWindow`.
+- Kept the stage intentionally narrow:
+  - no WPF layout rewrite,
+  - no persisted schema change,
+  - no routing priority/rule change,
+  - no runtime haptic-behavior change.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "RoutingMixer|Bst1EffectSummary|AppThemeResourceTests|DiagnosticsStatusPresenterTests"` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AG is another practical seam stage: it removes a real second status-mapping hotspot instead of pretending the broader effect-schema problem is solved.
+- The shared BST-1 effect-summary builder is especially useful because routing and diagnostics now consume the same app-side summary contract instead of relying on a window-local helper.
+- The next strong target remains broader effect metadata/control/schema generalization rather than more `MainWindow`-mapping cleanup for its own sake.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

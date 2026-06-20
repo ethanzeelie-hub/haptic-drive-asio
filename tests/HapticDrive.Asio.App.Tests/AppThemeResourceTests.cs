@@ -226,7 +226,8 @@ public sealed class AppThemeResourceTests
         Assert.Contains("RoutingMixerViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("RoutingMixerViewControl.Visibility = page.NavigationLabel == \"Routing / Mixer\"", mainWindowCode, StringComparison.Ordinal);
         Assert.Contains("RoutingMixerViewControl.Apply(presentation);", mainWindowCode, StringComparison.Ordinal);
-        Assert.Contains("RoutingMixerStatusPresenter.Build(new RoutingMixerStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerStatusPresenter.Build(", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerStatusSnapshotBuilder.Build(", mainWindowCode, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25AF: Effects-status snapshot seam complete.
+Stage 25AG: Routing/mixer status snapshot seam complete.
 
 ## Current Architecture Baseline
 
@@ -19,6 +19,7 @@ Stage 25AF: Effects-status snapshot seam complete.
 - The audio-profile control path now groups BST-1 effect control values and display text behind one typed app-side snapshot, so profile-load/save/hydration work no longer has to keep its effect control contract completely flat even though the current WPF controls and persisted JSON schema stay unchanged.
 - That same audio-profile path now also groups the BST-1 effect input capture contract, so profile-apply/save flow no longer passes one giant flat effect-input bag through the builder even though the current WPF control layout and persisted JSON schema stay unchanged.
 - The Effects page status presentation path now also builds its typed effect-status snapshot through a dedicated app-side builder instead of leaving the runtime/options-to-status mapping embedded in `MainWindow`, which gives future BST-1 effect growth one cleaner status assembly seam without changing the current WPF cards or presenter text.
+- The Routing / Mixer page now also builds its typed status snapshot through a dedicated app-side builder, and BST-1 effect-summary snapshot creation now lives in one shared builder used by both routing and diagnostics instead of another `MainWindow`-local fixed-list assembly path.
 - Replay from `.hdrec` files now streams packets directly from disk through the replay service instead of fully materializing the whole recording first.
 - Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries plus in-app filterable query text without loading whole recordings into memory.
 - Recording summaries now also expose streamed sequence-range and approximate packet-rate metadata, so the library can surface richer per-file health/search hints without coupling the recording core to a game-specific parser.

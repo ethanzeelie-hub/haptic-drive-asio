@@ -37,7 +37,8 @@ public sealed class RoutingMixerStatusPresenterGuardrailTests
             "MainWindow.xaml.cs"));
 
         Assert.Contains("RoutingMixerViewControl.Apply(presentation);", source, StringComparison.Ordinal);
-        Assert.Contains("RoutingMixerStatusPresenter.Build(new RoutingMixerStatusSnapshot(", source, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerStatusPresenter.Build(", source, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerStatusSnapshotBuilder.Build(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("MixerEmergencyMuteStatusText.Text =", source, StringComparison.Ordinal);
         Assert.DoesNotContain("MixerOutputPeakStatusText.Text =", source, StringComparison.Ordinal);
         Assert.DoesNotContain("MixerLimiterActivityStatusText.Text =", source, StringComparison.Ordinal);

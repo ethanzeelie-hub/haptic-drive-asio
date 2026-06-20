@@ -4321,59 +4321,40 @@ public partial class MainWindow : Window
             ? "direct ready"
             : $"direct blocked: {(string.IsNullOrWhiteSpace(directRuntime.BlockedReason) ? "safety gate" : directRuntime.BlockedReason)}";
 
-        return RoutingMixerStatusPresenter.Build(new RoutingMixerStatusSnapshot(
-            MasterGain: mixer.MasterGain,
-            SafetyOutputGain: safety.OutputGain,
-            EmergencyMuted: _emergencyMuted,
-            NormalMuted: pipelineSnapshot.IsMuted,
-            OutputPeakLevel: audioDiagnostics.OutputPeakLevel,
-            MixerPeakLevel: audioDiagnostics.MixerPeakLevel,
-            LimitedSampleCount: audioDiagnostics.LimitedSampleCount,
-            ClippedSampleCount: audioDiagnostics.ClippedSampleCount,
-            SelectedOutputModeText: selectedOutputMode,
-            SelectedAsioDriverNameText: _selectedAsioDriverName ?? "none",
-            SelectedAsioOutputChannelText: _selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel.ToString()!,
-            AsioArmed: _asioArmed,
-            TrueAsioStatusText: BuildTrueAsioStatusText(manualAsio),
-            Bst1GearEnabled: _bst1PaddleGearPulseEnabled,
-            Bst1GearActive: effectSnapshot.GearShift.IsActive,
-            Bst1RoadEnabled: effectSnapshot.RoadTexture.Bst1OutputEnabled,
-            Bst1RoadActive: effectSnapshot.RoadTexture.IsActive,
-            EngineEnabled: effectSnapshot.Engine.IsEnabled,
-            EngineActive: effectSnapshot.Engine.IsActive,
-            KerbEnabled: effectSnapshot.Kerb.IsEnabled,
-            KerbActive: effectSnapshot.Kerb.IsActive,
-            ImpactEnabled: effectSnapshot.Impact.IsEnabled,
-            ImpactActive: effectSnapshot.Impact.IsActive,
-            WheelSlipEnabled: effectSnapshot.Slip.WheelSlipEnabled,
-            WheelSlipActive: effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel slip", StringComparison.Ordinal),
-            WheelLockEnabled: effectSnapshot.Slip.WheelLockEnabled,
-            WheelLockActive: effectSnapshot.Slip.IsActive && string.Equals(effectSnapshot.Slip.ActiveSource, "Wheel lock", StringComparison.Ordinal),
-            PhprPedalsModeText: PhprPedalsModeComboBox.SelectedItem?.ToString() ?? "none",
-            BrakeGearPulseEnabled: _realPhprOptions.BrakeGearPulse.IsEnabled,
-            DirectReadinessText: directReadiness,
-            DirectConnectionStateText: realOutput.Connection.State.ToString(),
-            BrakeGearActive: directRuntime.HardwareBelievedActive,
-            BrakeRoadEnabled: _realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled,
-            BrakeRoadActive: continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true,
-            BrakeLockEnabled: _realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled,
-            BrakeLockActive: brakeSlipLockActive,
-            ThrottleGearPulseEnabled: _realPhprOptions.ThrottleGearPulse.IsEnabled,
-            PhprSoftwareCoexistenceStatusText: _phprSoftwareCoexistenceSnapshot.Status.ToString(),
-            RealEmergencyStopActive: realOutput.Output.IsEmergencyStopActive,
-            ThrottleGearActive: directRuntime.HardwareBelievedActive,
-            ThrottleRoadEnabled: _realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled,
-            ThrottleRoadActive: continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true,
-            ThrottleSlipEnabled: _realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled,
-            ThrottleSlipActive: throttleSlipLockActive,
-            ActiveEffectCount: effectSnapshot.ActiveEffectCount,
-            GearShiftActive: effectSnapshot.GearShift.IsActive,
-            RoadTextureActive: effectSnapshot.RoadTexture.IsActive,
-            SlipLockActive: effectSnapshot.Slip.IsActive)
-        {
-            ActivityItems = effectSnapshot.ActivityItems,
-            Bst1Effects = BuildBst1EffectSummarySnapshot(effectSnapshot).Items
-        });
+        return RoutingMixerStatusPresenter.Build(
+            RoutingMixerStatusSnapshotBuilder.Build(new RoutingMixerStatusBuildInputs(
+                MasterGain: mixer.MasterGain,
+                SafetyOutputGain: safety.OutputGain,
+                EmergencyMuted: _emergencyMuted,
+                NormalMuted: pipelineSnapshot.IsMuted,
+                OutputPeakLevel: audioDiagnostics.OutputPeakLevel,
+                MixerPeakLevel: audioDiagnostics.MixerPeakLevel,
+                LimitedSampleCount: audioDiagnostics.LimitedSampleCount,
+                ClippedSampleCount: audioDiagnostics.ClippedSampleCount,
+                SelectedOutputModeText: selectedOutputMode,
+                SelectedAsioDriverNameText: _selectedAsioDriverName ?? "none",
+                SelectedAsioOutputChannelText: _selectedAsioOutputChannel is null ? "none" : _selectedAsioOutputChannel.ToString()!,
+                AsioArmed: _asioArmed,
+                TrueAsioStatusText: BuildTrueAsioStatusText(manualAsio),
+                Bst1GearEnabled: _bst1PaddleGearPulseEnabled,
+                EffectSnapshot: effectSnapshot,
+                PhprPedalsModeText: PhprPedalsModeComboBox.SelectedItem?.ToString() ?? "none",
+                BrakeGearPulseEnabled: _realPhprOptions.BrakeGearPulse.IsEnabled,
+                DirectReadinessText: directReadiness,
+                DirectConnectionStateText: realOutput.Connection.State.ToString(),
+                BrakeGearActive: directRuntime.HardwareBelievedActive,
+                BrakeRoadEnabled: _realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Brake.IsEnabled,
+                BrakeRoadActive: continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true,
+                BrakeLockEnabled: _realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelLock.IsEnabled,
+                BrakeLockActive: brakeSlipLockActive,
+                ThrottleGearPulseEnabled: _realPhprOptions.ThrottleGearPulse.IsEnabled,
+                PhprSoftwareCoexistenceStatusText: _phprSoftwareCoexistenceSnapshot.Status.ToString(),
+                RealEmergencyStopActive: realOutput.Output.IsEmergencyStopActive,
+                ThrottleGearActive: directRuntime.HardwareBelievedActive,
+                ThrottleRoadEnabled: _realRoadVibrationOptions.IsEnabled && _realRoadVibrationOptions.Throttle.IsEnabled,
+                ThrottleRoadActive: continuousRuntime.LastRoadVibrationRoutingResult?.WasRouted == true,
+                ThrottleSlipEnabled: _realSlipLockOptions.IsEnabled && _realSlipLockOptions.WheelSlip.IsEnabled,
+                ThrottleSlipActive: throttleSlipLockActive)));
     }
 
     private void UpdateDeviceStatus()
@@ -4938,7 +4919,7 @@ public partial class MainWindow : Window
         var roadDiagnosticLines = roadDiagnostics.ToDiagnosticsLines();
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var phprWorkflowPresentation = BuildPhprWorkflowStatusPresentation(pipelineSnapshot, realDiagnostics);
-        var bst1EffectSummary = BuildBst1EffectSummarySnapshot(effectSnapshot);
+        var bst1EffectSummary = Bst1EffectSummarySnapshotBuilder.Build(effectSnapshot);
         var snapshot = DiagnosticsStatusSnapshotBuilder.Build(new DiagnosticsStatusBuildInputs(
             GeneratedAt: DateTimeOffset.Now,
             FlightRecorderActive: roadDiagnostics.FlightRecorderActive,
@@ -4984,22 +4965,6 @@ public partial class MainWindow : Window
             RuntimePrerequisitesText: $".NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
             AppSettingsText: BuildPersistedSettingsStatusPresentation().DiagnosticsText));
         return DiagnosticsStatusPresenter.Build(snapshot);
-    }
-
-    private static Bst1EffectSummarySnapshot BuildBst1EffectSummarySnapshot(HapticEffectEngineSnapshot effectSnapshot)
-    {
-        return new Bst1EffectSummarySnapshot(
-            [
-                new Bst1EffectSummaryItem("engine", "engine", effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive),
-                new Bst1EffectSummaryItem("gear", "gear", effectSnapshot.GearShift.IsEnabled, effectSnapshot.GearShift.IsActive),
-                new Bst1EffectSummaryItem("kerb", "kerb", effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive),
-                new Bst1EffectSummaryItem("impact", "impact", effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive),
-                new Bst1EffectSummaryItem("road", "road", effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive),
-                new Bst1EffectSummaryItem("slip", "slip", effectSnapshot.Slip.WheelSlipEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentSlipIntensity > 0f),
-                new Bst1EffectSummaryItem("lock", "lock", effectSnapshot.Slip.WheelLockEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentLockIntensity > 0f)
-            ],
-            effectSnapshot.Slip.IsEnabled,
-            effectSnapshot.PeakLevel);
     }
 
     private void ApplyDiagnosticsStatusPresentation(DiagnosticsStatusPresentation presentation)

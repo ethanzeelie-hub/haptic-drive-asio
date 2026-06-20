@@ -2994,3 +2994,30 @@ Stage 25AF architecture result:
 - The result improves maintainability because future BST-1 effect additions now have one cleaner app-side status-assembly seam instead of requiring another long `MainWindow` mapping edit just to reach the existing presenter/view path.
 
 Stage 25AF deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic WPF control generation, or broader effect-schema generalization across profiles/settings/diagnostics. It narrows one more app-side assembly seam first so those later changes can build on a less tangled status path.
+
+## Stage 25AG Routing/Mixer Status Snapshot Seam
+
+Stage 25AG continues the same effect-extensibility cleanup by removing the Routing / Mixer page's remaining large status-assembly block from `MainWindow` and by centralizing the shared BST-1 effect-summary snapshot build step.
+
+Stage 25AG architecture result:
+
+- The Routing / Mixer page now gets its typed `RoutingMixerStatusSnapshot` through `RoutingMixerStatusSnapshotBuilder` instead of a long `MainWindow` mapping block.
+- The new builder owns:
+  - BST-1 routing/effect enabled-active mapping from `HapticEffectEngineSnapshot`,
+  - active-effect count and generic activity-item handoff,
+  - routing-summary input shaping for the existing presenter contract.
+- BST-1 effect-summary snapshot creation now also lives in one shared app-side builder:
+  - `Bst1EffectSummarySnapshotBuilder` replaces the former `MainWindow`-local fixed-list summary assembly,
+  - both routing and diagnostics now consume the same summary snapshot construction seam.
+- `MainWindow` still keeps the same visible boundary:
+  - it still gathers the live runtime/device state,
+  - it still passes the resulting snapshot to `RoutingMixerStatusPresenter`,
+  - it still applies the final presentation through `RoutingMixerViewControl`.
+- The stage stays intentionally narrow:
+  - no WPF layout rewrite,
+  - no persisted profile or settings schema change,
+  - no routing rule or priority change,
+  - no runtime haptic-behavior change.
+- The result improves maintainability because future BST-1 effect additions now have one cleaner routing-status seam and one shared BST-1 effect-summary seam instead of requiring additional `MainWindow`-local fixed-list mapping edits.
+
+Stage 25AG deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic WPF control generation, or broader effect-schema generalization across profiles/settings/diagnostics. It removes one more app-side mapping hotspot first so those later changes can build on a cleaner routing/reporting baseline.
