@@ -49,6 +49,21 @@ public sealed class AtomicFileWriterTests
         Assert.Empty(Directory.GetFiles(directory.Path, "*.bak", SearchOption.TopDirectoryOnly));
     }
 
+    [Fact]
+    public void DocumentBackupFile_RefreshesLastKnownGoodCopy()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "settings.json");
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        File.WriteAllText(path, "stable");
+
+        var refreshed = DocumentBackupFile.TryRefreshFromPrimary(path);
+
+        Assert.True(refreshed);
+        Assert.True(File.Exists(backupPath));
+        Assert.Equal("stable", File.ReadAllText(backupPath));
+    }
+
     private sealed class TempDirectory : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(

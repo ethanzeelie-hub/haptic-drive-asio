@@ -2601,3 +2601,26 @@ Stage 25N architecture result:
 - `TelemetryUdpView` now exposes a filter textbox plus clear action for the recording library, while `MainWindow` remains the executor that loads the library, applies the filter, preserves selection when possible, and owns replay/rename/delete behavior.
 
 Stage 25N deliberately does not add sidecar metadata indexes, random-access packet browsing, packet-type histograms, game-specific recording analysis, or a new `.hdrec` format version. It adds the first query/filter seam so later browse/index work starts from richer generic summaries and a stable UI path.
+
+## Stage 25O Persistence Recovery Baseline
+
+Stage 25O extends the earlier atomic-save plus migration work with one small recovery rung: single-file last-known-good fallback.
+
+Stage 25O architecture result:
+
+- `DocumentBackupFile` now provides a shared persisted-backup path convention plus backup refresh helper in `HapticDrive.Asio.Core.Persistence`.
+- `AppSettingsStore`, `HapticProfileStore`, and `PhprEffectProfileStore` now refresh a `.lastgood` backup after each successful save.
+- Those same stores now attempt recovery from the backup snapshot when the primary document is:
+  - missing,
+  - corrupt,
+  - unsupported.
+- Recovery remains intentionally single-file and local to each store:
+  - no cross-file transaction coordinator,
+  - no multi-document rollback ordering,
+  - no retained history chain.
+- Existing validation and migration seams still own content safety:
+  - primary and backup documents both pass through the same migration path,
+  - primary and backup documents both pass through the same sanitization/validation path,
+  - recovery reuses those existing result surfaces instead of inventing a second persistence pipeline.
+
+Stage 25O deliberately does not add backup retention/history, cross-file recovery orchestration, transactional restore points, or background repair of every persisted artifact in one pass. It gives the production app one practical last-known-good fallback layer first so broader persistence repair can build on a stable baseline.

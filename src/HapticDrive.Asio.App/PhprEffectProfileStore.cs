@@ -82,12 +82,13 @@ internal sealed record PhprEffectProfileLoadResult(
     public static PhprEffectProfileLoadResult Success(
         PhprEffectProfile profile,
         bool wasRepaired,
-        IReadOnlyList<string> validationMessages)
+        IReadOnlyList<string> validationMessages,
+        string? message = null)
     {
         return new(
             PhprEffectProfileLoadStatus.Success,
             profile,
-            wasRepaired ? "P-HPR profile loaded with safe repairs." : "P-HPR profile loaded.",
+            message ?? (wasRepaired ? "P-HPR profile loaded with safe repairs." : "P-HPR profile loaded."),
             wasRepaired,
             validationMessages);
     }
@@ -292,6 +293,7 @@ internal sealed class PhprEffectProfileStore
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
+            _ = DocumentBackupFile.TryRefreshFromPrimary(fullPath);
 
             return PhprEffectProfileSaveResult.Success(
                 fullPath,
@@ -307,6 +309,45 @@ internal sealed class PhprEffectProfileStore
     public async ValueTask<PhprEffectProfileLoadResult> LoadAsync(
         string path,
         CancellationToken cancellationToken = default)
+    {
+        var primary = await LoadSingleAsync(path, cancellationToken).ConfigureAwait(false);
+        if (primary.Succeeded)
+        {
+            return primary;
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return primary;
+        }
+
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        if (!File.Exists(backupPath))
+        {
+            return primary;
+        }
+
+        var backup = await LoadSingleAsync(backupPath, cancellationToken).ConfigureAwait(false);
+        if (!backup.Succeeded || backup.Profile is null)
+        {
+            return PhprEffectProfileLoadResult.Failure(
+                $"{primary.Message} Backup P-HPR profile could not be loaded: {backup.Message}");
+        }
+
+        var messages = new List<string>(backup.ValidationMessages)
+        {
+            $"Recovered P-HPR profile from backup snapshot {Path.GetFileName(backupPath)} after the primary file could not be used."
+        };
+        return PhprEffectProfileLoadResult.Success(
+            backup.Profile,
+            wasRepaired: true,
+            messages,
+            "P-HPR profile recovered from backup snapshot.");
+    }
+
+    private static async ValueTask<PhprEffectProfileLoadResult> LoadSingleAsync(
+        string path,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(path))
         {

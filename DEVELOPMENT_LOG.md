@@ -4207,6 +4207,45 @@ Self-review:
 - The new query path is useful immediately, but it is still a loaded-list filter, not a large-session indexing system.
 - Future recording-library work can now build toward sidecar indexes, richer browse views, and packet-type analysis from a clearer baseline.
 
+## Stage 25O - Persistence Recovery Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Add a practical persisted-document recovery rung by keeping last-known-good backups for app settings, audio profiles, and P-HPR profiles, then falling back to those backups when the primary file cannot be used.
+
+Notes:
+
+- Added `DocumentBackupFile` in shared persistence code to standardize `.lastgood` backup paths and refresh behavior.
+- App settings, audio profiles, and P-HPR profile saves now refresh a last-known-good backup after successful primary writes.
+- App settings, audio profiles, and P-HPR profiles now attempt recovery from their backup snapshot when the primary document is:
+  - missing,
+  - corrupt,
+  - unsupported.
+- Kept the recovery seam intentionally small:
+  - recovery is per file,
+  - migration/validation still run through the existing store paths,
+  - no cross-file transaction or rollback coordinator was introduced.
+- Added direct/indirect test coverage for:
+  - backup file refresh,
+  - app-settings recovery from a corrupt primary file,
+  - audio-profile recovery from a corrupt primary file,
+  - P-HPR profile recovery from a corrupt primary file.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25O materially improves production resilience for single persisted files without pretending the broader multi-document repair problem is solved.
+- The new backup path is intentionally conservative and local; it does not yet offer versioned history, user-facing restore controls, or cross-store rollback semantics.
+- This is the right base for a later persistence orchestration stage because failure handling is now explicit at the store boundary instead of only at the atomic-write boundary.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

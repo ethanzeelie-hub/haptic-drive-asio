@@ -1,6 +1,7 @@
 using System.IO;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.App;
+using HapticDrive.Asio.Core.Persistence;
 
 namespace HapticDrive.Asio.App.Tests;
 
@@ -98,6 +99,21 @@ public sealed class PhprEffectProfileStoreTests
     }
 
     [Fact]
+    public async Task PhprProfileSave_RefreshesLastKnownGoodBackup()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "p-hpr.hdphprprofile.json");
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        var store = new PhprEffectProfileStore();
+
+        var saveResult = await store.SaveAsync(PhprEffectProfile.Default, path);
+
+        Assert.True(saveResult.Succeeded, saveResult.Message);
+        Assert.True(File.Exists(backupPath));
+        Assert.Equal(await File.ReadAllTextAsync(path), await File.ReadAllTextAsync(backupPath));
+    }
+
+    [Fact]
     public async Task PhprProfileSave_ClampsUnsafeEffectPreferences()
     {
         using var directory = new TempDirectory();
@@ -150,6 +166,24 @@ public sealed class PhprEffectProfileStoreTests
         Assert.Equal(PhprEffectProfileLoadStatus.FileNotFound, missing.Status);
         Assert.Equal(PhprEffectProfileLoadStatus.Corrupt, corrupt.Status);
         Assert.Equal(PhprEffectProfileLoadStatus.UnsupportedVersion, future.Status);
+    }
+
+    [Fact]
+    public async Task PhprProfileLoad_CorruptPrimary_RecoversFromBackupSnapshot()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "p-hpr.hdphprprofile.json");
+        var store = new PhprEffectProfileStore();
+        var profile = PhprEffectProfile.Default with { Name = "Backup P-HPR" };
+        Assert.True((await store.SaveAsync(profile, path)).Succeeded);
+        await File.WriteAllTextAsync(path, "{ broken");
+
+        var result = await store.LoadAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Profile);
+        Assert.Equal("Backup P-HPR", result.Profile.Name);
+        Assert.Equal("P-HPR profile recovered from backup snapshot.", result.Message);
     }
 
     [Fact]

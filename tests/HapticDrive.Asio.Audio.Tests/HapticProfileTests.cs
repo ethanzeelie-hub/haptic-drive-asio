@@ -7,6 +7,7 @@ using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.Safety;
 using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Persistence;
 
 namespace HapticDrive.Asio.Audio.Tests;
 
@@ -125,6 +126,20 @@ public sealed class HapticProfileTests
     }
 
     [Fact]
+    public async Task ProfileSave_RefreshesLastKnownGoodBackup()
+    {
+        var path = CreateTempProfilePath();
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        var store = new HapticProfileStore();
+
+        var saveResult = await store.SaveAsync(HapticDriveProfile.Default, path);
+
+        Assert.True(saveResult.Succeeded, saveResult.Message);
+        Assert.True(File.Exists(backupPath));
+        Assert.Equal(await File.ReadAllTextAsync(path), await File.ReadAllTextAsync(backupPath));
+    }
+
+    [Fact]
     public async Task ProfileLoad_MissingFileFailsSafely()
     {
         var store = new HapticProfileStore();
@@ -146,6 +161,22 @@ public sealed class HapticProfileTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(HapticProfileLoadStatus.Corrupt, result.Status);
+    }
+
+    [Fact]
+    public async Task ProfileLoad_CorruptPrimary_RecoversFromBackupSnapshot()
+    {
+        var path = CreateTempProfilePath();
+        var store = new HapticProfileStore();
+        Assert.True((await store.SaveAsync(HapticDriveProfile.Default with { Name = "Backup copy" }, path)).Succeeded);
+        await File.WriteAllTextAsync(path, "{ broken");
+
+        var result = await store.LoadAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Profile);
+        Assert.Equal("Backup copy", result.Profile.Name);
+        Assert.Equal("Profile recovered from backup snapshot.", result.Message);
     }
 
     [Fact]

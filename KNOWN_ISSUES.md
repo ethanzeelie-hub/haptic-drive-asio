@@ -970,3 +970,11 @@
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
 - Legacy version-0 app settings, audio profiles, and P-HPR profiles now migrate through a shared planning seam, but the repo still does not have broader cross-file transactional migration, backup retention, rollback orchestration, or automatic repair of multiple persisted documents as one unit.
+
+## Stage 25O
+
+- App settings, audio profiles, and P-HPR profiles now recover from a single-file last-known-good backup snapshot, but the repo still does not have broader cross-file rollback orchestration, retained backup history, or coordinated repair of multiple persisted documents as one unit.
+- The repo still does not produce an installer, signed binaries, GitHub Releases publication, or automated installer smoke validation.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
+- The recording library is now filterable, but it still does not expose deeper workflows such as on-demand packet browsing, packet-type histograms, or persistent sidecar indexes for very large recording sets.

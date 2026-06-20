@@ -27,14 +27,64 @@ internal sealed class AppSettingsStore
 
     public AppSettings Load()
     {
-        try
+        var primaryAttempt = TryLoadFromPath(SettingsPath);
+        if (primaryAttempt.Status == AppSettingsLoadAttemptStatus.Success && primaryAttempt.Settings is not null)
         {
-            if (!File.Exists(SettingsPath))
+            return primaryAttempt.Settings;
+        }
+
+        var backupPath = DocumentBackupFile.GetBackupPath(SettingsPath);
+        if (!File.Exists(backupPath))
+        {
+            return primaryAttempt.Status == AppSettingsLoadAttemptStatus.Missing
+                ? AppSettings.Default
+                : AppSettings.Default with
+                {
+                    LastStatusMessage = primaryAttempt.Message
+                };
+        }
+
+        var backupAttempt = TryLoadFromPath(backupPath);
+        if (backupAttempt.Status == AppSettingsLoadAttemptStatus.Success && backupAttempt.Settings is not null)
+        {
+            var recoveryMessage =
+                $"{primaryAttempt.Message} Recovered app settings from backup snapshot.";
+            if (!string.IsNullOrWhiteSpace(backupAttempt.Settings.LastStatusMessage))
             {
-                return AppSettings.Default;
+                recoveryMessage = $"{recoveryMessage} {backupAttempt.Settings.LastStatusMessage}";
             }
 
-            var json = File.ReadAllText(SettingsPath);
+            return backupAttempt.Settings with
+            {
+                LastStatusMessage = recoveryMessage
+            };
+        }
+
+        return AppSettings.Default with
+        {
+            LastStatusMessage =
+                $"{primaryAttempt.Message} Backup app settings could not be loaded: {backupAttempt.Message}"
+        };
+    }
+
+    public void Save(AppSettings settings)
+    {
+        var sanitized = Sanitize(settings);
+        var json = JsonSerializer.Serialize(sanitized, SerializerOptions);
+        AtomicFileWriter.WriteAllText(SettingsPath, json);
+        _ = DocumentBackupFile.TryRefreshFromPrimary(SettingsPath);
+    }
+
+    private static AppSettingsLoadAttempt TryLoadFromPath(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return AppSettingsLoadAttempt.Missing("App settings file was not found.");
+            }
+
+            var json = File.ReadAllText(path);
             var sourceVersion = VersionedDocumentMigration.ReadDeclaredVersion(json);
             var settings = JsonSerializer.Deserialize<AppSettings>(json, SerializerOptions);
             var migration = VersionedDocumentMigration.Plan(
@@ -46,37 +96,24 @@ internal sealed class AppSettingsStore
 
             if (!migration.IsSupportedVersion || migration.Document is null)
             {
-                return AppSettings.Default with
-                {
-                    LastStatusMessage = migration.Messages[0]
-                };
+                return AppSettingsLoadAttempt.Failure(migration.Messages[0]);
             }
 
             var sanitized = Sanitize(migration.Document);
             if (!migration.WasMigrated)
             {
-                return sanitized;
+                return AppSettingsLoadAttempt.Success(sanitized);
             }
 
-            return sanitized with
+            return AppSettingsLoadAttempt.Success(sanitized with
             {
                 LastStatusMessage = migration.Messages[0]
-            };
+            });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
         {
-            return AppSettings.Default with
-            {
-                LastStatusMessage = $"App settings could not be loaded: {ex.Message}"
-            };
+            return AppSettingsLoadAttempt.Failure($"App settings could not be loaded: {ex.Message}");
         }
-    }
-
-    public void Save(AppSettings settings)
-    {
-        var sanitized = Sanitize(settings);
-        var json = JsonSerializer.Serialize(sanitized, SerializerOptions);
-        AtomicFileWriter.WriteAllText(SettingsPath, json);
     }
 
     public static string GetDefaultSettingsPath()
@@ -405,6 +442,34 @@ internal sealed class AppSettingsStore
     private static int? NormalizeButtonId(int? buttonId)
     {
         return buttonId is > 0 and <= 128 ? buttonId : null;
+    }
+
+    private enum AppSettingsLoadAttemptStatus
+    {
+        Success,
+        Missing,
+        Failure
+    }
+
+    private sealed record AppSettingsLoadAttempt(
+        AppSettingsLoadAttemptStatus Status,
+        AppSettings? Settings,
+        string Message)
+    {
+        public static AppSettingsLoadAttempt Success(AppSettings settings)
+        {
+            return new(AppSettingsLoadAttemptStatus.Success, settings, "App settings loaded.");
+        }
+
+        public static AppSettingsLoadAttempt Missing(string message)
+        {
+            return new(AppSettingsLoadAttemptStatus.Missing, null, message);
+        }
+
+        public static AppSettingsLoadAttempt Failure(string message)
+        {
+            return new(AppSettingsLoadAttemptStatus.Failure, null, message);
+        }
     }
 }
 

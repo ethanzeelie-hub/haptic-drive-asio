@@ -30,12 +30,13 @@ public sealed record HapticProfileLoadResult(
     public static HapticProfileLoadResult Success(
         HapticDriveProfile profile,
         bool wasRepaired,
-        IReadOnlyList<string> validationMessages)
+        IReadOnlyList<string> validationMessages,
+        string? message = null)
     {
         return new(
             HapticProfileLoadStatus.Success,
             profile,
-            wasRepaired ? "Profile loaded with safe repairs." : "Profile loaded.",
+            message ?? (wasRepaired ? "Profile loaded with safe repairs." : "Profile loaded."),
             wasRepaired,
             validationMessages);
     }
@@ -142,6 +143,7 @@ public sealed class HapticProfileStore
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
+            _ = DocumentBackupFile.TryRefreshFromPrimary(fullPath);
 
             return HapticProfileSaveResult.Success(
                 fullPath,
@@ -157,6 +159,45 @@ public sealed class HapticProfileStore
     public async ValueTask<HapticProfileLoadResult> LoadAsync(
         string path,
         CancellationToken cancellationToken = default)
+    {
+        var primary = await LoadSingleAsync(path, cancellationToken).ConfigureAwait(false);
+        if (primary.Succeeded)
+        {
+            return primary;
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return primary;
+        }
+
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        if (!File.Exists(backupPath))
+        {
+            return primary;
+        }
+
+        var backup = await LoadSingleAsync(backupPath, cancellationToken).ConfigureAwait(false);
+        if (!backup.Succeeded || backup.Profile is null)
+        {
+            return HapticProfileLoadResult.Failure(
+                $"{primary.Message} Backup profile could not be loaded: {backup.Message}");
+        }
+
+        var messages = new List<string>(backup.ValidationMessages)
+        {
+            $"Recovered profile from backup snapshot {Path.GetFileName(backupPath)} after the primary file could not be used."
+        };
+        return HapticProfileLoadResult.Success(
+            backup.Profile,
+            wasRepaired: true,
+            messages,
+            "Profile recovered from backup snapshot.");
+    }
+
+    private static async ValueTask<HapticProfileLoadResult> LoadSingleAsync(
+        string path,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(path))
         {

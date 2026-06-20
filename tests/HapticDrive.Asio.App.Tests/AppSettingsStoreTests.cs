@@ -2,6 +2,7 @@ using System.IO;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.App;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Persistence;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Asio.Runtime.Pipeline;
 
@@ -499,6 +500,23 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public void Save_RefreshesLastKnownGoodBackup()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        var store = new AppSettingsStore(path);
+
+        store.Save(new AppSettings
+        {
+            UseLightTheme = true
+        });
+
+        Assert.True(File.Exists(backupPath));
+        Assert.Equal(File.ReadAllText(path), File.ReadAllText(backupPath));
+    }
+
+    [Fact]
     public void Load_VersionlessSettings_MigratesToCurrentVersionWithStatusMessage()
     {
         using var directory = new TempDirectory();
@@ -511,6 +529,24 @@ public sealed class AppSettingsStoreTests
         Assert.True(loaded.UseLightTheme);
         Assert.Equal(AppSettings.CurrentVersion, loaded.Version);
         Assert.Equal("Legacy document version 0 was migrated to version 1.", loaded.LastStatusMessage);
+    }
+
+    [Fact]
+    public void Load_CorruptPrimary_RecoversFromBackupSnapshot()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var store = new AppSettingsStore(path);
+        store.Save(new AppSettings
+        {
+            UseLightTheme = true
+        });
+        File.WriteAllText(path, "{ broken");
+
+        var loaded = store.Load();
+
+        Assert.True(loaded.UseLightTheme);
+        Assert.Contains("Recovered app settings from backup snapshot.", loaded.LastStatusMessage, StringComparison.Ordinal);
     }
 
     [Fact]
