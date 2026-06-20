@@ -135,6 +135,7 @@
 - Stage 25X: Selected-recording detail clipboard baseline complete.
 - Stage 25Y: Support-bundle selected-recording detail baseline complete.
 - Stage 25Z: Selected-recording detail export baseline complete.
+- Stage 25AA: Structured recording inspection seam complete.
 
 ## Planned Stages
 
@@ -242,6 +243,7 @@
 102. Stage 25X: Selected-recording detail clipboard baseline. Complete.
 103. Stage 25Y: Support-bundle selected-recording detail baseline. Complete.
 104. Stage 25Z: Selected-recording detail export baseline. Complete.
+105. Stage 25AA: Structured recording inspection seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -308,6 +310,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25X extends the selected-recording inspection path with a copyable clipboard detail report, so operators can lift the already-available summary, histogram, and preview text directly into bug reports or support notes without leaving the app.
 - Stage 25Y extends the local support-bundle seam so export can optionally include the currently selected recording's sanitized detail report, connecting recording inspection to support artifacts without bundling raw captures.
 - Stage 25Z adds a standalone local selected-recording detail export path under `local-validation-results/recording-inspections/`, so operators can save the current sanitized recording-inspection report without needing the clipboard or a full support bundle.
+- Stage 25AA refactors that selected-recording inspection path onto a structured analysis model plus dedicated formatter, keeping today's output stable while giving later packet-browser/index work a stronger app-side seam.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index tooling such as richer per-packet browse/index views, broader cross-file persistence repair/rollback orchestration across multiple documents, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases

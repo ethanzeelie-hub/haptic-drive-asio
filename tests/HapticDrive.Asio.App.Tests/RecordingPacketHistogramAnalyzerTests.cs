@@ -34,6 +34,65 @@ public sealed class RecordingPacketHistogramAnalyzerTests
     }
 
     [Fact]
+    public async Task AnalyzeDetailsAsync_ReturnsStructuredHistogramAndPreviewEntries()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        var path = Path.Combine(temp.Path, "structured.hdrec");
+
+        await CreateRecordingAsync(
+            path,
+            [
+                new RecordedPacketTemplate(1, CreateDatagram(F125PacketKind.Motion), TimeSpan.Zero),
+                new RecordedPacketTemplate(2, CreateDatagram(F125PacketKind.Motion), TimeSpan.FromMilliseconds(10)),
+                new RecordedPacketTemplate(3, CreateDatagram(F125PacketKind.CarTelemetry), TimeSpan.FromMilliseconds(20))
+            ]);
+
+        var result = await RecordingPacketHistogramAnalyzer.AnalyzeDetailsAsync(path);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.Analysis);
+        Assert.Equal(3, result.Analysis.PacketCount);
+        Assert.Equal("F1 25", result.Analysis.SourceGame);
+        Assert.Collection(
+            result.Analysis.HistogramEntries,
+            entry =>
+            {
+                Assert.Equal("Motion", entry.Name);
+                Assert.Equal((byte)0, entry.PacketId);
+                Assert.Equal(2, entry.Count);
+            },
+            entry =>
+            {
+                Assert.Equal("Car Telemetry", entry.Name);
+                Assert.Equal((byte)6, entry.PacketId);
+                Assert.Equal(1, entry.Count);
+            });
+        Assert.Collection(
+            result.Analysis.PreviewEntries,
+            entry =>
+            {
+                Assert.Equal(1, entry.SequenceNumber);
+                Assert.Equal(TimeSpan.Zero, entry.RelativeTime);
+                Assert.Equal("Motion#0", entry.Label);
+                Assert.Equal(1349, entry.PayloadSizeBytes);
+            },
+            entry =>
+            {
+                Assert.Equal(2, entry.SequenceNumber);
+                Assert.Equal(TimeSpan.FromMilliseconds(10), entry.RelativeTime);
+                Assert.Equal("Motion#0", entry.Label);
+                Assert.Equal(1349, entry.PayloadSizeBytes);
+            },
+            entry =>
+            {
+                Assert.Equal(3, entry.SequenceNumber);
+                Assert.Equal(TimeSpan.FromMilliseconds(20), entry.RelativeTime);
+                Assert.Equal("Car Telemetry#6", entry.Label);
+                Assert.Equal(1352, entry.PayloadSizeBytes);
+            });
+    }
+
+    [Fact]
     public async Task AnalyzeAsync_ReportsIgnoredAndInvalidPacketsSeparately()
     {
         using var temp = TempRecordingDirectory.Create();
@@ -70,6 +129,15 @@ public sealed class RecordingPacketHistogramAnalyzerTests
         var analysis = await RecordingPacketHistogramAnalyzer.AnalyzeAsync(path);
 
         Assert.Contains("source game Other Game is not supported", analysis, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InspectionFormatter_FormatsUnavailableResultsGracefully()
+    {
+        var text = RecordingPacketInspectionFormatter.Format(
+            RecordingPacketInspectionResult.Unavailable("Packet histogram unavailable: recording path is missing."));
+
+        Assert.Equal("Packet histogram unavailable: recording path is missing.", text);
     }
 
     [Fact]

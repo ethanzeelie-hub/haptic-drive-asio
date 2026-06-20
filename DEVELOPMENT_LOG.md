@@ -4802,6 +4802,48 @@ Self-review:
 - It stays aligned with the repo's local-artifact pattern and does not loosen any privacy boundary around raw recordings.
 - The deeper remaining recording gap is still browse/index depth, not basic ability to save the current sanitized inspection output.
 
+## Stage 25AA - Structured Recording Inspection Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Refactor the selected-recording inspection path onto a structured app-side analysis result plus dedicated formatter so future packet-browser/index features can build on typed data instead of growing around formatted strings.
+
+Notes:
+
+- Re-audited the Stage 25U through 25Z recording-inspection path before editing:
+  - selected-recording analysis already fed the UI, clipboard export, support-bundle export, and standalone local export,
+  - the growing weakness was that all of those surfaces were ultimately chained off one formatted text return value.
+- Extended `RecordingPacketHistogramAnalyzer` with a structured inspection result:
+  - explicit success/unavailable/unsupported statuses,
+  - explicit histogram entries,
+  - explicit preview entries,
+  - retained the same app-layer F1 25-only ownership boundary.
+- Added `RecordingPacketInspectionFormatter`:
+  - owns the existing text contract,
+  - keeps visible output stable,
+  - decouples rendering from analysis.
+- Kept the stage intentionally narrow:
+  - no packet-browser UI,
+  - no `.hdrec` schema change,
+  - no generic recording-assembly game-specific model,
+  - no new raw export surface.
+- Added focused app coverage for both sides of the seam:
+  - structured analysis tests now prove typed histogram/preview output,
+  - formatter tests prove unavailable-state text remains graceful.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- Full-stage verification is run after docs update before commit.
+
+Self-review:
+
+- Stage 25AA is mostly architectural, but it is exactly the right kind of architecture work: tightly scoped, already justified by multiple real consumers, and useful for the next recording-depth stages.
+- The visible product stays stable while the internal contract gets meaningfully cleaner.
+- The next meaningful recording stage can now add richer browse/index behavior without first undoing string-shaped coupling.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

@@ -2859,3 +2859,24 @@ Stage 25Z architecture result:
 - The result improves production supportability and operator workflow by giving recording inspection a first-class local artifact path that matches the repo's existing `local-validation-results` pattern.
 
 Stage 25Z deliberately does not add raw capture attachment, packet-body export formats, sidecar recording indexes, remote upload, or random-access packet browsing. It adds one standalone local inspection artifact first so later recording/support tooling can build on a proven sanitized export contract.
+
+## Stage 25AA Structured Recording Inspection Seam
+
+Stage 25AA turns the selected-recording inspection path into a more explicit app-side data seam without changing the visible Telemetry / UDP workflow.
+
+Stage 25AA architecture result:
+
+- `RecordingPacketHistogramAnalyzer` now exposes a structured inspection result in addition to the existing formatted-text path:
+  - histogram entries are explicit typed items,
+  - preview rows are explicit typed items,
+  - unsupported/unavailable states are explicit result statuses instead of only ad hoc strings.
+- `RecordingPacketInspectionFormatter` now owns the current text rendering contract:
+  - the UI, clipboard export, support-bundle attachment, and standalone local export can continue to consume stable text,
+  - later browse/index features can consume the structured inspection result directly without reverse-parsing strings.
+- The stage stays deliberately app-local:
+  - no new `.hdrec` format metadata is added,
+  - no game-specific structured inspection model is moved into the generic recording assembly,
+  - no packet-browser UI is introduced yet.
+- The result improves future extensibility because richer selected-recording workflows can now evolve from one typed inspection seam instead of continuing to grow around one formatted string blob.
+
+Stage 25AA deliberately does not add packet-body decode views, persistent recording indexes, raw capture exports, cross-game analyzers, or random-access packet browsing. It establishes the structured inspection seam first so those deeper features can build on a cleaner app-side contract.
