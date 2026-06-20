@@ -25,6 +25,8 @@ else {
 
 $publishDirectory = Join-Path $resolvedOutputRoot "publish\$PackageName-$Runtime"
 $zipPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.zip"
+$checksumPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.sha256"
+$manifestPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.manifest.json"
 $extractDirectory = Join-Path $resolvedExtractRoot "$PackageName-$Runtime"
 $requiredFiles =
 @(
@@ -61,6 +63,40 @@ if (-not (Test-Path $zipPath)) {
     throw "Release zip was not found at $zipPath"
 }
 
+if (-not (Test-Path $checksumPath)) {
+    throw "Release checksum was not found at $checksumPath"
+}
+
+if (-not (Test-Path $manifestPath)) {
+    throw "Release manifest was not found at $manifestPath"
+}
+
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+
+if ($manifest.PackageName -ne $PackageName) {
+    throw "Release manifest package name '$($manifest.PackageName)' did not match expected '$PackageName'"
+}
+
+if ($manifest.Runtime -ne $Runtime) {
+    throw "Release manifest runtime '$($manifest.Runtime)' did not match expected '$Runtime'"
+}
+
+$zipHash = Get-FileHash -LiteralPath $zipPath -Algorithm SHA256
+$checksumLine = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
+$expectedChecksumLine = "$($zipHash.Hash) *$([System.IO.Path]::GetFileName($zipPath))"
+
+if ($checksumLine -ne $expectedChecksumLine) {
+    throw "Release checksum content did not match the actual zip hash"
+}
+
+if ($manifest.ZipSha256 -ne $zipHash.Hash) {
+    throw "Release manifest zip SHA256 did not match the actual zip hash"
+}
+
+if ($manifest.ZipFileName -ne [System.IO.Path]::GetFileName($zipPath)) {
+    throw "Release manifest zip file name '$($manifest.ZipFileName)' did not match expected '$([System.IO.Path]::GetFileName($zipPath))'"
+}
+
 if (Test-Path $extractDirectory) {
     Remove-Item -LiteralPath $extractDirectory -Recurse -Force
 }
@@ -74,6 +110,8 @@ $extractedFiles = Get-ChildItem -Path $extractDirectory -File | Select-Object -E
 Write-Host "Release artifact smoke check passed."
 Write-Host "Publish directory: $publishDirectory"
 Write-Host "Zip package: $zipPath"
+Write-Host "Checksum file: $checksumPath"
+Write-Host "Manifest file: $manifestPath"
 Write-Host "Extracted directory: $extractDirectory"
 Write-Host "Publish file count: $($publishFiles.Count)"
 Write-Host "Extracted file count: $($extractedFiles.Count)"

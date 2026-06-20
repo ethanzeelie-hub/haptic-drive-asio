@@ -2660,3 +2660,23 @@ Stage 25Q architecture result:
   - CI packaging now fails before artifact upload if the produced zip is structurally incomplete.
 
 Stage 25Q deliberately does not add MSI/installer generation, code signing, GitHub Releases publication, install/uninstall automation, or full runtime launch-under-package validation. It establishes a first structural artifact-smoke baseline so later delivery work can build on a verified package shape instead of only a successful publish exit code.
+
+## Stage 25R Release Manifest and Checksum Baseline
+
+Stage 25R builds directly on the Stage 25Q structural smoke check by making each packaged release artifact self-describing and integrity-checkable.
+
+Stage 25R architecture result:
+
+- `Publish-HapticDrive.ps1` now emits two release-metadata artifacts alongside the existing zip:
+  - a `.sha256` file for the packaged zip,
+  - a `.manifest.json` file describing the package name, runtime, configuration, generated timestamp, required files, zip size, and zip hash.
+- `Test-ReleaseArtifact.ps1` now validates that metadata seam against the actual artifact:
+  - checksum content must match the computed zip hash,
+  - manifest package/runtime/file-name/hash values must match the produced zip,
+  - the earlier publish/zip/extract required-file validation still runs unchanged.
+- `.github/workflows/package.yml` now uploads the zip, checksum, and manifest together so the CI artifact carries its own integrity and metadata envelope instead of only the binary payload.
+- The result narrows one more delivery gap:
+  - packaged output now has a stable machine-readable identity surface for later release automation,
+  - consumers can verify the artifact without reverse-engineering the publish directory or recomputing ad hoc metadata by hand.
+
+Stage 25R deliberately does not add code signing, MSI/installer generation, GitHub Releases publication, changelog/release-note automation, or install/uninstall validation. It establishes a minimal integrity-plus-metadata envelope first so later delivery automation can build on stable packaged artifact descriptors.

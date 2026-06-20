@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25Q: Release artifact smoke baseline complete.
+Stage 25R: Release manifest and checksum baseline complete.
 
 ## Current Architecture Baseline
 
@@ -20,8 +20,8 @@ Stage 25Q: Release artifact smoke baseline complete.
 - App settings, audio profiles, and P-HPR effect profiles now save through atomic same-directory temp-file replacement, and app settings now persist an explicit schema version marker for future migrations.
 - App settings, audio profiles, and P-HPR effect profiles now share a version-migration planning seam, and legacy version-0 documents are upgraded safely to the current schema baseline instead of each store hand-rolling its own fallback.
 - App settings, audio profiles, and P-HPR effect profiles now also refresh a last-known-good backup snapshot after successful saves, and those stores can recover from that backup when the primary persisted document is missing, corrupt, or unsupported.
-- Local and GitHub Actions packaging now share a real publish path through `Publish-HapticDrive.ps1`, producing a `win-x64` framework-dependent zip artifact under `artifacts/release/`.
-- Release packaging now also includes a repo-native smoke check through `Test-ReleaseArtifact.ps1`, which verifies the publish folder, zip payload, and extracted artifact structure both locally and in the packaging workflow.
+- Local and GitHub Actions packaging now share a real publish path through `Publish-HapticDrive.ps1`, producing a `win-x64` framework-dependent zip artifact plus checksum and JSON manifest under `artifacts/release/`.
+- Release packaging now also includes a repo-native smoke check through `Test-ReleaseArtifact.ps1`, which verifies the publish folder, zip payload, checksum, manifest, and extracted artifact structure both locally and in the packaging workflow.
 - Advanced / Diagnostics can now export a private local support-bundle zip under `local-validation-results/support-bundles/`, containing sanitized diagnostics text plus structured summary/manifest files without attaching raw captures or private device paths.
 - `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
 - ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.
@@ -235,7 +235,7 @@ To produce a release-style publish zip locally:
 .\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64
 ```
 
-That writes the published app folder under `artifacts/publish/` and the zip package under `artifacts/release/`.
+That writes the published app folder under `artifacts/publish/`, plus the zip package, SHA-256 checksum, and JSON manifest under `artifacts/release/`.
 
 To smoke-check the produced release artifact locally:
 

@@ -57,5 +57,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HapticDrive.Asio-win-x64
-          path: artifacts/release/HapticDrive.Asio-win-x64.zip
+          path: |
+            artifacts/release/HapticDrive.Asio-win-x64.zip
+            artifacts/release/HapticDrive.Asio-win-x64.sha256
+            artifacts/release/HapticDrive.Asio-win-x64.manifest.json
           if-no-files-found: error

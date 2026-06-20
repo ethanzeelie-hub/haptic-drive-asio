@@ -4335,6 +4335,57 @@ Self-review:
 - The smoke script closes a real packaging blind spot cheaply and safely because it reuses the existing publish path instead of creating a parallel packaging toolchain.
 - This is a solid base for a later stage that can add richer release metadata, installer production, or install/uninstall validation without losing the simple structural artifact check.
 
+## Stage 25R - Release Manifest and Checksum Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Extend the packaging baseline with repo-native integrity and metadata outputs so each produced release artifact ships with a checksum and machine-readable manifest, and the smoke script proves those files match the actual zip.
+
+Notes:
+
+- Re-audited the Stage 25Q packaging seam before editing:
+  - `Publish-HapticDrive.ps1` already owned the publish-and-zip path,
+  - `Test-ReleaseArtifact.ps1` already owned the artifact smoke-check seam,
+  - CI already had a packaging upload step,
+  - the remaining gap was that the artifact had no stable integrity/metadata envelope beyond the zip file itself.
+- Extended `Publish-HapticDrive.ps1`:
+  - writes `artifacts\release\HapticDrive.Asio-win-x64.sha256`,
+  - writes `artifacts\release\HapticDrive.Asio-win-x64.manifest.json`,
+  - records package/runtime/configuration, generated UTC timestamp, publish file count, required payload files, zip size, and zip SHA-256.
+- Extended `Test-ReleaseArtifact.ps1`:
+  - requires the checksum file,
+  - requires the manifest file,
+  - verifies checksum content against the actual zip hash,
+  - verifies manifest package/runtime/zip-name/hash values against the actual artifact,
+  - keeps the earlier publish/zip/extract required-file validation intact.
+- Updated `.github/workflows/package.yml` so CI uploads:
+  - `HapticDrive.Asio-win-x64.zip`,
+  - `HapticDrive.Asio-win-x64.sha256`,
+  - `HapticDrive.Asio-win-x64.manifest.json`.
+- Updated repo docs:
+  - `README.md` now reports Stage 25R and documents the release metadata output,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25R and narrow the remaining delivery gap toward installer/signing/release-publication rather than first-pass artifact identity/integrity metadata.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `powershell -ExecutionPolicy Bypass -File .\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64` passed and produced:
+  - `artifacts\release\HapticDrive.Asio-win-x64.zip`,
+  - `artifacts\release\HapticDrive.Asio-win-x64.sha256`,
+  - `artifacts\release\HapticDrive.Asio-win-x64.manifest.json`.
+- `powershell -ExecutionPolicy Bypass -File .\Test-ReleaseArtifact.ps1 -Runtime win-x64` passed and verified the zip, checksum, manifest, publish folder, and extracted artifact payload.
+
+Self-review:
+
+- Stage 25R keeps the delivery work narrow and production-useful: the package now carries a stable integrity/metadata envelope without introducing installer or release-service complexity in the same step.
+- The manifest is intentionally small and focused on artifact identity rather than becoming a general release-management schema too early.
+- This is a strong base for a later stage that can publish releases or generate installers without losing the simple local/CI verification path already in place.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.
