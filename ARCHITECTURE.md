@@ -3069,3 +3069,28 @@ Stage 25AI architecture result:
 - The result improves maintainability because adding or renaming a shipped BST-1 effect now has one clearer metadata seam instead of multiple scattered key/order lists across the app layer.
 
 Stage 25AI deliberately does not turn the full effect surface into a data-driven registry, dynamic WPF control system, or plugin-style schema. It centralizes the remaining duplicated shipped-effect metadata first so those later changes can build on a more coherent baseline.
+
+## Stage 25AJ Audio-Profile View Application Seam
+
+Stage 25AJ continues the same effect-extensibility cleanup by removing the remaining large audio-profile control-application block from `MainWindow` and by letting the extracted page views own their own direct control assignment surface.
+
+Stage 25AJ architecture result:
+
+- Audio-profile hydration now applies grouped control values through the extracted page seams:
+  - `ProfilesView.ApplyAudioProfileControlValues(...)` owns profile-name control application,
+  - `EffectsView.ApplyAudioProfileEffectControlValues(...)` owns BST-1 effect control application,
+  - `EffectsView.ApplyAudioProfileEffectControlText(...)` owns BST-1 effect display-text application,
+  - `RoutingMixerView.ApplyAudioProfileMixerControlValues(...)` owns mixer/safety control application,
+  - `RoutingMixerView.ApplyAudioProfileMixerControlText(...)` owns mixer/safety display-text application.
+- `MainWindow` still keeps the same visible ownership boundary:
+  - it still builds the profile application plan through `AudioProfileControlSnapshotBuilder`,
+  - it still owns `_updatingTuningUi` sequencing and the broader profile load/apply workflow,
+  - it still owns runtime application, persistence execution, and event handling.
+- The stage stays intentionally narrow:
+  - no persisted profile schema change,
+  - no WPF layout rewrite,
+  - no dynamic control generation,
+  - no runtime haptic-behavior change.
+- The result improves maintainability because future BST-1 effect/control growth now extends one of the extracted view seams instead of reopening another long `MainWindow` control-assignment block during profile hydration.
+
+Stage 25AJ deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across persisted settings and tuning UI. It removes one more shell-level hydration hotspot first so later UI/schema work can build on a cleaner baseline.

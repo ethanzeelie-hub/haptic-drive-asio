@@ -23,6 +23,13 @@ public partial class ProfilesView : UserControl
         ProfileValidationText.Text = presentation.ProfileValidationText;
     }
 
+    internal void ApplyAudioProfileControlValues(AudioProfileControlValues values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        ProfileNameTextBox.Text = values.ProfileName;
+    }
+
     internal T GetRequiredControl<T>(string name)
         where T : FrameworkElement
     {

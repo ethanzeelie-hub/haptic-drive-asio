@@ -41,6 +41,73 @@ public partial class EffectsView : UserControl
         SlipEffectDefaultsText.Text = presentation.SlipEffectDefaultsText;
     }
 
+    internal void ApplyAudioProfileEffectControlValues(Bst1AudioProfileEffectControlValues values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        SharedRoadSignalEnabledCheckBox.IsChecked = values.SharedRoadSignalEnabled;
+        EngineEnabledCheckBox.IsChecked = values.EngineEnabled;
+        EngineGainSlider.Value = values.EngineGain;
+        EngineMinimumFrequencySlider.Value = values.EngineMinimumFrequencyHz;
+        EngineMaximumFrequencySlider.Value = values.EngineMaximumFrequencyHz;
+        GearShiftEnabledCheckBox.IsChecked = values.GearShiftEnabled;
+        GearShiftGainSlider.Value = values.GearShiftGain;
+        GearShiftDurationSlider.Value = values.GearShiftDurationMilliseconds;
+        KerbEnabledCheckBox.IsChecked = values.KerbEnabled;
+        KerbGainSlider.Value = values.KerbGain;
+        KerbBaseFrequencySlider.Value = values.KerbBaseFrequencyHz;
+        ImpactEnabledCheckBox.IsChecked = values.ImpactEnabled;
+        ImpactGainSlider.Value = values.ImpactGain;
+        ImpactDurationSlider.Value = values.ImpactDurationMilliseconds;
+        Bst1RoadOutputEnabledCheckBox.IsChecked = values.Bst1RoadOutputEnabled;
+        RoadTextureGainSlider.Value = values.RoadTextureGain;
+        RoadTextureMinimumSpeedSlider.Value = values.RoadTextureMinimumSpeedKph;
+        RoadTextureSpeedReferenceSlider.Value = values.RoadTextureSpeedReferenceKph;
+        RoadTextureLowSpeedFrequencySlider.Value = values.RoadTextureLowSpeedFrequencyHz;
+        RoadTextureHighSpeedFrequencySlider.Value = values.RoadTextureHighSpeedFrequencyHz;
+        RoadTextureSpeedFrequencyInfluenceSlider.Value = values.RoadTextureSpeedFrequencyInfluence;
+        RoadTextureGrainAmountSlider.Value = values.RoadTextureGrainAmount;
+        SlipWheelSlipEnabledCheckBox.IsChecked = values.SlipWheelSlipEnabled;
+        SlipWheelSlipGainSlider.Value = values.SlipWheelSlipGain;
+        SlipWheelSlipFrequencySlider.Value = values.SlipWheelSlipFrequencyHz;
+        SlipWheelSlipNoiseSlider.Value = values.SlipWheelSlipNoiseAmount;
+        SlipWheelLockEnabledCheckBox.IsChecked = values.SlipWheelLockEnabled;
+        SlipWheelLockGainSlider.Value = values.SlipWheelLockGain;
+        SlipWheelLockFrequencySlider.Value = values.SlipWheelLockFrequencyHz;
+        SlipWheelLockNoiseSlider.Value = values.SlipWheelLockNoiseAmount;
+        SlipWheelLockSensitivitySlider.Value = values.SlipWheelLockSensitivity;
+        SlipThresholdSlider.Value = values.SlipThreshold;
+    }
+
+    internal void ApplyAudioProfileEffectControlText(Bst1AudioProfileEffectControlTextValues values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        EngineGainValueText.Text = values.EngineGainText;
+        EngineFrequencyValueText.Text = values.EngineFrequencyText;
+        GearShiftGainValueText.Text = values.GearShiftGainText;
+        GearShiftDurationValueText.Text = values.GearShiftDurationText;
+        KerbGainValueText.Text = values.KerbGainText;
+        KerbFrequencyValueText.Text = values.KerbFrequencyText;
+        ImpactGainValueText.Text = values.ImpactGainText;
+        ImpactDurationValueText.Text = values.ImpactDurationText;
+        RoadTextureGainValueText.Text = values.RoadTextureGainText;
+        RoadTextureMinimumSpeedValueText.Text = values.RoadTextureMinimumSpeedText;
+        RoadTextureSpeedReferenceValueText.Text = values.RoadTextureSpeedReferenceText;
+        RoadTextureLowSpeedFrequencyValueText.Text = values.RoadTextureLowSpeedFrequencyText;
+        RoadTextureHighSpeedFrequencyValueText.Text = values.RoadTextureHighSpeedFrequencyText;
+        RoadTextureSpeedFrequencyInfluenceValueText.Text = values.RoadTextureSpeedFrequencyInfluenceText;
+        RoadTextureGrainAmountValueText.Text = values.RoadTextureGrainAmountText;
+        SlipWheelSlipGainValueText.Text = values.SlipWheelSlipGainText;
+        SlipWheelSlipFrequencyValueText.Text = values.SlipWheelSlipFrequencyText;
+        SlipWheelSlipNoiseValueText.Text = values.SlipWheelSlipNoiseText;
+        SlipWheelLockGainValueText.Text = values.SlipWheelLockGainText;
+        SlipWheelLockFrequencyValueText.Text = values.SlipWheelLockFrequencyText;
+        SlipWheelLockNoiseValueText.Text = values.SlipWheelLockNoiseText;
+        SlipWheelLockSensitivityValueText.Text = values.SlipWheelLockSensitivityText;
+        SlipThresholdValueText.Text = values.SlipThresholdText;
+    }
+
     internal T GetRequiredControl<T>(string name)
         where T : FrameworkElement
     {

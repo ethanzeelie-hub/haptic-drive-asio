@@ -29,6 +29,23 @@ public partial class RoutingMixerView : UserControl
         PriorityDuckingSummaryText.Text = presentation.PriorityDuckingSummaryText;
     }
 
+    internal void ApplyAudioProfileMixerControlValues(AudioProfileControlValues values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        MasterGainSlider.Value = values.MasterGain;
+        MixerMuteCheckBox.IsChecked = values.MixerMuted;
+        SafetyOutputGainSlider.Value = values.SafetyOutputGain;
+    }
+
+    internal void ApplyAudioProfileMixerControlText(AudioProfileControlTextValues values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        MasterGainValueText.Text = values.MasterGainText;
+        SafetyOutputGainValueText.Text = values.SafetyOutputGainText;
+    }
+
     internal T GetRequiredControl<T>(string name)
         where T : FrameworkElement
     {

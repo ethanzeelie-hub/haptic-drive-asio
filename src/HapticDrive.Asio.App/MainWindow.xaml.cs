@@ -3728,45 +3728,11 @@ public partial class MainWindow : Window
     {
         var plan = AudioProfileControlSnapshotBuilder.BuildApplicationPlan(profile);
         var values = plan.ControlValues;
-        var effects = values.Effects;
         _updatingTuningUi = true;
 
-        ProfileNameTextBox.Text = values.ProfileName;
-        EngineEnabledCheckBox.IsChecked = effects.EngineEnabled;
-        EngineGainSlider.Value = effects.EngineGain;
-        EngineMinimumFrequencySlider.Value = effects.EngineMinimumFrequencyHz;
-        EngineMaximumFrequencySlider.Value = effects.EngineMaximumFrequencyHz;
-        GearShiftEnabledCheckBox.IsChecked = effects.GearShiftEnabled;
-        GearShiftGainSlider.Value = effects.GearShiftGain;
-        GearShiftDurationSlider.Value = effects.GearShiftDurationMilliseconds;
-        KerbEnabledCheckBox.IsChecked = effects.KerbEnabled;
-        KerbGainSlider.Value = effects.KerbGain;
-        KerbBaseFrequencySlider.Value = effects.KerbBaseFrequencyHz;
-        ImpactEnabledCheckBox.IsChecked = effects.ImpactEnabled;
-        ImpactGainSlider.Value = effects.ImpactGain;
-        ImpactDurationSlider.Value = effects.ImpactDurationMilliseconds;
-        SharedRoadSignalEnabledCheckBox.IsChecked = effects.SharedRoadSignalEnabled;
-        Bst1RoadOutputEnabledCheckBox.IsChecked = effects.Bst1RoadOutputEnabled;
-        RoadTextureGainSlider.Value = effects.RoadTextureGain;
-        RoadTextureMinimumSpeedSlider.Value = effects.RoadTextureMinimumSpeedKph;
-        RoadTextureSpeedReferenceSlider.Value = effects.RoadTextureSpeedReferenceKph;
-        RoadTextureLowSpeedFrequencySlider.Value = effects.RoadTextureLowSpeedFrequencyHz;
-        RoadTextureHighSpeedFrequencySlider.Value = effects.RoadTextureHighSpeedFrequencyHz;
-        RoadTextureSpeedFrequencyInfluenceSlider.Value = effects.RoadTextureSpeedFrequencyInfluence;
-        RoadTextureGrainAmountSlider.Value = effects.RoadTextureGrainAmount;
-        SlipWheelSlipEnabledCheckBox.IsChecked = effects.SlipWheelSlipEnabled;
-        SlipWheelSlipGainSlider.Value = effects.SlipWheelSlipGain;
-        SlipWheelSlipFrequencySlider.Value = effects.SlipWheelSlipFrequencyHz;
-        SlipWheelSlipNoiseSlider.Value = effects.SlipWheelSlipNoiseAmount;
-        SlipWheelLockEnabledCheckBox.IsChecked = effects.SlipWheelLockEnabled;
-        SlipWheelLockGainSlider.Value = effects.SlipWheelLockGain;
-        SlipWheelLockFrequencySlider.Value = effects.SlipWheelLockFrequencyHz;
-        SlipWheelLockNoiseSlider.Value = effects.SlipWheelLockNoiseAmount;
-        SlipWheelLockSensitivitySlider.Value = effects.SlipWheelLockSensitivity;
-        SlipThresholdSlider.Value = effects.SlipThreshold;
-        MasterGainSlider.Value = values.MasterGain;
-        MixerMuteCheckBox.IsChecked = values.MixerMuted;
-        SafetyOutputGainSlider.Value = values.SafetyOutputGain;
+        ProfilesViewControl.ApplyAudioProfileControlValues(values);
+        EffectsViewControl.ApplyAudioProfileEffectControlValues(values.Effects);
+        RoutingMixerViewControl.ApplyAudioProfileMixerControlValues(values);
 
         _updatingTuningUi = false;
         ApplyProfileControlText(plan.TextValues);
@@ -3779,32 +3745,8 @@ public partial class MainWindow : Window
 
     private void ApplyProfileControlText(AudioProfileControlTextValues values)
     {
-        var effects = values.Effects;
-        EngineGainValueText.Text = effects.EngineGainText;
-        EngineFrequencyValueText.Text = effects.EngineFrequencyText;
-        GearShiftGainValueText.Text = effects.GearShiftGainText;
-        GearShiftDurationValueText.Text = effects.GearShiftDurationText;
-        KerbGainValueText.Text = effects.KerbGainText;
-        KerbFrequencyValueText.Text = effects.KerbFrequencyText;
-        ImpactGainValueText.Text = effects.ImpactGainText;
-        ImpactDurationValueText.Text = effects.ImpactDurationText;
-        RoadTextureGainValueText.Text = effects.RoadTextureGainText;
-        RoadTextureMinimumSpeedValueText.Text = effects.RoadTextureMinimumSpeedText;
-        RoadTextureSpeedReferenceValueText.Text = effects.RoadTextureSpeedReferenceText;
-        RoadTextureLowSpeedFrequencyValueText.Text = effects.RoadTextureLowSpeedFrequencyText;
-        RoadTextureHighSpeedFrequencyValueText.Text = effects.RoadTextureHighSpeedFrequencyText;
-        RoadTextureSpeedFrequencyInfluenceValueText.Text = effects.RoadTextureSpeedFrequencyInfluenceText;
-        RoadTextureGrainAmountValueText.Text = effects.RoadTextureGrainAmountText;
-        SlipWheelSlipGainValueText.Text = effects.SlipWheelSlipGainText;
-        SlipWheelSlipFrequencyValueText.Text = effects.SlipWheelSlipFrequencyText;
-        SlipWheelSlipNoiseValueText.Text = effects.SlipWheelSlipNoiseText;
-        SlipWheelLockGainValueText.Text = effects.SlipWheelLockGainText;
-        SlipWheelLockFrequencyValueText.Text = effects.SlipWheelLockFrequencyText;
-        SlipWheelLockNoiseValueText.Text = effects.SlipWheelLockNoiseText;
-        SlipWheelLockSensitivityValueText.Text = effects.SlipWheelLockSensitivityText;
-        SlipThresholdValueText.Text = effects.SlipThresholdText;
-        MasterGainValueText.Text = values.MasterGainText;
-        SafetyOutputGainValueText.Text = values.SafetyOutputGainText;
+        EffectsViewControl.ApplyAudioProfileEffectControlText(values.Effects);
+        RoutingMixerViewControl.ApplyAudioProfileMixerControlText(values);
     }
 
     private PhprEffectProfile BuildPhprEffectProfileFromCurrentSettings(string name)

@@ -1141,3 +1141,11 @@
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
 - Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.
+
+## Stage 25AJ
+
+- Audio-profile hydration now applies profile-name, BST-1 effect, and mixer/safety controls through the extracted page seams instead of one larger `MainWindow` block, but the broader effect surface still remains explicitly typed across tuning controls, persisted profile schema, settings hydration, and detailed per-effect diagnostics. Adding a brand-new effect still requires coordinated work across those surfaces.
+- The current WPF Effects, Profiles, and Routing / Mixer control surfaces are still static and control-by-control. The new view-application seam reduces one more shell-level hotspot, but it does not yet provide data-driven control generation, dynamic effect registration, or plugin-style effect metadata.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+- Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.

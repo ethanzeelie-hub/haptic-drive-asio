@@ -5163,6 +5163,60 @@ Self-review:
 - The catalog does not magically make the effect system data-driven, but it does remove one more easy-to-forget duplication trap that would have hurt future effect growth.
 - The next strong target remains broader effect metadata/control/schema generalization across the tuning/profile surfaces, not more isolated string cleanup.
 
+## Stage 25AJ - Audio-Profile View Application Seam
+
+Date: 2026-06-21
+
+Status: Complete.
+
+Goal: Continue the effect-extensibility cleanup by removing the remaining large audio-profile control-application block from `MainWindow` and pushing profile hydration onto the already-extracted view seams without changing runtime behavior, WPF layout, or persisted profile shape.
+
+Notes:
+
+- Re-audited the remaining profile-hydration seam before editing:
+  - `MainWindow` still built the typed audio-profile application plan,
+  - but it still applied profile-name, BST-1 effect, and mixer/safety values through one long direct control-assignment block,
+  - which meant future effect/control additions still had to reopen `MainWindow` even after the page extractions and builder work completed.
+- Extended the extracted views with narrow control-application seams:
+  - `ProfilesView.ApplyAudioProfileControlValues(...)`,
+  - `EffectsView.ApplyAudioProfileEffectControlValues(...)`,
+  - `EffectsView.ApplyAudioProfileEffectControlText(...)`,
+  - `RoutingMixerView.ApplyAudioProfileMixerControlValues(...)`,
+  - `RoutingMixerView.ApplyAudioProfileMixerControlText(...)`.
+- Moved direct control assignment ownership onto the view boundaries while keeping the broader workflow unchanged:
+  - profile name now applies through `ProfilesView`,
+  - BST-1 effect toggles/sliders now apply through `EffectsView`,
+  - BST-1 effect display text now applies through `EffectsView`,
+  - mixer mute/master/safety controls and display text now apply through `RoutingMixerView`.
+- Kept `MainWindow` as the composition and workflow owner:
+  - `AudioProfileControlSnapshotBuilder` still builds the application plan,
+  - `_updatingTuningUi` still brackets the hydration sequence,
+  - profile load/apply flow, runtime updates, persistence, and event handling all stay in `MainWindow`,
+  - no tuning ranges, defaults, persisted schema, or runtime haptic behavior changed.
+- Strengthened the shell guardrail coverage:
+  - `AudioProfileControlSnapshotBuilderGuardrailTests` now asserts that `MainWindow` calls the new view-application seams,
+  - and now asserts that the old inline slider/text assignment lines no longer live in `MainWindow`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "AudioProfileControlSnapshotBuilderGuardrailTests"` passed.
+- `Get-Process | Where-Object { $_.ProcessName -like 'testhost*' } | Stop-Process -Force` completed before the full suite.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AJ stays intentionally narrow and architectural.
+- `MainWindow` remains the composition/runtime/profile owner.
+- The extracted views now own one more slice of direct control application, which is where that responsibility naturally belongs after the Stage 23 page extraction stream.
+- No persisted profile shape changed.
+- No WPF layout changed.
+- No runtime haptic behavior changed.
+- No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
+- The broader effect surface is still explicitly typed, but one more `MainWindow` growth hotspot is gone, which keeps the next extensibility stages much more surgical.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

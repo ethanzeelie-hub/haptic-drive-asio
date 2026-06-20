@@ -36,10 +36,18 @@ public sealed class AudioProfileControlSnapshotBuilderGuardrailTests
 
         Assert.Contains("AudioProfileControlSnapshotBuilder.BuildProfile(", source, StringComparison.Ordinal);
         Assert.Contains("AudioProfileControlSnapshotBuilder.BuildApplicationPlan(", source, StringComparison.Ordinal);
+        Assert.Contains("ProfilesViewControl.ApplyAudioProfileControlValues(", source, StringComparison.Ordinal);
+        Assert.Contains("EffectsViewControl.ApplyAudioProfileEffectControlValues(", source, StringComparison.Ordinal);
+        Assert.Contains("EffectsViewControl.ApplyAudioProfileEffectControlText(", source, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerViewControl.ApplyAudioProfileMixerControlValues(", source, StringComparison.Ordinal);
+        Assert.Contains("RoutingMixerViewControl.ApplyAudioProfileMixerControlText(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("return HapticProfileValidator.Validate(_currentProfile with", source, StringComparison.Ordinal);
         Assert.DoesNotContain("EngineGainValueText.Text = $\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("RoadTextureSpeedFrequencyInfluenceValueText.Text = $\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("SlipWheelLockSensitivityValueText.Text = $\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("EngineGainSlider.Value = effects.EngineGain", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("MasterGainSlider.Value = values.MasterGain", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProfileNameTextBox.Text = values.ProfileName", source, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

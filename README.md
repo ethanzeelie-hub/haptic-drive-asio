@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25AI: Shared BST-1 effect catalog seam complete.
+Stage 25AJ: Audio-profile view application seam complete.
 
 ## Current Architecture Baseline
 
@@ -22,6 +22,7 @@ Stage 25AI: Shared BST-1 effect catalog seam complete.
 - The Routing / Mixer page now also builds its typed status snapshot through a dedicated app-side builder, and BST-1 effect-summary snapshot creation now lives in one shared builder used by both routing and diagnostics instead of another `MainWindow`-local fixed-list assembly path.
 - The Advanced / Diagnostics BST-1 section now also builds its effect-summary, slip/lock detail, and mixer/safety text through a dedicated app-side section builder instead of leaving those effect-diagnostics strings inline in `MainWindow`.
 - Shipped BST-1 effect keys, labels, and ordering now also live in one shared app-side catalog used by the BST-1 summary/status builders and formatters, which reduces the remaining metadata drift risk when new effects are added later.
+- Audio-profile hydration now also applies profile-name, BST-1 effect, and mixer/safety control values through the extracted `ProfilesView`, `EffectsView`, and `RoutingMixerView` seams instead of leaving another large control-assignment block inline in `MainWindow`.
 - Replay from `.hdrec` files now streams packets directly from disk through the replay service instead of fully materializing the whole recording first.
 - Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries plus in-app filterable query text without loading whole recordings into memory.
 - Recording summaries now also expose streamed sequence-range and approximate packet-rate metadata, so the library can surface richer per-file health/search hints without coupling the recording core to a game-specific parser.
