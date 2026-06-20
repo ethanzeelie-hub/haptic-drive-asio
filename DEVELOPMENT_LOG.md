@@ -4165,6 +4165,67 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 25L - Support Bundle Automation
+
+Status: Complete.
+
+Goal: Add a private local support-bundle export path that packages the existing diagnostics report into a sanitized artifact without changing runtime ownership, hardware behavior, or introducing a second diagnostics pipeline.
+
+Changes:
+
+- Re-audited the diagnostics/export seams before editing:
+  - `DiagnosticsStatusPresenter` already owned the copyable diagnostics report shape,
+  - `AdvancedDiagnosticsView` was already an event-forwarding shell seam,
+  - `MainWindow` already owned diagnostics refresh/copy execution and the local validation-results directory helper.
+- Added `src/HapticDrive.Asio.App/SupportBundleExporter.cs`:
+  - `SupportBundleExportInputs`,
+  - `SupportBundleExporter`,
+  - private local zip export under `local-validation-results/support-bundles/`,
+  - bundle entries:
+    - `README.txt`,
+    - `diagnostics-report.txt`,
+    - `diagnostics-summary.json`,
+    - `manifest.json`.
+- Kept the export rooted in the existing diagnostics presentation seam:
+  - the exporter consumes `DiagnosticsStatusPresentation`,
+  - no parallel diagnostics builder/report formatter was introduced,
+  - selected-game metadata is added at export time through the existing app-side game catalog state.
+- Extended the Advanced / Diagnostics shell seam without moving runtime ownership:
+  - `src/HapticDrive.Asio.App/Views/AdvancedDiagnosticsView.xaml` now adds an `Export Support Bundle` button beside refresh/copy,
+  - `src/HapticDrive.Asio.App/Views/AdvancedDiagnosticsView.xaml.cs` now forwards that button through a new `ExportSupportBundleClicked` event,
+  - `MainWindow.xaml.cs` remains the export executor and footer-status owner.
+- Kept the support artifact intentionally sanitized and local-only:
+  - no raw telemetry captures,
+  - no private HID paths,
+  - no serial numbers,
+  - no hardware output.
+- Added focused test coverage:
+  - `tests/HapticDrive.Asio.App.Tests/SupportBundleExporterTests.cs`,
+  - `tests/HapticDrive.Asio.App.Tests/MainWindowShellCompositionGuardrailTests.cs` updates for the new Advanced-only support-bundle action.
+- Updated stage tracking/docs:
+  - `README.md` now reports Stage 25L and records the local support-bundle baseline,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25L and narrow the remaining delivery/support gap to installer/signing/release plus richer future support tooling instead of first-pass support-bundle export.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-build` passed with 268 passing tests and 0 skipped tests.
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --configfile NuGet.Config` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed and confirmed the WPF executable path.
+
+Self-review:
+
+- Stage 25L intentionally adds local support-bundle export only.
+- Diagnostics report generation still has one source of truth through `DiagnosticsStatusPresenter`.
+- `AdvancedDiagnosticsView` remains an event-forwarding view seam and `MainWindow` remains the deliberate export/runtime owner.
+- No ASIO/BST-1 runtime behavior changed.
+- No P-HPR HID/report behavior changed.
+- No parser, replay, recording-format, forwarding, or persistence behavior changed.
+- No raw captures, private device paths, serial numbers, or hardware-triggering export behavior were introduced.
+
 ## Stage 25I - Atomic Persistence Hardening
 
 Status: Complete.

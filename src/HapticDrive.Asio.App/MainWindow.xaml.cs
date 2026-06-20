@@ -63,6 +63,7 @@ public partial class MainWindow : Window
     private readonly PHprContinuousEffectsRuntimeCoordinator _realPhprContinuousEffectsRuntime;
     private readonly PaddleInputRoutingCoordinator _paddleInputRoutingCoordinator;
     private readonly PHprManualValidationResultExporter _phprValidationExporter = new();
+    private readonly SupportBundleExporter _supportBundleExporter = new();
     private readonly PHprHidOpenCheckRunner _phprHidOpenCheckRunner = new();
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
@@ -249,6 +250,7 @@ public partial class MainWindow : Window
     private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
+    private string? _lastSupportBundleExportPath;
     private string _lastPhprPedalsPulseMessage = "No normal P-HPR test pulse has been sent.";
     private string _lastBst1PaddleGearPulseMessage = "BST-1 paddle gear pulse is disabled.";
     private bool _bst1PaddleGearPulseEnabled;
@@ -439,6 +441,7 @@ public partial class MainWindow : Window
         AdvancedDiagnosticsViewControl.ThemeSettingChanged += ThemeSettingCheckBox_Changed;
         AdvancedDiagnosticsViewControl.ResetProfileClicked += ResetProfileButton_Click;
         AdvancedDiagnosticsViewControl.RefreshDiagnosticsClicked += RefreshDiagnosticsButton_Click;
+        AdvancedDiagnosticsViewControl.ExportSupportBundleClicked += ExportSupportBundleButton_Click;
         AdvancedDiagnosticsViewControl.CopyDiagnosticsClicked += CopyDiagnosticsButton_Click;
         AdvancedDiagnosticsViewControl.RoadTextureFlightRecorderChanged += RoadTextureFlightRecorderCheckBox_Changed;
         DevicesViewControl.OutputModeSelectionChanged += OutputModeComboBox_SelectionChanged;
@@ -4028,6 +4031,28 @@ public partial class MainWindow : Window
         if (NavigationList.SelectedItem is ShellPageDefinition { NavigationLabel: "Routing / Mixer" })
         {
             PageStatusText.Text = presentation.RoutingMixerPageStatusText;
+        }
+    }
+
+    private void ExportSupportBundleButton_Click(object sender, RoutedEventArgs e)
+    {
+        var presentation = BuildDiagnosticsStatusPresentation();
+        ApplyDiagnosticsStatusPresentation(presentation);
+
+        try
+        {
+            var directory = GetLocalValidationResultsDirectory();
+            var inputs = new SupportBundleExportInputs(
+                DateTimeOffset.UtcNow,
+                GameTelemetryCatalog.NormalizeGameId(_selectedGameId),
+                GameTelemetryCatalog.GetDisplayName(_selectedGameId),
+                presentation);
+            _lastSupportBundleExportPath = _supportBundleExporter.ExportZip(inputs, directory);
+            FooterStatusText.Text = $"Support bundle exported locally to {_lastSupportBundleExportPath}.";
+        }
+        catch (Exception ex)
+        {
+            FooterStatusText.Text = $"Support bundle export failed safely: {ex.Message}";
         }
     }
 

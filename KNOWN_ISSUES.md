@@ -945,3 +945,12 @@
 - `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
 - Recording summaries are richer now, but deeper seek/index/query/search tooling remains future work.
 - App settings and profiles now save atomically, but broader persistence migration/repair infrastructure remains future work.
+
+## Stage 25L
+
+- Advanced / Diagnostics can now export a sanitized local support-bundle zip, but the bundle currently contains diagnostics text/summary/manifest files only. It does not yet collect opt-in recording attachments, richer log bundles, or installer/runtime incident artifacts.
+- The repo still does not produce an installer, signed binaries, GitHub Releases publication, or automated installer smoke validation.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- `HapticEffectEngine` is easier to extend internally, but the public effect options/profile/UI/diagnostic surfaces are still explicitly typed to the current BST-1 set.
+- Recording summaries are richer now, but deeper seek/index/query/search tooling remains future work.
+- App settings and profiles now save atomically, but broader persistence migration/repair infrastructure remains future work.

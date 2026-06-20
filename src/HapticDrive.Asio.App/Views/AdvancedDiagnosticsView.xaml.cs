@@ -33,6 +33,7 @@ public partial class AdvancedDiagnosticsView : UserControl
     internal event RoutedEventHandler? ThemeSettingChanged;
     internal event RoutedEventHandler? ResetProfileClicked;
     internal event RoutedEventHandler? RefreshDiagnosticsClicked;
+    internal event RoutedEventHandler? ExportSupportBundleClicked;
     internal event RoutedEventHandler? CopyDiagnosticsClicked;
     internal event RoutedEventHandler? RoadTextureFlightRecorderChanged;
 
@@ -193,6 +194,11 @@ public partial class AdvancedDiagnosticsView : UserControl
     private void RefreshDiagnosticsButton_Click(object sender, RoutedEventArgs e)
     {
         RefreshDiagnosticsClicked?.Invoke(sender, e);
+    }
+
+    private void ExportSupportBundleButton_Click(object sender, RoutedEventArgs e)
+    {
+        ExportSupportBundleClicked?.Invoke(sender, e);
     }
 
     private void CopyDiagnosticsButton_Click(object sender, RoutedEventArgs e)

@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25K: Release packaging automation complete.
+Stage 25L: Support bundle automation complete.
 
 ## Current Architecture Baseline
 
@@ -18,6 +18,7 @@ Stage 25K: Release packaging automation complete.
 - Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries without loading whole recordings into memory.
 - App settings, audio profiles, and P-HPR effect profiles now save through atomic same-directory temp-file replacement, and app settings now persist an explicit schema version marker for future migrations.
 - Local and GitHub Actions packaging now share a real publish path through `Publish-HapticDrive.ps1`, producing a `win-x64` framework-dependent zip artifact under `artifacts/release/`.
+- Advanced / Diagnostics can now export a private local support-bundle zip under `local-validation-results/support-bundles/`, containing sanitized diagnostics text plus structured summary/manifest files without attaching raw captures or private device paths.
 - `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
 - ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.
 - Simagic P-HPR remains a separate non-audio actuator path. It is not routed through ASIO or `IAudioOutputDevice`.

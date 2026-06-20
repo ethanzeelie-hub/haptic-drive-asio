@@ -724,6 +724,11 @@
                             Click="RefreshDiagnosticsButton_Click"
                             Content="Refresh Diagnostics" />
                     <Button Width="150"
+                            Margin="0,0,8,0"
+                            HorizontalAlignment="Left"
+                            Click="ExportSupportBundleButton_Click"
+                            Content="Export Support Bundle" />
+                    <Button Width="150"
                             HorizontalAlignment="Left"
                             Click="CopyDiagnosticsButton_Click"
                             Content="Copy Report" />

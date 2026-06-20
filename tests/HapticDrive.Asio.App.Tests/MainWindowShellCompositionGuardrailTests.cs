@@ -68,6 +68,7 @@ public sealed class MainWindowShellCompositionGuardrailTests
         Assert.Contains("Profile name", profiles, StringComparison.Ordinal);
         Assert.Contains("Synthetic Test Bench", testing, StringComparison.Ordinal);
         Assert.Contains("Runtime Diagnostics", advanced, StringComparison.Ordinal);
+        Assert.Contains("Export Support Bundle", advanced, StringComparison.Ordinal);
         Assert.Contains("Copy Report", advanced, StringComparison.Ordinal);
         Assert.Contains("Report ID", advanced, StringComparison.Ordinal);
         Assert.Contains("Candidate", advanced, StringComparison.Ordinal);
@@ -76,6 +77,7 @@ public sealed class MainWindowShellCompositionGuardrailTests
         Assert.DoesNotContain("RealPhprCandidateComboBox", normalViews, StringComparison.Ordinal);
         Assert.DoesNotContain("Report ID", normalViews, StringComparison.Ordinal);
         Assert.DoesNotContain("Copy Report", normalViews, StringComparison.Ordinal);
+        Assert.DoesNotContain("Export Support Bundle", normalViews, StringComparison.Ordinal);
         Assert.DoesNotContain("Runtime Diagnostics", normalViews, StringComparison.Ordinal);
     }
 

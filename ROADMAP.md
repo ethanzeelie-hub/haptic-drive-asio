@@ -120,6 +120,7 @@
 - Stage 25I: Atomic persistence hardening complete.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
+- Stage 25L: Support bundle automation complete.
 
 ## Planned Stages
 
@@ -212,6 +213,7 @@
 87. Stage 25I: Atomic persistence hardening. Complete.
 88. Stage 25J: Recording library health summaries. Complete.
 89. Stage 25K: Release packaging automation. Complete.
+90. Stage 25L: Support bundle automation. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -263,7 +265,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25I hardens app-settings, audio-profile, and P-HPR profile saves through shared atomic file replacement and adds an explicit app-settings schema version marker so future migrations have a stable footing.
 - Stage 25J extends recording-library summaries with streamed duration, payload-size, and sequence-gap health diagnostics so the app can surface richer recording quality information without full in-memory loads.
 - Stage 25K adds a repeatable local `Publish-HapticDrive.ps1` publish-and-zip path plus a GitHub Actions packaging workflow that uploads a `win-x64` release artifact after the same restore/build/test/format/preflight gate.
-- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, deeper recording-library seek/index/query tooling, broader persistence-migration infrastructure, installer/signing/release publication, and support-bundle automation.
+- Stage 25L adds a repo-native local support-bundle export path that packages the existing diagnostics report into a sanitized zip with a manifest and structured summary, keeping the export rooted in the existing diagnostics presentation seam instead of introducing a second reporting pipeline.
+- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, deeper recording-library seek/index/query tooling, broader persistence-migration infrastructure, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases
 

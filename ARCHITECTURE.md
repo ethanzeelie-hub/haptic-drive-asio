@@ -2397,7 +2397,7 @@ Documentation baseline result:
   - The current effect-engine structure is still a fixed-list design around the existing BST-1 effects.
   - Recording/replay still has future work around long-session queueing and streaming efficiency.
   - Settings/profile persistence still needs atomic writes and schema-versioned migration support.
-  - Release automation, packaging, and support-bundle diagnostics are still incomplete.
+  - Release automation, installer/signing/publication flow, and broader post-incident delivery tooling are still incomplete.
 
 Stage 25A does not change runtime behavior, diagnostics report behavior, parser / `VehicleState` behavior, recording/replay behavior, ASIO/BST-1 runtime behavior, P-HPR HID/report behavior, or physical-validation boundaries.
 
@@ -2537,3 +2537,24 @@ Stage 25K architecture result:
 - `artifacts/` is now treated as generated output and ignored from source control.
 
 Stage 25K deliberately does not add MSI/installer generation, code signing, GitHub Releases publication, delta updates, or automated install/uninstall smoke tests. It establishes a real publish artifact path first so later delivery work has a stable base.
+
+## Stage 25L Support Bundle Automation
+
+Stage 25L turns the existing diagnostics-report seam into a repeatable local support artifact without changing runtime ownership or adding a parallel diagnostics pipeline.
+
+Stage 25L architecture result:
+
+- `SupportBundleExporter` now packages a private local zip under `local-validation-results/support-bundles/`.
+- The export reuses `DiagnosticsStatusPresentation` as the single diagnostics-report source, then writes:
+  - `diagnostics-report.txt`,
+  - `diagnostics-summary.json`,
+  - `manifest.json`,
+  - `README.txt`.
+- `AdvancedDiagnosticsView` remains an event-forwarding shell seam only; it now exposes an `Export Support Bundle` action beside refresh/copy, while `MainWindow` remains the executor that gathers selected-game metadata, builds the presentation, and runs the export.
+- The bundle is intentionally sanitized and documentation-oriented:
+  - no raw telemetry captures,
+  - no private HID paths,
+  - no serial numbers,
+  - no hardware output.
+
+Stage 25L deliberately does not add automatic log harvesting, opt-in recording attachment workflows, remote upload/report submission, or installer/runtime dump packaging. It establishes a safe local operator-support artifact first so later support tooling can build on a stable export format.
