@@ -294,6 +294,7 @@ internal sealed class PhprEffectProfileStore
                     cancellationToken)
                 .ConfigureAwait(false);
             _ = DocumentBackupFile.TryRefreshFromPrimary(fullPath);
+            _ = DocumentBackupHistory.TryRefreshFromPrimary(fullPath);
 
             return PhprEffectProfileSaveResult.Success(
                 fullPath,
@@ -322,16 +323,34 @@ internal sealed class PhprEffectProfileStore
         }
 
         var backupPath = DocumentBackupFile.GetBackupPath(path);
-        if (!File.Exists(backupPath))
-        {
-            return primary;
-        }
-
-        var backup = await LoadSingleAsync(backupPath, cancellationToken).ConfigureAwait(false);
+        var backup = File.Exists(backupPath)
+            ? await LoadSingleAsync(backupPath, cancellationToken).ConfigureAwait(false)
+            : PhprEffectProfileLoadResult.FileNotFound("Backup P-HPR profile file was not found.");
         if (!backup.Succeeded || backup.Profile is null)
         {
-            return PhprEffectProfileLoadResult.Failure(
-                $"{primary.Message} Backup P-HPR profile could not be loaded: {backup.Message}");
+            foreach (var historyPath in DocumentBackupHistory.GetHistoryPathsNewestFirst(path))
+            {
+                var history = await LoadSingleAsync(historyPath, cancellationToken).ConfigureAwait(false);
+                if (!history.Succeeded || history.Profile is null)
+                {
+                    continue;
+                }
+
+                var historyMessages = new List<string>(history.ValidationMessages)
+                {
+                    $"Recovered P-HPR profile from backup history snapshot {Path.GetFileName(historyPath)} after the primary file could not be used."
+                };
+                return PhprEffectProfileLoadResult.Success(
+                    history.Profile,
+                    wasRepaired: true,
+                    historyMessages,
+                    "P-HPR profile recovered from backup history snapshot.");
+            }
+
+            return backup.Status == PhprEffectProfileLoadStatus.FileNotFound
+                ? primary
+                : PhprEffectProfileLoadResult.Failure(
+                    $"{primary.Message} Backup P-HPR profile could not be loaded: {backup.Message}");
         }
 
         var messages = new List<string>(backup.ValidationMessages)

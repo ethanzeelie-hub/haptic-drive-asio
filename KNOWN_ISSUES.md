@@ -1033,4 +1033,12 @@
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Active-effect summary text now comes from a generic engine activity list, but the broader effect surface is still explicitly typed in options, profiles, tuning controls, and detailed diagnostics. Adding a brand-new effect still requires coordinated schema and UI work.
-- App settings, audio profiles, and P-HPR profiles now recover from a single-file last-known-good backup snapshot, but the repo still does not have broader cross-file rollback orchestration, retained backup history, or coordinated repair of multiple persisted documents as one unit.
+- App settings, audio profiles, and P-HPR profiles now recover from a single-file last-known-good backup snapshot, but the repo still does not have broader cross-file rollback orchestration or coordinated repair of multiple persisted documents as one unit.
+
+## Stage 25W
+
+- App settings, audio profiles, and P-HPR profiles now keep retained backup-history snapshots and can recover after both the primary file and `.lastgood` copy are unusable, but the repo still does not have broader cross-file rollback orchestration or coordinated repair of multiple persisted documents as one unit.
+- The recording library now shows a selected-recording packet preview as well as an on-demand histogram for F1 25 captures, but it still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.
+- Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Active-effect summary text now comes from a generic engine activity list, but the broader effect surface is still explicitly typed in options, profiles, tuning controls, and detailed diagnostics. Adding a brand-new effect still requires coordinated schema and UI work.

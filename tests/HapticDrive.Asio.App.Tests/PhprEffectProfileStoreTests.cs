@@ -187,6 +187,29 @@ public sealed class PhprEffectProfileStoreTests
     }
 
     [Fact]
+    public async Task PhprProfileLoad_CorruptPrimaryAndBackup_RecoversFromBackupHistorySnapshot()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "p-hpr.hdphprprofile.json");
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        var store = new PhprEffectProfileStore();
+
+        Assert.True((await store.SaveAsync(PhprEffectProfile.Default with { Name = "Older P-HPR" }, path)).Succeeded);
+        await Task.Delay(20);
+        Assert.True((await store.SaveAsync(PhprEffectProfile.Default with { Name = "History P-HPR" }, path)).Succeeded);
+
+        await File.WriteAllTextAsync(path, "{ broken");
+        await File.WriteAllTextAsync(backupPath, "{ broken");
+
+        var result = await store.LoadAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Profile);
+        Assert.Equal("History P-HPR", result.Profile.Name);
+        Assert.Equal("P-HPR profile recovered from backup history snapshot.", result.Message);
+    }
+
+    [Fact]
     public async Task PhprProfileLoad_VersionlessLegacyProfileMigratesToCurrentVersion()
     {
         using var directory = new TempDirectory();

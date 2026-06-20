@@ -180,6 +180,28 @@ public sealed class HapticProfileTests
     }
 
     [Fact]
+    public async Task ProfileLoad_CorruptPrimaryAndBackup_RecoversFromBackupHistorySnapshot()
+    {
+        var path = CreateTempProfilePath();
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        var store = new HapticProfileStore();
+
+        Assert.True((await store.SaveAsync(HapticDriveProfile.Default with { Name = "Older copy" }, path)).Succeeded);
+        await Task.Delay(20);
+        Assert.True((await store.SaveAsync(HapticDriveProfile.Default with { Name = "History copy" }, path)).Succeeded);
+
+        await File.WriteAllTextAsync(path, "{ broken");
+        await File.WriteAllTextAsync(backupPath, "{ broken");
+
+        var result = await store.LoadAsync(path);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(result.Profile);
+        Assert.Equal("History copy", result.Profile.Name);
+        Assert.Equal("Profile recovered from backup history snapshot.", result.Message);
+    }
+
+    [Fact]
     public async Task ProfileLoad_UnsupportedVersionFailsSafely()
     {
         var path = CreateTempProfilePath();

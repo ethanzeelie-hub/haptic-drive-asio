@@ -550,6 +550,36 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public void Load_CorruptPrimaryAndBackup_RecoversFromBackupHistorySnapshot()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "appsettings.json");
+        var backupPath = DocumentBackupFile.GetBackupPath(path);
+        var store = new AppSettingsStore(path);
+
+        store.Save(new AppSettings
+        {
+            UseLightTheme = false,
+            LastAsioDriverName = "Older Driver"
+        });
+        Thread.Sleep(20);
+        store.Save(new AppSettings
+        {
+            UseLightTheme = true,
+            LastAsioDriverName = "History Driver"
+        });
+
+        File.WriteAllText(path, "{ broken");
+        File.WriteAllText(backupPath, "{ broken");
+
+        var loaded = store.Load();
+
+        Assert.True(loaded.UseLightTheme);
+        Assert.Equal("History Driver", loaded.LastAsioDriverName);
+        Assert.Contains("backup history snapshot", loaded.LastStatusMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AppSettingsJson_DoesNotPersistRuntimeOnlyStates()
     {
         using var directory = new TempDirectory();

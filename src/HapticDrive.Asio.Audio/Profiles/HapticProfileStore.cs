@@ -144,6 +144,7 @@ public sealed class HapticProfileStore
                     cancellationToken)
                 .ConfigureAwait(false);
             _ = DocumentBackupFile.TryRefreshFromPrimary(fullPath);
+            _ = DocumentBackupHistory.TryRefreshFromPrimary(fullPath);
 
             return HapticProfileSaveResult.Success(
                 fullPath,
@@ -172,16 +173,34 @@ public sealed class HapticProfileStore
         }
 
         var backupPath = DocumentBackupFile.GetBackupPath(path);
-        if (!File.Exists(backupPath))
-        {
-            return primary;
-        }
-
-        var backup = await LoadSingleAsync(backupPath, cancellationToken).ConfigureAwait(false);
+        var backup = File.Exists(backupPath)
+            ? await LoadSingleAsync(backupPath, cancellationToken).ConfigureAwait(false)
+            : HapticProfileLoadResult.FileNotFound("Backup profile file was not found.");
         if (!backup.Succeeded || backup.Profile is null)
         {
-            return HapticProfileLoadResult.Failure(
-                $"{primary.Message} Backup profile could not be loaded: {backup.Message}");
+            foreach (var historyPath in DocumentBackupHistory.GetHistoryPathsNewestFirst(path))
+            {
+                var history = await LoadSingleAsync(historyPath, cancellationToken).ConfigureAwait(false);
+                if (!history.Succeeded || history.Profile is null)
+                {
+                    continue;
+                }
+
+                var historyMessages = new List<string>(history.ValidationMessages)
+                {
+                    $"Recovered profile from backup history snapshot {Path.GetFileName(historyPath)} after the primary file could not be used."
+                };
+                return HapticProfileLoadResult.Success(
+                    history.Profile,
+                    wasRepaired: true,
+                    historyMessages,
+                    "Profile recovered from backup history snapshot.");
+            }
+
+            return backup.Status == HapticProfileLoadStatus.FileNotFound
+                ? primary
+                : HapticProfileLoadResult.Failure(
+                    $"{primary.Message} Backup profile could not be loaded: {backup.Message}");
         }
 
         var messages = new List<string>(backup.ValidationMessages)

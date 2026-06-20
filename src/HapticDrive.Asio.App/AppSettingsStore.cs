@@ -34,17 +34,9 @@ internal sealed class AppSettingsStore
         }
 
         var backupPath = DocumentBackupFile.GetBackupPath(SettingsPath);
-        if (!File.Exists(backupPath))
-        {
-            return primaryAttempt.Status == AppSettingsLoadAttemptStatus.Missing
-                ? AppSettings.Default
-                : AppSettings.Default with
-                {
-                    LastStatusMessage = primaryAttempt.Message
-                };
-        }
-
-        var backupAttempt = TryLoadFromPath(backupPath);
+        var backupAttempt = File.Exists(backupPath)
+            ? TryLoadFromPath(backupPath)
+            : AppSettingsLoadAttempt.Missing("Backup app settings file was not found.");
         if (backupAttempt.Status == AppSettingsLoadAttemptStatus.Success && backupAttempt.Settings is not null)
         {
             var recoveryMessage =
@@ -60,6 +52,33 @@ internal sealed class AppSettingsStore
             };
         }
 
+        foreach (var historyPath in DocumentBackupHistory.GetHistoryPathsNewestFirst(SettingsPath))
+        {
+            var historyAttempt = TryLoadFromPath(historyPath);
+            if (historyAttempt.Status != AppSettingsLoadAttemptStatus.Success || historyAttempt.Settings is null)
+            {
+                continue;
+            }
+
+            var recoveryMessage =
+                $"{primaryAttempt.Message} Recovered app settings from backup history snapshot {Path.GetFileName(historyPath)}.";
+            if (!string.IsNullOrWhiteSpace(historyAttempt.Settings.LastStatusMessage))
+            {
+                recoveryMessage = $"{recoveryMessage} {historyAttempt.Settings.LastStatusMessage}";
+            }
+
+            return historyAttempt.Settings with
+            {
+                LastStatusMessage = recoveryMessage
+            };
+        }
+
+        if (primaryAttempt.Status == AppSettingsLoadAttemptStatus.Missing
+            && backupAttempt.Status == AppSettingsLoadAttemptStatus.Missing)
+        {
+            return AppSettings.Default;
+        }
+
         return AppSettings.Default with
         {
             LastStatusMessage =
@@ -73,6 +92,7 @@ internal sealed class AppSettingsStore
         var json = JsonSerializer.Serialize(sanitized, SerializerOptions);
         AtomicFileWriter.WriteAllText(SettingsPath, json);
         _ = DocumentBackupFile.TryRefreshFromPrimary(SettingsPath);
+        _ = DocumentBackupHistory.TryRefreshFromPrimary(SettingsPath);
     }
 
     private static AppSettingsLoadAttempt TryLoadFromPath(string path)

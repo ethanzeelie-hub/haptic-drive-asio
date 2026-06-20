@@ -2773,3 +2773,25 @@ Stage 25V architecture result:
   - later packet-browser work can build on an already-visible selected-recording inspection surface instead of appearing from nowhere.
 
 Stage 25V deliberately does not add random-access packet browsing, packet-body decode views, persistent indexes, cross-game preview analyzers, or a new `.hdrec` format version. It adds a small preview rung first so deeper browse/index work can evolve from a proven selected-recording UI path.
+
+## Stage 25W Retained Backup History Baseline
+
+Stage 25W returns to the persistence-hardening stream and adds one more recovery rung without jumping to full transactional rollback.
+
+Stage 25W architecture result:
+
+- `DocumentBackupHistory` now owns a shared retained-history helper for persisted single-document stores:
+  - it writes timestamped `.lastgood` snapshots into a sibling history directory,
+  - it keeps only a small bounded rolling set,
+  - it stays independent from the atomic write path so save semantics remain simple and local.
+- `AppSettingsStore`, `HapticProfileStore`, and `PhprEffectProfileStore` now all share the same fallback ladder:
+  - try the primary document,
+  - try the single `.lastgood` snapshot,
+  - then iterate newest-first retained-history snapshots.
+- Recovery remains intentionally single-document scoped:
+  - no cross-file restore point is claimed,
+  - no multi-document transaction or coordinated rollback is introduced,
+  - save success for one persisted file still does not imply consistent restore points across every persisted artifact.
+- The result materially improves production resilience for corruption scenarios that damage more than one immediate file copy while keeping the persistence ownership model narrow and explicit.
+
+Stage 25W deliberately does not add cross-file rollback orchestration, transactional restore points, background repair of all persisted artifacts, or cloud/remote backup behavior. It adds a small retained-history rung first so broader persistence recovery can build on a proven local fallback chain.

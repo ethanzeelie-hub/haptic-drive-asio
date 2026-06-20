@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25V: Selected-recording packet preview baseline complete.
+Stage 25W: Retained backup history baseline complete.
 
 ## Current Architecture Baseline
 
@@ -20,7 +20,7 @@ Stage 25V: Selected-recording packet preview baseline complete.
 - The Telemetry / UDP recording library now adds on-demand selected-recording packet histograms plus a first-pass packet preview for F1 25 captures in the app layer, so deeper packet-shape inspection is available without pushing game-specific analysis down into the generic recording assembly.
 - App settings, audio profiles, and P-HPR effect profiles now save through atomic same-directory temp-file replacement, and app settings now persist an explicit schema version marker for future migrations.
 - App settings, audio profiles, and P-HPR effect profiles now share a version-migration planning seam, and legacy version-0 documents are upgraded safely to the current schema baseline instead of each store hand-rolling its own fallback.
-- App settings, audio profiles, and P-HPR effect profiles now also refresh a last-known-good backup snapshot after successful saves, and those stores can recover from that backup when the primary persisted document is missing, corrupt, or unsupported.
+- App settings, audio profiles, and P-HPR effect profiles now also refresh a last-known-good backup snapshot plus a small retained backup-history set after successful saves, and those stores can recover from either fallback path when the primary persisted document is missing, corrupt, or unsupported.
 - Local and GitHub Actions packaging now share a real publish path through `Publish-HapticDrive.ps1`, producing a `win-x64` framework-dependent zip artifact plus checksum, JSON manifest, and Markdown release summary under `artifacts/release/`.
 - Release packaging now also includes a repo-native smoke check through `Test-ReleaseArtifact.ps1`, which verifies the publish folder, zip payload, checksum, manifest, release summary, and extracted artifact structure both locally and in the packaging workflow.
 - Local release preparation now also has a single staged-release command through `Prepare-ReleaseArtifact.ps1`, which runs restore/build/test/format/launch-preflight, publishes, smoke-checks, and gathers the final release files into `artifacts/staged-release/`.

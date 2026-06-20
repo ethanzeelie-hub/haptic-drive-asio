@@ -64,6 +64,30 @@ public sealed class AtomicFileWriterTests
         Assert.Equal("stable", File.ReadAllText(backupPath));
     }
 
+    [Fact]
+    public void DocumentBackupHistory_RefreshesRetainedHistoryAndPrunesOlderSnapshots()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "settings.json");
+
+        for (var index = 1; index <= 5; index++)
+        {
+            File.WriteAllText(path, $"stable-{index}");
+            Assert.True(DocumentBackupHistory.TryRefreshFromPrimary(path, maxRetained: 3));
+            Thread.Sleep(20);
+        }
+
+        var historyDirectory = DocumentBackupHistory.GetHistoryDirectoryPath(path);
+        var historyPaths = DocumentBackupHistory.GetHistoryPathsNewestFirst(path);
+
+        Assert.True(Directory.Exists(historyDirectory));
+        Assert.Equal(3, historyPaths.Count);
+        Assert.All(historyPaths, historyPath => Assert.True(File.Exists(historyPath)));
+        Assert.Equal("stable-5", File.ReadAllText(historyPaths[0]));
+        Assert.Equal("stable-4", File.ReadAllText(historyPaths[1]));
+        Assert.Equal("stable-3", File.ReadAllText(historyPaths[2]));
+    }
+
     private sealed class TempDirectory : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(

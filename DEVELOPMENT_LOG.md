@@ -4612,6 +4612,60 @@ Self-review:
 - The preview builds directly on the existing app-side analysis cache, so the incremental complexity stays low and the recording-core boundary stays clean.
 - This is a strong setup for a later stage that adds richer browse/index behavior, because the user-visible selected-recording inspection path now has both aggregate and sample-level context.
 
+## Stage 25W - Retained Backup History Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Extend the persistence recovery path beyond a single `.lastgood` snapshot by keeping a small retained backup-history set for app settings, audio profiles, and P-HPR effect profiles, while preserving the current single-document ownership model.
+
+Notes:
+
+- Re-audited the Stage 25O persistence-recovery seam before editing:
+  - single-file `.lastgood` recovery already worked,
+  - the remaining production gap was that corruption of both the primary file and the immediate backup still forced a full fallback to defaults or load failure.
+- Added shared retained-history support in `HapticDrive.Asio.Core.Persistence`:
+  - new `DocumentBackupHistory` helper,
+  - timestamped snapshot files under a sibling `.history` directory,
+  - bounded retention with newest-first enumeration for recovery.
+- Extended every current persisted-document store to refresh history after successful saves:
+  - `AppSettingsStore`,
+  - `HapticProfileStore`,
+  - `PhprEffectProfileStore`.
+- Unified the load fallback ladder across those stores:
+  - try primary,
+  - then `.lastgood`,
+  - then retained-history snapshots newest first.
+- Added focused regression coverage for the new failure mode:
+  - core tests prove retained-history pruning and newest-first ordering,
+  - app/settings, audio profile, and P-HPR profile tests now prove recovery when both the primary file and the immediate backup are corrupt.
+- Kept the stage intentionally narrow:
+  - no cross-file rollback orchestration,
+  - no transactional restore-point system,
+  - no persistence-format version bump,
+  - no background repair sweep across all persisted artifacts.
+- Verification again included the same known broad-suite wobble:
+  - the first full solution test pass hit the existing-looking `PHprDirectRuntimeTests.BenchRetriggerStartsWhileRuntimeIsActiveAndOldObserverIsIgnored` timing race,
+  - the immediate rerun passed cleanly with no code changes between runs,
+  - focused project tests and the final full-stage gates were green.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Core.Tests\HapticDrive.Asio.Core.Tests.csproj --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Audio.Tests\HapticDrive.Asio.Audio.Tests.csproj --no-restore` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed on rerun.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25W is a good production-hardening step because it improves real recovery odds for ordinary local corruption without widening persistence ownership too early.
+- The shared helper keeps the implementation tidy: each store gets the same retained-history behavior without inventing a bigger persistence framework than the repo currently needs.
+- The remaining persistence gap is now more honestly about cross-document coordination, not about lack of any retained-history mechanism.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.
