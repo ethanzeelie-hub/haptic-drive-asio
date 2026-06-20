@@ -91,6 +91,21 @@ internal static class RecordingLibraryDetailFormatter
 
         return $"{baseDetailText}{Environment.NewLine}{Environment.NewLine}{analysisText}";
     }
+
+    public static string BuildClipboardText(
+        string recordingPath,
+        string displayText,
+        string baseDetailText,
+        string? analysisText = null)
+    {
+        var fileName = Path.GetFileName(recordingPath);
+        var detailText = BuildDetailText(baseDetailText, analysisText);
+
+        return $"Recording: {fileName}{Environment.NewLine}"
+            + $"Path: {recordingPath}{Environment.NewLine}"
+            + $"Summary: {displayText}{Environment.NewLine}"
+            + $"Detail: {detailText}";
+    }
 }
 
 internal static class RecordingLibraryManager

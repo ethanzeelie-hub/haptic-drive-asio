@@ -516,6 +516,12 @@ public sealed class AppThemeResourceTests
     [Fact]
     public void RecordingsPageContainsReplayModeAndRenameControls()
     {
+        var telemetryMarkup = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App",
+            "Views",
+            "TelemetryUdpView.xaml"));
         var telemetryXaml = LoadSourceXaml("src", "HapticDrive.Asio.App", "Views", "TelemetryUdpView.xaml");
         var recordingsPanel = FindElementByXName(telemetryXaml, "RecordingsPanel");
         var recordingsText = GetTextValues(recordingsPanel);
@@ -525,6 +531,7 @@ public sealed class AppThemeResourceTests
         Assert.Contains("RecordingLibraryListBox", recordingsNames);
         Assert.Contains("DeleteSelectedRecordingButton", recordingsNames);
         Assert.Contains("RenameSelectedRecordingButton", recordingsNames);
+        Assert.Contains("CopySelectedRecordingDetailButton", recordingsNames);
         Assert.Contains("RecordingRenameTextBox", recordingsNames);
         Assert.Contains("RecordingLibraryFilterTextBox", recordingsNames);
         Assert.Contains("RecordingLibraryDetailText", recordingsNames);
@@ -539,6 +546,7 @@ public sealed class AppThemeResourceTests
         Assert.Contains(
             recordingsText,
             text => text.Contains("Recording captures raw F1 25 UDP packets.", StringComparison.Ordinal));
+        Assert.Contains("Content=\"Copy Selected Detail\"", telemetryMarkup, StringComparison.Ordinal);
     }
 
     [Fact]

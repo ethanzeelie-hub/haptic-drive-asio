@@ -81,6 +81,22 @@ public sealed class RecordingPacketHistogramAnalyzerTests
         Assert.Contains("Packet histogram: Motion#0: 1.", detail, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void DetailFormatter_BuildsClipboardTextWithSummaryDetailAndAnalysis()
+    {
+        var clipboardText = RecordingLibraryDetailFormatter.BuildClipboardText(
+            @"C:\Recordings\session.hdrec",
+            "session.hdrec - 3 packet(s) - 20 ms - 4.0 KB",
+            "Created today.",
+            "Packet histogram: Motion#0: 2.");
+
+        Assert.Contains("Recording: session.hdrec", clipboardText, StringComparison.Ordinal);
+        Assert.Contains(@"Path: C:\Recordings\session.hdrec", clipboardText, StringComparison.Ordinal);
+        Assert.Contains("Summary: session.hdrec - 3 packet(s) - 20 ms - 4.0 KB", clipboardText, StringComparison.Ordinal);
+        Assert.Contains("Detail: Created today.", clipboardText, StringComparison.Ordinal);
+        Assert.Contains("Packet histogram: Motion#0: 2.", clipboardText, StringComparison.Ordinal);
+    }
+
     private static async Task CreateRecordingAsync(
         string path,
         IReadOnlyList<RecordedPacketTemplate> packets,

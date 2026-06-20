@@ -12,6 +12,7 @@ public partial class TelemetryUdpView : UserControl
     internal event RoutedEventHandler? RefreshRecordingsClicked;
     internal event RoutedEventHandler? DeleteSelectedRecordingClicked;
     internal event RoutedEventHandler? RenameSelectedRecordingClicked;
+    internal event RoutedEventHandler? CopySelectedRecordingDetailClicked;
     internal event TextChangedEventHandler? RecordingLibraryFilterTextChanged;
     internal event RoutedEventHandler? ClearRecordingLibraryFilterClicked;
     internal event SelectionChangedEventHandler? RecordingLibrarySelectionChanged;
@@ -75,6 +76,11 @@ public partial class TelemetryUdpView : UserControl
     private void RenameSelectedRecordingButton_Click(object sender, RoutedEventArgs e)
     {
         RenameSelectedRecordingClicked?.Invoke(sender, e);
+    }
+
+    private void CopySelectedRecordingDetailButton_Click(object sender, RoutedEventArgs e)
+    {
+        CopySelectedRecordingDetailClicked?.Invoke(sender, e);
     }
 
     private void RecordingLibraryFilterTextBox_TextChanged(object sender, TextChangedEventArgs e)

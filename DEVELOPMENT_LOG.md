@@ -4666,6 +4666,53 @@ Self-review:
 - The shared helper keeps the implementation tidy: each store gets the same retained-history behavior without inventing a bigger persistence framework than the repo currently needs.
 - The remaining persistence gap is now more honestly about cross-document coordination, not about lack of any retained-history mechanism.
 
+## Stage 25X - Selected-Recording Detail Clipboard Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Extend the selected-recording inspection path with a copyable clipboard report so operators can lift recording summary, detail, histogram, and preview text directly from the Telemetry / UDP page into support/debug workflows.
+
+Notes:
+
+- Re-audited the Stage 25U/25V recording-analysis seam before editing:
+  - the app already had a selected-recording detail panel with on-demand packet histogram and preview text,
+  - the remaining support gap was that users still had to manually retype or screenshot that detail when sharing findings.
+- Extended the app-side formatter seam instead of building clipboard text inline in `MainWindow`:
+  - `RecordingLibraryDetailFormatter` still builds the on-screen detail text,
+  - it now also builds a deterministic clipboard report containing file name/path, summary text, and full detail/analysis text.
+- Extended the Telemetry / UDP shell path with one explicit action:
+  - added `Copy Selected Detail` to the recording library controls,
+  - reused the existing selected-recording analysis cache,
+  - allowed the copy flow to populate analysis on demand before placing text on the clipboard.
+- Kept the stage intentionally narrow:
+  - no raw packet export,
+  - no new `.hdrec` sidecar/index format,
+  - no packet-body decode view,
+  - no random-access browse surface.
+- Added focused app coverage for the new output surface:
+  - formatter tests now verify the clipboard report shape,
+  - shell/XAML tests now verify the Telemetry / UDP page exposes the copy control.
+- Verification again included the same known broad-suite wobble:
+  - the first full solution test pass hit the existing-looking `PHprDirectRuntimeTests.BenchRetriggerStartsWhileRuntimeIsActiveAndOldObserverIsIgnored` timing race,
+  - the immediate rerun passed cleanly with no code changes between runs,
+  - the final stage status is green.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed on rerun.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25X is intentionally modest, but it turns the selected-recording analysis work into something much easier to share and act on during support/debugging.
+- Reusing the existing analysis cache keeps the incremental complexity low and avoids creating a second analysis/export code path that could drift over time.
+- The deeper recording-library gap is still browse/index depth, not basic ability to move the current inspection output into another tool or conversation.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

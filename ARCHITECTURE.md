@@ -2795,3 +2795,24 @@ Stage 25W architecture result:
 - The result materially improves production resilience for corruption scenarios that damage more than one immediate file copy while keeping the persistence ownership model narrow and explicit.
 
 Stage 25W deliberately does not add cross-file rollback orchestration, transactional restore points, background repair of all persisted artifacts, or cloud/remote backup behavior. It adds a small retained-history rung first so broader persistence recovery can build on a proven local fallback chain.
+
+## Stage 25X Selected-Recording Detail Clipboard Baseline
+
+Stage 25X returns to the selected-recording tooling seam and adds one operator-support rung without widening the generic recording boundary.
+
+Stage 25X architecture result:
+
+- `RecordingLibraryDetailFormatter` now owns a second output shape alongside the on-screen detail text:
+  - the app can build one deterministic clipboard report for the selected recording,
+  - that report includes the selected file name/path, the existing library summary text, and the same detailed analysis text already shown in the UI.
+- The Telemetry / UDP page now exposes an explicit copy action for selected recordings:
+  - it reuses the existing on-demand/cached analysis path,
+  - it can populate analysis before copying when the selected recording has not been analyzed yet,
+  - it does not introduce a second packet-analysis implementation just for export/copy.
+- The stage stays app-local and intentionally shallow:
+  - no new `.hdrec` metadata or sidecar cache is introduced,
+  - no raw packet attachment/export flow is added,
+  - no packet-body decode view or random-access browse surface is added.
+- The result materially improves production supportability because operators can now move selected-recording context into bug reports and notes without manually retyping or screenshotting the detail panel.
+
+Stage 25X deliberately does not add persistent recording indexes, packet-body drill-down, random-access packet browsing, raw capture export, or cross-game detailed analyzers. It adds a copyable inspection artifact first so later browse/support tooling can build on a proven selected-recording detail contract.

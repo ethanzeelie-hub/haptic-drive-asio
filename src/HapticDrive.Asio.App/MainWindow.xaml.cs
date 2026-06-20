@@ -390,6 +390,7 @@ public partial class MainWindow : Window
         TelemetryUdpViewControl.RefreshRecordingsClicked += RefreshRecordingsButton_Click;
         TelemetryUdpViewControl.DeleteSelectedRecordingClicked += DeleteSelectedRecordingButton_Click;
         TelemetryUdpViewControl.RenameSelectedRecordingClicked += RenameSelectedRecordingButton_Click;
+        TelemetryUdpViewControl.CopySelectedRecordingDetailClicked += CopySelectedRecordingDetailButton_Click;
         TelemetryUdpViewControl.RecordingLibraryFilterTextChanged += RecordingLibraryFilterTextBox_TextChanged;
         TelemetryUdpViewControl.ClearRecordingLibraryFilterClicked += ClearRecordingLibraryFilterButton_Click;
         TelemetryUdpViewControl.RecordingLibrarySelectionChanged += RecordingLibraryListBox_SelectionChanged;
@@ -3142,34 +3143,7 @@ public partial class MainWindow : Window
             else
             {
                 RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, "Packet histogram loading...");
-                var analysisCts = new CancellationTokenSource();
-                _recordingLibraryAnalysisCts = analysisCts;
-
-                try
-                {
-                    var analysisText = await RecordingPacketHistogramAnalyzer
-                        .AnalyzeAsync(item.Path, analysisCts.Token)
-                        .ConfigureAwait(true);
-
-                    _recordingLibraryHistogramTextByPath[item.Path] = analysisText;
-                    if (!analysisCts.IsCancellationRequested
-                        && RecordingLibraryListBox.SelectedItem is RecordingLibraryItem selectedItem
-                        && string.Equals(selectedItem.Path, item.Path, StringComparison.OrdinalIgnoreCase))
-                    {
-                        RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, analysisText);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                finally
-                {
-                    if (ReferenceEquals(_recordingLibraryAnalysisCts, analysisCts))
-                    {
-                        _recordingLibraryAnalysisCts.Dispose();
-                        _recordingLibraryAnalysisCts = null;
-                    }
-                }
+                await LoadRecordingLibraryAnalysisIntoSelectedDetailAsync(item).ConfigureAwait(true);
             }
 
             RecordingRenameTextBox.Text = Path.GetFileNameWithoutExtension(item.Path);
@@ -3212,6 +3186,91 @@ public partial class MainWindow : Window
         }
 
         UpdateTelemetryUdpPresentation();
+    }
+
+    private async void CopySelectedRecordingDetailButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RecordingLibraryListBox.SelectedItem is not RecordingLibraryItem item)
+        {
+            FooterStatusText.Text = "Select a recording before copying detail.";
+            return;
+        }
+
+        CancelRecordingLibraryAnalysis();
+
+        try
+        {
+            RecordingLibraryStatusText.Text = $"Preparing detail for {Path.GetFileName(item.Path)}...";
+            var analysisText = await GetRecordingLibraryAnalysisTextAsync(item).ConfigureAwait(true);
+            var clipboardText = RecordingLibraryDetailFormatter.BuildClipboardText(
+                item.Path,
+                item.DisplayText,
+                item.DetailText,
+                analysisText);
+            Clipboard.SetText(clipboardText);
+
+            if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem selectedItem
+                && string.Equals(selectedItem.Path, item.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, analysisText);
+            }
+
+            RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
+            FooterStatusText.Text = $"Selected recording detail copied for {Path.GetFileName(item.Path)}.";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
+            FooterStatusText.Text = $"Selected recording detail could not be copied: {ex.Message}";
+        }
+    }
+
+    private async Task LoadRecordingLibraryAnalysisIntoSelectedDetailAsync(RecordingLibraryItem item)
+    {
+        try
+        {
+            var analysisText = await GetRecordingLibraryAnalysisTextAsync(item).ConfigureAwait(true);
+            if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem selectedItem
+                && string.Equals(selectedItem.Path, item.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, analysisText);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task<string> GetRecordingLibraryAnalysisTextAsync(RecordingLibraryItem item)
+    {
+        if (_recordingLibraryHistogramTextByPath.TryGetValue(item.Path, out var cachedAnalysisText))
+        {
+            return cachedAnalysisText;
+        }
+
+        var analysisCts = new CancellationTokenSource();
+        _recordingLibraryAnalysisCts = analysisCts;
+
+        try
+        {
+            var analysisText = await RecordingPacketHistogramAnalyzer
+                .AnalyzeAsync(item.Path, analysisCts.Token)
+                .ConfigureAwait(true);
+
+            _recordingLibraryHistogramTextByPath[item.Path] = analysisText;
+            return analysisText;
+        }
+        finally
+        {
+            if (ReferenceEquals(_recordingLibraryAnalysisCts, analysisCts))
+            {
+                _recordingLibraryAnalysisCts.Dispose();
+                _recordingLibraryAnalysisCts = null;
+            }
+        }
     }
 
     private void ApplyRecordingLibraryFilter(string? selectedPath = null)

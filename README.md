@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25W: Retained backup history baseline complete.
+Stage 25X: Selected-recording detail clipboard baseline complete.
 
 ## Current Architecture Baseline
 
@@ -17,7 +17,7 @@ Stage 25W: Retained backup history baseline complete.
 - Replay from `.hdrec` files now streams packets directly from disk through the replay service instead of fully materializing the whole recording first.
 - Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries plus in-app filterable query text without loading whole recordings into memory.
 - Recording summaries now also expose streamed sequence-range and approximate packet-rate metadata, so the library can surface richer per-file health/search hints without coupling the recording core to a game-specific parser.
-- The Telemetry / UDP recording library now adds on-demand selected-recording packet histograms plus a first-pass packet preview for F1 25 captures in the app layer, so deeper packet-shape inspection is available without pushing game-specific analysis down into the generic recording assembly.
+- The Telemetry / UDP recording library now adds on-demand selected-recording packet histograms plus a first-pass packet preview for F1 25 captures in the app layer, and the selected detail can now be copied as a support-friendly clipboard report without pushing game-specific analysis down into the generic recording assembly.
 - App settings, audio profiles, and P-HPR effect profiles now save through atomic same-directory temp-file replacement, and app settings now persist an explicit schema version marker for future migrations.
 - App settings, audio profiles, and P-HPR effect profiles now share a version-migration planning seam, and legacy version-0 documents are upgraded safely to the current schema baseline instead of each store hand-rolling its own fallback.
 - App settings, audio profiles, and P-HPR effect profiles now also refresh a last-known-good backup snapshot plus a small retained backup-history set after successful saves, and those stores can recover from either fallback path when the primary persisted document is missing, corrupt, or unsupported.
