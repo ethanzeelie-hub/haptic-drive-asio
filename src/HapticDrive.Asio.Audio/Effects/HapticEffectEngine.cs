@@ -169,7 +169,27 @@ public sealed class HapticEffectEngine
             _roadTextureEffect.Effect.Snapshot,
             _slipEffect.Effect.Snapshot,
             activeEffectCount,
-            peakLevel);
+            peakLevel)
+        {
+            ActivityItems = BuildActivityItems()
+        };
+    }
+
+    private IReadOnlyList<HapticEffectActivityItem> BuildActivityItems()
+    {
+        return
+        [
+            new HapticEffectActivityItem("engine", _engineEffect.Effect.Snapshot.IsActive ? "active" : "idle"),
+            new HapticEffectActivityItem("gear", _gearShiftEffect.Effect.Snapshot.IsActive ? "pulse active" : "idle"),
+            new HapticEffectActivityItem("kerb", _kerbEffect.Effect.Snapshot.IsActive ? "active" : "idle"),
+            new HapticEffectActivityItem("impact", _impactEffect.Effect.Snapshot.IsActive ? "pulse active" : "idle"),
+            new HapticEffectActivityItem("road", _roadTextureEffect.Effect.Snapshot.IsActive ? "bst-1 active" : "idle"),
+            new HapticEffectActivityItem(
+                "slip",
+                _slipEffect.Effect.Snapshot.IsActive
+                    ? $"{(_slipEffect.Effect.Snapshot.ActiveSource ?? "slip").Trim().ToLowerInvariant()} active"
+                    : "idle")
+        ];
     }
 
     private interface IEffectSlot
@@ -240,6 +260,10 @@ public sealed record HapticEffectEngineRenderResult(
     IReadOnlyList<AudioMixerInput> MixerInputs,
     HapticEffectEngineSnapshot Snapshot);
 
+public sealed record HapticEffectActivityItem(
+    string Label,
+    string StatusText);
+
 public sealed record HapticEffectEngineSnapshot(
     EngineVibrationEffectSnapshot Engine,
     GearShiftEffectSnapshot GearShift,
@@ -248,4 +272,7 @@ public sealed record HapticEffectEngineSnapshot(
     RoadTextureEffectSnapshot RoadTexture,
     SlipEffectSnapshot Slip,
     int ActiveEffectCount,
-    float PeakLevel);
+    float PeakLevel)
+{
+    public IReadOnlyList<HapticEffectActivityItem> ActivityItems { get; init; } = [];
+}

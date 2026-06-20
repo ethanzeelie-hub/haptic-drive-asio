@@ -1,3 +1,5 @@
+using HapticDrive.Asio.Audio.Effects;
+
 namespace HapticDrive.Asio.App.Tests;
 
 public sealed class EffectsStatusPresenterTests
@@ -44,6 +46,23 @@ public sealed class EffectsStatusPresenterTests
         Assert.Equal("Wheel slip active", presentation.SlipEffectStateText);
         Assert.Contains("Rear slip active; slip 0.61", presentation.SlipEffectDetailText, StringComparison.Ordinal);
         Assert.Equal("4 active effect source(s); engine active, gear pulse active, kerb active, impact pulse active, road bst-1 active, slip wheel slip active; peak 0.520.", presentation.EffectsPageStatusText);
+    }
+
+    [Fact]
+    public void Build_WhenGenericActivityItemsExist_UsesThemForStatusSummary()
+    {
+        var presentation = EffectsStatusPresenter.Build(CreateSnapshot(
+            activeEffectCount: 2,
+            peakLevel: 0.21f) with
+        {
+            ActivityItems =
+            [
+                new HapticEffectActivityItem("engine", "active"),
+                new HapticEffectActivityItem("new effect", "warming up")
+            ]
+        });
+
+        Assert.Equal("2 active effect source(s); engine active, new effect warming up; peak 0.210.", presentation.EffectsPageStatusText);
     }
 
     private static EffectsStatusSnapshot CreateSnapshot(

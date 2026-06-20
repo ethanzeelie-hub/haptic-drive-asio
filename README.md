@@ -8,12 +8,12 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25O: Persistence recovery baseline complete.
+Stage 25P: Effect-activity summary seam complete.
 
 ## Current Architecture Baseline
 
 - F1 25 is still the only production game integration. Future game support is planned, runtime now consumes an injected game-telemetry adapter, and the app resolves the active adapter through a selected-game catalog path. The current catalog still contains F1 25 only.
-- `HapticEffectEngine` now composes the shipped BST-1 effects through an internal registered-slot seam instead of hand-wired per-effect orchestration, but options, profiles, diagnostics, and snapshots remain explicitly typed to the current effect set.
+- `HapticEffectEngine` now composes the shipped BST-1 effects through an internal registered-slot seam instead of hand-wired per-effect orchestration, and its snapshot now exposes a generic effect-activity summary list for presenter/report surfaces. Options, profiles, tuning panels, and detailed diagnostics still remain explicitly typed to the current effect set.
 - Replay from `.hdrec` files now streams packets directly from disk through the replay service instead of fully materializing the whole recording first.
 - Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries plus in-app filterable query text without loading whole recordings into memory.
 - Recording summaries now also expose streamed sequence-range and approximate packet-rate metadata, so the library can surface richer per-file health/search hints without coupling the recording core to a game-specific parser.

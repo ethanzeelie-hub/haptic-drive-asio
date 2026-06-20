@@ -1,3 +1,5 @@
+using HapticDrive.Asio.Audio.Effects;
+
 namespace HapticDrive.Asio.App;
 
 internal sealed record SharedRoadSignalStatusSnapshot(
@@ -99,7 +101,10 @@ internal sealed record EffectsStatusSnapshot(
     RoadTextureEffectStatusSnapshot RoadTexture,
     SlipEffectStatusSnapshot Slip,
     int ActiveEffectCount,
-    float PeakLevel);
+    float PeakLevel)
+{
+    public IReadOnlyList<HapticEffectActivityItem> ActivityItems { get; init; } = [];
+}
 
 internal sealed record EffectsStatusPresentation(
     string SharedRoadSignalStatusText,
@@ -166,6 +171,10 @@ internal static class EffectsStatusPresenter
             ? $"{snapshot.Slip.ActiveReason}; slip {snapshot.Slip.CurrentSlipIntensity:0.00} (ratio {snapshot.Slip.CurrentSlipRatio:0.00}, angle {snapshot.Slip.CurrentSlipAngleRadians:0.00} rad); lock {snapshot.Slip.CurrentLockIntensity:0.00} (wheel-speed ratio {snapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}); {snapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {snapshot.Slip.CurrentNoiseAmount:P0}; peak {snapshot.Slip.PeakLevel:0.000}."
             : "Waiting for Motion Ex slip ratio / angle and wheel-speed telemetry.";
         var slipDefaultsText = $"Slip {snapshot.Slip.WheelSlipGain:P0} @ {snapshot.Slip.WheelSlipFrequencyHz:0} Hz, roughness {snapshot.Slip.WheelSlipNoiseAmount:P0}, threshold {snapshot.Slip.SlipRatioThreshold:0.00}, enabled {snapshot.Slip.WheelSlipEnabled}; lock {snapshot.Slip.WheelLockGain:P0} @ {snapshot.Slip.WheelLockFrequencyHz:0} Hz, roughness {snapshot.Slip.WheelLockNoiseAmount:P0}, sensitivity {snapshot.Slip.BrakeLockWheelSpeedRatioThreshold:0.00}, enabled {snapshot.Slip.WheelLockEnabled}.";
+        var activitySummary = EffectActivitySummaryFormatter.Format(
+            snapshot.ActivityItems,
+            ", ",
+            $"engine {engineStateText.ToLowerInvariant()}, gear {gearShiftStateText.ToLowerInvariant()}, kerb {kerbStateText.ToLowerInvariant()}, impact {impactStateText.ToLowerInvariant()}, road {roadTextureStateText.ToLowerInvariant()}, slip {slipStateText.ToLowerInvariant()}");
 
         return new EffectsStatusPresentation(
             SharedRoadSignalStatusText: $"Shared road signal {(snapshot.SharedRoadSignal.IsEnabled ? "enabled" : "disabled")}; output {snapshot.SharedRoadSignal.OutputIntensity:0.000}; speed scale {snapshot.SharedRoadSignal.SpeedScale:0.000}; gear ducking {snapshot.SharedRoadSignal.GearDuckingActive}.",
@@ -187,7 +196,7 @@ internal static class EffectsStatusPresenter
             SlipEffectStateText: slipStateText,
             SlipEffectDetailText: slipDetailText,
             SlipEffectDefaultsText: slipDefaultsText,
-            EffectsPageStatusText: $"{snapshot.ActiveEffectCount} active effect source(s); engine {engineStateText.ToLowerInvariant()}, gear {gearShiftStateText.ToLowerInvariant()}, kerb {kerbStateText.ToLowerInvariant()}, impact {impactStateText.ToLowerInvariant()}, road {roadTextureStateText.ToLowerInvariant()}, slip {slipStateText.ToLowerInvariant()}; peak {snapshot.PeakLevel:0.000}.");
+            EffectsPageStatusText: $"{snapshot.ActiveEffectCount} active effect source(s); {activitySummary}; peak {snapshot.PeakLevel:0.000}.");
     }
 
     private static string FormatFrame(uint? frameIdentifier)

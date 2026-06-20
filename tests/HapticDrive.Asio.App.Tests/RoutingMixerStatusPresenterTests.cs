@@ -1,3 +1,5 @@
+using HapticDrive.Asio.Audio.Effects;
+
 namespace HapticDrive.Asio.App.Tests;
 
 public sealed class RoutingMixerStatusPresenterTests
@@ -76,6 +78,23 @@ public sealed class RoutingMixerStatusPresenterTests
         Assert.Equal("Effects: gear enabled/active; road enabled/active; slip enabled/active.", presentation.ThrottlePhprEffectsSummaryText);
         Assert.Equal("5 active source(s); engine active; gear active; road active; kerb active; impact active; slip/lock active; output peak 0.421.", presentation.ActiveEffectsSummaryText);
         Assert.Equal("Master 72%; mute on; emergency mute on; output peak 0.421; active effects 5.", presentation.RoutingMixerPageStatusText);
+    }
+
+    [Fact]
+    public void Build_WhenGenericActivityItemsExist_UsesThemForActiveSummary()
+    {
+        var presentation = RoutingMixerStatusPresenter.Build(CreateSnapshot(
+            activeEffectCount: 2,
+            outputPeakLevel: 0.222f) with
+        {
+            ActivityItems =
+            [
+                new HapticEffectActivityItem("engine", "active"),
+                new HapticEffectActivityItem("new effect", "warming up")
+            ]
+        });
+
+        Assert.Equal("2 active source(s); engine active; new effect warming up; output peak 0.222.", presentation.ActiveEffectsSummaryText);
     }
 
     private static RoutingMixerStatusSnapshot CreateSnapshot(

@@ -503,6 +503,47 @@ public sealed class HapticProfileTests
     }
 
     [Fact]
+    public void EffectEngineSnapshot_ExposesGenericActivityItemsForPresenterSummaries()
+    {
+        var engine = new HapticEffectEngine(new AudioSampleFormat(1_000, 1, 10));
+
+        var snapshot = engine.GetSnapshot();
+
+        Assert.Collection(
+            snapshot.ActivityItems,
+            item =>
+            {
+                Assert.Equal("engine", item.Label);
+                Assert.Equal("idle", item.StatusText);
+            },
+            item =>
+            {
+                Assert.Equal("gear", item.Label);
+                Assert.Equal("idle", item.StatusText);
+            },
+            item =>
+            {
+                Assert.Equal("kerb", item.Label);
+                Assert.Equal("idle", item.StatusText);
+            },
+            item =>
+            {
+                Assert.Equal("impact", item.Label);
+                Assert.Equal("idle", item.StatusText);
+            },
+            item =>
+            {
+                Assert.Equal("road", item.Label);
+                Assert.Equal("idle", item.StatusText);
+            },
+            item =>
+            {
+                Assert.Equal("slip", item.Label);
+                Assert.Equal("idle", item.StatusText);
+            });
+    }
+
+    [Fact]
     public async Task AudioDiagnosticsSnapshot_CanBeCreatedWithoutHardwareOrTelemetry()
     {
         var configuration = new AudioOutputConfiguration(1_000, 1, 10);

@@ -2624,3 +2624,18 @@ Stage 25O architecture result:
   - recovery reuses those existing result surfaces instead of inventing a second persistence pipeline.
 
 Stage 25O deliberately does not add backup retention/history, cross-file recovery orchestration, transactional restore points, or background repair of every persisted artifact in one pass. It gives the production app one practical last-known-good fallback layer first so broader persistence repair can build on a stable baseline.
+
+## Stage 25P Effect-Activity Summary Seam
+
+Stage 25P starts reducing app-side effect-surface coupling by generalizing the active-summary path before attempting a broader tuning/profile/UI rewrite.
+
+Stage 25P architecture result:
+
+- `HapticEffectEngineSnapshot` now exposes a generic `ActivityItems` list alongside the existing typed per-effect snapshots.
+- The activity list is built at the engine snapshot boundary, so presenter/report callers can consume a stable effect-summary seam without maintaining their own parallel hardcoded effect-name lists.
+- `EffectsStatusPresenter` and `RoutingMixerStatusPresenter` now consume that generic activity list for their active-effect summary text, while keeping the detailed typed BST-1 cards and state panels unchanged.
+- The result narrows one real public-surface coupling point:
+  - future effect additions no longer need presenter-local summary-text edits in every active-effect summary surface,
+  - future effect additions still need explicit work in options, profiles, tuning UI, and detailed per-effect diagnostics.
+
+Stage 25P deliberately does not add dynamic tuning-card generation, profile-driven effect discovery, data-driven effect editors, or a broader snapshot-schema rewrite. It clears the active-summary path first so later effect-surface generalization can build from one shared activity seam.

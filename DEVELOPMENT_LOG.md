@@ -4246,6 +4246,45 @@ Self-review:
 - The new backup path is intentionally conservative and local; it does not yet offer versioned history, user-facing restore controls, or cross-store rollback semantics.
 - This is the right base for a later persistence orchestration stage because failure handling is now explicit at the store boundary instead of only at the atomic-write boundary.
 
+## Stage 25P - Effect-Activity Summary Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Reduce app-side effect-summary coupling by exposing one generic active-effect activity list from the engine snapshot and routing presenter summary text through that seam, without rewriting the typed tuning UI or profile schema.
+
+Notes:
+
+- Added `HapticEffectActivityItem` to the audio effect engine snapshot surface.
+- `HapticEffectEngineSnapshot` now carries a generic `ActivityItems` list alongside the existing typed effect snapshots.
+- Added `EffectActivitySummaryFormatter` in the app layer so summary presenters can consume that list consistently.
+- Updated:
+  - `EffectsStatusPresenter`,
+  - `RoutingMixerStatusPresenter`,
+  - `MainWindow` snapshot-to-presenter wiring.
+- Kept the stage deliberately narrow:
+  - typed BST-1 detail cards remain intact,
+  - options/profile/tuning schemas remain intact,
+  - the seam only generalizes active-effect summary text.
+- Added coverage for:
+  - the engine snapshot activity list,
+  - generic summary usage in `EffectsStatusPresenter`,
+  - generic summary usage in `RoutingMixerStatusPresenter`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25P meaningfully reduces one presenter/report coupling point without pretending the wider effect-surface problem is solved.
+- Future effect additions can now flow into active summary text through the engine snapshot seam, but detailed tuning surfaces are still static and explicitly typed.
+- This sets up a later stage that can tackle broader effect metadata, profile schema growth, and richer diagnostics with less presenter duplication.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

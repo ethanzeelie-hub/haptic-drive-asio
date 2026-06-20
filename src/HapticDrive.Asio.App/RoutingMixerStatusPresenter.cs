@@ -1,3 +1,5 @@
+using HapticDrive.Asio.Audio.Effects;
+
 namespace HapticDrive.Asio.App;
 
 internal sealed record RoutingMixerStatusSnapshot(
@@ -48,7 +50,10 @@ internal sealed record RoutingMixerStatusSnapshot(
     int ActiveEffectCount,
     bool GearShiftActive,
     bool RoadTextureActive,
-    bool SlipLockActive);
+    bool SlipLockActive)
+{
+    public IReadOnlyList<HapticEffectActivityItem> ActivityItems { get; init; } = [];
+}
 
 internal sealed record RoutingMixerStatusPresentation(
     string MasterGainValueText,
@@ -71,6 +76,10 @@ internal static class RoutingMixerStatusPresenter
     public static RoutingMixerStatusPresentation Build(RoutingMixerStatusSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        var activitySummary = EffectActivitySummaryFormatter.Format(
+            snapshot.ActivityItems,
+            "; ",
+            $"engine {FormatActiveIdle(snapshot.EngineActive)}; gear {FormatActiveIdle(snapshot.GearShiftActive)}; road {FormatActiveIdle(snapshot.RoadTextureActive)}; kerb {FormatActiveIdle(snapshot.KerbActive)}; impact {FormatActiveIdle(snapshot.ImpactActive)}; slip/lock {FormatActiveIdle(snapshot.SlipLockActive)}");
 
         return new RoutingMixerStatusPresentation(
             MasterGainValueText: $"{snapshot.MasterGain:P0}",
@@ -86,7 +95,7 @@ internal static class RoutingMixerStatusPresenter
             BrakePhprEffectsSummaryText: $"Effects: gear {FormatEnabledActive(snapshot.BrakeGearPulseEnabled, snapshot.BrakeGearActive)}; road {FormatEnabledActive(snapshot.BrakeRoadEnabled, snapshot.BrakeRoadActive)}; lock {FormatEnabledActive(snapshot.BrakeLockEnabled, snapshot.BrakeLockActive)}.",
             ThrottlePhprRoutingSummaryText: $"Mode {snapshot.PhprPedalsModeText}; throttle pedal output {FormatEnabled(snapshot.ThrottleGearPulseEnabled)}; coexistence {snapshot.PhprSoftwareCoexistenceStatusText}; emergency stop {FormatOnOff(snapshot.RealEmergencyStopActive)}.",
             ThrottlePhprEffectsSummaryText: $"Effects: gear {FormatEnabledActive(snapshot.ThrottleGearPulseEnabled, snapshot.ThrottleGearActive)}; road {FormatEnabledActive(snapshot.ThrottleRoadEnabled, snapshot.ThrottleRoadActive)}; slip {FormatEnabledActive(snapshot.ThrottleSlipEnabled, snapshot.ThrottleSlipActive)}.",
-            ActiveEffectsSummaryText: $"{snapshot.ActiveEffectCount:N0} active source(s); engine {FormatActiveIdle(snapshot.EngineActive)}; gear {FormatActiveIdle(snapshot.GearShiftActive)}; road {FormatActiveIdle(snapshot.RoadTextureActive)}; kerb {FormatActiveIdle(snapshot.KerbActive)}; impact {FormatActiveIdle(snapshot.ImpactActive)}; slip/lock {FormatActiveIdle(snapshot.SlipLockActive)}; output peak {snapshot.OutputPeakLevel:0.000}.",
+            ActiveEffectsSummaryText: $"{snapshot.ActiveEffectCount:N0} active source(s); {activitySummary}; output peak {snapshot.OutputPeakLevel:0.000}.",
             PriorityDuckingSummaryText: "Emergency stop and emergency mute override all output. Gear pulses take priority on P-HPR, and continuous pedal effects back off when higher-priority safety or gear activity needs the path.",
             RoutingMixerPageStatusText: $"Master {snapshot.MasterGain:P0}; mute {FormatOnOff(snapshot.NormalMuted)}; emergency mute {FormatOnOff(snapshot.EmergencyMuted)}; output peak {snapshot.OutputPeakLevel:0.000}; active effects {snapshot.ActiveEffectCount:N0}.");
     }

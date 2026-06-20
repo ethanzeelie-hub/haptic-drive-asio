@@ -4188,7 +4188,10 @@ public partial class MainWindow : Window
             ActiveEffectCount: effectSnapshot.ActiveEffectCount,
             GearShiftActive: effectSnapshot.GearShift.IsActive,
             RoadTextureActive: effectSnapshot.RoadTexture.IsActive,
-            SlipLockActive: effectSnapshot.Slip.IsActive));
+            SlipLockActive: effectSnapshot.Slip.IsActive)
+        {
+            ActivityItems = effectSnapshot.ActivityItems
+        });
     }
 
     private void UpdateDeviceStatus()
@@ -5895,7 +5898,10 @@ public partial class MainWindow : Window
                 BrakeLockWheelSpeedRatioThreshold: options.Slip.BrakeLockWheelSpeedRatioThreshold,
                 WheelLockEnabled: options.Slip.WheelLockEnabled),
             ActiveEffectCount: snapshot.ActiveEffectCount,
-            PeakLevel: snapshot.PeakLevel));
+            PeakLevel: snapshot.PeakLevel)
+        {
+            ActivityItems = snapshot.ActivityItems
+        });
     }
 
     private void UpdateRecordingStatus()
