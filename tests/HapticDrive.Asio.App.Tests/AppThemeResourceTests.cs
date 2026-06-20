@@ -205,7 +205,8 @@ public sealed class AppThemeResourceTests
         Assert.Contains("EffectsViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("EffectsViewControl.Visibility = page.NavigationLabel == \"Effects\"", mainWindowCode, StringComparison.Ordinal);
         Assert.Contains("EffectsViewControl.Apply(presentation);", mainWindowCode, StringComparison.Ordinal);
-        Assert.Contains("EffectsStatusPresenter.Build(new EffectsStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("EffectsStatusPresenter.Build(", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("EffectsStatusSnapshotBuilder.Build(", mainWindowCode, StringComparison.Ordinal);
     }
 
     [Fact]

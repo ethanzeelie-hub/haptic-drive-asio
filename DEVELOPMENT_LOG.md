@@ -5001,6 +5001,46 @@ Self-review:
 - This is still not the full schema/UI generalization problem, but it materially lowers the odds that future effect growth will sprawl back across the profile-control path.
 - The next strong target remains higher-level effect-schema/editor generalization, not more flat-contract cleanup inside already-improved areas.
 
+## Stage 25AF - Effects-Status Snapshot Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Remove the full runtime/options-to-effects-status mapping block from `MainWindow` by moving it behind one dedicated app-side builder, without changing the current Effects page layout or visible presenter output.
+
+Notes:
+
+- Re-audited the live effect-extensibility path immediately after Stage 25AE:
+  - summary text now had typed seams,
+  - audio-profile effect values/text/input now had typed seams,
+  - one remaining growth hotspot was the long status-snapshot assembly block still sitting directly in `MainWindow`.
+- Added `EffectsStatusSnapshotBuilder` so the Effects page now gets one dedicated app-side status seam that:
+  - builds the typed `EffectsStatusSnapshot` from `HapticEffectEngineSnapshot` plus `HapticEffectEngineOptions`,
+  - classifies the existing slip-telemetry significance flag in one place,
+  - owns the ordered structured fallback summary items for the page-status text.
+- Updated `MainWindow.BuildEffectsStatusPresentation(...)` to flow through the new builder while preserving the same presenter/view boundary and visible Effects-page behavior.
+- Added focused builder coverage plus updated source-guardrail tests so this new seam stays visible and does not silently collapse back into a large `MainWindow` mapping block.
+- Kept the stage intentionally narrow:
+  - no WPF layout rewrite,
+  - no persisted schema change,
+  - no effect tuning/default change,
+  - no runtime haptic-behavior change.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "EffectsStatus|AppThemeResourceTests"` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AF is a strong follow-through seam stage: it does not chase a flashy abstraction, but it removes a real future-maintenance trap from `MainWindow`.
+- This still does not solve the full data-driven effect-schema/UI problem, but it keeps one more effect-growth surface from being hardwired in the window code-behind.
+- The next strong target remains broader effect metadata/control/schema generalization rather than more presenter-local string cleanup.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

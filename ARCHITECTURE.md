@@ -2970,3 +2970,27 @@ Stage 25AE architecture result:
 - The result improves maintainability because the profile-control seam now converges around grouped effect-side input, value, and text contracts instead of leaving one last large flat effect-input path behind.
 
 Stage 25AE deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader persisted-profile/settings schema generalization. It removes one more brittle app-side input contract first so later UI/schema work can build on a cleaner baseline.
+
+## Stage 25AF Effects-Status Snapshot Seam
+
+Stage 25AF returns to the live Effects page and removes one more effect-growth hotspot by moving the status snapshot assembly out of `MainWindow` and behind a dedicated app-side builder.
+
+Stage 25AF architecture result:
+
+- The full runtime/options-to-status mapping for the Effects page now lives in `EffectsStatusSnapshotBuilder` instead of a long `MainWindow` block.
+- The builder owns:
+  - typed `EffectsStatusSnapshot` construction from `HapticEffectEngineSnapshot` plus `HapticEffectEngineOptions`,
+  - slip-telemetry significance classification for the existing presenter contract,
+  - ordered structured fallback summary items for the existing Effects-page status text.
+- `MainWindow` now keeps the same visible boundary:
+  - it still pulls the live pipeline snapshot,
+  - it still passes the result to `EffectsStatusPresenter`,
+  - it still applies the final presentation through `EffectsViewControl`.
+- The stage stays intentionally narrow:
+  - no WPF layout rewrite,
+  - no persisted profile or settings schema change,
+  - no effect tuning/default change,
+  - no runtime haptic-behavior change.
+- The result improves maintainability because future BST-1 effect additions now have one cleaner app-side status-assembly seam instead of requiring another long `MainWindow` mapping edit just to reach the existing presenter/view path.
+
+Stage 25AF deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic WPF control generation, or broader effect-schema generalization across profiles/settings/diagnostics. It narrows one more app-side assembly seam first so those later changes can build on a less tangled status path.

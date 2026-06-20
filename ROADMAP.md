@@ -140,6 +140,7 @@
 - Stage 25AC: Effects-page status summary seam complete.
 - Stage 25AD: Audio-profile BST-1 effect control seam complete.
 - Stage 25AE: Audio-profile BST-1 effect input seam complete.
+- Stage 25AF: Effects-status snapshot seam complete.
 
 ## Planned Stages
 
@@ -252,6 +253,7 @@
 107. Stage 25AC: Effects-page status summary seam. Complete.
 108. Stage 25AD: Audio-profile BST-1 effect control seam. Complete.
 109. Stage 25AE: Audio-profile BST-1 effect input seam. Complete.
+110. Stage 25AF: Effects-status snapshot seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -323,6 +325,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25AC extends that same effect-extensibility cleanup into the Effects page by moving its active-summary fallback onto a typed app-side summary list, so future effect additions do not need another bespoke presenter-local status string.
 - Stage 25AD extends the effect-extensibility cleanup into the audio-profile control path by grouping BST-1 effect control values/text behind one typed app-side snapshot, reducing profile-side flat-contract sprawl without changing the current WPF controls or persisted JSON shape.
 - Stage 25AE extends that same profile-control cleanup one rung further by grouping BST-1 effect input capture behind one typed app-side input record, so profile-apply/save flow no longer threads a giant flat effect-input contract through the builder.
+- Stage 25AF extends the effect-extensibility stream back into live status assembly by moving the full runtime/options-to-effects-status mapping behind a dedicated builder, so future effect additions do not have to grow another long `MainWindow` mapping block just to reach the existing presenter/view path.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index tooling such as richer per-packet browse/index views, broader cross-file persistence repair/rollback orchestration across multiple documents, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases

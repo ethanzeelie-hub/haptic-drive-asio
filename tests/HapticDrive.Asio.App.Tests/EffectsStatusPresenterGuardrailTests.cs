@@ -37,7 +37,8 @@ public sealed class EffectsStatusPresenterGuardrailTests
             "MainWindow.xaml.cs"));
 
         Assert.Contains("EffectsViewControl.Apply(presentation);", source, StringComparison.Ordinal);
-        Assert.Contains("EffectsStatusPresenter.Build(new EffectsStatusSnapshot(", source, StringComparison.Ordinal);
+        Assert.Contains("EffectsStatusPresenter.Build(", source, StringComparison.Ordinal);
+        Assert.Contains("EffectsStatusSnapshotBuilder.Build(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("SharedRoadSignalStatusText.Text =", source, StringComparison.Ordinal);
         Assert.DoesNotContain("EngineEffectStateText.Text =", source, StringComparison.Ordinal);
         Assert.DoesNotContain("EngineEffectDetailText.Text =", source, StringComparison.Ordinal);
