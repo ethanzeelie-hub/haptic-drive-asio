@@ -53,6 +53,7 @@ internal sealed record RoutingMixerStatusSnapshot(
     bool SlipLockActive)
 {
     public IReadOnlyList<HapticEffectActivityItem> ActivityItems { get; init; } = [];
+    public IReadOnlyList<Bst1EffectSummaryItem> Bst1Effects { get; init; } = [];
 }
 
 internal sealed record RoutingMixerStatusPresentation(
@@ -90,7 +91,9 @@ internal static class RoutingMixerStatusPresenter
                 ? "Limiter protection is active and has reduced peaks during this session."
                 : "Limiter protection stays on automatically to protect the output path.",
             Bst1RoutingSummaryText: $"Output mode {snapshot.SelectedOutputModeText}; selected driver {snapshot.SelectedAsioDriverNameText}; channel {snapshot.SelectedAsioOutputChannelText}; armed {snapshot.AsioArmed}; readiness {snapshot.TrueAsioStatusText}.",
-            Bst1EffectsSummaryText: $"Effects: gear {FormatEnabledActive(snapshot.Bst1GearEnabled, snapshot.Bst1GearActive)}; road {FormatEnabledActive(snapshot.Bst1RoadEnabled, snapshot.Bst1RoadActive)}; engine {FormatEnabledActive(snapshot.EngineEnabled, snapshot.EngineActive)}; kerb {FormatEnabledActive(snapshot.KerbEnabled, snapshot.KerbActive)}; impact {FormatEnabledActive(snapshot.ImpactEnabled, snapshot.ImpactActive)}; slip {FormatEnabledActive(snapshot.WheelSlipEnabled, snapshot.WheelSlipActive)}; lock {FormatEnabledActive(snapshot.WheelLockEnabled, snapshot.WheelLockActive)}.",
+            Bst1EffectsSummaryText: Bst1EffectSummaryFormatter.FormatRoutingText(
+                snapshot.Bst1Effects,
+                $"Effects: gear {FormatEnabledActive(snapshot.Bst1GearEnabled, snapshot.Bst1GearActive)}; road {FormatEnabledActive(snapshot.Bst1RoadEnabled, snapshot.Bst1RoadActive)}; engine {FormatEnabledActive(snapshot.EngineEnabled, snapshot.EngineActive)}; kerb {FormatEnabledActive(snapshot.KerbEnabled, snapshot.KerbActive)}; impact {FormatEnabledActive(snapshot.ImpactEnabled, snapshot.ImpactActive)}; slip {FormatEnabledActive(snapshot.WheelSlipEnabled, snapshot.WheelSlipActive)}; lock {FormatEnabledActive(snapshot.WheelLockEnabled, snapshot.WheelLockActive)}."),
             BrakePhprRoutingSummaryText: $"Mode {snapshot.PhprPedalsModeText}; brake pedal output {FormatEnabled(snapshot.BrakeGearPulseEnabled)}; {snapshot.DirectReadinessText}; connection {snapshot.DirectConnectionStateText}.",
             BrakePhprEffectsSummaryText: $"Effects: gear {FormatEnabledActive(snapshot.BrakeGearPulseEnabled, snapshot.BrakeGearActive)}; road {FormatEnabledActive(snapshot.BrakeRoadEnabled, snapshot.BrakeRoadActive)}; lock {FormatEnabledActive(snapshot.BrakeLockEnabled, snapshot.BrakeLockActive)}.",
             ThrottlePhprRoutingSummaryText: $"Mode {snapshot.PhprPedalsModeText}; throttle pedal output {FormatEnabled(snapshot.ThrottleGearPulseEnabled)}; coexistence {snapshot.PhprSoftwareCoexistenceStatusText}; emergency stop {FormatOnOff(snapshot.RealEmergencyStopActive)}.",

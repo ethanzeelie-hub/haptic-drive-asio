@@ -4794,7 +4794,10 @@ Notes:
 Verification:
 
 - `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
-- Full-stage verification is run after docs update before commit.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
 
 Self-review:
 
@@ -4843,6 +4846,43 @@ Self-review:
 - Stage 25AA is mostly architectural, but it is exactly the right kind of architecture work: tightly scoped, already justified by multiple real consumers, and useful for the next recording-depth stages.
 - The visible product stays stable while the internal contract gets meaningfully cleaner.
 - The next meaningful recording stage can now add richer browse/index behavior without first undoing string-shaped coupling.
+
+## Stage 25AB - Structured BST-1 Effect Summary Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Move BST-1 diagnostics and routing/mixer effect-summary text onto one shared structured app-side seam so future effect additions do not have to keep expanding presenter-local fixed-list strings.
+
+Notes:
+
+- Re-audited the Stage 25F and Stage 25P effect-extensibility work before editing:
+  - the runtime effect engine already had a registered-slot seam,
+  - active-effect summaries were already generalized,
+  - the remaining weak spot was diagnostics and routing/mixer still hand-assembling shipped BST-1 effect lists separately.
+- Added `Bst1EffectSummarySnapshot`, `Bst1EffectSummaryItem`, and `Bst1EffectSummaryFormatter` in the app layer:
+  - diagnostics and routing/mixer now share one typed per-effect summary contract,
+  - the formatter preserves the visible summary wording/order contract for current UI/report surfaces,
+  - later effect additions can update one seam instead of multiple presenter string builders.
+- Updated `MainWindow` to build the shared BST-1 summary once from `HapticEffectEngineSnapshot` and pass it into both diagnostics and routing presenters.
+- Kept the stage intentionally narrow:
+  - no tuning UI rewrite,
+  - no profile/settings schema change,
+  - no dynamic WPF effect-card generation,
+  - no change to shipped effect behavior or audio runtime sequencing.
+- Added focused app tests proving both the new routing-summary path and the diagnostics structured-summary path stay stable.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- Full-stage verification is run after docs update before commit.
+
+Self-review:
+
+- Stage 25AB is another good seam stage: small enough to be safe, but it removes a real maintenance trap that would have gotten worse as new effects were added.
+- This does not make the effect surface fully data-driven yet, but it does keep future effect work from paying the same presenter/report wiring tax in multiple places.
+- The next effect-extensibility stages should target tuning/profile/diagnostics schema generalization rather than more string assembly cleanup.
 
 ## Stage 25L - Support Bundle Automation
 

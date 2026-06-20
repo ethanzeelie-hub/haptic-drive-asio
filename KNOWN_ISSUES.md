@@ -1077,3 +1077,11 @@
 - App settings, audio profiles, and P-HPR profiles now keep retained backup-history snapshots and can recover after both the primary file and `.lastgood` copy are unusable, but the repo still does not have broader cross-file rollback orchestration or coordinated repair of multiple persisted documents as one unit.
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+
+## Stage 25AB
+
+- Diagnostics and routing/mixer reporting now share a structured BST-1 effect-summary seam, but the broader effect surface still remains explicitly typed in tuning controls, persisted profile schema, settings hydration, and detailed per-effect diagnostics. Adding a brand-new effect still requires coordinated work across those surfaces.
+- The shared summary seam currently covers only the shipped BST-1 effect family and presenter/report formatting. It does not yet provide data-driven effect-card generation, dynamic effect registration in the WPF UI, or plugin-style effect metadata.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.
+- Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.

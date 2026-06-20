@@ -28,7 +28,18 @@ public sealed class DiagnosticsStatusPresenterTests
             VehicleStateText: "40 update(s). Vehicle state current.",
             RecordingText: "inactive; 0 packet(s); file none.",
             ReplayText: "active; source test-session.hdrec; 40 packet(s); Replay active.",
-            EffectsText: "enabled engine True, gear True, kerb False, impact False, road True, slip True, lock False; overall slip/lock True; peak 0.420.",
+            Effects: new Bst1EffectSummarySnapshot(
+            [
+                new Bst1EffectSummaryItem("engine", "engine", true, false),
+                new Bst1EffectSummaryItem("gear", "gear", true, false),
+                new Bst1EffectSummaryItem("kerb", "kerb", false, false),
+                new Bst1EffectSummaryItem("impact", "impact", false, false),
+                new Bst1EffectSummaryItem("road", "road", true, true),
+                new Bst1EffectSummaryItem("slip", "slip", true, true),
+                new Bst1EffectSummaryItem("lock", "lock", false, false)
+            ],
+            OverallSlipLockEnabled: true,
+            PeakLevel: 0.42f),
             Bst1SlipLockText: "source Slip; reason active; slip intensity 0.50; lock intensity 0.00; slip ratio 0.10; slip angle 0.05 rad; wheel-speed ratio 0.95; frequency 42.0 Hz; roughness 30%; peak 0.200.",
             MixerSafetyText: "mixer peak 0.300; output peak 0.420; limited 0; clipped 0; emergency mute False.",
             RoadDiagnosticsLines:

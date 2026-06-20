@@ -2880,3 +2880,26 @@ Stage 25AA architecture result:
 - The result improves future extensibility because richer selected-recording workflows can now evolve from one typed inspection seam instead of continuing to grow around one formatted string blob.
 
 Stage 25AA deliberately does not add packet-body decode views, persistent recording indexes, raw capture exports, cross-game analyzers, or random-access packet browsing. It establishes the structured inspection seam first so those deeper features can build on a cleaner app-side contract.
+
+## Stage 25AB Structured BST-1 Effect Summary Seam
+
+Stage 25AB returns to the broader effect-extensibility stream and removes one more app-side fixed-list seam without changing shipped haptic behavior.
+
+Stage 25AB architecture result:
+
+- BST-1 presenter/report effect summaries now have one shared app-side typed contract:
+  - `Bst1EffectSummarySnapshot` carries the diagnostics-oriented effect state,
+  - `Bst1EffectSummaryItem` carries per-effect key, display name, enable state, and active state.
+- `Bst1EffectSummaryFormatter` now owns the current summary text rendering contract:
+  - diagnostics text still renders in the existing order and style,
+  - routing / mixer effect text still renders in the existing order and style,
+  - later effect additions can target one shared summary seam instead of multiple presenter-local hardcoded strings.
+- `MainWindow` now builds that summary snapshot once from the `HapticEffectEngineSnapshot` path and passes it into both diagnostics and routing presenters, reducing repeated fixed-list assembly in the shell layer.
+- The stage stays deliberately narrow:
+  - no tuning UI rewrite,
+  - no profile-schema change,
+  - no dynamic effect registration in the WPF layer,
+  - no change to the runtime effect-engine ownership introduced earlier in Stage 25F and Stage 25P.
+- The result improves production maintainability because future BST-1 effect growth now has one cleaner presenter/report seam instead of multiple drift-prone string-building call sites.
+
+Stage 25AB deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic profile editors, or broader effect-schema generalization across persisted settings. It removes one more presenter/report coupling point first so those later steps can build on a stronger app-side contract.

@@ -4368,7 +4368,8 @@ public partial class MainWindow : Window
             RoadTextureActive: effectSnapshot.RoadTexture.IsActive,
             SlipLockActive: effectSnapshot.Slip.IsActive)
         {
-            ActivityItems = effectSnapshot.ActivityItems
+            ActivityItems = effectSnapshot.ActivityItems,
+            Bst1Effects = BuildBst1EffectSummarySnapshot(effectSnapshot).Items
         });
     }
 
@@ -4934,6 +4935,7 @@ public partial class MainWindow : Window
         var roadDiagnosticLines = roadDiagnostics.ToDiagnosticsLines();
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var phprWorkflowPresentation = BuildPhprWorkflowStatusPresentation(pipelineSnapshot, realDiagnostics);
+        var bst1EffectSummary = BuildBst1EffectSummarySnapshot(effectSnapshot);
         var snapshot = DiagnosticsStatusSnapshotBuilder.Build(new DiagnosticsStatusBuildInputs(
             GeneratedAt: DateTimeOffset.Now,
             FlightRecorderActive: roadDiagnostics.FlightRecorderActive,
@@ -4954,7 +4956,7 @@ public partial class MainWindow : Window
             VehicleStateText: $"{vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
             RecordingText: $"{(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
             ReplayText: $"{(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
-            EffectsText: $"enabled engine {effectSnapshot.Engine.IsEnabled}, gear {effectSnapshot.GearShift.IsEnabled}, kerb {effectSnapshot.Kerb.IsEnabled}, impact {effectSnapshot.Impact.IsEnabled}, road {effectSnapshot.RoadTexture.IsEnabled}, slip {effectSnapshot.Slip.WheelSlipEnabled}, lock {effectSnapshot.Slip.WheelLockEnabled}; overall slip/lock {effectSnapshot.Slip.IsEnabled}; peak {effectSnapshot.PeakLevel:0.000}.",
+            Effects: bst1EffectSummary,
             Bst1SlipLockText: $"source {effectSnapshot.Slip.ActiveSource}; reason {effectSnapshot.Slip.ActiveReason}; slip intensity {effectSnapshot.Slip.CurrentSlipIntensity:0.00}; lock intensity {effectSnapshot.Slip.CurrentLockIntensity:0.00}; slip ratio {effectSnapshot.Slip.CurrentSlipRatio:0.00}; slip angle {effectSnapshot.Slip.CurrentSlipAngleRadians:0.00} rad; wheel-speed ratio {effectSnapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}; frequency {effectSnapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {effectSnapshot.Slip.CurrentNoiseAmount:P0}; peak {effectSnapshot.Slip.PeakLevel:0.000}.",
             MixerSafetyText: $"mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
             RoadDiagnosticsLines: roadDiagnosticLines,
@@ -4979,6 +4981,22 @@ public partial class MainWindow : Window
             RuntimePrerequisitesText: $".NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
             AppSettingsText: BuildPersistedSettingsStatusPresentation().DiagnosticsText));
         return DiagnosticsStatusPresenter.Build(snapshot);
+    }
+
+    private static Bst1EffectSummarySnapshot BuildBst1EffectSummarySnapshot(HapticEffectEngineSnapshot effectSnapshot)
+    {
+        return new Bst1EffectSummarySnapshot(
+            [
+                new Bst1EffectSummaryItem("engine", "engine", effectSnapshot.Engine.IsEnabled, effectSnapshot.Engine.IsActive),
+                new Bst1EffectSummaryItem("gear", "gear", effectSnapshot.GearShift.IsEnabled, effectSnapshot.GearShift.IsActive),
+                new Bst1EffectSummaryItem("kerb", "kerb", effectSnapshot.Kerb.IsEnabled, effectSnapshot.Kerb.IsActive),
+                new Bst1EffectSummaryItem("impact", "impact", effectSnapshot.Impact.IsEnabled, effectSnapshot.Impact.IsActive),
+                new Bst1EffectSummaryItem("road", "road", effectSnapshot.RoadTexture.Bst1OutputEnabled, effectSnapshot.RoadTexture.IsActive),
+                new Bst1EffectSummaryItem("slip", "slip", effectSnapshot.Slip.WheelSlipEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentSlipIntensity > 0f),
+                new Bst1EffectSummaryItem("lock", "lock", effectSnapshot.Slip.WheelLockEnabled, effectSnapshot.Slip.IsActive && effectSnapshot.Slip.CurrentLockIntensity > 0f)
+            ],
+            effectSnapshot.Slip.IsEnabled,
+            effectSnapshot.PeakLevel);
     }
 
     private void ApplyDiagnosticsStatusPresentation(DiagnosticsStatusPresentation presentation)

@@ -97,6 +97,26 @@ public sealed class RoutingMixerStatusPresenterTests
         Assert.Equal("2 active source(s); engine active; new effect warming up; output peak 0.222.", presentation.ActiveEffectsSummaryText);
     }
 
+    [Fact]
+    public void Build_WhenStructuredBst1EffectItemsExist_UsesThemForRoutingSummary()
+    {
+        var presentation = RoutingMixerStatusPresenter.Build(CreateSnapshot() with
+        {
+            Bst1Effects =
+            [
+                new Bst1EffectSummaryItem("engine", "engine", true, false),
+                new Bst1EffectSummaryItem("gear", "gear", true, true),
+                new Bst1EffectSummaryItem("road", "road", true, false),
+                new Bst1EffectSummaryItem("kerb", "kerb", false, false),
+                new Bst1EffectSummaryItem("impact", "impact", true, false),
+                new Bst1EffectSummaryItem("slip", "slip", true, true),
+                new Bst1EffectSummaryItem("lock", "lock", false, false)
+            ]
+        });
+
+        Assert.Equal("Effects: gear enabled/active; road enabled/idle; engine enabled/idle; kerb disabled; impact enabled/idle; slip enabled/active; lock disabled.", presentation.Bst1EffectsSummaryText);
+    }
+
     private static RoutingMixerStatusSnapshot CreateSnapshot(
         double masterGain = 0.50,
         double safetyOutputGain = 0.80,
