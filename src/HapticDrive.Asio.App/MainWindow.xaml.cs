@@ -247,6 +247,7 @@ public partial class MainWindow : Window
     private bool _advancedDiagnosticsEnabled;
     private bool _routingMockPedalEffects;
     private string _recordingLibraryFilterText = string.Empty;
+    private CancellationTokenSource? _recordingLibraryAnalysisCts;
     private readonly string _roadTextureFlightRecorderSessionId = Guid.NewGuid().ToString("N");
     private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
@@ -273,6 +274,7 @@ public partial class MainWindow : Window
     private List<PhprDirectOutputCandidateListItem> _realPhprCandidateItems = [];
     private List<RecordingLibraryItem> _recordingLibraryItems = [];
     private List<RecordingLibraryItem> _filteredRecordingLibraryItems = [];
+    private readonly Dictionary<string, string> _recordingLibraryHistogramTextByPath = new(StringComparer.OrdinalIgnoreCase);
 
     public MainWindow()
     {
@@ -3127,11 +3129,49 @@ public partial class MainWindow : Window
         RecordingLibraryFilterTextBox.Clear();
     }
 
-    private void RecordingLibraryListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void RecordingLibraryListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        CancelRecordingLibraryAnalysis();
+
         if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem item)
         {
-            RecordingLibraryDetailText.Text = item.DetailText;
+            if (_recordingLibraryHistogramTextByPath.TryGetValue(item.Path, out var cachedAnalysisText))
+            {
+                RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, cachedAnalysisText);
+            }
+            else
+            {
+                RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, "Packet histogram loading...");
+                var analysisCts = new CancellationTokenSource();
+                _recordingLibraryAnalysisCts = analysisCts;
+
+                try
+                {
+                    var analysisText = await RecordingPacketHistogramAnalyzer
+                        .AnalyzeAsync(item.Path, analysisCts.Token)
+                        .ConfigureAwait(true);
+
+                    _recordingLibraryHistogramTextByPath[item.Path] = analysisText;
+                    if (!analysisCts.IsCancellationRequested
+                        && RecordingLibraryListBox.SelectedItem is RecordingLibraryItem selectedItem
+                        && string.Equals(selectedItem.Path, item.Path, StringComparison.OrdinalIgnoreCase))
+                    {
+                        RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, analysisText);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                finally
+                {
+                    if (ReferenceEquals(_recordingLibraryAnalysisCts, analysisCts))
+                    {
+                        _recordingLibraryAnalysisCts.Dispose();
+                        _recordingLibraryAnalysisCts = null;
+                    }
+                }
+            }
+
             RecordingRenameTextBox.Text = Path.GetFileNameWithoutExtension(item.Path);
             return;
         }
@@ -3160,6 +3200,8 @@ public partial class MainWindow : Window
     {
         try
         {
+            CancelRecordingLibraryAnalysis();
+            _recordingLibraryHistogramTextByPath.Clear();
             _recordingLibraryItems = await RecordingLibraryManager.LoadAsync(GetRecordingsDirectory());
             ApplyRecordingLibraryFilter(selectedPath);
         }
@@ -3188,6 +3230,18 @@ public partial class MainWindow : Window
             RecordingLibraryDetailText.Text = string.Empty;
             RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
         }
+    }
+
+    private void CancelRecordingLibraryAnalysis()
+    {
+        if (_recordingLibraryAnalysisCts is null)
+        {
+            return;
+        }
+
+        _recordingLibraryAnalysisCts.Cancel();
+        _recordingLibraryAnalysisCts.Dispose();
+        _recordingLibraryAnalysisCts = null;
     }
 
     private string BuildRecordingLibraryStatusText()

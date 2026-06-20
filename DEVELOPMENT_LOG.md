@@ -4507,6 +4507,62 @@ Self-review:
 - The summary remains derived from actual artifact metadata and validated by the smoke script, which keeps it honest instead of becoming a free-floating manually edited note.
 - This is a solid base for a later stage that automates release publication or signing, because those flows now have a stable human-readable summary artifact to attach or transform.
 
+## Stage 25U - Selected-Recording Packet Histogram Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Add one deeper recording-library inspection surface by showing an on-demand packet histogram for the selected F1 25 recording in the Telemetry / UDP page, without pushing game-specific packet analysis into the generic recording assembly.
+
+Notes:
+
+- Re-audited the Stage 25N recording-library seam before editing:
+  - `RecordingLibraryManager` already owned generic list-item summary/filter text,
+  - `.hdrec` summary loading already stayed game-agnostic,
+  - the remaining practical gap was that the app still had no deeper selected-recording inspection surface beyond generic summary text.
+- Added `src/HapticDrive.Asio.App/RecordingPacketHistogramAnalyzer.cs`:
+  - loads one selected recording on demand,
+  - supports `F1 25` recordings only,
+  - reuses the existing `F125PacketHeaderParser` plus `F125PacketDefinitions`,
+  - produces a packet-ID histogram such as `Motion#0`, `Car Telemetry#6`,
+  - reports ignored unknown packet IDs separately,
+  - reports invalid packet headers separately.
+- Kept the game-specific logic in the app layer deliberately:
+  - `HapticDrive.Asio.Recording` stayed unchanged and generic,
+  - `.hdrec` file format, streamed summary loading, and replay behavior stayed unchanged,
+  - the deeper histogram path is on-demand from the selected-item UI path rather than part of bulk library refresh.
+- Added `RecordingLibraryDetailFormatter` so the base recording detail text and the lazy histogram text compose cleanly.
+- Updated `MainWindow.xaml.cs`:
+  - selected-recording detail text now shows `Packet histogram loading...` while the on-demand analysis runs,
+  - analysis results are cached by recording path,
+  - selection changes cancel in-flight analysis safely,
+  - refresh clears stale histogram cache so renamed/deleted/refreshed library state stays truthful.
+- Added focused tests in `tests/HapticDrive.Asio.App.Tests/RecordingPacketHistogramAnalyzerTests.cs` for:
+  - known F1 25 packet histograms,
+  - ignored unknown packet IDs,
+  - invalid packet headers,
+  - unsupported source-game handling,
+  - detail-text composition.
+- Verification included one transient rerun:
+  - the first full-solution `dotnet test` pass hit an existing-looking flaky `PHprDirectRuntimeTests` timing failure after the focused app tests were already green,
+  - an immediate rerun of the full solution tests passed cleanly with no code changes between runs,
+  - the final recorded stage status is green.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed on rerun.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25U is intentionally a narrow product-facing inspection stage, not a full recording-browser rewrite.
+- The lazy selected-item path keeps the library refresh fast while still giving the user a real deeper look at recorded packet mix.
+- This is a solid base for a later stage that adds packet drill-down, richer recording browse surfaces, or cross-game analyzers without breaking the generic recording boundary that earlier stages established.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

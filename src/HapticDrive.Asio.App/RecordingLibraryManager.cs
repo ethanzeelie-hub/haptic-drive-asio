@@ -80,6 +80,19 @@ internal sealed record RecordingLibraryItem(
     string DetailText,
     string SearchText);
 
+internal static class RecordingLibraryDetailFormatter
+{
+    public static string BuildDetailText(string baseDetailText, string? analysisText = null)
+    {
+        if (string.IsNullOrWhiteSpace(analysisText))
+        {
+            return baseDetailText;
+        }
+
+        return $"{baseDetailText}{Environment.NewLine}{Environment.NewLine}{analysisText}";
+    }
+}
+
 internal static class RecordingLibraryManager
 {
     public static async Task<List<RecordingLibraryItem>> LoadAsync(

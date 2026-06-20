@@ -2727,3 +2727,25 @@ Stage 25T architecture result:
   - the summary is derived from the same actual artifact metadata that the smoke script validates, rather than being a manually maintained note.
 
 Stage 25T deliberately does not add signed release publication, GitHub Releases API automation, changelog synthesis across multiple commits, installer generation, or install/uninstall validation. It establishes one trustworthy release-summary artifact first so later publication automation can build on a stable human-readable handoff document.
+
+## Stage 25U Selected-Recording Packet Histogram Baseline
+
+Stage 25U returns briefly to the recording-library quality stream by adding one narrow, deeper inspection surface for selected recordings without changing the generic recording core or replay format.
+
+Stage 25U architecture result:
+
+- The app layer now owns an explicit `RecordingPacketHistogramAnalyzer` seam for on-demand selected-recording analysis.
+- That analyzer intentionally stays in `HapticDrive.Asio.App`:
+  - it loads a selected recording on demand,
+  - it inspects packet payloads only when the recording metadata says `F1 25`,
+  - it uses the existing F1 25 packet-header parser/definitions to build a packet-ID histogram,
+  - it reports ignored unknown packet IDs and invalid packet headers separately.
+- `MainWindow` now caches that analysis by recording path and populates the Telemetry / UDP detail text lazily after selection, instead of pushing more work into the initial library refresh path.
+- The generic recording assembly remains game-agnostic:
+  - `.hdrec` bytes, summary loading, replay, and the recording-file APIs are unchanged,
+  - no F1-specific packet-type concepts were moved into `HapticDrive.Asio.Recording`.
+- The result narrows one more recording-library gap:
+  - operators can now inspect the packet mix of a selected F1 25 recording directly from the app,
+  - large-library list refresh still stays focused on the earlier generic streamed summaries rather than eagerly parsing every recording for game-specific details.
+
+Stage 25U deliberately does not add random-access packet browsing, persistent sidecar indexes, cross-game histogram analyzers, packet-content drill-down views, or a new `.hdrec` format version. It adds one on-demand selected-recording inspection seam first so deeper browse/index work can build on a visible product surface without breaking the generic recording boundary.
