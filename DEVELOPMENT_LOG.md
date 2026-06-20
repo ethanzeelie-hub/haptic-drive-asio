@@ -4839,7 +4839,10 @@ Notes:
 Verification:
 
 - `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
-- Full-stage verification is run after docs update before commit.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
 
 Self-review:
 
@@ -4883,6 +4886,42 @@ Self-review:
 - Stage 25AB is another good seam stage: small enough to be safe, but it removes a real maintenance trap that would have gotten worse as new effects were added.
 - This does not make the effect surface fully data-driven yet, but it does keep future effect work from paying the same presenter/report wiring tax in multiple places.
 - The next effect-extensibility stages should target tuning/profile/diagnostics schema generalization rather than more string assembly cleanup.
+
+## Stage 25AC - Effects-Page Status Summary Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Remove the Effects page's remaining presenter-local fallback status list by moving it onto a typed app-side summary seam, keeping effect-surface reporting aligned as future BST-1 effects grow.
+
+Notes:
+
+- Re-audited the Stage 25P and Stage 25AB effect-surface cleanup before editing:
+  - the engine already exposes generic activity items,
+  - diagnostics and routing/mixer already moved onto typed summary seams,
+  - the remaining weak spot was the Effects page status line still carrying its own fixed fallback string.
+- Added `EffectStatusSummaryItem` plus `EffectsPageStatusSummaryFormatter`:
+  - the formatter owns ordered fallback rendering for the shipped BST-1 effect set,
+  - the typed item list gives future effect additions one more stable app-side reporting contract instead of another presenter-local string edit.
+- Extended `EffectsStatusSnapshot` with `SummaryItems` and updated `MainWindow` to build those items once from `HapticEffectEngineSnapshot`.
+- Kept the stage deliberately narrow:
+  - no WPF layout rewrite,
+  - no dynamic card generation,
+  - no tuning/profile schema change,
+  - no runtime/audio behavior change.
+- Added focused app coverage proving `EffectsStatusPresenter` uses structured page-summary items when generic activity items are absent.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- Full-stage verification is run after docs update before commit.
+
+Self-review:
+
+- Stage 25AC is modest, but it is the right follow-through after Stage 25AB: it keeps the effect-surface cleanup coherent instead of leaving one last obvious hardcoded seam behind.
+- The repo still is not at dynamic effect-card generation, but we are now removing summary/report duplication in a disciplined order instead of scattering half-finished abstractions.
+- The next strong effect-extensibility target remains schema/UI generalization rather than more summary cleanup.
 
 ## Stage 25L - Support Bundle Automation
 

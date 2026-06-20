@@ -2903,3 +2903,25 @@ Stage 25AB architecture result:
 - The result improves production maintainability because future BST-1 effect growth now has one cleaner presenter/report seam instead of multiple drift-prone string-building call sites.
 
 Stage 25AB deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic profile editors, or broader effect-schema generalization across persisted settings. It removes one more presenter/report coupling point first so those later steps can build on a stronger app-side contract.
+
+## Stage 25AC Effects-Page Status Summary Seam
+
+Stage 25AC continues the same effect-extensibility stream by removing one more app-side fixed-list effect summary without changing the visible WPF card layout or runtime haptic behavior.
+
+Stage 25AC architecture result:
+
+- The Effects page now has a typed fallback summary seam in addition to the generic activity list added earlier:
+  - `EffectStatusSummaryItem` carries per-effect page-summary text,
+  - `EffectsPageStatusSummaryFormatter` owns the ordered fallback summary rendering.
+- `EffectsStatusSnapshot` can now carry both:
+  - generic `ActivityItems` for later dynamic/new-effect summaries when the engine provides them,
+  - typed fallback `SummaryItems` so the shipped BST-1 set no longer depends on one presenter-local hardcoded string.
+- `MainWindow` now builds the page-summary items once from `HapticEffectEngineSnapshot` before handing them to `EffectsStatusPresenter`, reducing yet another place where future effect additions would otherwise require bespoke summary wiring.
+- The stage stays intentionally narrow:
+  - no WPF card-generation rewrite,
+  - no tuning/profile schema changes,
+  - no change to active-effect counting or effect-engine runtime sequencing,
+  - no new plugin/metadata surface for effect registration.
+- The result improves maintainability because app-side effect summary/report surfaces now converge on typed contracts instead of drifting across presenters.
+
+Stage 25AC deliberately does not add data-driven effect cards, dynamic effect registration in the WPF layer, plugin-style effect metadata, or broader effect-schema generalization across persisted settings and tuning UI. It removes one more presenter-local status seam first so those larger changes can build on a cleaner app-side baseline.

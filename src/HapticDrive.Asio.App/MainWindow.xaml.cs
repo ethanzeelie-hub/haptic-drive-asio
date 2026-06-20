@@ -4999,6 +4999,23 @@ public partial class MainWindow : Window
             effectSnapshot.PeakLevel);
     }
 
+    private static IReadOnlyList<EffectStatusSummaryItem> BuildEffectsPageStatusSummaryItems(HapticEffectEngineSnapshot snapshot)
+    {
+        return
+        [
+            new EffectStatusSummaryItem("engine", snapshot.Engine.IsActive ? "engine active" : "engine idle"),
+            new EffectStatusSummaryItem("gear", snapshot.GearShift.IsActive ? "gear pulse active" : "gear idle"),
+            new EffectStatusSummaryItem("kerb", snapshot.Kerb.IsActive ? "kerb active" : "kerb idle"),
+            new EffectStatusSummaryItem("impact", snapshot.Impact.IsActive ? "impact pulse active" : "impact idle"),
+            new EffectStatusSummaryItem("road", snapshot.RoadTexture.IsActive ? "road bst-1 active" : "road idle"),
+            new EffectStatusSummaryItem(
+                "slip",
+                snapshot.Slip.IsActive
+                    ? $"slip {snapshot.Slip.ActiveSource.ToLowerInvariant()} active"
+                    : "slip idle")
+        ];
+    }
+
     private void ApplyDiagnosticsStatusPresentation(DiagnosticsStatusPresentation presentation)
     {
         AdvancedDiagnosticsViewControl.Apply(presentation);
@@ -6096,7 +6113,8 @@ public partial class MainWindow : Window
             ActiveEffectCount: snapshot.ActiveEffectCount,
             PeakLevel: snapshot.PeakLevel)
         {
-            ActivityItems = snapshot.ActivityItems
+            ActivityItems = snapshot.ActivityItems,
+            SummaryItems = BuildEffectsPageStatusSummaryItems(snapshot)
         });
     }
 

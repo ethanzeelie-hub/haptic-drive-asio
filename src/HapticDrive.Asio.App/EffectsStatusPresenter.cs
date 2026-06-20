@@ -104,6 +104,7 @@ internal sealed record EffectsStatusSnapshot(
     float PeakLevel)
 {
     public IReadOnlyList<HapticEffectActivityItem> ActivityItems { get; init; } = [];
+    public IReadOnlyList<EffectStatusSummaryItem> SummaryItems { get; init; } = [];
 }
 
 internal sealed record EffectsStatusPresentation(
@@ -174,7 +175,9 @@ internal static class EffectsStatusPresenter
         var activitySummary = EffectActivitySummaryFormatter.Format(
             snapshot.ActivityItems,
             ", ",
-            $"engine {engineStateText.ToLowerInvariant()}, gear {gearShiftStateText.ToLowerInvariant()}, kerb {kerbStateText.ToLowerInvariant()}, impact {impactStateText.ToLowerInvariant()}, road {roadTextureStateText.ToLowerInvariant()}, slip {slipStateText.ToLowerInvariant()}");
+            EffectsPageStatusSummaryFormatter.Format(
+                snapshot.SummaryItems,
+                $"engine {engineStateText.ToLowerInvariant()}, gear {gearShiftStateText.ToLowerInvariant()}, kerb {kerbStateText.ToLowerInvariant()}, impact {impactStateText.ToLowerInvariant()}, road {roadTextureStateText.ToLowerInvariant()}, slip {slipStateText.ToLowerInvariant()}"));
 
         return new EffectsStatusPresentation(
             SharedRoadSignalStatusText: $"Shared road signal {(snapshot.SharedRoadSignal.IsEnabled ? "enabled" : "disabled")}; output {snapshot.SharedRoadSignal.OutputIntensity:0.000}; speed scale {snapshot.SharedRoadSignal.SpeedScale:0.000}; gear ducking {snapshot.SharedRoadSignal.GearDuckingActive}.",

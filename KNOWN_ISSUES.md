@@ -1085,3 +1085,11 @@
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+
+## Stage 25AC
+
+- Diagnostics, routing/mixer, and the Effects page now all use typed summary seams for active BST-1 effect reporting, but the deeper effect surface still remains explicitly typed in tuning controls, persisted profile schema, settings hydration, and detailed per-effect diagnostics. Adding a brand-new effect still requires coordinated work across those surfaces.
+- The WPF Effects page layout is still static and card-by-card. The new status-summary seam reduces drift in summary/report text, but it does not yet provide data-driven card generation, dynamic effect registration, or plugin-style effect metadata.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+- Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.

@@ -8,13 +8,14 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25AB: Structured BST-1 effect summary seam complete.
+Stage 25AC: Effects-page status summary seam complete.
 
 ## Current Architecture Baseline
 
 - F1 25 is still the only production game integration. Future game support is planned, runtime now consumes an injected game-telemetry adapter, and the app resolves the active adapter through a selected-game catalog path. The current catalog still contains F1 25 only.
 - `HapticEffectEngine` now composes the shipped BST-1 effects through an internal registered-slot seam instead of hand-wired per-effect orchestration, and its snapshot now exposes a generic effect-activity summary list for presenter/report surfaces. Options, profiles, tuning panels, and detailed diagnostics still remain explicitly typed to the current effect set.
 - BST-1 diagnostics and routing/mixer reporting now also share a structured effect-summary seam instead of each presenter assembling its own fixed-list effect string, which gives future effect additions one cleaner app-side reporting contract even though tuning UI and persisted options still remain explicitly typed.
+- The Effects page status strip now also consumes a typed effect-summary list instead of keeping one more presenter-local fixed fallback string, further reducing app-side drift between effect surfaces without changing the current WPF card layout.
 - Replay from `.hdrec` files now streams packets directly from disk through the replay service instead of fully materializing the whole recording first.
 - Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries plus in-app filterable query text without loading whole recordings into memory.
 - Recording summaries now also expose streamed sequence-range and approximate packet-rate metadata, so the library can surface richer per-file health/search hints without coupling the recording core to a game-specific parser.

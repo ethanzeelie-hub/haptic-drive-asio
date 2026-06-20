@@ -65,6 +65,27 @@ public sealed class EffectsStatusPresenterTests
         Assert.Equal("2 active effect source(s); engine active, new effect warming up; peak 0.210.", presentation.EffectsPageStatusText);
     }
 
+    [Fact]
+    public void Build_WhenStructuredSummaryItemsExist_UsesThemForStatusFallback()
+    {
+        var presentation = EffectsStatusPresenter.Build(CreateSnapshot(
+            activeEffectCount: 3,
+            peakLevel: 0.333f) with
+        {
+            SummaryItems =
+            [
+                new EffectStatusSummaryItem("engine", "engine active"),
+                new EffectStatusSummaryItem("gear", "gear pulse active"),
+                new EffectStatusSummaryItem("road", "road bst-1 active"),
+                new EffectStatusSummaryItem("slip", "slip wheel lock active"),
+                new EffectStatusSummaryItem("impact", "impact idle"),
+                new EffectStatusSummaryItem("kerb", "kerb idle")
+            ]
+        });
+
+        Assert.Equal("3 active effect source(s); engine active, gear pulse active, kerb idle, impact idle, road bst-1 active, slip wheel lock active; peak 0.333.", presentation.EffectsPageStatusText);
+    }
+
     private static EffectsStatusSnapshot CreateSnapshot(
         SharedRoadSignalStatusSnapshot? sharedRoadSignal = null,
         EngineEffectStatusSnapshot? engine = null,
