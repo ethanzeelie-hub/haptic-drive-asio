@@ -37,6 +37,40 @@ internal sealed record Bst1AudioProfileEffectControlValues(
     float SlipWheelLockSensitivity,
     float SlipThreshold);
 
+internal sealed record Bst1AudioProfileEffectControlInputs(
+    bool EngineEnabled,
+    double EngineGainValue,
+    double EngineMinimumFrequencyValue,
+    double EngineMaximumFrequencyValue,
+    bool GearShiftEnabled,
+    double GearShiftGainValue,
+    double GearShiftDurationValue,
+    bool KerbEnabled,
+    double KerbGainValue,
+    double KerbBaseFrequencyValue,
+    bool ImpactEnabled,
+    double ImpactGainValue,
+    double ImpactDurationValue,
+    bool SharedRoadSignalEnabled,
+    bool Bst1RoadOutputEnabled,
+    double RoadTextureGainValue,
+    double RoadTextureMinimumSpeedValue,
+    double RoadTextureSpeedReferenceValue,
+    double RoadTextureLowSpeedFrequencyValue,
+    double RoadTextureHighSpeedFrequencyValue,
+    double RoadTextureSpeedFrequencyInfluenceValue,
+    double RoadTextureGrainAmountValue,
+    bool SlipWheelSlipEnabled,
+    double SlipWheelSlipGainValue,
+    double SlipWheelSlipFrequencyValue,
+    double SlipWheelSlipNoiseValue,
+    bool SlipWheelLockEnabled,
+    double SlipWheelLockGainValue,
+    double SlipWheelLockFrequencyValue,
+    double SlipWheelLockNoiseValue,
+    double SlipWheelLockSensitivityValue,
+    double SlipThresholdValue);
+
 internal sealed record Bst1AudioProfileEffectControlTextValues(
     string EngineGainText,
     string EngineFrequencyText,
@@ -70,7 +104,7 @@ internal static class Bst1AudioProfileEffectControlSnapshotBuilder
 {
     public static HapticEffectTuning BuildProfileEffects(
         HapticEffectTuning currentEffects,
-        AudioProfileControlInputs inputs)
+        Bst1AudioProfileEffectControlInputs inputs)
     {
         ArgumentNullException.ThrowIfNull(currentEffects);
         ArgumentNullException.ThrowIfNull(inputs);

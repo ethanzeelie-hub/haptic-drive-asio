@@ -6,38 +6,7 @@ namespace HapticDrive.Asio.App;
 
 internal sealed record AudioProfileControlInputs(
     string? ProfileName,
-    bool EngineEnabled,
-    double EngineGainValue,
-    double EngineMinimumFrequencyValue,
-    double EngineMaximumFrequencyValue,
-    bool GearShiftEnabled,
-    double GearShiftGainValue,
-    double GearShiftDurationValue,
-    bool KerbEnabled,
-    double KerbGainValue,
-    double KerbBaseFrequencyValue,
-    bool ImpactEnabled,
-    double ImpactGainValue,
-    double ImpactDurationValue,
-    bool SharedRoadSignalEnabled,
-    bool Bst1RoadOutputEnabled,
-    double RoadTextureGainValue,
-    double RoadTextureMinimumSpeedValue,
-    double RoadTextureSpeedReferenceValue,
-    double RoadTextureLowSpeedFrequencyValue,
-    double RoadTextureHighSpeedFrequencyValue,
-    double RoadTextureSpeedFrequencyInfluenceValue,
-    double RoadTextureGrainAmountValue,
-    bool SlipWheelSlipEnabled,
-    double SlipWheelSlipGainValue,
-    double SlipWheelSlipFrequencyValue,
-    double SlipWheelSlipNoiseValue,
-    bool SlipWheelLockEnabled,
-    double SlipWheelLockGainValue,
-    double SlipWheelLockFrequencyValue,
-    double SlipWheelLockNoiseValue,
-    double SlipWheelLockSensitivityValue,
-    double SlipThresholdValue,
+    Bst1AudioProfileEffectControlInputs Effects,
     double MasterGainValue,
     bool MixerMuted,
     double SafetyOutputGainValue);
@@ -75,7 +44,7 @@ internal static class AudioProfileControlSnapshotBuilder
         return HapticProfileValidator.Validate(currentProfile with
         {
             Name = name,
-            Effects = Bst1AudioProfileEffectControlSnapshotBuilder.BuildProfileEffects(currentProfile.Effects, inputs),
+            Effects = Bst1AudioProfileEffectControlSnapshotBuilder.BuildProfileEffects(currentProfile.Effects, inputs.Effects),
             Mixer = currentProfile.Mixer with
             {
                 MasterGain = (float)inputs.MasterGainValue,

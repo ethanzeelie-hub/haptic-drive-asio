@@ -4963,6 +4963,44 @@ Self-review:
 - The repo still is not at data-driven effect editors, but the profile-control seam is now noticeably less brittle than it was one stage ago.
 - The next best effect-extensibility work should keep pushing on schema/control generalization rather than circling back to already-cleaned summary paths.
 
+## Stage 25AE - Audio-Profile BST-1 Effect Input Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Remove the remaining flat BST-1 effect input bag from the audio-profile control path by grouping effect-side control inputs behind one typed app-side record, without changing the current WPF controls or persisted profile JSON schema.
+
+Notes:
+
+- Re-audited Stage 25AD immediately after commit:
+  - grouped effect control values/text were now in place,
+  - the remaining flat seam in that same path was the giant effect-input bag still flowing through `AudioProfileControlInputs`.
+- Added `Bst1AudioProfileEffectControlInputs` and updated the same builder path so:
+  - effect-side WPF control capture is grouped,
+  - `AudioProfileControlInputs` now composes grouped effect input plus separate profile/mixer/safety fields,
+  - `BuildProfileEffects(...)` now consumes the grouped effect-input contract directly.
+- Updated `MainWindow.BuildCurrentAudioProfileControlInputs()` and the focused builder tests to use the grouped input contract while preserving the same visible behavior and profile schema.
+- Kept the stage intentionally narrow:
+  - no WPF layout rewrite,
+  - no persisted profile schema change,
+  - no dynamic effect editor generation,
+  - no runtime haptic-behavior change.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter AudioProfileControlSnapshotBuilder` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AE is a tidy follow-through stage: it finishes the profile-control contract cleanup started in 25AD instead of leaving one large flat input seam behind.
+- This is still not the full schema/UI generalization problem, but it materially lowers the odds that future effect growth will sprawl back across the profile-control path.
+- The next strong target remains higher-level effect-schema/editor generalization, not more flat-contract cleanup inside already-improved areas.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

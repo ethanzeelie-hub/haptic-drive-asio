@@ -2950,3 +2950,23 @@ Stage 25AD architecture result:
 - The result improves maintainability because future BST-1 effect additions now have one cleaner profile-control seam to extend before any larger UI/schema generalization happens.
 
 Stage 25AD deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across every persisted/settings surface. It narrows the audio-profile control seam first so those larger changes can build on a less brittle app-side contract.
+
+## Stage 25AE Audio-Profile BST-1 Effect Input Seam
+
+Stage 25AE continues the same profile-control cleanup by reducing the remaining flat effect-input contract, not by changing the current control layout or persisted schema.
+
+Stage 25AE architecture result:
+
+- The audio-profile control path now has a typed BST-1 effect-input record:
+  - `Bst1AudioProfileEffectControlInputs` groups the effect-side slider/toggle input values captured from WPF,
+  - `AudioProfileControlInputs` now composes that grouped effect input with the still-separate profile name, mixer, and safety fields.
+- `Bst1AudioProfileEffectControlSnapshotBuilder.BuildProfileEffects(...)` now consumes the grouped effect-input contract instead of the broader audio-profile input bag.
+- `MainWindow.BuildCurrentAudioProfileControlInputs()` still reads the same WPF controls, but it now hands the builder one explicit grouped effect-input object instead of one giant flat effect list.
+- The stage stays intentionally narrow:
+  - no persisted profile schema change,
+  - no WPF layout rewrite,
+  - no dynamic control generation,
+  - no runtime haptic-behavior change.
+- The result improves maintainability because the profile-control seam now converges around grouped effect-side input, value, and text contracts instead of leaving one last large flat effect-input path behind.
+
+Stage 25AE deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader persisted-profile/settings schema generalization. It removes one more brittle app-side input contract first so later UI/schema work can build on a cleaner baseline.
