@@ -4386,6 +4386,65 @@ Self-review:
 - The manifest is intentionally small and focused on artifact identity rather than becoming a general release-management schema too early.
 - This is a strong base for a later stage that can publish releases or generate installers without losing the simple local/CI verification path already in place.
 
+## Stage 25S - Release Staging Command Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Add one repo-native local release-preparation command that runs the verification gate, publishes, smoke-checks, and gathers the final release files into one staging folder, so packaging stops depending on operator memory.
+
+Notes:
+
+- Re-audited the Stage 25R delivery seam before editing:
+  - `Publish-HapticDrive.ps1` already owned publish plus zip/checksum/manifest output,
+  - `Test-ReleaseArtifact.ps1` already owned structural plus metadata validation,
+  - the remaining local-operator gap was that release prep still depended on manually rerunning restore/build/test/format/preflight/publish/smoke in the correct order.
+- Added `Prepare-ReleaseArtifact.ps1` plus `Prepare-ReleaseArtifact.cmd`:
+  - restores the solution with `-p:NuGetAudit=false`,
+  - performs a targeted runtime restore of `src\HapticDrive.Asio.App\HapticDrive.Asio.App.csproj -r win-x64` so later `--no-restore` publish is actually valid,
+  - runs:
+    - build with warnings as errors,
+    - tests,
+    - format verification,
+    - launch preflight,
+    - publish,
+    - release artifact smoke check,
+  - stages the final:
+    - `.zip`,
+    - `.sha256`,
+    - `.manifest.json`
+    into `artifacts\staged-release\HapticDrive.Asio-win-x64\`.
+- The first implementation uncovered two real scripted-release issues and closed them inside the stage:
+  - PowerShell array construction for staged file paths needed explicit per-item expression grouping,
+  - solution restore alone was insufficient for `win-x64` publish assets, so the stage now performs the required targeted runtime restore explicitly.
+- Updated repo docs:
+  - `README.md` now reports Stage 25S and documents the one-command staged-release flow,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25S and narrow the remaining delivery gap toward installer/signing/release-publication rather than basic local release orchestration.
+
+Verification:
+
+- `powershell -ExecutionPolicy Bypass -File .\Prepare-ReleaseArtifact.ps1 -Configuration Release -Runtime win-x64` passed end to end:
+  - restore,
+  - targeted runtime restore,
+  - build,
+  - test,
+  - format,
+  - launch preflight,
+  - publish,
+  - smoke check,
+  - staged-release folder assembly.
+- The staged-release output now exists under:
+  - `artifacts\staged-release\HapticDrive.Asio-win-x64\HapticDrive.Asio-win-x64.zip`,
+  - `artifacts\staged-release\HapticDrive.Asio-win-x64\HapticDrive.Asio-win-x64.sha256`,
+  - `artifacts\staged-release\HapticDrive.Asio-win-x64\HapticDrive.Asio-win-x64.manifest.json`.
+
+Self-review:
+
+- Stage 25S meaningfully improves local production-readiness because the full release-prep path is now encoded and verifiable instead of partly procedural.
+- The wrapper stays intentionally narrow and reuses the existing scripts rather than forking delivery logic into a second packaging implementation.
+- This is a good stopping point for the current delivery lane before the work graduates into installer/signing/release-service automation.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

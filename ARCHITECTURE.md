@@ -2680,3 +2680,27 @@ Stage 25R architecture result:
   - consumers can verify the artifact without reverse-engineering the publish directory or recomputing ad hoc metadata by hand.
 
 Stage 25R deliberately does not add code signing, MSI/installer generation, GitHub Releases publication, changelog/release-note automation, or install/uninstall validation. It establishes a minimal integrity-plus-metadata envelope first so later delivery automation can build on stable packaged artifact descriptors.
+
+## Stage 25S Release Staging Command Baseline
+
+Stage 25S turns the earlier packaging pieces into one repeatable local release-preparation path instead of leaving the operator to manually remember and rerun each step in the right order.
+
+Stage 25S architecture result:
+
+- `Prepare-ReleaseArtifact.ps1` now owns one repo-native release-staging orchestration seam:
+  - solution restore with deterministic offline-friendly audit policy,
+  - targeted app-project runtime restore for `win-x64` publish assets,
+  - build with warnings as errors,
+  - test,
+  - format verification,
+  - launch preflight,
+  - publish,
+  - release smoke check,
+  - final staging-folder assembly.
+- `Prepare-ReleaseArtifact.cmd` provides the same execution-policy-friendly wrapper style used by the other repo-native PowerShell entry points.
+- Final staged output now lands under `artifacts/staged-release/<package-runtime>/`, containing the exact zip, checksum, and manifest produced by the publish path.
+- The result narrows another practical delivery gap:
+  - local release preparation is now one command instead of a hand-run checklist,
+  - the runtime-specific restore requirement for packaged publish is now encoded in the tool instead of being tribal knowledge.
+
+Stage 25S deliberately does not add installer generation, code signing, GitHub Releases publication, release-note authoring, or install/uninstall validation. It establishes one deterministic local staging command first so later delivery automation can build on a verified release-preparation workflow instead of an operator memory test.
