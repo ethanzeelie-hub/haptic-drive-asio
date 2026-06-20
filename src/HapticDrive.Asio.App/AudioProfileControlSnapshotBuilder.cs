@@ -11,6 +11,11 @@ internal sealed record AudioProfileControlInputs(
     bool MixerMuted,
     double SafetyOutputGainValue);
 
+internal sealed record AudioProfileMixerControlInputs(
+    double MasterGainValue,
+    bool MixerMuted,
+    double SafetyOutputGainValue);
+
 internal sealed record AudioProfileControlValues(
     string ProfileName,
     Bst1AudioProfileEffectControlValues Effects,

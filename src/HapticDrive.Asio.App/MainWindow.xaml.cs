@@ -3666,44 +3666,14 @@ public partial class MainWindow : Window
 
     private AudioProfileControlInputs BuildCurrentAudioProfileControlInputs()
     {
+        var mixerInputs = RoutingMixerViewControl.BuildAudioProfileMixerControlInputs();
+
         return new AudioProfileControlInputs(
-            ProfileName: ProfileNameTextBox.Text,
-            Effects: new Bst1AudioProfileEffectControlInputs(
-                EngineEnabled: EngineEnabledCheckBox.IsChecked == true,
-                EngineGainValue: EngineGainSlider.Value,
-                EngineMinimumFrequencyValue: EngineMinimumFrequencySlider.Value,
-                EngineMaximumFrequencyValue: EngineMaximumFrequencySlider.Value,
-                GearShiftEnabled: GearShiftEnabledCheckBox.IsChecked == true,
-                GearShiftGainValue: GearShiftGainSlider.Value,
-                GearShiftDurationValue: GearShiftDurationSlider.Value,
-                KerbEnabled: KerbEnabledCheckBox.IsChecked == true,
-                KerbGainValue: KerbGainSlider.Value,
-                KerbBaseFrequencyValue: KerbBaseFrequencySlider.Value,
-                ImpactEnabled: ImpactEnabledCheckBox.IsChecked == true,
-                ImpactGainValue: ImpactGainSlider.Value,
-                ImpactDurationValue: ImpactDurationSlider.Value,
-                SharedRoadSignalEnabled: SharedRoadSignalEnabledCheckBox.IsChecked == true,
-                Bst1RoadOutputEnabled: Bst1RoadOutputEnabledCheckBox.IsChecked == true,
-                RoadTextureGainValue: RoadTextureGainSlider.Value,
-                RoadTextureMinimumSpeedValue: RoadTextureMinimumSpeedSlider.Value,
-                RoadTextureSpeedReferenceValue: RoadTextureSpeedReferenceSlider.Value,
-                RoadTextureLowSpeedFrequencyValue: RoadTextureLowSpeedFrequencySlider.Value,
-                RoadTextureHighSpeedFrequencyValue: RoadTextureHighSpeedFrequencySlider.Value,
-                RoadTextureSpeedFrequencyInfluenceValue: RoadTextureSpeedFrequencyInfluenceSlider.Value,
-                RoadTextureGrainAmountValue: RoadTextureGrainAmountSlider.Value,
-                SlipWheelSlipEnabled: SlipWheelSlipEnabledCheckBox.IsChecked == true,
-                SlipWheelSlipGainValue: SlipWheelSlipGainSlider.Value,
-                SlipWheelSlipFrequencyValue: SlipWheelSlipFrequencySlider.Value,
-                SlipWheelSlipNoiseValue: SlipWheelSlipNoiseSlider.Value,
-                SlipWheelLockEnabled: SlipWheelLockEnabledCheckBox.IsChecked == true,
-                SlipWheelLockGainValue: SlipWheelLockGainSlider.Value,
-                SlipWheelLockFrequencyValue: SlipWheelLockFrequencySlider.Value,
-                SlipWheelLockNoiseValue: SlipWheelLockNoiseSlider.Value,
-                SlipWheelLockSensitivityValue: SlipWheelLockSensitivitySlider.Value,
-                SlipThresholdValue: SlipThresholdSlider.Value),
-            MasterGainValue: MasterGainSlider.Value,
-            MixerMuted: MixerMuteCheckBox.IsChecked == true,
-            SafetyOutputGainValue: SafetyOutputGainSlider.Value);
+            ProfileName: ProfilesViewControl.BuildAudioProfileNameInput(),
+            Effects: EffectsViewControl.BuildAudioProfileEffectControlInputs(),
+            MasterGainValue: mixerInputs.MasterGainValue,
+            MixerMuted: mixerInputs.MixerMuted,
+            SafetyOutputGainValue: mixerInputs.SafetyOutputGainValue);
     }
 
     private HapticDriveProfile BuildProfileFromControls()

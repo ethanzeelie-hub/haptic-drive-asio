@@ -108,6 +108,43 @@ public partial class EffectsView : UserControl
         SlipThresholdValueText.Text = values.SlipThresholdText;
     }
 
+    internal Bst1AudioProfileEffectControlInputs BuildAudioProfileEffectControlInputs()
+    {
+        return new Bst1AudioProfileEffectControlInputs(
+            EngineEnabled: EngineEnabledCheckBox.IsChecked == true,
+            EngineGainValue: EngineGainSlider.Value,
+            EngineMinimumFrequencyValue: EngineMinimumFrequencySlider.Value,
+            EngineMaximumFrequencyValue: EngineMaximumFrequencySlider.Value,
+            GearShiftEnabled: GearShiftEnabledCheckBox.IsChecked == true,
+            GearShiftGainValue: GearShiftGainSlider.Value,
+            GearShiftDurationValue: GearShiftDurationSlider.Value,
+            KerbEnabled: KerbEnabledCheckBox.IsChecked == true,
+            KerbGainValue: KerbGainSlider.Value,
+            KerbBaseFrequencyValue: KerbBaseFrequencySlider.Value,
+            ImpactEnabled: ImpactEnabledCheckBox.IsChecked == true,
+            ImpactGainValue: ImpactGainSlider.Value,
+            ImpactDurationValue: ImpactDurationSlider.Value,
+            SharedRoadSignalEnabled: SharedRoadSignalEnabledCheckBox.IsChecked == true,
+            Bst1RoadOutputEnabled: Bst1RoadOutputEnabledCheckBox.IsChecked == true,
+            RoadTextureGainValue: RoadTextureGainSlider.Value,
+            RoadTextureMinimumSpeedValue: RoadTextureMinimumSpeedSlider.Value,
+            RoadTextureSpeedReferenceValue: RoadTextureSpeedReferenceSlider.Value,
+            RoadTextureLowSpeedFrequencyValue: RoadTextureLowSpeedFrequencySlider.Value,
+            RoadTextureHighSpeedFrequencyValue: RoadTextureHighSpeedFrequencySlider.Value,
+            RoadTextureSpeedFrequencyInfluenceValue: RoadTextureSpeedFrequencyInfluenceSlider.Value,
+            RoadTextureGrainAmountValue: RoadTextureGrainAmountSlider.Value,
+            SlipWheelSlipEnabled: SlipWheelSlipEnabledCheckBox.IsChecked == true,
+            SlipWheelSlipGainValue: SlipWheelSlipGainSlider.Value,
+            SlipWheelSlipFrequencyValue: SlipWheelSlipFrequencySlider.Value,
+            SlipWheelSlipNoiseValue: SlipWheelSlipNoiseSlider.Value,
+            SlipWheelLockEnabled: SlipWheelLockEnabledCheckBox.IsChecked == true,
+            SlipWheelLockGainValue: SlipWheelLockGainSlider.Value,
+            SlipWheelLockFrequencyValue: SlipWheelLockFrequencySlider.Value,
+            SlipWheelLockNoiseValue: SlipWheelLockNoiseSlider.Value,
+            SlipWheelLockSensitivityValue: SlipWheelLockSensitivitySlider.Value,
+            SlipThresholdValue: SlipThresholdSlider.Value);
+    }
+
     internal T GetRequiredControl<T>(string name)
         where T : FrameworkElement
     {

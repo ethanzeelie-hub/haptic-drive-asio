@@ -5217,6 +5217,55 @@ Self-review:
 - No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
 - The broader effect surface is still explicitly typed, but one more `MainWindow` growth hotspot is gone, which keeps the next extensibility stages much more surgical.
 
+## Stage 25AK - Audio-Profile View Input Capture Seam
+
+Date: 2026-06-21
+
+Status: Complete.
+
+Goal: Continue the same shell-boundary cleanup by removing the matching audio-profile input-capture block from `MainWindow` and pushing profile input reads onto the extracted view seams without changing runtime behavior, WPF layout, or persisted profile shape.
+
+Notes:
+
+- Re-audited the post-25AJ profile path before editing:
+  - profile hydration was already view-owned,
+  - but `MainWindow` still read profile-name, BST-1 effect, and mixer/safety controls directly in order to build `AudioProfileControlInputs`,
+  - which left one more large shell-level control-read hotspot in the save/apply path.
+- Added narrow input-capture seams to the extracted views:
+  - `ProfilesView.BuildAudioProfileNameInput()`,
+  - `EffectsView.BuildAudioProfileEffectControlInputs()`,
+  - `RoutingMixerView.BuildAudioProfileMixerControlInputs()`.
+- Added `AudioProfileMixerControlInputs` so mixer/safety capture now has its own grouped contract instead of handing `MainWindow` another loose trio of control reads.
+- Updated `MainWindow.BuildCurrentAudioProfileControlInputs()` to compose the builder input from view-owned capture seams instead of reading each profile-related control directly.
+- Strengthened the shell guardrail coverage again:
+  - `AudioProfileControlSnapshotBuilderGuardrailTests` now assert that `MainWindow` uses the new view-capture seams,
+  - and now assert that the old inline profile-name/effect/mixer control-read lines are gone from `MainWindow`.
+- Kept the stage intentionally narrow:
+  - no profile schema change,
+  - no tuning/default change,
+  - no runtime haptic-behavior change,
+  - no WPF layout rewrite.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "AudioProfileControlSnapshotBuilderGuardrailTests"` passed.
+- `Get-Process | Where-Object { $_.ProcessName -like 'testhost*' } | Stop-Process -Force` completed before the full suite.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AK is the correct mirror image of Stage 25AJ.
+- `MainWindow` still owns the profile workflow, but it no longer needs to know the exact profile-related control-read list just to build the input snapshot.
+- The extracted views now own both sides of that profile-control seam: hydration and capture.
+- No persisted profile shape changed.
+- No WPF layout changed.
+- No runtime haptic behavior changed.
+- No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
+- The broader effect surface is still explicitly typed, but the shell boundary is now meaningfully more consistent and easier to extend.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

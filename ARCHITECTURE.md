@@ -3094,3 +3094,26 @@ Stage 25AJ architecture result:
 - The result improves maintainability because future BST-1 effect/control growth now extends one of the extracted view seams instead of reopening another long `MainWindow` control-assignment block during profile hydration.
 
 Stage 25AJ deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across persisted settings and tuning UI. It removes one more shell-level hydration hotspot first so later UI/schema work can build on a cleaner baseline.
+
+## Stage 25AK Audio-Profile View Input Capture Seam
+
+Stage 25AK continues the same cleanup by removing the matching audio-profile input-capture block from `MainWindow` and by letting the extracted page views own their own direct control-read surface.
+
+Stage 25AK architecture result:
+
+- Audio-profile input capture now reads grouped control state through the extracted page seams:
+  - `ProfilesView.BuildAudioProfileNameInput()` owns profile-name capture,
+  - `EffectsView.BuildAudioProfileEffectControlInputs()` owns BST-1 effect control capture,
+  - `RoutingMixerView.BuildAudioProfileMixerControlInputs()` owns mixer/safety control capture.
+- `MainWindow` still keeps the same visible ownership boundary:
+  - it still composes `AudioProfileControlInputs`,
+  - it still calls `AudioProfileControlSnapshotBuilder.BuildProfile(...)`,
+  - it still owns tuning-change sequencing, runtime application, and persistence execution.
+- The stage stays intentionally narrow:
+  - no persisted profile schema change,
+  - no WPF layout rewrite,
+  - no runtime haptic-behavior change,
+  - no dynamic control generation.
+- The result improves maintainability because future BST-1 effect/control growth now extends the extracted view seams for both profile hydration and profile capture instead of reopening another large `MainWindow` control-read block.
+
+Stage 25AK deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across persisted settings and tuning UI. It removes the matching input-capture hotspot first so later UI/schema work can build on a more consistent shell boundary.

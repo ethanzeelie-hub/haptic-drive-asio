@@ -46,6 +46,14 @@ public partial class RoutingMixerView : UserControl
         SafetyOutputGainValueText.Text = values.SafetyOutputGainText;
     }
 
+    internal AudioProfileMixerControlInputs BuildAudioProfileMixerControlInputs()
+    {
+        return new AudioProfileMixerControlInputs(
+            MasterGainValue: MasterGainSlider.Value,
+            MixerMuted: MixerMuteCheckBox.IsChecked == true,
+            SafetyOutputGainValue: SafetyOutputGainSlider.Value);
+    }
+
     internal T GetRequiredControl<T>(string name)
         where T : FrameworkElement
     {

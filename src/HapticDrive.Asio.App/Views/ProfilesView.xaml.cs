@@ -30,6 +30,11 @@ public partial class ProfilesView : UserControl
         ProfileNameTextBox.Text = values.ProfileName;
     }
 
+    internal string? BuildAudioProfileNameInput()
+    {
+        return ProfileNameTextBox.Text;
+    }
+
     internal T GetRequiredControl<T>(string name)
         where T : FrameworkElement
     {
