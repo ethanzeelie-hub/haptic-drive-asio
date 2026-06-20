@@ -4760,6 +4760,48 @@ Self-review:
 - The export path stays honest about privacy: the bundle gains recording context, not raw recording payloads.
 - The remaining support/export gap is now about broader incident packaging and optional raw attachments, not lack of any connection between recording inspection and support-bundle export.
 
+## Stage 25Z - Selected-Recording Detail Export Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Add a standalone local export path for the selected recording's sanitized detail report so operators can save recording inspection output directly under `local-validation-results` without relying on the clipboard or a full support bundle.
+
+Notes:
+
+- Re-audited the Stage 25X and 25Y seams before editing:
+  - selected-recording detail could already be copied to the clipboard,
+  - support bundles could already embed that detail when exporting a broader artifact,
+  - the remaining workflow gap was a direct single-purpose local export for recording inspection itself.
+- Added `SelectedRecordingDetailExporter`:
+  - writes timestamped text files under `local-validation-results/recording-inspections/`,
+  - uses sanitized text only,
+  - keeps file naming deterministic and recording-name-based.
+- Extended the Telemetry / UDP page with one explicit local export action:
+  - `Export Selected Detail`,
+  - reuses the same selected-recording formatter and cached analysis path,
+  - populates analysis on demand before writing the artifact when needed.
+- Kept the stage intentionally narrow:
+  - no raw `.hdrec` attachment,
+  - no packet-body export,
+  - no sidecar/index file format,
+  - no remote/share/upload behavior.
+- Added focused app coverage for the new exporter and control surface:
+  - exporter tests prove the local artifact path and text shape,
+  - Telemetry / UDP shell tests now verify the export control is present.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore` passed.
+- Full-stage verification is run after docs update before commit.
+
+Self-review:
+
+- Stage 25Z is a tidy workflow stage: it makes existing recording inspection output easier to preserve without creating a bigger support/export framework than the repo currently needs.
+- It stays aligned with the repo's local-artifact pattern and does not loosen any privacy boundary around raw recordings.
+- The deeper remaining recording gap is still browse/index depth, not basic ability to save the current sanitized inspection output.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

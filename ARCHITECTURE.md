@@ -2837,3 +2837,25 @@ Stage 25Y architecture result:
 - The result improves production supportability because a local support bundle can now carry the operator's currently inspected recording context alongside the diagnostics report, reducing context loss between issue observation and artifact export.
 
 Stage 25Y deliberately does not add raw recording attachment, remote upload, packet-body decode exports, automatic log harvesting, or broader incident bundle packaging. It adds one selected-recording detail attachment first so later support tooling can build on a proven sanitized bundle contract.
+
+## Stage 25Z Selected-Recording Detail Export Baseline
+
+Stage 25Z extends the same selected-recording inspection lane with one standalone local artifact path instead of requiring clipboard or support-bundle workflows.
+
+Stage 25Z architecture result:
+
+- `SelectedRecordingDetailExporter` now owns a narrow local export path for selected-recording inspection text:
+  - output lands under `local-validation-results/recording-inspections/`,
+  - file names are timestamped and recording-name-based,
+  - export remains sanitized text only.
+- The Telemetry / UDP page now exposes a direct export action for the selected recording detail:
+  - it reuses the existing selected-recording formatter and on-demand analysis cache,
+  - it does not build a second recording-analysis/export shape,
+  - it gives operators one saved local artifact without needing to generate a full support bundle.
+- Privacy and format boundaries remain unchanged:
+  - no raw `.hdrec` payload bytes are exported,
+  - no new recording sidecar/index schema is introduced,
+  - no packet-body decode data is added.
+- The result improves production supportability and operator workflow by giving recording inspection a first-class local artifact path that matches the repo's existing `local-validation-results` pattern.
+
+Stage 25Z deliberately does not add raw capture attachment, packet-body export formats, sidecar recording indexes, remote upload, or random-access packet browsing. It adds one standalone local inspection artifact first so later recording/support tooling can build on a proven sanitized export contract.

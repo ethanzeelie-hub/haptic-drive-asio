@@ -1059,3 +1059,12 @@
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Active-effect summary text now comes from a generic engine activity list, but the broader effect surface is still explicitly typed in options, profiles, tuning controls, and detailed diagnostics. Adding a brand-new effect still requires coordinated schema and UI work.
+
+## Stage 25Z
+
+- Selected-recording detail can now be exported as a standalone sanitized local text artifact, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.
+- Local support bundles can now include sanitized selected-recording detail text when a recording is selected, but they still do not attach raw captures, opt-in recording files, richer runtime incident artifacts, or packet-body decode exports.
+- App settings, audio profiles, and P-HPR profiles now keep retained backup-history snapshots and can recover after both the primary file and `.lastgood` copy are unusable, but the repo still does not have broader cross-file rollback orchestration or coordinated repair of multiple persisted documents as one unit.
+- Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Active-effect summary text now comes from a generic engine activity list, but the broader effect surface is still explicitly typed in options, profiles, tuning controls, and detailed diagnostics. Adding a brand-new effect still requires coordinated schema and UI work.

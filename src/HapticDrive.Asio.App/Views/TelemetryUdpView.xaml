@@ -74,9 +74,15 @@
                             Content="Rename Selected" />
                     <Button x:Name="CopySelectedRecordingDetailButton"
                             Width="170"
+                            Margin="0,0,8,0"
                             HorizontalAlignment="Left"
                             Click="CopySelectedRecordingDetailButton_Click"
                             Content="Copy Selected Detail" />
+                    <Button x:Name="ExportSelectedRecordingDetailButton"
+                            Width="175"
+                            HorizontalAlignment="Left"
+                            Click="ExportSelectedRecordingDetailButton_Click"
+                            Content="Export Selected Detail" />
                 </WrapPanel>
                 <WrapPanel Margin="0,12,0,0">
                     <TextBlock Margin="0,4,8,8"

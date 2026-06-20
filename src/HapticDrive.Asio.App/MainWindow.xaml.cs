@@ -64,6 +64,7 @@ public partial class MainWindow : Window
     private readonly PaddleInputRoutingCoordinator _paddleInputRoutingCoordinator;
     private readonly PHprManualValidationResultExporter _phprValidationExporter = new();
     private readonly SupportBundleExporter _supportBundleExporter = new();
+    private readonly SelectedRecordingDetailExporter _selectedRecordingDetailExporter = new();
     private readonly PHprHidOpenCheckRunner _phprHidOpenCheckRunner = new();
     private readonly PHprGearPulseRouter _mockGearPulseRouter;
     private readonly PHprPedalEffectsRouter _mockPedalEffectsRouter;
@@ -391,6 +392,7 @@ public partial class MainWindow : Window
         TelemetryUdpViewControl.DeleteSelectedRecordingClicked += DeleteSelectedRecordingButton_Click;
         TelemetryUdpViewControl.RenameSelectedRecordingClicked += RenameSelectedRecordingButton_Click;
         TelemetryUdpViewControl.CopySelectedRecordingDetailClicked += CopySelectedRecordingDetailButton_Click;
+        TelemetryUdpViewControl.ExportSelectedRecordingDetailClicked += ExportSelectedRecordingDetailButton_Click;
         TelemetryUdpViewControl.RecordingLibraryFilterTextChanged += RecordingLibraryFilterTextBox_TextChanged;
         TelemetryUdpViewControl.ClearRecordingLibraryFilterClicked += ClearRecordingLibraryFilterButton_Click;
         TelemetryUdpViewControl.RecordingLibrarySelectionChanged += RecordingLibraryListBox_SelectionChanged;
@@ -3225,6 +3227,51 @@ public partial class MainWindow : Window
         {
             RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
             FooterStatusText.Text = $"Selected recording detail could not be copied: {ex.Message}";
+        }
+    }
+
+    private async void ExportSelectedRecordingDetailButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RecordingLibraryListBox.SelectedItem is not RecordingLibraryItem item)
+        {
+            FooterStatusText.Text = "Select a recording before exporting detail.";
+            return;
+        }
+
+        CancelRecordingLibraryAnalysis();
+
+        try
+        {
+            RecordingLibraryStatusText.Text = $"Preparing detail export for {Path.GetFileName(item.Path)}...";
+            var analysisText = await GetRecordingLibraryAnalysisTextAsync(item).ConfigureAwait(true);
+            var exportText = RecordingLibraryDetailFormatter.BuildClipboardText(
+                item.Path,
+                item.DisplayText,
+                item.DetailText,
+                analysisText);
+            var path = _selectedRecordingDetailExporter.ExportText(
+                new SelectedRecordingDetailExportInputs(
+                    DateTimeOffset.UtcNow,
+                    item.Path,
+                    exportText),
+                GetLocalValidationResultsDirectory());
+
+            if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem selectedItem
+                && string.Equals(selectedItem.Path, item.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                RecordingLibraryDetailText.Text = RecordingLibraryDetailFormatter.BuildDetailText(item.DetailText, analysisText);
+            }
+
+            RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
+            FooterStatusText.Text = $"Selected recording detail exported locally to {path}.";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
+            FooterStatusText.Text = $"Selected recording detail could not be exported: {ex.Message}";
         }
     }
 

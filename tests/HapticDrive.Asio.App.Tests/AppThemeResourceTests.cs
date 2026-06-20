@@ -532,6 +532,7 @@ public sealed class AppThemeResourceTests
         Assert.Contains("DeleteSelectedRecordingButton", recordingsNames);
         Assert.Contains("RenameSelectedRecordingButton", recordingsNames);
         Assert.Contains("CopySelectedRecordingDetailButton", recordingsNames);
+        Assert.Contains("ExportSelectedRecordingDetailButton", recordingsNames);
         Assert.Contains("RecordingRenameTextBox", recordingsNames);
         Assert.Contains("RecordingLibraryFilterTextBox", recordingsNames);
         Assert.Contains("RecordingLibraryDetailText", recordingsNames);
@@ -547,6 +548,7 @@ public sealed class AppThemeResourceTests
             recordingsText,
             text => text.Contains("Recording captures raw F1 25 UDP packets.", StringComparison.Ordinal));
         Assert.Contains("Content=\"Copy Selected Detail\"", telemetryMarkup, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Export Selected Detail\"", telemetryMarkup, StringComparison.Ordinal);
     }
 
     [Fact]
