@@ -2639,3 +2639,24 @@ Stage 25P architecture result:
   - future effect additions still need explicit work in options, profiles, tuning UI, and detailed per-effect diagnostics.
 
 Stage 25P deliberately does not add dynamic tuning-card generation, profile-driven effect discovery, data-driven effect editors, or a broader snapshot-schema rewrite. It clears the active-summary path first so later effect-surface generalization can build from one shared activity seam.
+
+## Stage 25Q Release Artifact Smoke Baseline
+
+Stage 25Q hardens the existing packaging path by proving that the produced publish output and uploaded release zip are structurally usable, instead of only proving that publish completed.
+
+Stage 25Q architecture result:
+
+- `Publish-HapticDrive.ps1` now drives restore and publish deterministically for the scripted packaging path:
+  - explicit restore remains available,
+  - publish always runs with `--no-restore`,
+  - scripted restore/publish disable NuGet audit lookups so the repo-local packaging path stays deterministic in offline or sandboxed environments.
+- `Test-ReleaseArtifact.ps1` adds one repo-native release validation seam:
+  - it verifies the expected launchable app files exist in the publish directory,
+  - it verifies the expected zip artifact exists,
+  - it extracts that zip and verifies the same required payload exists after extraction.
+- `.github/workflows/package.yml` now runs that smoke check before uploading the packaged artifact, so CI no longer treats "zip exists" as sufficient proof by itself.
+- The result narrows one practical delivery blind spot:
+  - local packaging now has an explicit post-publish validation command,
+  - CI packaging now fails before artifact upload if the produced zip is structurally incomplete.
+
+Stage 25Q deliberately does not add MSI/installer generation, code signing, GitHub Releases publication, install/uninstall automation, or full runtime launch-under-package validation. It establishes a first structural artifact-smoke baseline so later delivery work can build on a verified package shape instead of only a successful publish exit code.

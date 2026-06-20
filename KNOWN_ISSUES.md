@@ -986,3 +986,11 @@
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - App settings, audio profiles, and P-HPR profiles now recover from a single-file last-known-good backup snapshot, but the repo still does not have broader cross-file rollback orchestration, retained backup history, or coordinated repair of multiple persisted documents as one unit.
 - The recording library is now filterable, but it still does not expose deeper workflows such as on-demand packet browsing, packet-type histograms, or persistent sidecar indexes for very large recording sets.
+
+## Stage 25Q
+
+- Release packaging now smoke-checks the publish directory and extracted zip payload, but the repo still does not produce an installer, signed binaries, GitHub Releases publication, or automated install/uninstall validation.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Active-effect summary text now comes from a generic engine activity list, but the broader effect surface is still explicitly typed in options, profiles, tuning controls, and detailed diagnostics. Adding a brand-new effect still requires coordinated schema and UI work.
+- App settings, audio profiles, and P-HPR profiles now recover from a single-file last-known-good backup snapshot, but the repo still does not have broader cross-file rollback orchestration, retained backup history, or coordinated repair of multiple persisted documents as one unit.
+- The recording library is now filterable, but it still does not expose deeper workflows such as on-demand packet browsing, packet-type histograms, or persistent sidecar indexes for very large recording sets.

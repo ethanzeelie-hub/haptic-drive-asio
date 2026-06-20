@@ -32,7 +32,7 @@ if (Test-Path $dotnetRoot) {
 }
 
 if (-not $NoRestore) {
-    & $dotnet restore $project -r $Runtime --configfile (Join-Path $repoRoot "NuGet.Config")
+    & $dotnet restore $project -r $Runtime --configfile (Join-Path $repoRoot "NuGet.Config") -p:NuGetAudit=false
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
@@ -49,11 +49,22 @@ if (Test-Path $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
 
-& $dotnet publish $project `
-    -c $Configuration `
-    -r $Runtime `
-    --self-contained false `
-    -o $publishDirectory
+$publishArguments = @(
+    "publish",
+    $project,
+    "-c",
+    $Configuration,
+    "-r",
+    $Runtime,
+    "--self-contained",
+    "false",
+    "-o",
+    $publishDirectory,
+    "--no-restore",
+    "-p:NuGetAudit=false"
+)
+
+& $dotnet @publishArguments
 
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE

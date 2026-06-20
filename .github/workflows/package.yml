@@ -50,6 +50,9 @@ jobs:
       - name: Publish package
         run: .\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64
 
+      - name: Release artifact smoke check
+        run: .\Test-ReleaseArtifact.ps1 -Runtime win-x64
+
       - name: Upload publish zip
         uses: actions/upload-artifact@v4
         with:

@@ -4285,6 +4285,56 @@ Self-review:
 - Future effect additions can now flow into active summary text through the engine snapshot seam, but detailed tuning surfaces are still static and explicitly typed.
 - This sets up a later stage that can tackle broader effect metadata, profile schema growth, and richer diagnostics with less presenter duplication.
 
+## Stage 25Q - Release Artifact Smoke Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Harden the release packaging path by proving that the produced publish output and zip artifact contain the required launchable app payload locally and in CI, without expanding into installer/signing/release-publication work.
+
+Notes:
+
+- Re-audited the Stage 25K packaging seam before editing:
+  - `Publish-HapticDrive.ps1` already owned the repo-native publish-and-zip path,
+  - `.github/workflows/package.yml` already owned the CI packaging path,
+  - the remaining blind spot was that a successful publish/zip exit code was still treated as enough proof by itself.
+- Tightened `Publish-HapticDrive.ps1`:
+  - explicit restore now disables NuGet audit lookups for deterministic offline/scripted packaging,
+  - publish now always runs with `--no-restore` so the `-NoRestore` switch is honored consistently,
+  - scripted publish also disables NuGet audit lookups to avoid sandbox/offline packaging failures caused by vulnerability-feed reachability.
+- Added `Test-ReleaseArtifact.ps1` plus `Test-ReleaseArtifact.cmd`:
+  - verifies the publish directory exists,
+  - verifies the release zip exists,
+  - requires the expected launchable app payload in both places:
+    - `HapticDrive.Asio.App.exe`,
+    - `HapticDrive.Asio.App.dll`,
+    - `HapticDrive.Asio.App.deps.json`,
+    - `HapticDrive.Asio.App.runtimeconfig.json`,
+  - extracts the zip into `artifacts/smoke/` and validates the extracted payload too.
+- Updated `.github/workflows/package.yml` so CI now runs the smoke script before uploading the zip artifact.
+- Updated repo docs:
+  - `README.md` now reports Stage 25Q and documents the new smoke-check command,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25Q and narrow the remaining delivery gap to installer/signing/release-publication/install-validation rather than first-pass artifact-structure proof.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+- `powershell -ExecutionPolicy Bypass -File .\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64` passed and produced:
+  - `artifacts\publish\HapticDrive.Asio-win-x64`,
+  - `artifacts\release\HapticDrive.Asio-win-x64.zip`.
+- `powershell -ExecutionPolicy Bypass -File .\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64 -NoRestore` passed after the publish-argument fix.
+- `powershell -ExecutionPolicy Bypass -File .\Test-ReleaseArtifact.ps1 -Runtime win-x64` passed and validated the publish folder, release zip, and extracted artifact payload.
+
+Self-review:
+
+- Stage 25Q intentionally proves package structure only; it does not pretend the repo now has installer-grade or signed-delivery readiness.
+- The smoke script closes a real packaging blind spot cheaply and safely because it reuses the existing publish path instead of creating a parallel packaging toolchain.
+- This is a solid base for a later stage that can add richer release metadata, installer production, or install/uninstall validation without losing the simple structural artifact check.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

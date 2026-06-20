@@ -125,6 +125,7 @@
 - Stage 25N: Recording-library query baseline complete.
 - Stage 25O: Persistence recovery baseline complete.
 - Stage 25P: Effect-activity summary seam complete.
+- Stage 25Q: Release artifact smoke baseline complete.
 
 ## Planned Stages
 
@@ -222,6 +223,7 @@
 92. Stage 25N: Recording-library query baseline. Complete.
 93. Stage 25O: Persistence recovery baseline. Complete.
 94. Stage 25P: Effect-activity summary seam. Complete.
+95. Stage 25Q: Release artifact smoke baseline. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -278,6 +280,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25N adds a first recording-library query seam: streamed summaries now include sequence-range plus approximate packet-rate metadata, and the Telemetry / UDP page can filter the loaded library in-memory by filename, metadata, and health text.
 - Stage 25O adds a single-file persistence recovery seam: app settings, audio profiles, and P-HPR profiles now refresh last-known-good backup snapshots after successful saves and can fall back to those backups when the primary document is missing, corrupt, or unsupported.
 - Stage 25P adds a generic effect-activity summary seam from `HapticEffectEngineSnapshot` into the app presenters, so active-effect summary text no longer needs a presenter-local hardcoded list of the shipped BST-1 effects.
+- Stage 25Q adds a release-artifact smoke seam: local and GitHub Actions packaging now verify that the produced publish folder and zipped release both contain the required launchable app payload before the workflow uploads the artifact.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index/query tooling such as on-demand browse/index views and richer histograms, broader cross-file persistence repair/rollback orchestration/history, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases
