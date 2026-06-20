@@ -5081,6 +5081,46 @@ Self-review:
 - The shared BST-1 effect-summary builder is especially useful because routing and diagnostics now consume the same app-side summary contract instead of relying on a window-local helper.
 - The next strong target remains broader effect metadata/control/schema generalization rather than more `MainWindow`-mapping cleanup for its own sake.
 
+## Stage 25AH - BST-1 Diagnostics Section Seam
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Remove the remaining inline BST-1 diagnostics-section string assembly from `MainWindow` by moving the BST-1 effect-summary, slip/lock detail, and mixer/safety diagnostics text behind one dedicated app-side builder, without changing the visible diagnostics workflow.
+
+Notes:
+
+- Re-audited the post-25AG effect-extensibility path:
+  - Effects-page and Routing / Mixer status assembly now had dedicated builders,
+  - BST-1 effect-summary snapshot construction was shared,
+  - the next remaining inline BST-1 hotspot was the diagnostics section still formatting slip/lock plus mixer/safety text directly in `MainWindow`.
+- Added `Bst1DiagnosticsSectionBuilder` so the diagnostics path now gets one focused app-side seam that:
+  - reuses the shared BST-1 effect-summary builder,
+  - formats BST-1 slip/lock diagnostics text in one place,
+  - formats mixer/safety diagnostics text in one place.
+- Updated `BuildDiagnosticsStatusPresentation()` to consume the new BST-1 diagnostics section seam while preserving the existing broader `DiagnosticsStatusSnapshotBuilder` and presenter/view boundary.
+- Added focused diagnostics-section tests plus updated diagnostics source-guardrail coverage so this seam stays explicit and does not silently regress back into inline `MainWindow` string assembly.
+- Kept the stage intentionally narrow:
+  - no WPF layout rewrite,
+  - no persisted schema change,
+  - no runtime haptic-behavior change,
+  - no deliberate diagnostics wording change beyond equivalent text ownership.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "DiagnosticsStatus|Bst1DiagnosticsSection|AppThemeResourceTests"` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AH is another careful seam stage: modest on paper, but it removes a real last chunk of BST-1 diagnostics coupling from `MainWindow`.
+- This still does not solve the full data-driven effect-schema/UI problem, but it keeps effect-growth work moving off inline window code and onto explicit app-side contracts.
+- The next strong target remains broader effect metadata/control/schema generalization rather than endless micro-refactors with no architectural destination.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

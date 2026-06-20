@@ -4919,7 +4919,13 @@ public partial class MainWindow : Window
         var roadDiagnosticLines = roadDiagnostics.ToDiagnosticsLines();
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var phprWorkflowPresentation = BuildPhprWorkflowStatusPresentation(pipelineSnapshot, realDiagnostics);
-        var bst1EffectSummary = Bst1EffectSummarySnapshotBuilder.Build(effectSnapshot);
+        var bst1Diagnostics = Bst1DiagnosticsSectionBuilder.Build(new Bst1DiagnosticsSectionInputs(
+            EffectSnapshot: effectSnapshot,
+            MixerPeakLevel: audioDiagnostics.MixerPeakLevel,
+            OutputPeakLevel: audioDiagnostics.OutputPeakLevel,
+            LimitedSampleCount: audioDiagnostics.LimitedSampleCount,
+            ClippedSampleCount: audioDiagnostics.ClippedSampleCount,
+            EmergencyMute: audioDiagnostics.EmergencyMute));
         var snapshot = DiagnosticsStatusSnapshotBuilder.Build(new DiagnosticsStatusBuildInputs(
             GeneratedAt: DateTimeOffset.Now,
             FlightRecorderActive: roadDiagnostics.FlightRecorderActive,
@@ -4940,9 +4946,9 @@ public partial class MainWindow : Window
             VehicleStateText: $"{vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
             RecordingText: $"{(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
             ReplayText: $"{(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
-            Effects: bst1EffectSummary,
-            Bst1SlipLockText: $"source {effectSnapshot.Slip.ActiveSource}; reason {effectSnapshot.Slip.ActiveReason}; slip intensity {effectSnapshot.Slip.CurrentSlipIntensity:0.00}; lock intensity {effectSnapshot.Slip.CurrentLockIntensity:0.00}; slip ratio {effectSnapshot.Slip.CurrentSlipRatio:0.00}; slip angle {effectSnapshot.Slip.CurrentSlipAngleRadians:0.00} rad; wheel-speed ratio {effectSnapshot.Slip.CurrentMinimumWheelSpeedRatio:0.00}; frequency {effectSnapshot.Slip.CurrentFrequencyHz:0.0} Hz; roughness {effectSnapshot.Slip.CurrentNoiseAmount:P0}; peak {effectSnapshot.Slip.PeakLevel:0.000}.",
-            MixerSafetyText: $"mixer peak {audioDiagnostics.MixerPeakLevel:0.000}; output peak {audioDiagnostics.OutputPeakLevel:0.000}; limited {audioDiagnostics.LimitedSampleCount:N0}; clipped {audioDiagnostics.ClippedSampleCount:N0}; emergency mute {audioDiagnostics.EmergencyMute}.",
+            Effects: bst1Diagnostics.Effects,
+            Bst1SlipLockText: bst1Diagnostics.SlipLockText,
+            MixerSafetyText: bst1Diagnostics.MixerSafetyText,
             RoadDiagnosticsLines: roadDiagnosticLines,
             PhprSlipLockText: BuildRealSlipLockDiagnosticsText(),
             TestBenchText: $"{(testBenchSnapshot.IsActive ? "active" : "inactive")}; signal {testBenchSnapshot.SelectedSignalName}; output {testBenchSnapshot.OutputDisplayName}; peak {testBenchSnapshot.OutputPeakLevel:0.000}.",

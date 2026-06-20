@@ -3021,3 +3021,27 @@ Stage 25AG architecture result:
 - The result improves maintainability because future BST-1 effect additions now have one cleaner routing-status seam and one shared BST-1 effect-summary seam instead of requiring additional `MainWindow`-local fixed-list mapping edits.
 
 Stage 25AG deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic WPF control generation, or broader effect-schema generalization across profiles/settings/diagnostics. It removes one more app-side mapping hotspot first so those later changes can build on a cleaner routing/reporting baseline.
+
+## Stage 25AH BST-1 Diagnostics Section Seam
+
+Stage 25AH continues the same effect-extensibility cleanup by removing the remaining inline BST-1 diagnostics-section assembly from `MainWindow`.
+
+Stage 25AH architecture result:
+
+- The Advanced / Diagnostics BST-1-specific section now gets one focused app-side seam through `Bst1DiagnosticsSectionBuilder`.
+- The new builder owns:
+  - shared BST-1 effect-summary snapshot reuse,
+  - BST-1 slip/lock diagnostics text assembly,
+  - mixer/safety summary text assembly for the diagnostics presenter contract.
+- `MainWindow` still keeps the same visible boundary:
+  - it still gathers runtime snapshots and road-diagnostics lines,
+  - it still builds the broader diagnostics snapshot through `DiagnosticsStatusSnapshotBuilder`,
+  - it still applies the final presentation through `AdvancedDiagnosticsViewControl`.
+- The stage stays intentionally narrow:
+  - no WPF layout rewrite,
+  - no persisted schema change,
+  - no diagnostics report format change beyond equivalent existing content ownership,
+  - no runtime haptic-behavior change.
+- The result improves maintainability because future BST-1 effect additions now have one more explicit diagnostics seam instead of needing additional inline effect-diagnostics string work inside `MainWindow`.
+
+Stage 25AH deliberately does not add data-driven effect cards, plugin-style effect metadata, dynamic WPF control generation, or broader effect-schema generalization across profiles/settings/diagnostics. It removes one more app-side effect-diagnostics hotspot first so later metadata/schema work can build on a less tangled diagnostics path.

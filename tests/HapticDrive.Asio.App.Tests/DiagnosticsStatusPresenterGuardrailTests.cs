@@ -32,6 +32,7 @@ public sealed class DiagnosticsStatusPresenterGuardrailTests
             "MainWindow.xaml.cs"));
 
         Assert.Contains("DiagnosticsStatusSnapshotBuilder.Build(new DiagnosticsStatusBuildInputs(", source, StringComparison.Ordinal);
+        Assert.Contains("Bst1DiagnosticsSectionBuilder.Build(new Bst1DiagnosticsSectionInputs(", source, StringComparison.Ordinal);
         Assert.Contains("DiagnosticsStatusPresenter.Build(snapshot)", source, StringComparison.Ordinal);
         Assert.Contains("BuildPhprWorkflowStatusPresentation(pipelineSnapshot, realDiagnostics)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Haptic Drive ASIO diagnostics\"", source, StringComparison.Ordinal);
