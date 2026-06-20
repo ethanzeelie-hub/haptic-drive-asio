@@ -122,6 +122,7 @@
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.
 - Stage 25M: Persistence migration baseline complete.
+- Stage 25N: Recording-library query baseline complete.
 
 ## Planned Stages
 
@@ -216,6 +217,7 @@
 89. Stage 25K: Release packaging automation. Complete.
 90. Stage 25L: Support bundle automation. Complete.
 91. Stage 25M: Persistence migration baseline. Complete.
+92. Stage 25N: Recording-library query baseline. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -269,7 +271,8 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25K adds a repeatable local `Publish-HapticDrive.ps1` publish-and-zip path plus a GitHub Actions packaging workflow that uploads a `win-x64` release artifact after the same restore/build/test/format/preflight gate.
 - Stage 25L adds a repo-native local support-bundle export path that packages the existing diagnostics report into a sanitized zip with a manifest and structured summary, keeping the export rooted in the existing diagnostics presentation seam instead of introducing a second reporting pipeline.
 - Stage 25M adds a shared versioned-document migration planner used by app settings, audio profiles, and P-HPR profiles, so legacy version-0 documents now upgrade through one baseline path instead of store-specific ad hoc handling.
-- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, deeper recording-library seek/index/query tooling, broader cross-file persistence repair/rollback tooling, and installer/signing/release publication.
+- Stage 25N adds a first recording-library query seam: streamed summaries now include sequence-range plus approximate packet-rate metadata, and the Telemetry / UDP page can filter the loaded library in-memory by filename, metadata, and health text.
+- Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/UI/diagnostics, deeper recording-library seek/index/query tooling such as on-demand browse/index views and richer histograms, broader cross-file persistence repair/rollback tooling, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases
 

@@ -55,7 +55,10 @@ public static class TelemetryRecordingFile
                     packetSummary.Duration,
                     packetSummary.PayloadBytes,
                     packetSummary.MissingSequenceCount,
-                    packetSummary.LargestSequenceGap));
+                    packetSummary.LargestSequenceGap,
+                    packetSummary.FirstSequenceNumber,
+                    packetSummary.LastSequenceNumber,
+                    packetSummary.ApproximatePacketRateHz));
         }
         catch (OperationCanceledException)
         {
@@ -304,6 +307,8 @@ public static class TelemetryRecordingFile
         long payloadBytes = 0;
         long missingSequenceCount = 0;
         long largestSequenceGap = 0;
+        long? firstSequenceNumber = null;
+        long? lastSequenceNumber = null;
         long? previousSequenceNumber = null;
 
         for (var i = 0L; i < packetCount; i++)
@@ -326,6 +331,9 @@ public static class TelemetryRecordingFile
             payloadBytes += payloadLength;
             await ReadBytesAsync(stream, payloadLength, cancellationToken).ConfigureAwait(false);
 
+            firstSequenceNumber ??= sequenceNumber;
+            lastSequenceNumber = sequenceNumber;
+
             if (previousSequenceNumber.HasValue && sequenceNumber > previousSequenceNumber.Value + 1)
             {
                 var gap = sequenceNumber - previousSequenceNumber.Value - 1;
@@ -341,11 +349,18 @@ public static class TelemetryRecordingFile
             throw new InvalidDataException("Recording contains trailing bytes after the final packet.");
         }
 
+        var approximatePacketRateHz = duration > TimeSpan.Zero
+            ? packetCount / duration.TotalSeconds
+            : 0d;
+
         return new TelemetryRecordingPacketSummary(
             duration,
             payloadBytes,
             missingSequenceCount,
-            largestSequenceGap);
+            largestSequenceGap,
+            firstSequenceNumber,
+            lastSequenceNumber,
+            approximatePacketRateHz);
     }
 
     private static bool TryMapLoadFailure(
@@ -490,7 +505,10 @@ public static class TelemetryRecordingFile
         TimeSpan Duration,
         long PayloadBytes,
         long MissingSequenceCount,
-        long LargestSequenceGap);
+        long LargestSequenceGap,
+        long? FirstSequenceNumber,
+        long? LastSequenceNumber,
+        double ApproximatePacketRateHz);
 
     private sealed class UnsupportedVersionException : Exception
     {

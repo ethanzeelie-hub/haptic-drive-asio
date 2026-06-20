@@ -77,7 +77,8 @@ internal sealed record RecordingLibraryRenameResult(
 internal sealed record RecordingLibraryItem(
     string Path,
     string DisplayText,
-    string DetailText);
+    string DetailText,
+    string SearchText);
 
 internal static class RecordingLibraryManager
 {
@@ -105,23 +106,52 @@ internal static class RecordingLibraryManager
                 var createdLocal = summary.Metadata.CreatedAtUtc.ToLocalTime();
                 var payloadText = FormatByteSize(summary.PayloadBytes);
                 var durationText = FormatDuration(summary.Duration);
+                var sequenceRangeText = FormatSequenceRange(summary);
+                var packetRateText = FormatPacketRate(summary.ApproximatePacketRateHz);
                 var sequenceHealthText = summary.MissingSequenceCount == 0
                     ? "sequence continuous"
                     : $"sequence gaps {summary.MissingSequenceCount:N0} (largest {summary.LargestSequenceGap:N0})";
+                var detailText =
+                    $"Created {createdLocal:g}; duration {durationText}; payload {payloadText}; {sequenceRangeText}; {packetRateText}; {sequenceHealthText}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}.";
                 items.Add(new RecordingLibraryItem(
                     path,
                     $"{Path.GetFileName(path)} - {summary.PacketCount:N0} packet(s) - {durationText} - {sizeText}",
-                    $"Created {createdLocal:g}; duration {durationText}; payload {payloadText}; {sequenceHealthText}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}."));
+                    detailText,
+                    BuildSearchText(
+                        Path.GetFileName(path),
+                        summary,
+                        detailText,
+                        sequenceHealthText,
+                        sequenceRangeText)));
                 continue;
             }
 
             items.Add(new RecordingLibraryItem(
                 path,
                 $"{Path.GetFileName(path)} - {result.Status}",
-                result.Message));
+                result.Message,
+                $"{Path.GetFileName(path)} {result.Status} {result.Message}"));
         }
 
         return items;
+    }
+
+    public static List<RecordingLibraryItem> Filter(
+        IReadOnlyList<RecordingLibraryItem> items,
+        string? query)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        var terms = (query ?? string.Empty)
+            .Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (terms.Length == 0)
+        {
+            return items.ToList();
+        }
+
+        return items
+            .Where(item => terms.All(term => item.SearchText.Contains(term, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
     }
 
     public static string? FindLatestRecordingPath(string recordingsDirectory)
@@ -375,5 +405,46 @@ internal static class RecordingLibraryManager
         }
 
         return duration.ToString(@"hh\:mm\:ss\.fff");
+    }
+
+    private static string FormatSequenceRange(TelemetryRecordingSummary summary)
+    {
+        if (!summary.FirstSequenceNumber.HasValue || !summary.LastSequenceNumber.HasValue)
+        {
+            return "sequence range unavailable";
+        }
+
+        return $"sequence {summary.FirstSequenceNumber.Value:N0}-{summary.LastSequenceNumber.Value:N0}";
+    }
+
+    private static string FormatPacketRate(double approximatePacketRateHz)
+    {
+        if (approximatePacketRateHz <= 0d || double.IsNaN(approximatePacketRateHz) || double.IsInfinity(approximatePacketRateHz))
+        {
+            return "packet rate n/a";
+        }
+
+        return $"approx {approximatePacketRateHz:0.0} pkt/s";
+    }
+
+    private static string BuildSearchText(
+        string fileName,
+        TelemetryRecordingSummary summary,
+        string detailText,
+        string sequenceHealthText,
+        string sequenceRangeText)
+    {
+        return string.Join(
+            ' ',
+            [
+                fileName,
+                summary.Metadata.SourceGame,
+                summary.Metadata.SourceProfile,
+                summary.Metadata.AppVersion,
+                summary.PacketCount.ToString("N0"),
+                sequenceHealthText,
+                sequenceRangeText,
+                detailText
+            ]);
     }
 }

@@ -56,4 +56,7 @@ public sealed record TelemetryRecordingSummary(
     TimeSpan Duration = default,
     long PayloadBytes = 0,
     long MissingSequenceCount = 0,
-    long LargestSequenceGap = 0);
+    long LargestSequenceGap = 0,
+    long? FirstSequenceNumber = null,
+    long? LastSequenceNumber = null,
+    double ApproximatePacketRateHz = 0d);

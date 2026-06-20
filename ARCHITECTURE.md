@@ -2578,3 +2578,26 @@ Stage 25M architecture result:
   - shared migration diagnostics.
 
 Stage 25M deliberately does not add cross-file transactional migrations, backup retention/history, automatic rollback across multiple documents, or broader persisted-artifact repair orchestration. It establishes the first shared migration seam so later schema growth starts from one explicit baseline.
+
+## Stage 25N Recording-Library Query Baseline
+
+Stage 25N extends the earlier recording-library summary work with a small, generic query seam instead of jumping straight to game-specific indexing.
+
+Stage 25N architecture result:
+
+- `TelemetryRecordingFile.LoadSummaryAsync(...)` still performs one streamed summary pass, but it now also reports:
+  - first sequence number,
+  - last sequence number,
+  - approximate packet rate.
+- `TelemetryRecordingSummary` remains game-agnostic. Stage 25N deliberately does not pull F1 25 packet parsing or packet-kind decoding into the recording assembly.
+- `RecordingLibraryManager.LoadAsync(...)` now shapes that richer generic metadata into:
+  - sequence-range text,
+  - approximate packet-rate text,
+  - a simple search corpus per library item.
+- `RecordingLibraryManager.Filter(...)` adds a narrow in-memory query seam for the already-loaded library list:
+  - whitespace token splitting,
+  - all-terms match behavior,
+  - filename/metadata/health text matching.
+- `TelemetryUdpView` now exposes a filter textbox plus clear action for the recording library, while `MainWindow` remains the executor that loads the library, applies the filter, preserves selection when possible, and owns replay/rename/delete behavior.
+
+Stage 25N deliberately does not add sidecar metadata indexes, random-access packet browsing, packet-type histograms, game-specific recording analysis, or a new `.hdrec` format version. It adds the first query/filter seam so later browse/index work starts from richer generic summaries and a stable UI path.

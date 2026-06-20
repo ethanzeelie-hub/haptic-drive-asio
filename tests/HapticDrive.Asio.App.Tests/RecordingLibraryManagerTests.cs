@@ -154,7 +154,47 @@ public sealed class RecordingLibraryManagerTests
         var item = Assert.Single(items);
         Assert.Contains("15 ms", item.DisplayText);
         Assert.Contains("payload 5 B", item.DetailText);
+        Assert.Contains("sequence 1-2", item.DetailText);
+        Assert.Contains("approx 133.3 pkt/s", item.DetailText);
         Assert.Contains("sequence continuous", item.DetailText);
+    }
+
+    [Fact]
+    public async Task Filter_MatchesFilenameMetadataAndHealthTerms()
+    {
+        using var temp = TempRecordingDirectory.Create();
+        await CreateRecordingAsync(
+            Path.Combine(temp.Path, "night-race.hdrec"),
+            [
+                new RecordedPacketTemplate(10, [0x01, 0x02], TimeSpan.Zero),
+                new RecordedPacketTemplate(11, [0x03], TimeSpan.FromMilliseconds(20))
+            ],
+            metadata: new TelemetryRecordingMetadata(
+                new DateTimeOffset(2026, 6, 12, 2, 0, 0, TimeSpan.Zero),
+                "F1 25",
+                "Night Test",
+                "stage-25n-test"));
+        await CreateRecordingAsync(
+            Path.Combine(temp.Path, "gap-session.hdrec"),
+            [
+                new RecordedPacketTemplate(1, [0x01], TimeSpan.Zero),
+                new RecordedPacketTemplate(4, [0x02], TimeSpan.FromMilliseconds(25))
+            ],
+            metadata: new TelemetryRecordingMetadata(
+                new DateTimeOffset(2026, 6, 12, 3, 0, 0, TimeSpan.Zero),
+                "F1 25",
+                "Gap Test",
+                "stage-25n-test"));
+
+        var items = await RecordingLibraryManager.LoadAsync(temp.Path);
+
+        var filenameAndProfile = RecordingLibraryManager.Filter(items, "night test");
+        var health = RecordingLibraryManager.Filter(items, "gaps largest");
+
+        Assert.Single(filenameAndProfile);
+        Assert.Contains("night-race.hdrec", filenameAndProfile[0].DisplayText, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(health);
+        Assert.Contains("gap-session.hdrec", health[0].DisplayText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -226,18 +266,21 @@ public sealed class RecordingLibraryManagerTests
 
     private static async Task CreateRecordingAsync(
         string path,
-        IReadOnlyList<RecordedPacketTemplate>? packets = null)
+        IReadOnlyList<RecordedPacketTemplate>? packets = null,
+        TelemetryRecordingMetadata? metadata = null)
     {
         var createdAtUtc = new DateTimeOffset(2026, 6, 12, 1, 0, 0, TimeSpan.Zero);
         packets ??=
         [
             new RecordedPacketTemplate(1, [0x01, 0x02], TimeSpan.Zero)
         ];
+        metadata ??= new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "App Test", "stage-18p-b");
+        createdAtUtc = metadata.CreatedAtUtc;
 
         await using var recorder = new TelemetryRecordingService();
         Assert.True((await recorder.StartAsync(
             path,
-            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "App Test", "stage-18p-b"))).Succeeded);
+            metadata)).Succeeded);
         foreach (var packet in packets)
         {
             Assert.True(recorder.RecordPacket(new UdpTelemetryPacket(

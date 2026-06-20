@@ -4165,6 +4165,48 @@ Self-review:
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
 
+## Stage 25N - Recording-Library Query Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Add a small, production-readiness-friendly recording-library query seam without changing the `.hdrec` format, replay behavior, runtime ownership boundaries, or introducing game-specific analysis into the recording core.
+
+Notes:
+
+- Extended streamed recording summaries with first-sequence, last-sequence, and approximate packet-rate metadata.
+- Kept the recording assembly generic; Stage 25N does not depend on F1 25 parser types or packet-ID decoding.
+- Extended `RecordingLibraryManager` so loaded library items now include a simple search corpus built from filename, source metadata, and health/detail text.
+- Added an in-memory library filter path that splits the query into whitespace terms and requires all terms to match the loaded search corpus.
+- Updated the Telemetry / UDP view with:
+  - a recording-library filter textbox,
+  - a clear action,
+  - a dedicated recording-detail text block separate from the library count/filter status line.
+- Kept `MainWindow` as the owner of:
+  - recording-library refresh,
+  - filter application,
+  - selection preservation,
+  - replay selected/latest,
+  - rename/delete execution.
+- Added coverage for:
+  - streamed summary sequence/rate metadata,
+  - filter matching by filename/profile/health text,
+  - Telemetry / UDP recording-library view controls.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25N stays intentionally narrow: it improves the operator-facing recording library without changing replay semantics, file format versioning, or runtime ownership.
+- The new query path is useful immediately, but it is still a loaded-list filter, not a large-session indexing system.
+- Future recording-library work can now build toward sidecar indexes, richer browse views, and packet-type analysis from a clearer baseline.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

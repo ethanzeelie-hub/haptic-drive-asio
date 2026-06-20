@@ -246,6 +246,7 @@ public partial class MainWindow : Window
     private bool _updatingBst1PulseUi;
     private bool _advancedDiagnosticsEnabled;
     private bool _routingMockPedalEffects;
+    private string _recordingLibraryFilterText = string.Empty;
     private readonly string _roadTextureFlightRecorderSessionId = Guid.NewGuid().ToString("N");
     private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
@@ -271,6 +272,7 @@ public partial class MainWindow : Window
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
     private List<PhprDirectOutputCandidateListItem> _realPhprCandidateItems = [];
     private List<RecordingLibraryItem> _recordingLibraryItems = [];
+    private List<RecordingLibraryItem> _filteredRecordingLibraryItems = [];
 
     public MainWindow()
     {
@@ -386,6 +388,8 @@ public partial class MainWindow : Window
         TelemetryUdpViewControl.RefreshRecordingsClicked += RefreshRecordingsButton_Click;
         TelemetryUdpViewControl.DeleteSelectedRecordingClicked += DeleteSelectedRecordingButton_Click;
         TelemetryUdpViewControl.RenameSelectedRecordingClicked += RenameSelectedRecordingButton_Click;
+        TelemetryUdpViewControl.RecordingLibraryFilterTextChanged += RecordingLibraryFilterTextBox_TextChanged;
+        TelemetryUdpViewControl.ClearRecordingLibraryFilterClicked += ClearRecordingLibraryFilterButton_Click;
         TelemetryUdpViewControl.RecordingLibrarySelectionChanged += RecordingLibraryListBox_SelectionChanged;
         TelemetryUdpViewControl.SaveForwardingDestinationClicked += SaveForwardingDestinationButton_Click;
         TelemetryUdpViewControl.RemoveForwardingDestinationClicked += RemoveForwardingDestinationButton_Click;
@@ -3106,16 +3110,35 @@ public partial class MainWindow : Window
         UpdateRecordingStatus();
     }
 
+    private void RecordingLibraryFilterTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _recordingLibraryFilterText = RecordingLibraryFilterTextBox.Text.Trim();
+        ApplyRecordingLibraryFilter();
+    }
+
+    private void ClearRecordingLibraryFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(RecordingLibraryFilterTextBox.Text))
+        {
+            ApplyRecordingLibraryFilter();
+            return;
+        }
+
+        RecordingLibraryFilterTextBox.Clear();
+    }
+
     private void RecordingLibraryListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (RecordingLibraryListBox.SelectedItem is RecordingLibraryItem item)
         {
-            RecordingLibraryStatusText.Text = item.DetailText;
+            RecordingLibraryDetailText.Text = item.DetailText;
             RecordingRenameTextBox.Text = Path.GetFileNameWithoutExtension(item.Path);
             return;
         }
 
         RecordingRenameTextBox.Text = string.Empty;
+        RecordingLibraryDetailText.Text = string.Empty;
+        RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
     }
 
     private async Task ReplayRecordingAsync(string path)
@@ -3138,23 +3161,55 @@ public partial class MainWindow : Window
         try
         {
             _recordingLibraryItems = await RecordingLibraryManager.LoadAsync(GetRecordingsDirectory());
-            RecordingLibraryListBox.ItemsSource = _recordingLibraryItems;
-            if (!string.IsNullOrWhiteSpace(selectedPath))
-            {
-                RecordingLibraryListBox.SelectedItem = _recordingLibraryItems.FirstOrDefault(item =>
-                    string.Equals(item.Path, selectedPath, StringComparison.OrdinalIgnoreCase));
-            }
-
-            RecordingLibraryStatusText.Text = _recordingLibraryItems.Count == 0
-                ? $"No .hdrec files found in {GetRecordingsDirectory()}."
-                : $"{_recordingLibraryItems.Count} recording(s) found in {GetRecordingsDirectory()}.";
+            ApplyRecordingLibraryFilter(selectedPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             RecordingLibraryStatusText.Text = $"Recording library could not be refreshed: {ex.Message}";
+            RecordingLibraryDetailText.Text = string.Empty;
         }
 
         UpdateTelemetryUdpPresentation();
+    }
+
+    private void ApplyRecordingLibraryFilter(string? selectedPath = null)
+    {
+        var preferredPath = selectedPath
+            ?? (RecordingLibraryListBox.SelectedItem as RecordingLibraryItem)?.Path;
+        _filteredRecordingLibraryItems = RecordingLibraryManager.Filter(_recordingLibraryItems, _recordingLibraryFilterText);
+        RecordingLibraryListBox.ItemsSource = _filteredRecordingLibraryItems;
+        RecordingLibraryListBox.SelectedItem = string.IsNullOrWhiteSpace(preferredPath)
+            ? null
+            : _filteredRecordingLibraryItems.FirstOrDefault(item =>
+                string.Equals(item.Path, preferredPath, StringComparison.OrdinalIgnoreCase));
+
+        if (RecordingLibraryListBox.SelectedItem is null)
+        {
+            RecordingLibraryDetailText.Text = string.Empty;
+            RecordingLibraryStatusText.Text = BuildRecordingLibraryStatusText();
+        }
+    }
+
+    private string BuildRecordingLibraryStatusText()
+    {
+        var recordingsDirectory = GetRecordingsDirectory();
+        if (_recordingLibraryItems.Count == 0)
+        {
+            return $"No .hdrec files found in {recordingsDirectory}.";
+        }
+
+        if (string.IsNullOrWhiteSpace(_recordingLibraryFilterText))
+        {
+            return $"{_recordingLibraryItems.Count} recording(s) found in {recordingsDirectory}.";
+        }
+
+        if (_filteredRecordingLibraryItems.Count == 0)
+        {
+            return $"No recordings match '{_recordingLibraryFilterText}' in {recordingsDirectory}.";
+        }
+
+        return
+            $"Showing {_filteredRecordingLibraryItems.Count} of {_recordingLibraryItems.Count} recording(s) matching '{_recordingLibraryFilterText}' in {recordingsDirectory}.";
     }
 
     private async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
@@ -6816,6 +6871,10 @@ public partial class MainWindow : Window
     private ItemsControl PhprValidationItemsControl => TestingValidationViewControl.GetRequiredControl<ItemsControl>(nameof(PhprValidationItemsControl));
 
     private TextBox RecordingRenameTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(RecordingRenameTextBox));
+
+    private TextBox RecordingLibraryFilterTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(RecordingLibraryFilterTextBox));
+
+    private TextBlock RecordingLibraryDetailText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(RecordingLibraryDetailText));
 
     private ListBox RecordingLibraryListBox => TelemetryUdpViewControl.GetRequiredControl<ListBox>(nameof(RecordingLibraryListBox));
 

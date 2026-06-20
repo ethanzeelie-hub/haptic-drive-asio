@@ -526,11 +526,16 @@ public sealed class AppThemeResourceTests
         Assert.Contains("DeleteSelectedRecordingButton", recordingsNames);
         Assert.Contains("RenameSelectedRecordingButton", recordingsNames);
         Assert.Contains("RecordingRenameTextBox", recordingsNames);
+        Assert.Contains("RecordingLibraryFilterTextBox", recordingsNames);
+        Assert.Contains("RecordingLibraryDetailText", recordingsNames);
 
         Assert.Contains("Recording And Replay", recordingsText);
         Assert.Contains(
             recordingsText,
             text => text.Contains("Rename to", StringComparison.Ordinal));
+        Assert.Contains(
+            recordingsText,
+            text => text.Contains("Filter library", StringComparison.Ordinal));
         Assert.Contains(
             recordingsText,
             text => text.Contains("Recording captures raw F1 25 UDP packets.", StringComparison.Ordinal));

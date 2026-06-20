@@ -100,6 +100,9 @@ public sealed class TelemetryRecordingServiceTests
         Assert.Equal(5, result.Summary.PayloadBytes);
         Assert.Equal(0, result.Summary.MissingSequenceCount);
         Assert.Equal(0, result.Summary.LargestSequenceGap);
+        Assert.Equal(1, result.Summary.FirstSequenceNumber);
+        Assert.Equal(2, result.Summary.LastSequenceNumber);
+        Assert.Equal(133.33333333333334d, result.Summary.ApproximatePacketRateHz, precision: 6);
     }
 
     [Fact]
@@ -129,6 +132,9 @@ public sealed class TelemetryRecordingServiceTests
         Assert.Equal(3, result.Summary.PayloadBytes);
         Assert.Equal(2, result.Summary.MissingSequenceCount);
         Assert.Equal(2, result.Summary.LargestSequenceGap);
+        Assert.Equal(1, result.Summary.FirstSequenceNumber);
+        Assert.Equal(4, result.Summary.LastSequenceNumber);
+        Assert.Equal(100d, result.Summary.ApproximatePacketRateHz, precision: 6);
     }
 
     [Fact]

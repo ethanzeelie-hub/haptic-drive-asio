@@ -81,12 +81,31 @@
                              Margin="0,0,8,8"
                              Style="{StaticResource FieldTextBoxStyle}" />
                 </WrapPanel>
+                <WrapPanel Margin="0,4,0,0">
+                    <TextBlock Margin="0,4,8,8"
+                               Foreground="{DynamicResource AppMutedTextBrush}"
+                               Text="Filter library" />
+                    <TextBox x:Name="RecordingLibraryFilterTextBox"
+                             Width="280"
+                             Margin="0,0,8,8"
+                             Style="{StaticResource FieldTextBoxStyle}"
+                             TextChanged="RecordingLibraryFilterTextBox_TextChanged" />
+                    <Button x:Name="ClearRecordingLibraryFilterButton"
+                            Width="90"
+                            Margin="0,0,0,8"
+                            Click="ClearRecordingLibraryFilterButton_Click"
+                            Content="Clear" />
+                </WrapPanel>
                 <TextBlock x:Name="RecordingsDetailText"
                            Margin="0,14,0,0"
                            Foreground="{DynamicResource AppMutedTextBrush}" />
                 <TextBlock x:Name="ReplayDetailText"
                            Margin="0,8,0,0"
                            Foreground="{DynamicResource AppMutedTextBrush}" />
+                <TextBlock x:Name="RecordingLibraryDetailText"
+                           Margin="0,8,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           TextWrapping="Wrap" />
                 <ListBox x:Name="RecordingLibraryListBox"
                          Height="180"
                          Margin="0,14,0,0"
@@ -97,7 +116,8 @@
                          SelectionChanged="RecordingLibraryListBox_SelectionChanged" />
                 <TextBlock x:Name="RecordingLibraryStatusText"
                            Margin="0,8,0,0"
-                           Foreground="{DynamicResource AppMutedTextBrush}" />
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
