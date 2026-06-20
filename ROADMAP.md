@@ -128,6 +128,7 @@
 - Stage 25Q: Release artifact smoke baseline complete.
 - Stage 25R: Release manifest and checksum baseline complete.
 - Stage 25S: Release staging command baseline complete.
+- Stage 25T: Release summary artifact baseline complete.
 
 ## Planned Stages
 
@@ -228,6 +229,7 @@
 95. Stage 25Q: Release artifact smoke baseline. Complete.
 96. Stage 25R: Release manifest and checksum baseline. Complete.
 97. Stage 25S: Release staging command baseline. Complete.
+98. Stage 25T: Release summary artifact baseline. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -287,6 +289,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25Q adds a release-artifact smoke seam: local and GitHub Actions packaging now verify that the produced publish folder and zipped release both contain the required launchable app payload before the workflow uploads the artifact.
 - Stage 25R adds release checksum/manifest output: the publish script now emits SHA-256 plus JSON metadata alongside the release zip, the smoke script verifies that metadata against the actual artifact, and CI uploads those files together.
 - Stage 25S adds a single local release-staging command: `Prepare-ReleaseArtifact.ps1` now runs the repo verification gate, performs the targeted runtime restore needed for `win-x64` publish, publishes, smoke-checks, and gathers the final zip/checksum/manifest into one staged-release folder.
+- Stage 25T adds a release-summary artifact: the publish script now emits a Markdown summary alongside the zip/checksum/manifest, the smoke script validates that summary against the actual artifact metadata, CI uploads it, and local staged-release output carries the same handoff document.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index/query tooling such as on-demand browse/index views and richer histograms, broader cross-file persistence repair/rollback orchestration/history, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases

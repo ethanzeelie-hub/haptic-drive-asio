@@ -27,6 +27,7 @@ $publishDirectory = Join-Path $resolvedOutputRoot "publish\$PackageName-$Runtime
 $zipPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.zip"
 $checksumPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.sha256"
 $manifestPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.manifest.json"
+$summaryPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.release-summary.md"
 $extractDirectory = Join-Path $resolvedExtractRoot "$PackageName-$Runtime"
 $requiredFiles =
 @(
@@ -71,7 +72,12 @@ if (-not (Test-Path $manifestPath)) {
     throw "Release manifest was not found at $manifestPath"
 }
 
+if (-not (Test-Path $summaryPath)) {
+    throw "Release summary was not found at $summaryPath"
+}
+
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$summaryText = Get-Content -LiteralPath $summaryPath -Raw
 
 if ($manifest.PackageName -ne $PackageName) {
     throw "Release manifest package name '$($manifest.PackageName)' did not match expected '$PackageName'"
@@ -97,6 +103,23 @@ if ($manifest.ZipFileName -ne [System.IO.Path]::GetFileName($zipPath)) {
     throw "Release manifest zip file name '$($manifest.ZipFileName)' did not match expected '$([System.IO.Path]::GetFileName($zipPath))'"
 }
 
+$requiredSummaryTerms =
+@(
+    "# Release Summary",
+    "- Package: $PackageName",
+    "- Runtime: $Runtime",
+    "- Zip: $([System.IO.Path]::GetFileName($zipPath))",
+    "- SHA-256 file: $([System.IO.Path]::GetFileName($checksumPath))",
+    "- Manifest: $([System.IO.Path]::GetFileName($manifestPath))",
+    "- Zip SHA-256: $($manifest.ZipSha256)"
+)
+
+foreach ($term in $requiredSummaryTerms) {
+    if ($summaryText.IndexOf($term, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "Release summary was missing expected content: $term"
+    }
+}
+
 if (Test-Path $extractDirectory) {
     Remove-Item -LiteralPath $extractDirectory -Recurse -Force
 }
@@ -112,6 +135,7 @@ Write-Host "Publish directory: $publishDirectory"
 Write-Host "Zip package: $zipPath"
 Write-Host "Checksum file: $checksumPath"
 Write-Host "Manifest file: $manifestPath"
+Write-Host "Release summary: $summaryPath"
 Write-Host "Extracted directory: $extractDirectory"
 Write-Host "Publish file count: $($publishFiles.Count)"
 Write-Host "Extracted file count: $($extractedFiles.Count)"

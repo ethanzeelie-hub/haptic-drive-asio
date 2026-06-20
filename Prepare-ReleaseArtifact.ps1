@@ -32,6 +32,7 @@ $releaseFiles =
     (Join-Path $releaseDirectory "$releasePrefix.zip")
     (Join-Path $releaseDirectory "$releasePrefix.sha256")
     (Join-Path $releaseDirectory "$releasePrefix.manifest.json")
+    (Join-Path $releaseDirectory "$releasePrefix.release-summary.md")
 )
 
 if (Test-Path $dotnetRoot) {

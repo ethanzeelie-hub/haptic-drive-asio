@@ -27,6 +27,7 @@ $releaseDirectory = Join-Path $resolvedOutputRoot "release"
 $zipPath = Join-Path $releaseDirectory "$PackageName-$Runtime.zip"
 $checksumPath = Join-Path $releaseDirectory "$PackageName-$Runtime.sha256"
 $manifestPath = Join-Path $releaseDirectory "$PackageName-$Runtime.manifest.json"
+$summaryPath = Join-Path $releaseDirectory "$PackageName-$Runtime.release-summary.md"
 $requiredFiles =
 @(
     "HapticDrive.Asio.App.exe",
@@ -64,6 +65,10 @@ if (Test-Path $checksumPath) {
 
 if (Test-Path $manifestPath) {
     Remove-Item -LiteralPath $manifestPath -Force
+}
+
+if (Test-Path $summaryPath) {
+    Remove-Item -LiteralPath $summaryPath -Force
 }
 
 $publishArguments = @(
@@ -109,6 +114,59 @@ if (-not $NoZip) {
     }
 
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath
+
+    $commitHash = "unknown"
+    $commitSubject = "unknown"
+    $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+    if ($null -ne $gitCommand) {
+        $commitHashResult = (& $gitCommand.Source rev-parse HEAD 2>$null)
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($commitHashResult)) {
+            $commitHash = ($commitHashResult | Select-Object -First 1).Trim()
+        }
+
+        $commitSubjectResult = (& $gitCommand.Source log -1 --pretty=%s 2>$null)
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($commitSubjectResult)) {
+            $commitSubject = ($commitSubjectResult | Select-Object -First 1).Trim()
+        }
+    }
+
+    $summaryLines =
+    @(
+        "# Release Summary"
+        ""
+        "- Package: $PackageName"
+        "- Runtime: $Runtime"
+        "- Configuration: $Configuration"
+        "- Generated (UTC): $($manifest.GeneratedUtc)"
+        "- Commit: $commitHash"
+        "- Commit subject: $commitSubject"
+        ""
+        "## Files"
+        ""
+        "- Zip: $([System.IO.Path]::GetFileName($zipPath))"
+        "- SHA-256 file: $([System.IO.Path]::GetFileName($checksumPath))"
+        "- Manifest: $([System.IO.Path]::GetFileName($manifestPath))"
+        "- Publish file count: $($manifest.PublishFileCount)"
+        "- Zip size (bytes): $($manifest.ZipSizeBytes)"
+        "- Zip SHA-256: $($manifest.ZipSha256)"
+        ""
+        "## Required app payload"
+        ""
+    )
+
+    foreach ($file in $requiredFiles) {
+        $summaryLines += "- $file"
+    }
+
+    $summaryLines += @(
+        ""
+        "## Verification"
+        ""
+        "- Publish script: .\Publish-HapticDrive.ps1 -Configuration $Configuration -Runtime $Runtime"
+        "- Smoke check: .\Test-ReleaseArtifact.ps1 -Runtime $Runtime"
+    )
+
+    $summaryLines | Set-Content -LiteralPath $summaryPath
 }
 
 Write-Host "Publish complete."
@@ -117,4 +175,5 @@ if (-not $NoZip) {
     Write-Host "Zip package: $zipPath"
     Write-Host "Checksum file: $checksumPath"
     Write-Host "Manifest file: $manifestPath"
+    Write-Host "Release summary: $summaryPath"
 }

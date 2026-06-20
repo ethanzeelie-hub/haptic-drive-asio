@@ -61,4 +61,5 @@ jobs:
             artifacts/release/HapticDrive.Asio-win-x64.zip
             artifacts/release/HapticDrive.Asio-win-x64.sha256
             artifacts/release/HapticDrive.Asio-win-x64.manifest.json
+            artifacts/release/HapticDrive.Asio-win-x64.release-summary.md
           if-no-files-found: error

@@ -4445,6 +4445,68 @@ Self-review:
 - The wrapper stays intentionally narrow and reuses the existing scripts rather than forking delivery logic into a second packaging implementation.
 - This is a good stopping point for the current delivery lane before the work graduates into installer/signing/release-service automation.
 
+## Stage 25T - Release Summary Artifact Baseline
+
+Date: 2026-06-20
+
+Status: Complete.
+
+Goal: Add a generated, validated human-readable release-summary artifact to the packaged release set so manual publication and review have one trustworthy handoff document instead of needing to cross-reference the zip, checksum, manifest, and script logs separately.
+
+Notes:
+
+- Re-audited the Stage 25S delivery seam before editing:
+  - `Publish-HapticDrive.ps1` already owned the final artifact set,
+  - `Test-ReleaseArtifact.ps1` already validated structural and metadata integrity,
+  - `Prepare-ReleaseArtifact.ps1` already staged the release set locally,
+  - the remaining gap was that a human reviewer still had no single generated summary document to publish or sanity-check against.
+- Extended `Publish-HapticDrive.ps1`:
+  - writes `artifacts\release\HapticDrive.Asio-win-x64.release-summary.md`,
+  - includes package/runtime/configuration,
+  - includes generated UTC time,
+  - includes current commit hash and commit subject when git metadata is available,
+  - includes zip/checksum/manifest file names,
+  - includes zip size and SHA-256,
+  - includes required app payload file names,
+  - includes the repo-native publish and smoke-check commands used to validate the artifact set.
+- Extended `Test-ReleaseArtifact.ps1`:
+  - requires the release-summary Markdown file,
+  - validates that the summary contains the expected package/runtime identity,
+  - validates that the summary references the actual zip/checksum/manifest file names,
+  - validates that the summary carries the actual computed zip SHA-256.
+- Extended the downstream delivery flow:
+  - `.github/workflows/package.yml` now uploads the release summary with the rest of the package files,
+  - `Prepare-ReleaseArtifact.ps1` now stages the release summary alongside the zip, checksum, and manifest.
+- The first pass surfaced two small but real scripting issues and closed them in-stage:
+  - PowerShell string escaping inside the generated Markdown verification lines needed plain text rather than embedded backtick formatting,
+  - summary-content validation needed ordinal `IndexOf` checks instead of the unavailable two-argument `Contains` overload in this PowerShell context.
+- Updated repo docs:
+  - `README.md` now reports Stage 25T and documents the release-summary artifact,
+  - `ROADMAP.md`, `KNOWN_ISSUES.md`, and `ARCHITECTURE.md` now record Stage 25T and narrow the remaining delivery gap to actual publication/signing/installer automation rather than basic human-readable handoff packaging.
+
+Verification:
+
+- `powershell -ExecutionPolicy Bypass -File .\Prepare-ReleaseArtifact.ps1 -Configuration Release -Runtime win-x64` passed end to end:
+  - restore,
+  - targeted runtime restore,
+  - build,
+  - test,
+  - format,
+  - launch preflight,
+  - publish,
+  - smoke check,
+  - staged-release folder assembly.
+- The generated release-summary artifact now exists under:
+  - `artifacts\release\HapticDrive.Asio-win-x64.release-summary.md`,
+  - `artifacts\staged-release\HapticDrive.Asio-win-x64\HapticDrive.Asio-win-x64.release-summary.md`.
+- The smoke script passed while validating the summary against the actual zip/checksum/manifest metadata.
+
+Self-review:
+
+- Stage 25T is intentionally modest, but it closes a real operator-handoff problem without pretending release publication is automated yet.
+- The summary remains derived from actual artifact metadata and validated by the smoke script, which keeps it honest instead of becoming a free-floating manually edited note.
+- This is a solid base for a later stage that automates release publication or signing, because those flows now have a stable human-readable summary artifact to attach or transform.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

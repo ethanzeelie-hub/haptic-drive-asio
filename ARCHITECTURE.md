@@ -2704,3 +2704,26 @@ Stage 25S architecture result:
   - the runtime-specific restore requirement for packaged publish is now encoded in the tool instead of being tribal knowledge.
 
 Stage 25S deliberately does not add installer generation, code signing, GitHub Releases publication, release-note authoring, or install/uninstall validation. It establishes one deterministic local staging command first so later delivery automation can build on a verified release-preparation workflow instead of an operator memory test.
+
+## Stage 25T Release Summary Artifact Baseline
+
+Stage 25T continues the delivery-hardening path by giving each release artifact set one human-readable handoff document instead of leaving publication context scattered across scripts, manifests, and operator memory.
+
+Stage 25T architecture result:
+
+- `Publish-HapticDrive.ps1` now emits a Markdown release summary alongside the existing zip, checksum, and JSON manifest.
+- That summary carries a minimal release-publication envelope:
+  - package/runtime/configuration,
+  - generated UTC timestamp,
+  - current commit hash and subject when git metadata is available,
+  - staged artifact file names,
+  - zip size and SHA-256,
+  - required app payload file list,
+  - the repo-native publish and smoke-check commands used to validate the package.
+- `Test-ReleaseArtifact.ps1` now validates that the release summary exists and that its key identity/integrity fields match the actual produced artifact set.
+- `.github/workflows/package.yml` and `Prepare-ReleaseArtifact.ps1` now carry that summary forward with the rest of the release artifact set, so CI and local staged-release output both produce the same handoff surface.
+- The result narrows another small but real delivery gap:
+  - release-preparation output is now easier to hand off for manual publication or review,
+  - the summary is derived from the same actual artifact metadata that the smoke script validates, rather than being a manually maintained note.
+
+Stage 25T deliberately does not add signed release publication, GitHub Releases API automation, changelog synthesis across multiple commits, installer generation, or install/uninstall validation. It establishes one trustworthy release-summary artifact first so later publication automation can build on a stable human-readable handoff document.
