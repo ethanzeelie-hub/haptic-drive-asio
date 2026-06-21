@@ -1212,3 +1212,10 @@
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Release packaging now carries stronger diagnostics metadata, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, third-party notice packaging, or install/uninstall validation.
+
+## Stage 26L
+
+- Release packaging is now reproducible and audited, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+- Public redistribution remains blocked until the owner selects license terms. The release artifact is technically cleaner now, but legal release readiness is still an owner decision.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.

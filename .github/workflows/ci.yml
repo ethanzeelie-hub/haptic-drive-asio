@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-test-verify:
     runs-on: windows-latest
@@ -23,13 +26,19 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore
-        run: dotnet restore HapticDrive.Asio.sln --configfile NuGet.Config
+        run: dotnet restore HapticDrive.Asio.sln --locked-mode --configfile NuGet.Config
+
+      - name: Vulnerability audit
+        run: .\Test-PackageVulnerabilities.ps1 -FailOnMinimumSeverity High
 
       - name: Build
-        run: dotnet build HapticDrive.Asio.sln --no-restore -warnaserror
+        run: dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror
 
       - name: Test
-        run: dotnet test HapticDrive.Asio.sln --no-build
+        run: dotnet test HapticDrive.Asio.sln -c Release --no-build --collect:"XPlat Code Coverage" --results-directory artifacts\TestResults
+
+      - name: Coverage gate
+        run: .\Test-CodeCoverage.ps1 -SearchRoot artifacts\TestResults -MinimumLineCoverage 75
 
       - name: Format
         run: dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore

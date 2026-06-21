@@ -7496,3 +7496,81 @@ Self-review:
 - The support-bundle path is materially safer now: redaction happens at export time in one place, safe mode is the default, and machine-readable events no longer depend on copyable free-form text alone.
 - The structured diagnostics layer is intentionally snapshot-oriented for this stage. It gives us stable health events and correlation IDs without pushing logging or string work into the audio/render callbacks.
 - The next hardening stage can focus on packaging/dependency governance while building on top of a clearer diagnostics/privacy baseline.
+
+## Stage 26L - Release Packaging and Dependency Governance Hardening
+
+Status: Complete.
+
+Goal: Make release packaging reproducible and auditable, remove audit bypasses, centralize package governance, add lock files and CI gates, and make the packaged artifact clearer about licensing and shipped contents.
+
+Changes:
+
+- Added central package management with exact Stage 12 package versions in `Directory.Packages.props`.
+- Enabled package lock files and committed generated `packages.lock.json` files across source and test projects.
+- Tightened build governance:
+  - `LangVersion` pinned to `12.0`,
+  - SDK roll-forward narrowed to `latestFeature`.
+- Upgraded test package governance to the required versions:
+  - `coverlet.collector` `10.0.1`,
+  - `Microsoft.NET.Test.Sdk` `18.6.0`,
+  - `xunit` `2.9.3`,
+  - `xunit.runner.visualstudio` `3.1.5`.
+- Added `Test-PackageVulnerabilities.ps1` so both local scripts and CI can fail on high/critical dependency advisories without relying on ad hoc command output.
+- Added `Test-CodeCoverage.ps1` so CI can enforce the Stage 12 line-coverage floor from Cobertura output using merged unique production-line coverage across test projects instead of double-counting the same source lines per test assembly.
+- Hardened release scripts:
+  - removed all `NuGetAudit=false` bypasses,
+  - changed restore paths to locked-mode restores,
+  - added high/critical vulnerability gating,
+  - switched release-preparation build/test flow to Release configuration,
+  - added a second `package-manifest.json` alongside the existing public release manifest,
+  - excluded portable PDBs from the default zip artifact,
+  - packaged `README.md`, `QUICK_START.md`, `LICENSE.md`, `RELEASE_STATUS.md`, and `THIRD_PARTY_NOTICES.md` into the default zip,
+  - removed absolute workspace paths from the public manifest surface.
+- Hardened `Test-ReleaseArtifact.ps1` to verify:
+  - documentation payload presence,
+  - package-manifest presence,
+  - no portable PDBs in the extracted zip,
+  - no absolute repository paths in either manifest.
+- Added release/support docs:
+  - `RELEASE_STATUS.md`,
+  - `RELEASE_CHECKLIST.md`,
+  - stronger redistribution-status wording in `LICENSE.md`,
+  - curated shipped-dependency notes in `THIRD_PARTY_NOTICES.md`.
+- Updated GitHub Actions workflows:
+  - explicit `permissions: contents: read`,
+  - locked-mode restore,
+  - vulnerability audit,
+  - Release build,
+  - coverage collection plus a 75% merged unique-line gate for the production-library surface,
+  - package-manifest artifact upload in packaging workflow.
+- Added Stage 12 governance tests covering:
+  - no `NuGetAudit=false` in release scripts,
+  - central package management presence,
+  - release-manifest non-leak guardrails,
+  - PDB exclusion guardrails,
+  - CI/package workflow audit/coverage/minimal-permission requirements.
+- Updated several existing tests to satisfy stricter xUnit analyzer rules introduced by the mandated test-package upgrades.
+
+Tests:
+
+- Added `PackagingScriptTests.ReleaseScriptsDoNotDisableNuGetAudit`.
+- Added `PackagingScriptTests.ReleaseManifestDoesNotContainAbsoluteWorkspacePath`.
+- Added `PackagingScriptTests.DefaultArtifactExcludesPdbs`.
+- Added `DependencyGovernanceTests.CentralPackageManagementIsEnabled`.
+- Added CI workflow static guardrails through `DependencyGovernanceTests.CiWorkflowUsesMinimalPermissionsAndRequiredValidationSteps`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build --collect:"XPlat Code Coverage"` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Prepare-ReleaseArtifact.ps1` passed.
+- `.\Run-HapticDrive.ps1 -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- The repo is materially more production-like now: package versions are centralized, restores are reproducible, high/critical audit findings cannot be silently bypassed, and CI enforces a measurable quality floor instead of just compiling.
+- The artifact surface is also clearer for another engineer: the release zip now carries licensing/status/docs directly, and the manifests are safe to publish because they no longer leak local absolute paths.
+- The coverage gate is intentionally staged: Stage 12 now enforces the non-WPF production-library surface at 75%+ using merged unique lines, while the lower-coverage `HapticDrive.Asio.App` shell remains a later-stage hardening target when the plan explicitly revisits app/controller/view-model coverage.

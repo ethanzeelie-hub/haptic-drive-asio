@@ -226,7 +226,7 @@ public sealed class PHprRealOutputTests
 
         Assert.True(result.Succeeded, result.Message);
         Assert.Equal(3, writer.Reports.Count);
-        Assert.Single(writer.Reports.Where(report => report.State == PHprHidReportState.Start));
+        Assert.Single(writer.Reports, report => report.State == PHprHidReportState.Start);
         Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.EmergencyStop));
         Assert.Equal(0, device.GetSnapshot().PendingScheduledStopCount);
         Assert.False(device.GetDiagnostics().ActivePulse);
@@ -625,7 +625,7 @@ public sealed class PHprRealOutputTests
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
 
         Assert.True(result.Routed);
-        var start = Assert.Single(writer.Reports.Where(report => report.State == PHprHidReportState.Start));
+        var start = Assert.Single(writer.Reports, report => report.State == PHprHidReportState.Start);
         Assert.Equal(PHprModuleId.Brake, start.TargetModule);
     }
 
@@ -663,7 +663,7 @@ public sealed class PHprRealOutputTests
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
 
         Assert.True(result.Routed);
-        var start = Assert.Single(writer.Reports.Where(report => report.State == PHprHidReportState.Start));
+        var start = Assert.Single(writer.Reports, report => report.State == PHprHidReportState.Start);
         Assert.Equal(PHprModuleId.Throttle, start.TargetModule);
         Assert.Equal(0x28, start.Payload[4]);
         Assert.Equal(0x07, start.Payload[5]);

@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net8.0-windows7.0": {
+      "NAudio.Core": {
+        "type": "Transitive",
+        "resolved": "2.3.0",
+        "contentHash": "jMd7r6dB6tAtXhOYL58ntPqwERNm1/Rhw5MKOIYvsnXzuX+PTGsa2VMam6n0npZYSwlSidKa4GAm4bFcXFUlcg=="
+      },
+      "hapticdrive.actuation": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Asio.Core": "[1.0.0, )",
+          "HapticDrive.Input.Abstractions": "[1.0.0, )",
+          "HapticDrive.Simagic.PHPR.Abstractions": "[1.0.0, )"
+        }
+      },
+      "hapticdrive.asio.audio": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Asio.Core": "[1.0.0, )",
+          "NAudio.Asio": "[2.3.0, )"
+        }
+      },
+      "hapticdrive.asio.core": {
+        "type": "Project"
+      },
+      "hapticdrive.asio.recording": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Asio.Core": "[1.0.0, )"
+        }
+      },
+      "hapticdrive.asio.runtime": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Asio.Audio": "[1.0.0, )",
+          "HapticDrive.Asio.Core": "[1.0.0, )",
+          "HapticDrive.Asio.Recording": "[1.0.0, )"
+        }
+      },
+      "hapticdrive.asio.telemetry.f1_25": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Asio.Core": "[1.0.0, )"
+        }
+      },
+      "hapticdrive.input.abstractions": {
+        "type": "Project"
+      },
+      "hapticdrive.input.windows": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Input.Abstractions": "[1.0.0, )"
+        }
+      },
+      "hapticdrive.simagic.phpr.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Input.Abstractions": "[1.0.0, )"
+        }
+      },
+      "hapticdrive.simagic.phpr.output.windows": {
+        "type": "Project",
+        "dependencies": {
+          "HapticDrive.Input.Abstractions": "[1.0.0, )",
+          "HapticDrive.Simagic.PHPR.Abstractions": "[1.0.0, )"
+        }
+      },
+      "NAudio.Asio": {
+        "type": "CentralTransitive",
+        "requested": "[2.3.0, )",
+        "resolved": "2.3.0",
+        "contentHash": "I+rAAPT8vmSEw4d4ie+AoSkrvNK6ylRrXznnjQKS+qZgTA9Jnt1Pxe0EaU8nXxOOq5h8ucBSWccBEw6I/J0nkQ==",
+        "dependencies": {
+          "NAudio.Core": "2.3.0"
+        }
+      }
+    },
+    "net8.0-windows7.0/win-x64": {}
+  }
+}

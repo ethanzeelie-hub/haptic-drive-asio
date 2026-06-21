@@ -1,13 +1,21 @@
 # Third Party Notices
 
-This file tracks third-party dependencies and required notices as dependencies are added.
+This file covers dependencies included in the shipped application artifact or required to understand the shipped package composition. Test-only dependencies are excluded from the shipped artifact and are not listed here as redistributable package contents.
 
-Stage 00 uses only standard .NET project templates and xUnit test packages.
+## Shipped application dependency notices
 
-## NAudio.Asio
+### NAudio.Asio 2.3.0
 
-Stage 17 adds `NAudio.Asio` 2.3.0 for the native Windows ASIO streaming backend behind `IAsioOutputBackend`.
+Used by the Windows ASIO output backend in the desktop application.
 
-- Project: https://github.com/naudio/NAudio
-- Package: https://www.nuget.org/packages/NAudio.Asio
-- License: MIT, per the upstream NAudio repository and package metadata.
+- Project: [NAudio](https://github.com/naudio/NAudio)
+- Package: [NAudio.Asio on NuGet](https://www.nuget.org/packages/NAudio.Asio)
+- Reported upstream license: MIT
+
+## Runtime prerequisite note
+
+The default packaged release is framework-dependent and targets the Windows .NET 8 Desktop Runtime. That runtime is a system prerequisite and is not bundled into the default zip artifact produced by this repository.
+
+## Project status note
+
+These notices do not grant redistribution rights for this repository or its packaged output. See [LICENSE.md](LICENSE.md) and [RELEASE_STATUS.md](RELEASE_STATUS.md) for the current redistribution status.

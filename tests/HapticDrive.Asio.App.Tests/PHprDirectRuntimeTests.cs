@@ -137,8 +137,8 @@ public sealed class PHprDirectRuntimeTests
         Assert.True(harness.Store.Exists());
         Assert.Single(harness.Writer.Reports);
         Assert.Equal(PHprHidReportState.Start, harness.Writer.Reports[0].State);
-        harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(40));
-        await WaitForReportsAsync(harness.Writer, 2);
+        await WaitForDiagnosticsAsync(harness.Output, diagnostics => diagnostics.Output.PendingScheduledStopCount == 1);
+        await AdvanceClockUntilReportsAsync(harness.OutputClock, harness.Writer, 2, TimeSpan.FromMilliseconds(10));
         harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(290));
         await WaitForMarkerClearedAsync(harness.Store);
         var snapshot = harness.Runtime.GetSnapshot();
@@ -165,7 +165,7 @@ public sealed class PHprDirectRuntimeTests
             DirectSafetyContext());
 
         Assert.Contains("unclean shutdown", blocked, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(harness.Writer.Reports.Where(report => report.State == PHprHidReportState.Start));
+        Assert.DoesNotContain(harness.Writer.Reports, report => report.State == PHprHidReportState.Start);
         Assert.True(harness.Runtime.GetSnapshot().DisabledAfterUncleanShutdown);
 
         var clear = await harness.Runtime.StopAllAsync("clear after unclean startup");
@@ -544,6 +544,27 @@ public sealed class PHprDirectRuntimeTests
         }
 
         Assert.True(writer.Reports.Count >= count, $"Expected {count} reports but saw {writer.Reports.Count}.");
+    }
+
+    private static async Task AdvanceClockUntilReportsAsync(
+        FakeDirectStopClock clock,
+        FakeHidReportWriter writer,
+        int count,
+        TimeSpan advanceStep)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (writer.Reports.Count >= count)
+            {
+                return;
+            }
+
+            clock.AdvanceBy(advanceStep);
+            await Task.Delay(5);
+        }
+
+        Assert.True(writer.Reports.Count >= count, $"Expected {count} reports but saw {writer.Reports.Count} after advancing the fake clock.");
     }
 
     private static async Task WaitForMarkerClearedAsync(IPHprBenchUncleanShutdownStore store)

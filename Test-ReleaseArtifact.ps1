@@ -28,6 +28,7 @@ $zipPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.zip"
 $checksumPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.sha256"
 $manifestPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.manifest.json"
 $summaryPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.release-summary.md"
+$packageManifestPath = Join-Path $resolvedOutputRoot "release\$PackageName-$Runtime.package-manifest.json"
 $extractDirectory = Join-Path $resolvedExtractRoot "$PackageName-$Runtime"
 $requiredFiles =
 @(
@@ -35,6 +36,14 @@ $requiredFiles =
     "HapticDrive.Asio.App.dll",
     "HapticDrive.Asio.App.deps.json",
     "HapticDrive.Asio.App.runtimeconfig.json"
+)
+$requiredDocumentationFiles =
+@(
+    "README.md",
+    "QUICK_START.md",
+    "LICENSE.md",
+    "RELEASE_STATUS.md",
+    "THIRD_PARTY_NOTICES.md"
 )
 
 function Assert-RequiredFilesPresent {
@@ -76,7 +85,14 @@ if (-not (Test-Path $summaryPath)) {
     throw "Release summary was not found at $summaryPath"
 }
 
+if (-not (Test-Path $packageManifestPath)) {
+    throw "Package manifest was not found at $packageManifestPath"
+}
+
+$manifestJsonText = Get-Content -LiteralPath $manifestPath -Raw
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$packageManifestJsonText = Get-Content -LiteralPath $packageManifestPath -Raw
+$packageManifest = Get-Content -LiteralPath $packageManifestPath -Raw | ConvertFrom-Json
 $summaryText = Get-Content -LiteralPath $summaryPath -Raw
 
 if ($manifest.PackageName -ne $PackageName) {
@@ -101,6 +117,34 @@ if ($manifest.ZipSha256 -ne $zipHash.Hash) {
 
 if ($manifest.ZipFileName -ne [System.IO.Path]::GetFileName($zipPath)) {
     throw "Release manifest zip file name '$($manifest.ZipFileName)' did not match expected '$([System.IO.Path]::GetFileName($zipPath))'"
+}
+
+if ($manifestJsonText.IndexOf($repoRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    throw "Release manifest must not contain the absolute repository path"
+}
+
+if ($packageManifestJsonText.IndexOf($repoRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    throw "Package manifest must not contain the absolute repository path"
+}
+
+if ($manifest.IncludesPortablePdbs -ne $false) {
+    throw "Release manifest must report portable PDBs as excluded"
+}
+
+$packageFiles = @($packageManifest.PackageFiles)
+if ($packageFiles.Count -eq 0) {
+    throw "Package manifest did not contain any packaged files"
+}
+
+foreach ($documentationFile in $requiredDocumentationFiles) {
+    if ($packageFiles -notcontains $documentationFile) {
+        throw "Package manifest is missing expected documentation file $documentationFile"
+    }
+}
+
+$packagedPdbs = $packageFiles | Where-Object { $_ -like "*.pdb" }
+if ($packagedPdbs.Count -gt 0) {
+    throw "Package manifest must not include portable PDBs: $($packagedPdbs -join ', ')"
 }
 
 $requiredSummaryTerms =
@@ -128,6 +172,18 @@ New-Item -ItemType Directory -Path $extractDirectory -Force | Out-Null
 Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDirectory -Force
 Assert-RequiredFilesPresent -DirectoryPath $extractDirectory -Label "Extracted release zip"
 
+foreach ($documentationFile in $requiredDocumentationFiles) {
+    $documentationPath = Join-Path $extractDirectory $documentationFile
+    if (-not (Test-Path $documentationPath)) {
+        throw "Extracted release zip is missing documentation file $documentationFile"
+    }
+}
+
+$zipPdbs = Get-ChildItem -LiteralPath $extractDirectory -Recurse -Filter *.pdb
+if ($zipPdbs.Count -gt 0) {
+    throw "Extracted release zip must not include portable PDBs"
+}
+
 $publishFiles = Get-ChildItem -Path $publishDirectory -File | Select-Object -ExpandProperty Name
 $extractedFiles = Get-ChildItem -Path $extractDirectory -File | Select-Object -ExpandProperty Name
 Write-Host "Release artifact smoke check passed."
@@ -135,6 +191,7 @@ Write-Host "Publish directory: $publishDirectory"
 Write-Host "Zip package: $zipPath"
 Write-Host "Checksum file: $checksumPath"
 Write-Host "Manifest file: $manifestPath"
+Write-Host "Package manifest file: $packageManifestPath"
 Write-Host "Release summary: $summaryPath"
 Write-Host "Extracted directory: $extractDirectory"
 Write-Host "Publish file count: $($publishFiles.Count)"

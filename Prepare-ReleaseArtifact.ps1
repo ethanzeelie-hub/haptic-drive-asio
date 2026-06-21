@@ -26,13 +26,15 @@ $stagingDirectory = Join-Path $resolvedOutputRoot "staged-release\$releasePrefix
 $publishScript = Join-Path $repoRoot "Publish-HapticDrive.ps1"
 $smokeScript = Join-Path $repoRoot "Test-ReleaseArtifact.ps1"
 $runScript = Join-Path $repoRoot "Run-HapticDrive.ps1"
+$vulnerabilityScript = Join-Path $repoRoot "Test-PackageVulnerabilities.ps1"
 $releaseDirectory = Join-Path $resolvedOutputRoot "release"
 $releaseFiles =
 @(
     (Join-Path $releaseDirectory "$releasePrefix.zip")
     (Join-Path $releaseDirectory "$releasePrefix.sha256")
     (Join-Path $releaseDirectory "$releasePrefix.manifest.json")
-    (Join-Path $releaseDirectory "$releasePrefix.release-summary.md")
+    (Join-Path $releaseDirectory "$releasePrefix.release-summary.md"),
+    (Join-Path $releaseDirectory "$releasePrefix.package-manifest.json")
 )
 
 if (Test-Path $dotnetRoot) {
@@ -40,22 +42,27 @@ if (Test-Path $dotnetRoot) {
     $env:DOTNET_CLI_HOME = Join-Path $repoRoot ".dotnet-home"
 }
 
-& $dotnet restore $solution --configfile (Join-Path $repoRoot "NuGet.Config") -p:NuGetAudit=false
+& $dotnet restore $solution --locked-mode --configfile (Join-Path $repoRoot "NuGet.Config")
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& $dotnet restore $appProject -r $Runtime --configfile (Join-Path $repoRoot "NuGet.Config") -p:NuGetAudit=false
+& $dotnet restore $appProject -r $Runtime --locked-mode --configfile (Join-Path $repoRoot "NuGet.Config")
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& $dotnet build $solution --no-restore -warnaserror
+& $vulnerabilityScript -SolutionPath $solution -FailOnMinimumSeverity High
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& $dotnet test $solution --no-build
+& $dotnet build $solution -c $Configuration --no-restore -warnaserror
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+
+& $dotnet test $solution -c $Configuration --no-build
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

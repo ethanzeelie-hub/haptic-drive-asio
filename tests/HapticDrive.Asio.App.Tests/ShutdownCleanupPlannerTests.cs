@@ -35,11 +35,12 @@ public sealed class ShutdownCleanupPlannerTests
             plan.Steps,
             step => Assert.Contains(
                 step.Action,
-                [
+                new[]
+                {
                     ShutdownCleanupActionKind.DetachObserver,
                     ShutdownCleanupActionKind.StopOnly,
                     ShutdownCleanupActionKind.Dispose
-                ]));
+                }));
         Assert.DoesNotContain(
             plan.Steps,
             step => step.Description.Contains("start", StringComparison.OrdinalIgnoreCase)

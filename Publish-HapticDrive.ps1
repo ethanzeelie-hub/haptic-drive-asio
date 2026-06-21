@@ -14,6 +14,8 @@ $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dotnetRoot = Join-Path $repoRoot ".dotnet"
 $localDotnet = Join-Path $dotnetRoot "dotnet.exe"
 $dotnet = if (Test-Path $localDotnet) { $localDotnet } else { "dotnet" }
+$vulnerabilityScript = Join-Path $repoRoot "Test-PackageVulnerabilities.ps1"
+$solution = Join-Path $repoRoot "HapticDrive.Asio.sln"
 $project = Join-Path $repoRoot "src\HapticDrive.Asio.App\HapticDrive.Asio.App.csproj"
 $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
     $OutputRoot
@@ -28,6 +30,8 @@ $zipPath = Join-Path $releaseDirectory "$PackageName-$Runtime.zip"
 $checksumPath = Join-Path $releaseDirectory "$PackageName-$Runtime.sha256"
 $manifestPath = Join-Path $releaseDirectory "$PackageName-$Runtime.manifest.json"
 $summaryPath = Join-Path $releaseDirectory "$PackageName-$Runtime.release-summary.md"
+$packageManifestPath = Join-Path $releaseDirectory "$PackageName-$Runtime.package-manifest.json"
+$zipStagingDirectory = Join-Path $resolvedOutputRoot "zip-staging\$PackageName-$Runtime"
 $requiredFiles =
 @(
     "HapticDrive.Asio.App.exe",
@@ -35,6 +39,51 @@ $requiredFiles =
     "HapticDrive.Asio.App.deps.json",
     "HapticDrive.Asio.App.runtimeconfig.json"
 )
+$documentationFiles = @(
+    @{ Source = (Join-Path $repoRoot "README.md"); Destination = "README.md" },
+    @{ Source = (Join-Path $repoRoot "docs\QUICK_START.md"); Destination = "QUICK_START.md" },
+    @{ Source = (Join-Path $repoRoot "LICENSE.md"); Destination = "LICENSE.md" },
+    @{ Source = (Join-Path $repoRoot "RELEASE_STATUS.md"); Destination = "RELEASE_STATUS.md" },
+    @{ Source = (Join-Path $repoRoot "THIRD_PARTY_NOTICES.md"); Destination = "THIRD_PARTY_NOTICES.md" }
+)
+
+function Copy-ArtifactFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath
+    )
+
+    $destinationDirectory = Split-Path -Parent $DestinationPath
+    if (-not [string]::IsNullOrWhiteSpace($destinationDirectory)) {
+        New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
+    }
+
+    Copy-Item -LiteralPath $SourcePath -Destination $DestinationPath -Force
+}
+
+function Get-RelativeArtifactPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BasePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TargetPath
+    )
+
+    $resolvedBasePath = (Resolve-Path -LiteralPath $BasePath).Path
+    $resolvedTargetPath = (Resolve-Path -LiteralPath $TargetPath).Path
+
+    if (-not $resolvedBasePath.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
+        $resolvedBasePath += [System.IO.Path]::DirectorySeparatorChar
+    }
+
+    $baseUri = [Uri]$resolvedBasePath
+    $targetUri = [Uri]$resolvedTargetPath
+    return [Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace('/', '\')
+}
 
 if (Test-Path $dotnetRoot) {
     $env:DOTNET_ROOT = $dotnetRoot
@@ -42,10 +91,20 @@ if (Test-Path $dotnetRoot) {
 }
 
 if (-not $NoRestore) {
-    & $dotnet restore $project -r $Runtime --configfile (Join-Path $repoRoot "NuGet.Config") -p:NuGetAudit=false
+    & $dotnet restore $solution --locked-mode --configfile (Join-Path $repoRoot "NuGet.Config")
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+
+    & $dotnet restore $project -r $Runtime --locked-mode --configfile (Join-Path $repoRoot "NuGet.Config")
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
+
+& $vulnerabilityScript -SolutionPath $solution -FailOnMinimumSeverity High
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
 }
 
 if (Test-Path $publishDirectory) {
@@ -71,6 +130,14 @@ if (Test-Path $summaryPath) {
     Remove-Item -LiteralPath $summaryPath -Force
 }
 
+if (Test-Path $packageManifestPath) {
+    Remove-Item -LiteralPath $packageManifestPath -Force
+}
+
+if (Test-Path $zipStagingDirectory) {
+    Remove-Item -LiteralPath $zipStagingDirectory -Recurse -Force
+}
+
 $publishArguments = @(
     "publish",
     $project,
@@ -82,8 +149,7 @@ $publishArguments = @(
     "false",
     "-o",
     $publishDirectory,
-    "--no-restore",
-    "-p:NuGetAudit=false"
+    "--no-restore"
 )
 
 & $dotnet @publishArguments
@@ -93,24 +159,65 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if (-not $NoZip) {
-    Compress-Archive -Path (Join-Path $publishDirectory '*') -DestinationPath $zipPath -Force
+    New-Item -ItemType Directory -Path $zipStagingDirectory -Force | Out-Null
+
+    $publishFiles = Get-ChildItem -LiteralPath $publishDirectory -Recurse -File
+    foreach ($file in $publishFiles) {
+        if ($file.Extension -ieq ".pdb") {
+            continue
+        }
+
+        $relativePath = Get-RelativeArtifactPath -BasePath $publishDirectory -TargetPath $file.FullName
+        Copy-ArtifactFile -SourcePath $file.FullName -DestinationPath (Join-Path $zipStagingDirectory $relativePath)
+    }
+
+    foreach ($documentationFile in $documentationFiles) {
+        if (-not (Test-Path $documentationFile.Source)) {
+            throw "Required documentation file was not found: $($documentationFile.Source)"
+        }
+
+        Copy-ArtifactFile -SourcePath $documentationFile.Source -DestinationPath (Join-Path $zipStagingDirectory $documentationFile.Destination)
+    }
+
+    Compress-Archive -Path (Join-Path $zipStagingDirectory '*') -DestinationPath $zipPath -Force
 
     $zipHash = Get-FileHash -LiteralPath $zipPath -Algorithm SHA256
     "$($zipHash.Hash) *$([System.IO.Path]::GetFileName($zipPath))" | Set-Content -LiteralPath $checksumPath -NoNewline
 
-    $manifest = [ordered]@{
+    $packageFiles = Get-ChildItem -LiteralPath $zipStagingDirectory -Recurse -File | ForEach-Object { (Get-RelativeArtifactPath -BasePath $zipStagingDirectory -TargetPath $_.FullName).Replace('\', '/') } | Sort-Object -Unique
+
+    $packageManifest = [ordered]@{
+        SchemaVersion = 1
         PackageName = $PackageName
         Runtime = $Runtime
         Configuration = $Configuration
-        GeneratedUtc = [DateTime]::UtcNow.ToString("O")
-        PublishDirectory = $publishDirectory
-        PublishFileCount = (Get-ChildItem -LiteralPath $publishDirectory -File).Count
+        GeneratedUtc = [DateTimeOffset]::UtcNow.ToString("O")
+        IncludesPortablePdbs = $false
         RequiredFiles = $requiredFiles
-        ZipPath = $zipPath
+        DocumentationFiles = $documentationFiles.Destination
+        PackageFiles = $packageFiles
+    }
+
+    $packageManifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $packageManifestPath
+
+    $manifest = [ordered]@{
+        SchemaVersion = 2
+        PackageName = $PackageName
+        Runtime = $Runtime
+        Configuration = $Configuration
+        GeneratedUtc = [DateTimeOffset]::UtcNow.ToString("O")
+        PublishFileCount = (Get-ChildItem -LiteralPath $publishDirectory -File).Count
+        PackageFileCount = $packageFiles.Count
+        RequiredFiles = $requiredFiles
         ZipFileName = [System.IO.Path]::GetFileName($zipPath)
         ZipSizeBytes = (Get-Item -LiteralPath $zipPath).Length
         ZipSha256 = $zipHash.Hash
-        ChecksumPath = $checksumPath
+        ChecksumFileName = [System.IO.Path]::GetFileName($checksumPath)
+        ManifestFileName = [System.IO.Path]::GetFileName($manifestPath)
+        SummaryFileName = [System.IO.Path]::GetFileName($summaryPath)
+        PackageManifestFileName = [System.IO.Path]::GetFileName($packageManifestPath)
+        IncludesPortablePdbs = $false
+        DocumentationFiles = $documentationFiles.Destination
     }
 
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath
@@ -140,15 +247,19 @@ if (-not $NoZip) {
         "- Generated (UTC): $($manifest.GeneratedUtc)"
         "- Commit: $commitHash"
         "- Commit subject: $commitSubject"
+        "- License status: redistribution blocked until owner selects a license"
         ""
         "## Files"
         ""
         "- Zip: $([System.IO.Path]::GetFileName($zipPath))"
         "- SHA-256 file: $([System.IO.Path]::GetFileName($checksumPath))"
         "- Manifest: $([System.IO.Path]::GetFileName($manifestPath))"
+        "- Package manifest: $([System.IO.Path]::GetFileName($packageManifestPath))"
         "- Publish file count: $($manifest.PublishFileCount)"
+        "- Packaged file count: $($manifest.PackageFileCount)"
         "- Zip size (bytes): $($manifest.ZipSizeBytes)"
         "- Zip SHA-256: $($manifest.ZipSha256)"
+        "- Portable PDBs included: $($manifest.IncludesPortablePdbs)"
         ""
         "## Required app payload"
         ""
@@ -160,8 +271,19 @@ if (-not $NoZip) {
 
     $summaryLines += @(
         ""
+        "## Included documentation"
+        ""
+    )
+
+    foreach ($documentationFile in $documentationFiles) {
+        $summaryLines += "- $($documentationFile.Destination)"
+    }
+
+    $summaryLines += @(
+        ""
         "## Verification"
         ""
+        "- Vulnerability audit: .\Test-PackageVulnerabilities.ps1 -FailOnMinimumSeverity High"
         "- Publish script: .\Publish-HapticDrive.ps1 -Configuration $Configuration -Runtime $Runtime"
         "- Smoke check: .\Test-ReleaseArtifact.ps1 -Runtime $Runtime"
     )
@@ -175,5 +297,6 @@ if (-not $NoZip) {
     Write-Host "Zip package: $zipPath"
     Write-Host "Checksum file: $checksumPath"
     Write-Host "Manifest file: $manifestPath"
+    Write-Host "Package manifest: $packageManifestPath"
     Write-Host "Release summary: $summaryPath"
 }

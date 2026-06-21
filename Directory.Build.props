@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>12.0</LangVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <TreatWarningsAsErrors Condition="'$(HapticDriveRelaxWarningsAsErrors)' != 'true'">true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25AN: Audio-profile view sync coordinator seam complete.
+Stage 26L: Release packaging and dependency governance hardening complete.
 
 ## Current Architecture Baseline
 
@@ -35,9 +35,11 @@ Stage 25AN: Audio-profile view sync coordinator seam complete.
 - App settings, audio profiles, and P-HPR effect profiles now save through atomic same-directory temp-file replacement, and app settings now persist an explicit schema version marker for future migrations.
 - App settings, audio profiles, and P-HPR effect profiles now share a version-migration planning seam, and legacy version-0 documents are upgraded safely to the current schema baseline instead of each store hand-rolling its own fallback.
 - App settings, audio profiles, and P-HPR effect profiles now also refresh a last-known-good backup snapshot plus a small retained backup-history set after successful saves, and those stores can recover from either fallback path when the primary persisted document is missing, corrupt, or unsupported.
-- Local and GitHub Actions packaging now share a real publish path through `Publish-HapticDrive.ps1`, producing a `win-x64` framework-dependent zip artifact plus checksum, JSON manifest, and Markdown release summary under `artifacts/release/`.
-- Release packaging now also includes a repo-native smoke check through `Test-ReleaseArtifact.ps1`, which verifies the publish folder, zip payload, checksum, manifest, release summary, and extracted artifact structure both locally and in the packaging workflow.
-- Local release preparation now also has a single staged-release command through `Prepare-ReleaseArtifact.ps1`, which runs restore/build/test/format/launch-preflight, publishes, smoke-checks, and gathers the final release files into `artifacts/staged-release/`.
+- Local and GitHub Actions packaging now share a real publish path through `Publish-HapticDrive.ps1`, producing a `win-x64` framework-dependent zip artifact plus checksum, JSON manifest, package manifest, and Markdown release summary under `artifacts/release/`.
+- Release packaging now also includes a repo-native smoke check through `Test-ReleaseArtifact.ps1`, which verifies the publish folder, zip payload, checksum, manifests, release summary, documentation payload, PDB exclusion, and extracted artifact structure both locally and in the packaging workflow.
+- Local release preparation now also has a single staged-release command through `Prepare-ReleaseArtifact.ps1`, which runs locked restore, vulnerability audit, build, test, format, launch-preflight, publish, smoke-checks, and gathers the final release files into `artifacts/staged-release/`.
+- Package governance now uses central package management, committed lock files, a high/critical vulnerability gate, Release-only CI validation, and a 75% line-coverage floor in GitHub Actions.
+- Public redistribution is still blocked until the owner selects license terms. Packaging hardening improves artifact quality and auditability; it does not grant release rights by itself.
 - Advanced / Diagnostics can now export a private local support-bundle zip under `local-validation-results/support-bundles/`, containing sanitized diagnostics text plus structured summary/manifest files and optional selected-recording detail text without attaching raw captures or private device paths.
 - `NullAudioOutputDevice` remains the default output so the app and automated tests work without ASIO hardware, shaker hardware, or Simagic hardware.
 - ASIO remains explicit opt-in. The app does not auto-start ASIO, auto-arm ASIO, or auto-switch away from Null output.
@@ -251,7 +253,7 @@ To produce a release-style publish zip locally:
 .\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64
 ```
 
-That writes the published app folder under `artifacts/publish/`, plus the zip package, SHA-256 checksum, JSON manifest, and Markdown release summary under `artifacts/release/`.
+That writes the published app folder under `artifacts/publish/`, plus the zip package, SHA-256 checksum, JSON manifest, package manifest, and Markdown release summary under `artifacts/release/`. The default zip includes `README.md`, `QUICK_START.md`, `LICENSE.md`, `RELEASE_STATUS.md`, and `THIRD_PARTY_NOTICES.md`, and excludes portable PDBs.
 
 To smoke-check the produced release artifact locally:
 
@@ -264,3 +266,5 @@ To run the full local release-preparation flow and stage the final files togethe
 ```powershell
 .\Prepare-ReleaseArtifact.ps1 -Configuration Release -Runtime win-x64
 ```
+
+Public redistribution remains blocked until the owner selects a license. See `LICENSE.md`, `RELEASE_STATUS.md`, and `RELEASE_CHECKLIST.md`.
