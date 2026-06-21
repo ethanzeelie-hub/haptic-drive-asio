@@ -136,7 +136,8 @@
 - Stage 26F complete: shipped effects now register through `IHapticEffectRegistry`, profiles now save schema-v2 effect documents keyed by stable effect key, descriptor validation/defaulting repairs invalid settings safely, and unknown future effect keys round-trip without becoming runtime requirements.
 - Stage 26G complete: the steady-state engine/pipeline render path now uses reusable buffers/value snapshots, only renders enabled effect runtimes, avoids per-buffer status-string construction, and the native ASIO callback now consumes from a fixed preallocated ring without the old shared callback lock.
 - Stage 26H complete: shell status/workflow publication now runs through focused controllers/view-models, `MainWindow.xaml.cs` is back below the Stage 26H size guardrail, and profile tuning now persists through an async debounced controller path instead of synchronous inline save work.
-- Next production-hardening priority: add the resilient recording/replay v2 file format with footer recovery, metadata completeness, and absolute-deadline replay timing.
+- Stage 26I complete: new recordings now use the resilient `.hdrec` v2 format with per-record/footer CRC coverage, incomplete-capture metadata, selected game/profile-hash metadata, truncated-file recovery, and absolute-deadline replay timing with drift counters.
+- Next production-hardening priority: decouple actuation/P-HPR runtime inputs from ASIO runtime internals and tighten the mock-safe actuation boundary.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

@@ -13,7 +13,7 @@
 - The output interlock starts latched by default and now requires an explicit reset after haptics are started and output configuration is valid.
 - The app still ships only one production game integration: F1 25. The registry/normalizer seam is now in place, but a second game adapter is still future work.
 - The descriptor/profile seam is now in place, but the WPF tuning surface is still only partially descriptor-driven; the generated effect-settings section exists, while the legacy fixed controls still remain for the currently shipped effect set.
-- Recording files still use the pre-v2 format and need the planned footer/CRC/recovery hardening before the recording pipeline is considered production-ready.
+- Recording/replay now uses the resilient v2 format with per-record/footer CRC coverage, incomplete-capture metadata, and truncated-file recovery.
 
 ## Stage 00
 

@@ -7330,3 +7330,57 @@ Self-review:
 - The shell is materially easier to extend now: controller/view-model seams own status publication, live profile tuning no longer blocks on synchronous disk work, and `MainWindow.xaml.cs` is back under a maintainable threshold.
 - The generated effect-settings section is intentionally incremental; the legacy hand-authored tuning controls still exist for the currently shipped effect set until a later stage fully replaces the fixed layout with descriptor-driven editing.
 - The next hardening stage can now focus on resilient recording/replay format work without dragging more persistence or presentation complexity back into the shell code-behind.
+
+## Stage 26I - Recording and Replay Format v2
+
+Status: Complete.
+
+Goal: Replace the old `.hdrec` recording format with a more resilient v2 layout that preserves raw packet bytes, survives partial writes safely, carries better metadata, and replays with stable absolute timing.
+
+Changes:
+
+- Replaced the old v1 writer path with the new v2 `.hdrec` file format:
+  - header magic `HDRVREC2`,
+  - reserved UTF-8 JSON metadata block,
+  - per-packet `PKT2` records with original receive timestamps and payload CRC32,
+  - `END2` footer with packet count, end timestamp, and whole-recording CRC32.
+- Kept v1 compatibility in the reader so existing `HDREC001` captures still load.
+- Hardened recording finalization:
+  - the writer now appends a footer on clean stop,
+  - header metadata is updated in-place after stop when possible,
+  - dropped packets mark the capture incomplete in both diagnostics and persisted metadata.
+- Hardened recovery behavior:
+  - the v2 reader validates per-record CRCs,
+  - missing footer / truncated tail / corrupt later record recovery now stops before the first bad record and keeps the earlier valid packets loadable,
+  - recovered recordings surface `RecordingComplete = false` instead of failing the whole load when safe recovery is possible.
+- Enriched recording metadata:
+  - new recordings now persist selected game metadata, selected profile name, profile hash, bind address, source endpoint placeholder, drop count, and completion state instead of relying on hardcoded `"F1 25"` / `"Default"` defaults in the common case.
+- Hardened replay timing:
+  - time-preserving replay now uses absolute deadlines from the first packet timestamp instead of chaining relative sleeps,
+  - replay snapshots now expose total drift, max late packet, and skipped-sleep diagnostics,
+  - replayed `UdpTelemetryPacket` values now carry fresh receive UTC/timestamp values so downstream freshness logic sees replay as active replay input rather than historical wall-clock time.
+- Updated the recording library detail text to show completion/incomplete state and dropped-packet count when available.
+
+Tests:
+
+- Replaced and expanded recording tests around the new v2 format:
+  - `TelemetryRecordingV2_WritesHeaderRecordsAndFooter`,
+  - `TelemetryRecordingV2_PreservesRawPayloadBytes`,
+  - `TelemetryRecordingV2_ReaderRecoversMissingFooter`,
+  - `TelemetryRecordingV2_ReaderStopsBeforeCorruptCrcRecord`,
+  - `TelemetryRecordingV2_MetadataUsesSelectedGameAndProfileHash`,
+  - `TelemetryRecordingCompatibility_ReadsExistingV1Recordings`,
+  - `Replay_UsesAbsoluteDeadlinesWithoutAccumulatingProcessingDelay`,
+  - `ReplayPacketsCarryFreshReceiveTimestamps`.
+- Preserved broader safety/compatibility coverage for invalid paths, unreasonable payload sizes, queue overflow handling, summary loading, and parser/replay regression behavior.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Recording.Tests\HapticDrive.Asio.Recording.Tests.csproj -c Release` passed.
+
+Self-review:
+
+- The recording path is materially safer now: captures can be recovered after partial writes, metadata is richer, and replay timing no longer drifts simply because delay scheduling took time.
+- One intentional limitation remains for this stage: `sourceEndpoint` still falls back to `"unknown"` in app-created metadata until the live receiver snapshot exposes a durable last-source endpoint surface suitable for recording metadata.
+- The next hardening stage can focus on actuation/P-HPR layering without carrying the old fragile recording footer/count assumptions forward.

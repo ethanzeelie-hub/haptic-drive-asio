@@ -139,8 +139,11 @@ internal static class RecordingLibraryManager
                 var sequenceHealthText = summary.MissingSequenceCount == 0
                     ? "sequence continuous"
                     : $"sequence gaps {summary.MissingSequenceCount:N0} (largest {summary.LargestSequenceGap:N0})";
+                var captureStateText = summary.Metadata.RecordingComplete
+                    ? "recording complete"
+                    : $"recording incomplete; dropped {summary.Metadata.DroppedPacketCount:N0}";
                 var detailText =
-                    $"Created {createdLocal:g}; duration {durationText}; payload {payloadText}; {sequenceRangeText}; {packetRateText}; {sequenceHealthText}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}.";
+                    $"Created {createdLocal:g}; duration {durationText}; payload {payloadText}; {sequenceRangeText}; {packetRateText}; {sequenceHealthText}; {captureStateText}; source {summary.Metadata.SourceGame}; profile {summary.Metadata.SourceProfile}; app {summary.Metadata.AppVersion}; modified {summary.LastModifiedAtUtc.ToLocalTime():g}.";
                 items.Add(new RecordingLibraryItem(
                     path,
                     $"{Path.GetFileName(path)} - {summary.PacketCount:N0} packet(s) - {durationText} - {sizeText}",
@@ -150,7 +153,8 @@ internal static class RecordingLibraryManager
                         summary,
                         detailText,
                         sequenceHealthText,
-                        sequenceRangeText)));
+                        sequenceRangeText,
+                        captureStateText)));
                 continue;
             }
 
@@ -460,7 +464,8 @@ internal static class RecordingLibraryManager
         TelemetryRecordingSummary summary,
         string detailText,
         string sequenceHealthText,
-        string sequenceRangeText)
+        string sequenceRangeText,
+        string captureStateText)
     {
         return string.Join(
             ' ',
@@ -472,6 +477,7 @@ internal static class RecordingLibraryManager
                 summary.PacketCount.ToString("N0"),
                 sequenceHealthText,
                 sequenceRangeText,
+                captureStateText,
                 detailText
             ]);
     }

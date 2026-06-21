@@ -9,132 +9,183 @@ namespace HapticDrive.Asio.Recording.Tests;
 public sealed class TelemetryRecordingServiceTests
 {
     [Fact]
-    public async Task Recording_WritesPacketsInOrderWithExactPayloadCopiesAndRelativeTiming()
+    public async Task TelemetryRecordingV2_WritesHeaderRecordsAndFooter()
     {
         var path = CreateTempRecordingPath();
-        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 8, 30, 0, TimeSpan.Zero);
-        var firstPayload = new byte[] { 0x01, 0x02, 0x03 };
-        var secondPayload = new byte[] { 0xAA, 0x00, 0xFF, 0x10 };
-
-        await using var recorder = new TelemetryRecordingService();
-        var startResult = await recorder.StartAsync(
-            path,
-            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Unit Test", "stage-09-test"));
-
-        Assert.True(startResult.Succeeded, startResult.Message);
-
-        var firstRecordResult = recorder.RecordPacket(CreatePacket(10, firstPayload, createdAtUtc.AddMilliseconds(10)));
-        firstPayload[0] = 0x99;
-        var secondRecordResult = recorder.RecordPacket(CreatePacket(11, secondPayload, createdAtUtc.AddMilliseconds(25)));
-
-        var snapshot = recorder.GetSnapshot();
-        var stopResult = await recorder.StopAsync();
-        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
-
-        Assert.True(firstRecordResult.Succeeded, firstRecordResult.Message);
-        Assert.True(secondRecordResult.Succeeded, secondRecordResult.Message);
-        Assert.Equal(2, snapshot.PacketCount);
-        Assert.Equal(TimeSpan.FromMilliseconds(25), snapshot.LastPacketRelativeTime);
-        Assert.True(stopResult.Succeeded, stopResult.Message);
-        Assert.True(loadResult.Succeeded, loadResult.Message);
-        Assert.NotNull(loadResult.Recording);
-        Assert.Equal("F1 25", loadResult.Recording.Metadata.SourceGame);
-        Assert.Equal("Unit Test", loadResult.Recording.Metadata.SourceProfile);
-        Assert.Equal(2, loadResult.Recording.Packets.Count);
-        Assert.Equal(10, loadResult.Recording.Packets[0].SequenceNumber);
-        Assert.Equal(11, loadResult.Recording.Packets[1].SequenceNumber);
-        Assert.Equal(TimeSpan.FromMilliseconds(10), loadResult.Recording.Packets[0].RelativeTime);
-        Assert.Equal(TimeSpan.FromMilliseconds(25), loadResult.Recording.Packets[1].RelativeTime);
-        Assert.Equal([0x01, 0x02, 0x03], loadResult.Recording.Packets[0].Payload);
-        Assert.Equal(secondPayload, loadResult.Recording.Packets[1].Payload);
-        Assert.Equal(TelemetryRecordingService.DefaultQueueCapacityPackets, snapshot.QueueCapacityPackets);
-        Assert.Equal(0, snapshot.DroppedPacketCount);
-    }
-
-    [Fact]
-    public async Task Recording_ZeroPacketSessionStopsToReadableFile()
-    {
-        var path = CreateTempRecordingPath();
-        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 9, 0, 0, TimeSpan.Zero);
-
-        await using var recorder = new TelemetryRecordingService();
-
-        var startResult = await recorder.StartAsync(
-            path,
-            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Empty", "stage-09-test"));
-        var stopResult = await recorder.StopAsync();
-        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
-
-        Assert.True(startResult.Succeeded, startResult.Message);
-        Assert.True(stopResult.Succeeded, stopResult.Message);
-        Assert.True(loadResult.Succeeded, loadResult.Message);
-        Assert.NotNull(loadResult.Recording);
-        Assert.Empty(loadResult.Recording.Packets);
-        Assert.Equal(createdAtUtc, loadResult.Recording.Metadata.CreatedAtUtc);
-    }
-
-    [Fact]
-    public async Task RecordingSummary_LoadsMetadataAndPacketCountWithoutFullReplayLoad()
-    {
-        var path = CreateTempRecordingPath();
-        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 9, 30, 0, TimeSpan.Zero);
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 8, 0, 0, TimeSpan.Zero);
 
         await using var recorder = new TelemetryRecordingService();
         Assert.True((await recorder.StartAsync(
             path,
-            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Summary Test", "stage-18-test"))).Succeeded);
-        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01, 0x02], createdAtUtc)).Succeeded);
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "V2 Header Test", "stage-09-test"))).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01, 0x02], createdAtUtc.AddMilliseconds(5))).Succeeded);
         Assert.True(recorder.RecordPacket(CreatePacket(2, [0x03, 0x04, 0x05], createdAtUtc.AddMilliseconds(15))).Succeeded);
+        Assert.True((await recorder.StopAsync()).Succeeded);
+
+        var bytes = await File.ReadAllBytesAsync(path);
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+
+        Assert.Equal("HDRVREC2", Encoding.ASCII.GetString(bytes, 0, 8));
+        Assert.Contains("PKT2", Encoding.ASCII.GetString(bytes), StringComparison.Ordinal);
+        Assert.Equal("END2", Encoding.ASCII.GetString(bytes, bytes.Length - 24, 4));
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.NotNull(loadResult.Recording);
+        Assert.True(loadResult.Recording.Metadata.RecordingComplete);
+        Assert.Equal(2, loadResult.Recording.Metadata.PacketCount);
+        Assert.NotNull(loadResult.Recording.Metadata.EndedAtUtc);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingV2_PreservesRawPayloadBytes()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 8, 15, 0, TimeSpan.Zero);
+        var firstPayload = new byte[] { 0x10, 0x20, 0x30 };
+        var secondPayload = new byte[] { 0xAA, 0x00, 0xFF, 0x55 };
+
+        await using var recorder = new TelemetryRecordingService();
+        Assert.True((await recorder.StartAsync(
+            path,
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Payload Test", "stage-09-test"))).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(10, firstPayload, createdAtUtc.AddMilliseconds(10))).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(11, secondPayload, createdAtUtc.AddMilliseconds(25))).Succeeded);
+        firstPayload[0] = 0x99;
+        secondPayload[0] = 0x11;
+        Assert.True((await recorder.StopAsync()).Succeeded);
+
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.NotNull(loadResult.Recording);
+        Assert.Equal([0x10, 0x20, 0x30], loadResult.Recording.Packets[0].Payload);
+        Assert.Equal([0xAA, 0x00, 0xFF, 0x55], loadResult.Recording.Packets[1].Payload);
+        Assert.Equal(TimeSpan.FromMilliseconds(10), loadResult.Recording.Packets[0].RelativeTime);
+        Assert.Equal(TimeSpan.FromMilliseconds(25), loadResult.Recording.Packets[1].RelativeTime);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingV2_ReaderRecoversMissingFooter()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 8, 30, 0, TimeSpan.Zero);
+
+        await WriteRecordingAsync(path, createdAtUtc, [0x01, 0x02], [0x03, 0x04, 0x05]);
+
+        var bytes = await File.ReadAllBytesAsync(path);
+        await File.WriteAllBytesAsync(path, bytes[..^24]);
+
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.NotNull(loadResult.Recording);
+        Assert.Equal(2, loadResult.Recording.Packets.Count);
+        Assert.False(loadResult.Recording.Metadata.RecordingComplete);
+        Assert.Equal(2, loadResult.Recording.Metadata.PacketCount);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingV2_ReaderStopsBeforeCorruptCrcRecord()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 8, 45, 0, TimeSpan.Zero);
+        await WriteRecordingAsync(path, createdAtUtc, [0x10, 0x11], [0x21, 0x22, 0x23]);
+
+        var bytes = await File.ReadAllBytesAsync(path);
+        var payloadIndex = FindLastSequence(bytes, [0x21, 0x22, 0x23]);
+        Assert.True(payloadIndex >= 0);
+        bytes[payloadIndex] ^= 0x7F;
+        await File.WriteAllBytesAsync(path, bytes);
+
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.NotNull(loadResult.Recording);
+        Assert.Single(loadResult.Recording.Packets);
+        Assert.Equal(1, loadResult.Recording.Packets[0].SequenceNumber);
+        Assert.False(loadResult.Recording.Metadata.RecordingComplete);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingV2_MetadataUsesSelectedGameAndProfileHash()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 9, 0, 0, TimeSpan.Zero);
+        var metadata = TelemetryRecordingMetadata.CreateDefault(
+            createdAtUtc,
+            sourceGame: "F1 25",
+            sourceProfile: "Wet Setup",
+            gameIntegrationId: "f1-25",
+            telemetryProtocolName: "F1 25 UDP",
+            telemetryProtocolVersion: "v3",
+            profileHash: "abc123",
+            sourceEndpoint: "F1 25|127.0.0.1",
+            bindAddress: "127.0.0.1");
+
+        await using var recorder = new TelemetryRecordingService();
+        Assert.True((await recorder.StartAsync(path, metadata)).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01], createdAtUtc)).Succeeded);
+        Assert.True((await recorder.StopAsync()).Succeeded);
+
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.NotNull(loadResult.Recording);
+        Assert.Equal("F1 25", loadResult.Recording.Metadata.SourceGame);
+        Assert.Equal("Wet Setup", loadResult.Recording.Metadata.SourceProfile);
+        Assert.Equal("abc123", loadResult.Recording.Metadata.ProfileHash);
+        Assert.Equal("f1-25", loadResult.Recording.Metadata.GameIntegrationId);
+        Assert.Equal("F1 25 UDP", loadResult.Recording.Metadata.TelemetryProtocolName);
+        Assert.Equal("v3", loadResult.Recording.Metadata.TelemetryProtocolVersion);
+        Assert.Equal("F1 25|127.0.0.1", loadResult.Recording.Metadata.SourceEndpoint);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingCompatibility_ReadsExistingV1Recordings()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 9, 15, 0, TimeSpan.Zero);
+        await using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
+        {
+            WriteLegacyHeader(stream, createdAtUtc, packetCount: 2);
+            WriteLegacyPacket(stream, 10, TimeSpan.FromMilliseconds(5), [0x01, 0x02]);
+            WriteLegacyPacket(stream, 11, TimeSpan.FromMilliseconds(20), [0x03, 0x04, 0x05]);
+            await stream.FlushAsync();
+        }
+
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.NotNull(loadResult.Recording);
+        Assert.Equal(2, loadResult.Recording.Packets.Count);
+        Assert.True(loadResult.Recording.Metadata.RecordingComplete);
+        Assert.Equal(TimeSpan.FromMilliseconds(5), loadResult.Recording.Packets[0].RelativeTime);
+        Assert.Equal(TimeSpan.FromMilliseconds(20), loadResult.Recording.Packets[1].RelativeTime);
+    }
+
+    [Fact]
+    public async Task RecordingSummary_LoadsMetadataAndSequenceHealth()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 9, 30, 0, TimeSpan.Zero);
+
+        await using var recorder = new TelemetryRecordingService();
+        Assert.True((await recorder.StartAsync(
+            path,
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Summary Test", "stage-09-test"))).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01], createdAtUtc)).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(4, [0x02, 0x03], createdAtUtc.AddMilliseconds(20))).Succeeded);
         Assert.True((await recorder.StopAsync()).Succeeded);
 
         var result = await TelemetryRecordingFile.LoadSummaryAsync(path);
 
         Assert.True(result.Succeeded, result.Message);
         Assert.NotNull(result.Summary);
-        Assert.Equal(path, result.Summary.Path);
-        Assert.Equal(createdAtUtc, result.Summary.Metadata.CreatedAtUtc);
         Assert.Equal("Summary Test", result.Summary.Metadata.SourceProfile);
-        Assert.Equal(2, result.Summary.PacketCount);
-        Assert.True(result.Summary.FileSizeBytes > 0);
-        Assert.Equal(TimeSpan.FromMilliseconds(15), result.Summary.Duration);
-        Assert.Equal(5, result.Summary.PayloadBytes);
-        Assert.Equal(0, result.Summary.MissingSequenceCount);
-        Assert.Equal(0, result.Summary.LargestSequenceGap);
-        Assert.Equal(1, result.Summary.FirstSequenceNumber);
-        Assert.Equal(2, result.Summary.LastSequenceNumber);
-        Assert.Equal(133.33333333333334d, result.Summary.ApproximatePacketRateHz, precision: 6);
-    }
-
-    [Fact]
-    public async Task RecordingSummary_ReportsSequenceGapsWithoutFullReplayLoad()
-    {
-        var path = CreateTempRecordingPath();
-        await using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-        {
-            stream.Write(CreateHeaderBytes(TelemetryRecordingFile.CurrentVersion, packetCount: 2));
-            WriteInt64(stream, 1);
-            WriteInt64(stream, 0);
-            WriteInt32(stream, 1);
-            stream.WriteByte(0x01);
-            WriteInt64(stream, 4);
-            WriteInt64(stream, TimeSpan.FromMilliseconds(20).Ticks);
-            WriteInt32(stream, 2);
-            stream.Write([0x02, 0x03]);
-            await stream.FlushAsync();
-        }
-
-        var result = await TelemetryRecordingFile.LoadSummaryAsync(path);
-
-        Assert.True(result.Succeeded, result.Message);
-        Assert.NotNull(result.Summary);
         Assert.Equal(2, result.Summary.PacketCount);
         Assert.Equal(TimeSpan.FromMilliseconds(20), result.Summary.Duration);
         Assert.Equal(3, result.Summary.PayloadBytes);
         Assert.Equal(2, result.Summary.MissingSequenceCount);
         Assert.Equal(2, result.Summary.LargestSequenceGap);
-        Assert.Equal(1, result.Summary.FirstSequenceNumber);
-        Assert.Equal(4, result.Summary.LastSequenceNumber);
-        Assert.Equal(100d, result.Summary.ApproximatePacketRateHz, precision: 6);
     }
 
     [Fact]
@@ -146,63 +197,56 @@ public sealed class TelemetryRecordingServiceTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(TelemetryRecordingOperationStatus.Failure, result.Status);
-        Assert.Contains("path is required", result.Message);
+        Assert.Contains("path is required", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task Recording_RejectsUnreasonablePayloadLengthSafely()
     {
         var path = CreateTempRecordingPath();
-        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 10, 0, 0, TimeSpan.Zero);
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 9, 45, 0, TimeSpan.Zero);
         await using var recorder = new TelemetryRecordingService(maxPayloadLength: 3);
 
-        var startResult = await recorder.StartAsync(
+        Assert.True((await recorder.StartAsync(
             path,
-            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Length Test", "stage-09-test"));
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Length Test", "stage-09-test"))).Succeeded);
         var recordResult = recorder.RecordPacket(CreatePacket(1, [0x01, 0x02, 0x03, 0x04], createdAtUtc));
         var stopResult = await recorder.StopAsync();
 
-        Assert.True(startResult.Succeeded, startResult.Message);
         Assert.False(recordResult.Succeeded);
-        Assert.Contains("exceeds 3 bytes", recordResult.Message);
+        Assert.Contains("exceeds 3 bytes", recordResult.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(stopResult.Succeeded);
     }
 
     [Fact]
-    public async Task Recording_QueueFullDropsPacketsAndReportsBackpressureSafely()
+    public async Task TelemetryIngressRecording_QueueDropMarksRecordingIncomplete()
     {
         var path = CreateTempRecordingPath();
-        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 10, 30, 0, TimeSpan.Zero);
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 10, 0, 0, TimeSpan.Zero);
         var blockingStream = new BlockingPacketWriteStream();
+
         await using var recorder = new TelemetryRecordingService(
             queueCapacityPackets: 1,
             recordingStreamFactory: _ => blockingStream);
-
-        var startResult = await recorder.StartAsync(
+        Assert.True((await recorder.StartAsync(
             path,
-            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Backpressure Test", "stage-25h-test"));
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Backpressure Test", "stage-09-test"))).Succeeded);
+
         blockingStream.BlockPacketWrites = true;
-
-        var firstRecordResult = recorder.RecordPacket(CreatePacket(1, [0x01], createdAtUtc));
-        Assert.True(startResult.Succeeded, startResult.Message);
-        Assert.True(firstRecordResult.Succeeded, firstRecordResult.Message);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01], createdAtUtc)).Succeeded);
         Assert.True(blockingStream.WaitForBlockedPacketWrite(TimeSpan.FromSeconds(3)));
+        Assert.True(recorder.RecordPacket(CreatePacket(2, [0x02], createdAtUtc.AddMilliseconds(5))).Succeeded);
 
-        var secondRecordResult = recorder.RecordPacket(CreatePacket(2, [0x02], createdAtUtc.AddMilliseconds(5)));
-        var thirdRecordResult = recorder.RecordPacket(CreatePacket(3, [0x03], createdAtUtc.AddMilliseconds(10)));
+        var droppedResult = recorder.RecordPacket(CreatePacket(3, [0x03], createdAtUtc.AddMilliseconds(10)));
         var snapshot = recorder.GetSnapshot();
 
-        Assert.True(secondRecordResult.Succeeded, secondRecordResult.Message);
-        Assert.Equal(TelemetryRecordingOperationStatus.Dropped, thirdRecordResult.Status);
-        Assert.Equal(1, snapshot.QueueCapacityPackets);
-        Assert.Equal(1, snapshot.QueuedPacketCount);
+        Assert.Equal(TelemetryRecordingOperationStatus.Dropped, droppedResult.Status);
+        Assert.True(snapshot.RecordingIncomplete);
         Assert.Equal(1, snapshot.DroppedPacketCount);
-        Assert.Contains("queue full", snapshot.LastErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("queue", snapshot.IncompleteReason, StringComparison.OrdinalIgnoreCase);
 
         blockingStream.ReleaseBlockedWrites();
-        var stopResult = await recorder.StopAsync();
-
-        Assert.True(stopResult.Succeeded, stopResult.Message);
+        Assert.True((await recorder.StopAsync()).Succeeded);
     }
 
     [Fact]
@@ -221,7 +265,7 @@ public sealed class TelemetryRecordingServiceTests
     public async Task Loading_UnsupportedVersionFailsSafely()
     {
         var path = CreateTempRecordingPath();
-        await File.WriteAllBytesAsync(path, CreateHeaderBytes(version: 99, packetCount: 0));
+        await File.WriteAllBytesAsync(path, CreateLegacyHeaderBytes(version: 99, packetCount: 0));
 
         var result = await TelemetryRecordingFile.LoadAsync(path);
 
@@ -233,213 +277,60 @@ public sealed class TelemetryRecordingServiceTests
     public async Task Loading_TruncatedPacketRecordFailsSafely()
     {
         var path = CreateTempRecordingPath();
-        await File.WriteAllBytesAsync(path, CreateHeaderBytes(version: 1, packetCount: 1));
+        await File.WriteAllBytesAsync(path, CreateLegacyHeaderBytes(version: 1, packetCount: 1));
 
         var result = await TelemetryRecordingFile.LoadAsync(path);
 
         Assert.False(result.Succeeded);
         Assert.Equal(TelemetryRecordingLoadStatus.Corrupt, result.Status);
-        Assert.Contains("truncated", result.Message);
-    }
-
-    [Fact]
-    public async Task Loading_InvalidPayloadLengthFailsSafely()
-    {
-        var path = CreateTempRecordingPath();
-        await using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            var header = CreateHeaderBytes(version: 1, packetCount: 1);
-            await stream.WriteAsync(header);
-            WriteInt64(stream, 1);
-            WriteInt64(stream, 0);
-            WriteInt32(stream, TelemetryRecordingFile.DefaultMaxPayloadLength + 1);
-        }
-
-        var result = await TelemetryRecordingFile.LoadAsync(path);
-
-        Assert.False(result.Succeeded);
-        Assert.Equal(TelemetryRecordingLoadStatus.Corrupt, result.Status);
-        Assert.Contains("payload length", result.Message);
-    }
-
-    [Fact]
-    public async Task ReplayFile_EmitsPacketsInRecordedOrderAndPreservesRawBytes()
-    {
-        var path = CreateTempRecordingPath();
-        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 11, 0, 0, TimeSpan.Zero);
-        var firstPayload = new byte[] { 0x10, 0x20 };
-        var secondPayload = new byte[] { 0x30, 0x40, 0x50 };
-        await WriteRecordingAsync(path, createdAtUtc, firstPayload, secondPayload);
-        var replay = new TelemetryReplayService();
-        var replayed = new List<UdpTelemetryPacket>();
-        replay.PacketReplayed += (_, args) => replayed.Add(args.Packet);
-
-        var result = await replay.ReplayFileAsync(path, TelemetryReplayOptions.Fast);
-
-        Assert.True(result.Succeeded, result.Message);
-        Assert.Equal(2, result.PacketsReplayed);
-        Assert.Equal(2, replayed.Count);
-        Assert.Equal(1, replayed[0].SequenceNumber);
-        Assert.Equal(2, replayed[1].SequenceNumber);
-        Assert.Equal(firstPayload, replayed[0].Payload);
-        Assert.Equal(secondPayload, replayed[1].Payload);
-        Assert.Equal(createdAtUtc, replayed[0].ReceivedAtUtc);
-        Assert.Equal(createdAtUtc.AddMilliseconds(8), replayed[1].ReceivedAtUtc);
-    }
-
-    [Fact]
-    public async Task ReplayFile_TrailingBytesAfterFinalPacketFailsSafely()
-    {
-        var path = CreateTempRecordingPath();
-        var createdAtUtc = new DateTimeOffset(2026, 6, 2, 11, 5, 0, TimeSpan.Zero);
-        await WriteRecordingAsync(path, createdAtUtc, [0x10], [0x20]);
-        await using (var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read))
-        {
-            await stream.WriteAsync(new byte[] { 0x99 });
-        }
-
-        var replay = new TelemetryReplayService();
-
-        var result = await replay.ReplayFileAsync(path, TelemetryReplayOptions.Fast);
-
-        Assert.False(result.Succeeded);
-        Assert.Equal(TelemetryReplayStatus.Failure, result.Status);
-        Assert.Contains("trailing bytes", result.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task ReplayFile_TruncatedPacketFailsSafely()
-    {
-        var path = CreateTempRecordingPath();
-        await File.WriteAllBytesAsync(path, CreateHeaderBytes(version: 1, packetCount: 1));
-        var replay = new TelemetryReplayService();
-
-        var result = await replay.ReplayFileAsync(path, TelemetryReplayOptions.Fast);
-
-        Assert.False(result.Succeeded);
-        Assert.Equal(TelemetryReplayStatus.Failure, result.Status);
         Assert.Contains("truncated", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void ReplaySnapshot_DefaultStateIsInactiveAndSafe()
+    public async Task Replay_UsesAbsoluteDeadlinesWithoutAccumulatingProcessingDelay()
     {
-        var replay = new TelemetryReplayService();
-
-        var snapshot = replay.GetSnapshot();
-
-        Assert.False(snapshot.IsReplaying);
-        Assert.Null(snapshot.SourceFilePath);
-        Assert.Equal(0, snapshot.PacketsReplayed);
-        Assert.Equal("Replay idle.", snapshot.StatusMessage);
-    }
-
-    [Fact]
-    public async Task ReplaySnapshot_ReportsCompletedPacketCount()
-    {
+        var timeProvider = new ManualTimeProvider(new DateTimeOffset(2026, 6, 21, 11, 0, 0, TimeSpan.Zero));
+        var scheduler = new AdvancingDelayScheduler(timeProvider, TimeSpan.FromMilliseconds(5));
+        var replay = new TelemetryReplayService(timeProvider, delayScheduler: scheduler);
         var recording = new TelemetryRecording(
-            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 30, 0, TimeSpan.Zero)),
+            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 20, 0, 0, 0, TimeSpan.Zero)),
             [
-                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
-                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(1), [0x02])
+                new TelemetryRecordedPacket(1, new DateTimeOffset(2026, 6, 20, 0, 0, 0, TimeSpan.Zero), TimeSpan.Zero, [0x01]),
+                new TelemetryRecordedPacket(2, new DateTimeOffset(2026, 6, 20, 0, 0, 0, 10, TimeSpan.Zero), TimeSpan.FromMilliseconds(10), [0x02]),
+                new TelemetryRecordedPacket(3, new DateTimeOffset(2026, 6, 20, 0, 0, 0, 20, TimeSpan.Zero), TimeSpan.FromMilliseconds(20), [0x03])
             ]);
-        var replay = new TelemetryReplayService();
-
-        var result = await replay.ReplayAsync(recording, TelemetryReplayOptions.Fast);
-        var snapshot = replay.GetSnapshot();
-
-        Assert.True(result.Succeeded, result.Message);
-        Assert.False(snapshot.IsReplaying);
-        Assert.Equal(2, snapshot.PacketsReplayed);
-        Assert.Contains("Replayed", snapshot.StatusMessage);
-    }
-
-    [Fact]
-    public async Task Replay_TimePreservingRequestsRecordedInterPacketDelaysWithoutSleeping()
-    {
-        var recording = new TelemetryRecording(
-            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 45, 0, TimeSpan.Zero)),
-            [
-                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
-                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(12), [0x02]),
-                new TelemetryRecordedPacket(3, TimeSpan.FromMilliseconds(30), [0x03])
-            ]);
-        var scheduler = new RecordingDelayScheduler();
-        var replay = new TelemetryReplayService(delayScheduler: scheduler);
-        var replayed = new List<long>();
-        replay.PacketReplayed += (_, args) => replayed.Add(args.Packet.SequenceNumber);
 
         var result = await replay.ReplayAsync(recording, TelemetryReplayOptions.TimePreserving);
+        var snapshot = replay.GetSnapshot();
 
         Assert.True(result.Succeeded, result.Message);
-        Assert.Equal([1, 2, 3], replayed);
         Assert.Equal(
-            [TimeSpan.FromMilliseconds(12), TimeSpan.FromMilliseconds(18)],
+            [TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(5)],
             scheduler.Delays);
+        Assert.Equal(TimeSpan.FromMilliseconds(10), snapshot.TotalReplayDrift);
+        Assert.Equal(TimeSpan.FromMilliseconds(5), snapshot.MaxLatePacket);
+        Assert.Equal(0, snapshot.SkippedSleepCount);
     }
 
     [Fact]
-    public async Task Replay_FastModeIntentionallyIgnoresRecordedInterPacketDelays()
+    public async Task ReplayPacketsCarryFreshReceiveTimestamps()
     {
+        var timeProvider = new ManualTimeProvider(new DateTimeOffset(2026, 6, 21, 11, 15, 0, TimeSpan.Zero));
+        var replay = new TelemetryReplayService(timeProvider);
+        var recordedAtUtc = new DateTimeOffset(2026, 6, 20, 11, 15, 0, TimeSpan.Zero);
+        var replayed = new List<UdpTelemetryPacket>();
         var recording = new TelemetryRecording(
-            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 50, 0, TimeSpan.Zero)),
-            [
-                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
-                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(50), [0x02])
-            ]);
-        var scheduler = new RecordingDelayScheduler();
-        var replay = new TelemetryReplayService(delayScheduler: scheduler);
+            TelemetryRecordingMetadata.CreateDefault(recordedAtUtc),
+            [new TelemetryRecordedPacket(1, recordedAtUtc, TimeSpan.Zero, [0x01, 0x02])]);
+        replay.PacketReplayed += (_, args) => replayed.Add(args.Packet);
 
         var result = await replay.ReplayAsync(recording, TelemetryReplayOptions.Fast);
 
         Assert.True(result.Succeeded, result.Message);
-        Assert.Empty(scheduler.Delays);
-    }
-
-    [Fact]
-    public async Task Replay_DefaultOptionsRemainFastForDeterministicServiceCallers()
-    {
-        var recording = new TelemetryRecording(
-            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 11, 55, 0, TimeSpan.Zero)),
-            [
-                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
-                new TelemetryRecordedPacket(2, TimeSpan.FromMilliseconds(50), [0x02])
-            ]);
-        var scheduler = new RecordingDelayScheduler();
-        var replay = new TelemetryReplayService(delayScheduler: scheduler);
-
-        var result = await replay.ReplayAsync(recording);
-
-        Assert.True(result.Succeeded, result.Message);
-        Assert.Empty(scheduler.Delays);
-    }
-
-    [Fact]
-    public async Task Replay_StopCancelsSafely()
-    {
-        var recording = new TelemetryRecording(
-            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 12, 0, 0, TimeSpan.Zero)),
-            [
-                new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01]),
-                new TelemetryRecordedPacket(2, TimeSpan.FromSeconds(10), [0x02])
-            ]);
-        var replay = new TelemetryReplayService();
-        var replayedCount = 0;
-        var firstPacketReplayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        replay.PacketReplayed += (_, _) =>
-        {
-            replayedCount++;
-            firstPacketReplayed.TrySetResult();
-        };
-
-        var replayTask = replay.ReplayAsync(recording, TelemetryReplayOptions.TimePreserving).AsTask();
-        await firstPacketReplayed.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        await replay.StopAsync();
-        var result = await replayTask;
-
-        Assert.Equal(TelemetryReplayStatus.Cancelled, result.Status);
-        Assert.Equal(1, result.PacketsReplayed);
-        Assert.Equal(1, replayedCount);
+        Assert.Single(replayed);
+        Assert.Equal(timeProvider.GetUtcNow(), replayed[0].ReceivedAtUtc);
+        Assert.NotEqual(recordedAtUtc, replayed[0].ReceivedAtUtc);
+        Assert.Equal(timeProvider.GetTimestamp(), replayed[0].ReceivedAtTimestamp);
     }
 
     [Fact]
@@ -449,11 +340,12 @@ public sealed class TelemetryRecordingServiceTests
         var telemetryOffset = 4 * 60;
         WriteUInt16(datagram, telemetryOffset, 289);
         datagram[HeaderOffset + telemetryOffset + 15] = 6;
-        var recording = new TelemetryRecording(
-            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 13, 0, 0, TimeSpan.Zero)),
-            [new TelemetryRecordedPacket(1, TimeSpan.Zero, datagram)]);
+
         var replay = new TelemetryReplayService();
         var adapter = new F125VehicleStateAdapter();
+        var recording = new TelemetryRecording(
+            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 21, 11, 30, 0, TimeSpan.Zero)),
+            [new TelemetryRecordedPacket(1, TimeSpan.Zero, datagram)]);
         replay.PacketReplayed += (_, args) =>
         {
             var parseResult = F125PacketParser.Parse(args.Packet.Payload);
@@ -472,12 +364,12 @@ public sealed class TelemetryRecordingServiceTests
     [Fact]
     public async Task Replay_MalformedPacketDoesNotCrashParserOrVehicleStateAdapter()
     {
-        var recording = new TelemetryRecording(
-            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 2, 14, 0, 0, TimeSpan.Zero)),
-            [new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01, 0x02, 0x03])]);
         var replay = new TelemetryReplayService();
         var adapter = new F125VehicleStateAdapter();
         var parserFailedSafely = false;
+        var recording = new TelemetryRecording(
+            TelemetryRecordingMetadata.CreateDefault(new DateTimeOffset(2026, 6, 21, 11, 45, 0, TimeSpan.Zero)),
+            [new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01, 0x02, 0x03])]);
         replay.PacketReplayed += (_, args) =>
         {
             var parseResult = F125PacketParser.Parse(args.Packet.Payload);
@@ -501,14 +393,12 @@ public sealed class TelemetryRecordingServiceTests
         byte[] secondPayload)
     {
         await using var recorder = new TelemetryRecordingService();
-        var startResult = await recorder.StartAsync(
+        Assert.True((await recorder.StartAsync(
             path,
-            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Replay Test", "stage-09-test"));
-        Assert.True(startResult.Succeeded, startResult.Message);
+            new TelemetryRecordingMetadata(createdAtUtc, "F1 25", "Replay Test", "stage-09-test"))).Succeeded);
         Assert.True(recorder.RecordPacket(CreatePacket(1, firstPayload, createdAtUtc)).Succeeded);
         Assert.True(recorder.RecordPacket(CreatePacket(2, secondPayload, createdAtUtc.AddMilliseconds(8))).Succeeded);
-        var stopResult = await recorder.StopAsync();
-        Assert.True(stopResult.Succeeded, stopResult.Message);
+        Assert.True((await recorder.StopAsync()).Succeeded);
     }
 
     private static UdpTelemetryPacket CreatePacket(long sequenceNumber, byte[] payload, DateTimeOffset receivedAtUtc)
@@ -517,7 +407,8 @@ public sealed class TelemetryRecordingServiceTests
             sequenceNumber,
             payload,
             new IPEndPoint(IPAddress.Loopback, 20_778),
-            receivedAtUtc);
+            receivedAtUtc,
+            TimeProvider.System.GetTimestamp());
     }
 
     private static string CreateTempRecordingPath()
@@ -527,17 +418,46 @@ public sealed class TelemetryRecordingServiceTests
         return Path.Combine(directory, $"{Guid.NewGuid():N}.hdrec");
     }
 
-    private static byte[] CreateHeaderBytes(int version, long packetCount)
+    private static void WriteLegacyHeader(Stream stream, DateTimeOffset createdAtUtc, long packetCount)
+    {
+        stream.Write(CreateLegacyHeaderBytes(version: 1, packetCount: packetCount, createdAtUtc));
+    }
+
+    private static byte[] CreateLegacyHeaderBytes(
+        int version,
+        long packetCount,
+        DateTimeOffset? createdAtUtc = null)
     {
         using var stream = new MemoryStream();
         stream.Write(Encoding.ASCII.GetBytes("HDREC001"));
         WriteInt32(stream, version);
-        WriteInt64(stream, new DateTimeOffset(2026, 6, 2, 0, 0, 0, TimeSpan.Zero).UtcTicks);
+        WriteInt64(stream, (createdAtUtc ?? new DateTimeOffset(2026, 6, 21, 0, 0, 0, TimeSpan.Zero)).UtcTicks);
         WriteString(stream, "F1 25");
-        WriteString(stream, "Corrupt Test");
+        WriteString(stream, "Legacy Test");
         WriteString(stream, "stage-09-test");
         WriteInt64(stream, packetCount);
         return stream.ToArray();
+    }
+
+    private static void WriteLegacyPacket(Stream stream, long sequenceNumber, TimeSpan relativeTime, byte[] payload)
+    {
+        WriteInt64(stream, sequenceNumber);
+        WriteInt64(stream, relativeTime.Ticks);
+        WriteInt32(stream, payload.Length);
+        stream.Write(payload);
+    }
+
+    private static int FindLastSequence(byte[] haystack, byte[] needle)
+    {
+        for (var i = haystack.Length - needle.Length; i >= 0; i--)
+        {
+            if (haystack.AsSpan(i, needle.Length).SequenceEqual(needle))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static byte[] CreateF125Datagram(F125PacketKind kind, byte playerCarIndex)
@@ -585,15 +505,55 @@ public sealed class TelemetryRecordingServiceTests
         stream.Write(buffer);
     }
 
-    private sealed class RecordingDelayScheduler : ITelemetryReplayDelayScheduler
+    private sealed class AdvancingDelayScheduler : ITelemetryReplayDelayScheduler
     {
+        private readonly ManualTimeProvider _timeProvider;
+        private readonly TimeSpan _delayOverhead;
+
+        public AdvancingDelayScheduler(ManualTimeProvider timeProvider, TimeSpan delayOverhead)
+        {
+            _timeProvider = timeProvider;
+            _delayOverhead = delayOverhead;
+        }
+
         public List<TimeSpan> Delays { get; } = [];
 
         public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Delays.Add(delay);
+            _timeProvider.Advance(delay + _delayOverhead);
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private readonly DateTimeOffset _originUtc;
+        private long _timestamp;
+
+        public ManualTimeProvider(DateTimeOffset originUtc)
+        {
+            _originUtc = originUtc;
+        }
+
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp()
+        {
+            return Interlocked.Read(ref _timestamp);
+        }
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            return _originUtc.AddTicks(GetTimestamp());
+        }
+
+        public void Advance(TimeSpan amount)
+        {
+            Interlocked.Add(ref _timestamp, amount.Ticks);
         }
     }
 

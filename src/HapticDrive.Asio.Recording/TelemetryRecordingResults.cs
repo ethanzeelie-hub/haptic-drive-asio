@@ -179,4 +179,7 @@ public sealed record TelemetryReplaySnapshot(
     bool IsReplaying,
     string? SourceFilePath,
     long PacketsReplayed,
-    string StatusMessage);
+    string StatusMessage,
+    TimeSpan TotalReplayDrift = default,
+    TimeSpan MaxLatePacket = default,
+    long SkippedSleepCount = 0);

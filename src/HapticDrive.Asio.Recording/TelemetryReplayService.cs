@@ -58,6 +58,9 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
     private string? _activeReplaySourceFilePath;
     private string _statusMessage = "Replay idle.";
     private long _packetsReplayed;
+    private long _totalReplayDriftTicks;
+    private long _maxLatePacketTicks;
+    private long _skippedSleepCount;
 
     public TelemetryReplayService(
         TimeProvider? timeProvider = null,
@@ -84,7 +87,10 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                 _activeReplayCts is not null,
                 _activeReplaySourceFilePath,
                 Interlocked.Read(ref _packetsReplayed),
-                _statusMessage);
+                _statusMessage,
+                TimeSpan.FromTicks(Interlocked.Read(ref _totalReplayDriftTicks)),
+                TimeSpan.FromTicks(Interlocked.Read(ref _maxLatePacketTicks)),
+                Interlocked.Read(ref _skippedSleepCount));
         }
     }
 
@@ -153,10 +159,14 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             _activeReplaySourceFilePath = fullPath;
             _statusMessage = "Replay active.";
             Interlocked.Exchange(ref _packetsReplayed, 0);
+            Interlocked.Exchange(ref _totalReplayDriftTicks, 0);
+            Interlocked.Exchange(ref _maxLatePacketTicks, 0);
+            Interlocked.Exchange(ref _skippedSleepCount, 0);
         }
 
         TelemetryReplayResult result;
-        var previousRelativeTime = TimeSpan.Zero;
+        DateTimeOffset? firstRecordedPacketAtUtc = null;
+        long replayStartTimestamp = 0;
 
         try
         {
@@ -164,27 +174,52 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             {
                 replayCts.Token.ThrowIfCancellationRequested();
 
+                if (firstRecordedPacketAtUtc is null)
+                {
+                    firstRecordedPacketAtUtc = recordedPacket.ReceivedAtUtc;
+                    replayStartTimestamp = _timeProvider.GetTimestamp();
+                }
+
+                var targetOffset = TimeSpan.Zero;
                 if (options.PreserveTiming)
                 {
-                    var delay = ScaleDelay(recordedPacket.RelativeTime - previousRelativeTime, options.Speed);
-                    if (delay > TimeSpan.Zero)
+                    targetOffset = ScaleDelay(recordedPacket.ReceivedAtUtc - firstRecordedPacketAtUtc.Value, options.Speed);
+                    var elapsed = _timeProvider.GetElapsedTime(replayStartTimestamp, _timeProvider.GetTimestamp());
+                    var remainingDelay = targetOffset - elapsed;
+                    if (remainingDelay > TimeSpan.Zero)
                     {
-                        await DelayAsync(delay, replayCts.Token).ConfigureAwait(false);
+                        await DelayAsync(remainingDelay, replayCts.Token).ConfigureAwait(false);
+                    }
+                    else if (targetOffset > TimeSpan.Zero)
+                    {
+                        Interlocked.Increment(ref _skippedSleepCount);
                     }
                 }
+
+                var actualElapsed = options.PreserveTiming
+                    ? _timeProvider.GetElapsedTime(replayStartTimestamp, _timeProvider.GetTimestamp())
+                    : TimeSpan.Zero;
+                var lateBy = actualElapsed - targetOffset;
+                if (lateBy > TimeSpan.Zero)
+                {
+                    Interlocked.Add(ref _totalReplayDriftTicks, lateBy.Ticks);
+                    UpdateMaxLatePacketTicks(lateBy.Ticks);
+                }
+
+                var replayedAtUtc = _timeProvider.GetUtcNow();
+                var replayedAtTimestamp = _timeProvider.GetTimestamp();
 
                 var replayedPacket = new UdpTelemetryPacket(
                     recordedPacket.SequenceNumber,
                     recordedPacket.Payload.ToArray(),
                     new IPEndPoint(IPAddress.Loopback, 0),
-                    metadata.CreatedAtUtc + recordedPacket.RelativeTime,
-                    TimeProvider.System.GetTimestamp());
+                    replayedAtUtc,
+                    replayedAtTimestamp);
 
                 PacketReplayed?.Invoke(
                     this,
                     new TelemetryReplayPacketEventArgs(replayedPacket, recordedPacket));
                 Interlocked.Increment(ref _packetsReplayed);
-                previousRelativeTime = recordedPacket.RelativeTime;
             }
 
             result = TelemetryReplayResult.Success(Interlocked.Read(ref _packetsReplayed));
@@ -263,6 +298,23 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         {
             _statusMessage = result.Message;
             Interlocked.Exchange(ref _packetsReplayed, result.PacketsReplayed);
+        }
+    }
+
+    private void UpdateMaxLatePacketTicks(long latePacketTicks)
+    {
+        while (true)
+        {
+            var current = Interlocked.Read(ref _maxLatePacketTicks);
+            if (latePacketTicks <= current)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _maxLatePacketTicks, latePacketTicks, current) == current)
+            {
+                return;
+            }
         }
     }
 

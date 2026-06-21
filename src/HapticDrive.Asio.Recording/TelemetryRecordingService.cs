@@ -100,7 +100,7 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
 
             stream = _recordingStreamFactory(fullPath);
 
-            var packetCountOffset = TelemetryRecordingFile.WriteHeader(stream, metadata);
+            var headerReservation = TelemetryRecordingFile.WriteHeader(stream, metadata);
             var recordingStream = stream;
             stream = null;
             var channel = Channel.CreateBounded<TelemetryRecordedPacket>(
@@ -111,9 +111,9 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
                     FullMode = BoundedChannelFullMode.Wait
                 });
             Task<RecordingWriterResult>? writerTask = null;
-            var session = new RecordingSession(fullPath, metadata.CreatedAtUtc, channel, writerTask: null!, _queueCapacityPackets);
+            var session = new RecordingSession(fullPath, metadata.CreatedAtUtc, metadata, headerReservation, channel, writerTask: null!, _queueCapacityPackets);
             writerTask = Task.Run(
-                () => WriteLoopAsync(recordingStream, packetCountOffset, channel.Reader, _maxPayloadLength, session.MarkPacketDequeued),
+                () => WriteLoopAsync(recordingStream, headerReservation, channel.Reader, _maxPayloadLength, session, _timeProvider),
                 CancellationToken.None);
             session.AttachWriterTask(writerTask);
 
@@ -177,7 +177,11 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             relativeTime = TimeSpan.Zero;
         }
 
-        var recordedPacket = new TelemetryRecordedPacket(packet.SequenceNumber, relativeTime, packet.Payload);
+        var recordedPacket = new TelemetryRecordedPacket(
+            packet.SequenceNumber,
+            packet.ReceivedAtUtc,
+            relativeTime,
+            packet.Payload);
         if (!session.Channel.Writer.TryWrite(recordedPacket))
         {
             if (session.Channel.Reader.Completion.IsCompleted || session.WriterTask.IsCompleted)
@@ -286,28 +290,42 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
 
     private static async Task<RecordingWriterResult> WriteLoopAsync(
         Stream stream,
-        long packetCountOffset,
+        TelemetryRecordingFile.RecordingHeaderReservation headerReservation,
         ChannelReader<TelemetryRecordedPacket> reader,
         int maxPayloadLength,
-        Action packetDequeued)
+        RecordingSession session,
+        TimeProvider timeProvider)
     {
         var packetCount = 0L;
+        var recordingCrc = new TelemetryRecordingFile.Crc32();
 
         try
         {
             await foreach (var packet in reader.ReadAllAsync().ConfigureAwait(false))
             {
-                packetDequeued();
+                session.MarkPacketDequeued();
                 TelemetryRecordingFile.WritePacket(
                     stream,
                     packet,
-                    maxPayloadLength);
+                    maxPayloadLength,
+                    recordingCrc);
                 packetCount++;
             }
 
-            TelemetryRecordingFile.UpdatePacketCount(stream, packetCountOffset, packetCount);
+            var endedAtUtc = timeProvider.GetUtcNow();
+            var finalMetadata = session.BuildFinalMetadata(packetCount, endedAtUtc);
+            TelemetryRecordingFile.WriteFooter(
+                stream,
+                packetCount,
+                endedAtUtc,
+                recordingCrc.GetCurrentHashAsUInt32());
+            TelemetryRecordingFile.TryUpdateHeader(stream, headerReservation, finalMetadata);
             await stream.FlushAsync().ConfigureAwait(false);
-            return RecordingWriterResult.Success(packetCount);
+            return RecordingWriterResult.Success(
+                packetCount,
+                finalMetadata.RecordingComplete
+                    ? $"Recording stopped with {packetCount:N0} packets."
+                    : $"Recording stopped with {packetCount:N0} packets and was marked incomplete.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -324,12 +342,16 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         public RecordingSession(
             string filePath,
             DateTimeOffset startedAtUtc,
+            TelemetryRecordingMetadata metadata,
+            TelemetryRecordingFile.RecordingHeaderReservation headerReservation,
             Channel<TelemetryRecordedPacket> channel,
             Task<RecordingWriterResult> writerTask,
             int queueCapacityPackets)
         {
             FilePath = filePath;
             StartedAtUtc = startedAtUtc;
+            Metadata = metadata;
+            HeaderReservation = headerReservation;
             Channel = channel;
             WriterTask = writerTask;
             QueueCapacityPackets = queueCapacityPackets;
@@ -338,6 +360,10 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         public string FilePath { get; }
 
         public DateTimeOffset StartedAtUtc { get; }
+
+        public TelemetryRecordingMetadata Metadata { get; }
+
+        public TelemetryRecordingFile.RecordingHeaderReservation HeaderReservation { get; }
 
         public Channel<TelemetryRecordedPacket> Channel { get; }
 
@@ -378,6 +404,7 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         public void MarkPacketDropped()
         {
             Interlocked.Increment(ref _droppedPacketCount);
+            MarkIncomplete("Recording queue overflowed; capture is incomplete.");
         }
 
         public void MarkIncomplete(string message)
@@ -390,13 +417,24 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         {
             WriterTask = writerTask ?? throw new ArgumentNullException(nameof(writerTask));
         }
+
+        public TelemetryRecordingMetadata BuildFinalMetadata(long packetCount, DateTimeOffset endedAtUtc)
+        {
+            return Metadata with
+            {
+                EndedAtUtc = endedAtUtc,
+                PacketCount = packetCount,
+                RecordingComplete = !RecordingIncomplete && DroppedPacketCount == 0,
+                DroppedPacketCount = DroppedPacketCount
+            };
+        }
     }
 
     private sealed record RecordingWriterResult(bool Succeeded, long PacketCount, string Message)
     {
-        public static RecordingWriterResult Success(long packetCount)
+        public static RecordingWriterResult Success(long packetCount, string message)
         {
-            return new(true, packetCount, "Recording writer completed.");
+            return new(true, packetCount, message);
         }
 
         public static RecordingWriterResult Failure(long packetCount, string message)

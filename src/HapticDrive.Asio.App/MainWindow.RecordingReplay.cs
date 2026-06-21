@@ -43,6 +43,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using HapticDrive.Asio.Core.Games;
 
 namespace HapticDrive.Asio.App;
 
@@ -103,7 +104,8 @@ public partial class MainWindow : Window
                 try
                 {
                     var path = CreateDefaultRecordingPath();
-                    var startResult = await _hapticPipeline.RecordingService.StartAsync(path).ConfigureAwait(true);
+                    var metadata = BuildRecordingMetadata();
+                    var startResult = await _hapticPipeline.RecordingService.StartAsync(path, metadata).ConfigureAwait(true);
                     if (startResult.Succeeded)
                     {
                         _recordingError = null;
@@ -488,6 +490,23 @@ public partial class MainWindow : Window
 
         return
             $"Showing {_filteredRecordingLibraryItems.Count} of {_recordingLibraryItems.Count} recording(s) matching '{_recordingLibraryFilterText}' in {recordingsDirectory}.";
+    }
+
+    private TelemetryRecordingMetadata BuildRecordingMetadata()
+    {
+        var descriptor = GameTelemetryCatalog.Registry.GetRequired(
+            new GameIntegrationId(GameTelemetryCatalog.NormalizeGameId(_selectedGameId)));
+        var validatedProfile = HapticProfileValidator.Validate(_currentProfile).Profile;
+        return TelemetryRecordingMetadata.CreateDefault(
+            DateTimeOffset.UtcNow,
+            sourceGame: descriptor.DisplayName,
+            sourceProfile: validatedProfile.Name,
+            gameIntegrationId: descriptor.Id.Value,
+            telemetryProtocolName: descriptor.TelemetryProtocolName,
+            telemetryProtocolVersion: descriptor.TelemetryProtocolVersion,
+            profileHash: ComputeProfileHash(validatedProfile),
+            sourceEndpoint: "unknown",
+            bindAddress: BuildTelemetryBindAddressText());
     }
 }
 
