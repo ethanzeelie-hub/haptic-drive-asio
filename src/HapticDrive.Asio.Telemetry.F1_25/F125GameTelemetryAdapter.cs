@@ -9,13 +9,15 @@ public sealed class F125GameTelemetryAdapter : IGameTelemetryAdapter
         .Select(definition => new TelemetryPacketDescriptor(definition.Id, definition.Name))
         .ToArray();
 
+    public static IReadOnlyList<TelemetryPacketDescriptor> PacketDescriptors => PacketDescriptorsValue;
+
     private readonly F125VehicleStateAdapter _vehicleStateAdapter = new();
 
     public string GameName => "F1 25";
 
     public VehicleState CurrentVehicleState => _vehicleStateAdapter.Current;
 
-    public IReadOnlyList<TelemetryPacketDescriptor> PacketDescriptors => PacketDescriptorsValue;
+    IReadOnlyList<TelemetryPacketDescriptor> IGameTelemetryAdapter.PacketDescriptors => PacketDescriptorsValue;
 
     public void Reset(VehicleStateResetReason reason)
     {

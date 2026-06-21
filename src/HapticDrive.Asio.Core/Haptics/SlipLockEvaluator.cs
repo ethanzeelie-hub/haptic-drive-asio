@@ -88,6 +88,33 @@ public sealed record SlipLockEvaluationInput(
     VehicleWheelData<float> WheelSlipAngle,
     VehicleWheelData<float> WheelSpeedMetersPerSecond)
 {
+    public static SlipLockEvaluationInput FromHapticFrame(
+        HapticFrame frame,
+        VehicleState? vehicleState,
+        SlipLockEvaluationOptions? options = null,
+        bool wheelSlipEnabled = true,
+        bool wheelLockEnabled = true)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+
+        var motionEx = vehicleState?.MotionEx?.Value;
+        return new SlipLockEvaluationInput(
+            HasVehicleState: vehicleState is not null,
+            WheelSlipEnabled: wheelSlipEnabled,
+            WheelLockEnabled: wheelLockEnabled,
+            DrivingStateMuted: !frame.Context.AllowsDrivingOutput,
+            TelemetryFresh: frame.Freshness.TryGetValue(HapticFrameSignalNames.Telemetry, out var telemetryFreshness) && telemetryFreshness.IsFresh,
+            MotionExFresh: frame.Freshness.TryGetValue(HapticFrameSignalNames.MotionEx, out var motionExFreshness) && motionExFreshness.IsFresh,
+            SpeedKph: (frame.Signals.SpeedMetersPerSecond ?? 0f) * 3.6f,
+            Throttle01: frame.Signals.Throttle ?? 0f,
+            Brake01: frame.Signals.Brake ?? 0f,
+            TractionControlActive: vehicleState?.CarStatus?.Value.TractionControl is > 0,
+            AntiLockBrakesActive: vehicleState?.CarStatus?.Value.AntiLockBrakes is > 0,
+            WheelSlipRatio: motionEx?.WheelSlipRatio ?? Wheels(float.NaN),
+            WheelSlipAngle: motionEx?.WheelSlipAngle ?? Wheels(float.NaN),
+            WheelSpeedMetersPerSecond: motionEx?.WheelSpeed ?? Wheels(float.NaN));
+    }
+
     public static SlipLockEvaluationInput FromVehicleState(
         VehicleState? vehicleState,
         SlipLockEvaluationOptions? options = null,

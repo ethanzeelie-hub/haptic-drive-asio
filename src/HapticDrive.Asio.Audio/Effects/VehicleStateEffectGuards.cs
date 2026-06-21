@@ -1,78 +1,9 @@
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Core.Vehicle.Freshness;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
 internal static class VehicleStateEffectGuards
 {
-    public static bool ShouldMuteForDrivingState(VehicleState vehicleState)
-    {
-        if (vehicleState.Session?.Value.GamePaused is > 0)
-        {
-            return true;
-        }
-
-        if (vehicleState.CarStatus?.Value.NetworkPaused is > 0)
-        {
-            return true;
-        }
-
-        if (vehicleState.Lap?.Value.DriverStatus == 0)
-        {
-            return true;
-        }
-
-        return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
-    }
-
-    public static bool IsTelemetryFresh(
-        VehicleState vehicleState,
-        uint maximumFrameLag)
-    {
-        return VehicleStateFreshness.EvaluateTelemetry(
-            vehicleState,
-            DateTimeOffset.UtcNow,
-            0,
-            TimeProvider.System,
-            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
-    }
-
-    public static bool IsMotionFresh(
-        VehicleState vehicleState,
-        uint maximumFrameLag)
-    {
-        return VehicleStateFreshness.EvaluateMotion(
-            vehicleState,
-            DateTimeOffset.UtcNow,
-            0,
-            TimeProvider.System,
-            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
-    }
-
-    public static bool IsMotionExFresh(
-        VehicleState vehicleState,
-        uint maximumFrameLag)
-    {
-        return VehicleStateFreshness.EvaluateMotionEx(
-            vehicleState,
-            DateTimeOffset.UtcNow,
-            0,
-            TimeProvider.System,
-            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
-    }
-
-    public static bool IsLastEventFresh(
-        VehicleState vehicleState,
-        uint maximumFrameLag)
-    {
-        return VehicleStateFreshness.EvaluateLastEvent(
-            vehicleState,
-            DateTimeOffset.UtcNow,
-            0,
-            TimeProvider.System,
-            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
-    }
-
     public static float SanitizeUnit(float value)
     {
         return HapticEffectMath.Clamp(value, 0f, 1f);
@@ -130,14 +61,4 @@ internal static class VehicleStateEffectGuards
         return maximum;
     }
 
-    private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)
-    {
-        return new TelemetryFreshnessPolicy(
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            maximumFrameLag);
-    }
 }

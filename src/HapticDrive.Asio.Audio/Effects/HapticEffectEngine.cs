@@ -1,6 +1,5 @@
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Core.Audio;
-using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -104,19 +103,24 @@ public sealed class HapticEffectEngine
         }
     }
 
-    public void Update(VehicleState vehicleState)
+    public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
+        ArgumentNullException.ThrowIfNull(input);
 
         lock (_gate)
         {
             foreach (var effectSlot in _effectSlots)
             {
-                effectSlot.Update(vehicleState);
+                effectSlot.Update(input);
             }
 
             _snapshot = CreateSnapshot(activeEffectCount: 0, peakLevel: 0f);
         }
+    }
+
+    public void Update(HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState)
+    {
+        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public HapticEffectEngineSnapshot GetSnapshot()
@@ -198,7 +202,7 @@ public sealed class HapticEffectEngine
 
         void Reset();
 
-        void Update(VehicleState vehicleState);
+        void Update(HapticEffectInput input);
 
         HapticEffectRenderResult Render();
 
@@ -236,9 +240,9 @@ public sealed class HapticEffectEngine
             Effect.Reset();
         }
 
-        public void Update(VehicleState vehicleState)
+        public void Update(HapticEffectInput input)
         {
-            Effect.Update(vehicleState);
+            Effect.Update(input);
         }
 
         public HapticEffectRenderResult Render()

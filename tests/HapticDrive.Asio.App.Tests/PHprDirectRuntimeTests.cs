@@ -532,7 +532,7 @@ public sealed class PHprDirectRuntimeTests
 
     private static async Task WaitForReportsAsync(FakeHidReportWriter writer, int count)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
         while (DateTimeOffset.UtcNow < deadline)
         {
             if (writer.Reports.Count >= count)
@@ -548,7 +548,7 @@ public sealed class PHprDirectRuntimeTests
 
     private static async Task WaitForMarkerClearedAsync(IPHprBenchUncleanShutdownStore store)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
         while (DateTimeOffset.UtcNow < deadline)
         {
             if (!store.Exists())

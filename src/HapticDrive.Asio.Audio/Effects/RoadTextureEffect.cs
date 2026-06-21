@@ -52,11 +52,11 @@ public sealed class RoadTextureEffect : IHapticEffectSource
         _lastGearPulseAtUtc = timestampUtc ?? DateTimeOffset.UtcNow;
     }
 
-    public void Update(VehicleState vehicleState)
+    public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
+        ArgumentNullException.ThrowIfNull(input);
         _signal = _evaluator.Evaluate(
-            vehicleState,
+            input.VehicleState,
             new RoadTextureEvaluationContext(
                 DateTimeOffset.UtcNow,
                 HapticsRunning: true,
@@ -65,6 +65,11 @@ public sealed class RoadTextureEffect : IHapticEffectSource
                 TelemetryStale: false,
                 _lastGearPulseAtUtc));
         Snapshot = CreateSnapshot(_signal, peakLevel: 0f, rmsLevel: 0f);
+    }
+
+    public void Update(VehicleState vehicleState)
+    {
+        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -98,7 +103,7 @@ public sealed class RoadTextureEffect : IHapticEffectSource
             {
                 _heldNoiseSample = (float)HapticEffectMath.DeterministicSignedUnitNoise(
                     _frameCursor,
-                    _signal.SurfaceTypeIds.RearLeft);
+                    _signal.DominantSurfaceTypeId ?? 0);
                 _grainHoldFramesRemaining = Math.Max(
                     1,
                     (int)Math.Round(destination.SampleRate / Math.Max(1f, grainDensityHz)));
@@ -128,7 +133,7 @@ public sealed class RoadTextureEffect : IHapticEffectSource
             Options.IsEnabled,
             Options.Bst1OutputEnabled,
             Options.Bst1OutputEnabled && signal.IsActive && peakLevel > 0f,
-            signal.SurfaceClass == RoadTextureSurfaceClass.None ? null : signal.SurfaceTypeIds.RearLeft,
+            signal.SurfaceClass == RoadTextureSurfaceClass.None ? null : signal.DominantSurfaceTypeId,
             signal.SurfaceName,
             signal.Bst1FrequencyHz,
             Options.Bst1OutputEnabled ? signal.OutputIntensity * Options.Gain : 0f,

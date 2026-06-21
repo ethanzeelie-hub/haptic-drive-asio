@@ -48,17 +48,17 @@ public sealed class ImpactEffect : IHapticEffectSource
         Snapshot = CreateSnapshot(isActive: false, peakLevel: 0f);
     }
 
-    public void Update(VehicleState vehicleState)
+    public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
+        ArgumentNullException.ThrowIfNull(input);
 
-        if (!Options.IsEnabled || VehicleStateEffectGuards.ShouldMuteForDrivingState(vehicleState))
+        if (!Options.IsEnabled || HapticFrameEffectGuards.ShouldMuteForDrivingState(input.Frame))
         {
             Snapshot = CreateSnapshot(_pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
             return;
         }
 
-        var metrics = ReadMetrics(vehicleState, Options);
+        var metrics = ReadMetrics(input, Options);
         if (_lastMetrics is null)
         {
             _lastMetrics = metrics;
@@ -87,6 +87,11 @@ public sealed class ImpactEffect : IHapticEffectSource
 
         _lastMetrics = metrics;
         Snapshot = CreateSnapshot(_pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
+    }
+
+    public void Update(VehicleState vehicleState)
+    {
+        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -163,12 +168,12 @@ public sealed class ImpactEffect : IHapticEffectSource
         return timeAllowsTrigger && frameAllowsTrigger;
     }
 
-    private static ImpactMetrics ReadMetrics(VehicleState vehicleState, ImpactEffectOptions options)
+    private static ImpactMetrics ReadMetrics(HapticEffectInput input, ImpactEffectOptions options)
     {
         float? verticalG = null;
-        if (VehicleStateEffectGuards.IsMotionFresh(vehicleState, options.MaximumTelemetryFrameLag))
+        if (HapticFrameEffectGuards.IsMotionFresh(input.Frame))
         {
-            var value = vehicleState.Motion!.Value.GForceVertical;
+            var value = input.VehicleState.Motion!.Value.GForceVertical;
             if (float.IsFinite(value) && Math.Abs(value) <= 20f)
             {
                 verticalG = value;
@@ -177,9 +182,9 @@ public sealed class ImpactEffect : IHapticEffectSource
 
         float? wheelVerticalForce = null;
         float? suspensionAcceleration = null;
-        if (VehicleStateEffectGuards.IsMotionExFresh(vehicleState, options.MaximumTelemetryFrameLag))
+        if (HapticFrameEffectGuards.IsMotionExFresh(input.Frame))
         {
-            var motionEx = vehicleState.MotionEx!.Value;
+            var motionEx = input.VehicleState.MotionEx!.Value;
             var force = VehicleStateEffectGuards.CalculateWheelMaximum(
                 motionEx.WheelVertForce,
                 value => value >= 0f && value <= 200_000f ? value : null);
@@ -198,11 +203,11 @@ public sealed class ImpactEffect : IHapticEffectSource
         }
 
         uint? collisionFrame = null;
-        if (VehicleStateEffectGuards.IsLastEventFresh(vehicleState, options.MaximumTelemetryFrameLag)
-            && vehicleState.LastEvent!.Value.EventCode == "COLL"
-            && vehicleState.LastEvent.Value.InvolvesPlayer)
+        if (HapticFrameEffectGuards.IsLastEventFresh(input.Frame)
+            && input.VehicleState.LastEvent!.Value.EventCode == "COLL"
+            && input.VehicleState.LastEvent.Value.InvolvesPlayer)
         {
-            collisionFrame = vehicleState.LastEvent.Stamp.OverallFrameIdentifier;
+            collisionFrame = input.VehicleState.LastEvent.Stamp.OverallFrameIdentifier;
         }
 
         return new ImpactMetrics(
@@ -210,8 +215,8 @@ public sealed class ImpactEffect : IHapticEffectSource
             wheelVerticalForce,
             suspensionAcceleration,
             collisionFrame,
-            vehicleState.Frame.OverallFrameIdentifier,
-            vehicleState.Frame.SessionTime);
+            input.VehicleState.Frame.OverallFrameIdentifier,
+            input.VehicleState.Frame.SessionTime);
     }
 
     private static float CalculateIntensity(

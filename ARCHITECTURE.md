@@ -17,6 +17,8 @@ F1 25 UDP packets
 -> game-specific parser
 -> game-specific adapter
 -> shared VehicleState
+-> game-specific normalizer
+-> canonical HapticFrame
 -> haptic effect engine
 -> mixer and safety chain
 -> audio output device
@@ -31,12 +33,28 @@ UDP receiver (loopback default, LAN opt-in)
    -> bounded forwarding channel
    -> bounded recording channel
 -> shared VehicleState / freshness checks
+-> game integration registry
+-> VehicleState normalizer
+-> canonical HapticFrame
 -> haptic effect engine
 -> mixer and safety chain
 -> audio output device
 ```
 
 The ingress worker exists so packet receive never creates one task per datagram and so forwarding/recording backpressure can stay visible without blocking the live haptic path. Forwarding continues to send `UdpTelemetryPacket.Payload` byte-for-byte, and recording continues to preserve the original UDP payload independently of parser success.
+
+Stage 26E adds the first explicit future-game seam:
+
+- `IGameIntegrationRegistry` now describes installed game integrations and owns adapter creation plus endpoint defaults.
+- F1 25 is registered as the only shipped integration today (`f1-25`, UDP v3, loopback/20778 default).
+- `IVehicleStateNormalizer` now turns parser/adaptor `VehicleState` into a canonical `HapticFrame` with:
+  - game identity,
+  - canonical driving context,
+  - canonical surface kinds,
+  - canonical telemetry signals,
+  - centralized per-signal freshness.
+
+That means effects and future actuator logic no longer need to read raw F1 packet enums or surface IDs directly on the live path. `VehicleState` remains the parser/adaptor boundary, while `HapticFrame` is now the intended cross-game effect/actuation boundary.
 
 Runtime lifecycle is now serialized separately from live packet flow. `RuntimeLifecycleCoordinator` owns one gate and a generation counter for shell-triggered operations such as output rebuilds, haptics start/stop, recording start/stop, and shutdown. That keeps output-device selection, pipeline rebuild, and shutdown cleanup from overlapping each other while still letting the timer-driven UI and the bounded ingress worker stay responsive.
 

@@ -1,6 +1,6 @@
+using HapticDrive.Actuation.Driving;
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -99,7 +99,9 @@ public sealed class PHprPedalEffectsRouter
         }
 
         var context = safetyContext ?? BuildContext(pipelineSnapshot);
-        return RouteAsync(pipelineSnapshot.VehicleState, context, nowUtc, cancellationToken);
+        return pipelineSnapshot.HapticFrame is not null
+            ? RouteAsync(pipelineSnapshot.HapticFrame, pipelineSnapshot.VehicleState, context, nowUtc, cancellationToken)
+            : RouteAsync(pipelineSnapshot.VehicleState, context, nowUtc, cancellationToken);
     }
 
     public async ValueTask<PHprPedalEffectsRoutingResult> RouteAsync(
@@ -136,6 +138,109 @@ public sealed class PHprPedalEffectsRouter
         try
         {
             var candidates = EvaluateEffects(vehicleState, options);
+            StoreEvaluation(candidates);
+
+            var plans = CreateRoutePlans(candidates, options, now);
+            if (plans.Count == 0)
+            {
+                var anyActive = candidates.Any(candidate => candidate.IsActive);
+                return StoreIgnored(
+                    anyActive
+                        ? PHprPedalEffectsRoutingStatus.IgnoredMinimumInterval
+                        : PHprPedalEffectsRoutingStatus.IgnoredNoActiveEffect,
+                    anyActive
+                        ? "Mock P-HPR pedal effects were active, but the deterministic minimum route interval suppressed this update."
+                        : "No road vibration, wheel slip, or wheel lock pedal effect was active; no command was sent.",
+                    now);
+            }
+
+            var context = BuildContext(safetyContext);
+            _output.SetSafetyContext(context);
+
+            var commandResults = new List<PHprPedalEffectRoutingCommandResult>(plans.Count);
+            foreach (var plan in plans)
+            {
+                var command = PHprCommand.Create(
+                    plan.TargetModule.ToModuleId(),
+                    plan.Strength01,
+                    plan.FrequencyHz,
+                    plan.DurationMs,
+                    plan.Kind.ToCommandSource(),
+                    plan.Priority,
+                    now,
+                    PHprSafetyFlags.MockOnly);
+                var outputResult = await _output.SendAsync(command, cancellationToken).ConfigureAwait(false);
+                commandResults.Add(new PHprPedalEffectRoutingCommandResult(
+                    plan.Kind,
+                    plan.TargetModule,
+                    outputResult.Command ?? command,
+                    outputResult));
+                StoreCommandResult(plan, outputResult, now);
+            }
+
+            var outputSnapshot = _output.GetSnapshot();
+            var safetySnapshot = _output.SafetySnapshot;
+            var routedCount = commandResults.Count(result => result.WasRouted);
+            var resultStatus = routedCount > 0
+                ? PHprPedalEffectsRoutingStatus.Routed
+                : PHprPedalEffectsRoutingStatus.RejectedBySafety;
+            var result = new PHprPedalEffectsRoutingResult(
+                resultStatus,
+                routedCount > 0
+                    ? $"Mock P-HPR pedal effects routed {routedCount:N0} command(s) through the safety-limited mock output; no hardware write was performed."
+                    : "Mock P-HPR pedal effects were rejected by the safety-limited mock output; no hardware write was performed.",
+                commandResults,
+                safetySnapshot,
+                outputSnapshot,
+                now);
+
+            StoreCompleted(result, plans);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            var result = new PHprPedalEffectsRoutingResult(
+                PHprPedalEffectsRoutingStatus.Failed,
+                $"Mock P-HPR pedal effects routing failed: {ex.Message}",
+                [],
+                _output.SafetySnapshot,
+                _output.GetSnapshot(),
+                now);
+            StoreFailed(result, ex.Message);
+            return result;
+        }
+    }
+
+    internal async ValueTask<PHprPedalEffectsRoutingResult> RouteAsync(
+        HapticFrame frame,
+        VehicleState vehicleState,
+        PHprSafetyContext? safetyContext = null,
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        ArgumentNullException.ThrowIfNull(vehicleState);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        PHprPedalEffectsRouterOptions options;
+        lock (_gate)
+        {
+            options = _options;
+        }
+
+        var now = nowUtc ?? DateTimeOffset.UtcNow;
+        if (!options.IsEnabled)
+        {
+            return StoreIgnored(
+                PHprPedalEffectsRoutingStatus.IgnoredDisabled,
+                "Mock P-HPR pedal effects routing is disabled; no command was sent.",
+                now);
+        }
+
+        try
+        {
+            var candidates = EvaluateEffects(frame, vehicleState, options);
             StoreEvaluation(candidates);
 
             var plans = CreateRoutePlans(candidates, options, now);
@@ -322,43 +427,56 @@ public sealed class PHprPedalEffectsRouter
         VehicleState vehicleState,
         PHprPedalEffectsRouterOptions options)
     {
+        var frame = LegacyActuationHapticFrameFactory.FromVehicleState(vehicleState);
+        return EvaluateEffects(frame, vehicleState, options);
+    }
+
+    private IReadOnlyList<EffectCandidate> EvaluateEffects(
+        HapticFrame frame,
+        VehicleState vehicleState,
+        PHprPedalEffectsRouterOptions options)
+    {
         var slipLockEvaluation = _slipLockEvaluator.Evaluate(
-            SlipLockEvaluationInput.FromVehicleState(
+            SlipLockEvaluationInput.FromHapticFrame(
+                frame,
                 vehicleState,
                 _slipLockEvaluator.Options,
                 options.WheelSlip.IsEnabled,
                 options.WheelLock.IsEnabled));
         return
         [
-            EvaluateRoadVibration(vehicleState, options.RoadVibration),
+            EvaluateRoadVibration(frame, options.RoadVibration),
             EvaluateWheelSlip(options.WheelSlip, slipLockEvaluation),
             EvaluateWheelLock(options.WheelLock, slipLockEvaluation)
         ];
     }
 
     private static EffectCandidate EvaluateRoadVibration(
-        VehicleState vehicleState,
+        HapticFrame frame,
         PHprPedalEffectState state)
     {
         if (!state.IsEnabled
-            || ShouldMuteForDrivingState(vehicleState)
-            || !IsTelemetryFresh(vehicleState, MaximumTelemetryFrameLag))
+            || !frame.Context.AllowsDrivingOutput
+            || frame.Signals.SurfaceKinds is null
+            || !frame.Freshness.TryGetValue(HapticFrameSignalNames.Telemetry, out var telemetryFreshness)
+            || !telemetryFreshness.IsFresh
+            || frame.Signals.SpeedMetersPerSecond is null)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.RoadVibration, state);
         }
 
-        var telemetry = vehicleState.Telemetry!.Value;
-        var speedScale = SpeedScale(telemetry.SpeedKph, 5f, 160f);
+        var speedScale = SpeedScale(frame.Signals.SpeedMetersPerSecond.Value * 3.6f, 5f, 160f);
         if (speedScale <= 0f)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.RoadVibration, state);
         }
 
+        var surfaceKinds = frame.Signals.SurfaceKinds;
         var surfaceMix = 0f;
-        for (var wheel = 0; wheel < 4; wheel++)
-        {
-            surfaceMix += SurfaceGain(telemetry.SurfaceTypeIds[wheel]);
-        }
+        surfaceMix += SurfaceGain(surfaceKinds.RearLeft);
+        surfaceMix += SurfaceGain(surfaceKinds.RearRight);
+        surfaceMix += SurfaceGain(surfaceKinds.FrontLeft);
+        surfaceMix += SurfaceGain(surfaceKinds.FrontRight);
 
         surfaceMix = Clamp(surfaceMix / 4f, 0f, 1f);
         var intensity = Clamp(speedScale * surfaceMix, 0f, 1f);
@@ -606,67 +724,24 @@ public sealed class PHprPedalEffectsRouter
         }
     }
 
-    private static bool ShouldMuteForDrivingState(VehicleState vehicleState)
+    private static float SurfaceGain(SurfaceKind surfaceKind)
     {
-        if (vehicleState.Session?.Value.GamePaused is > 0)
+        return surfaceKind switch
         {
-            return true;
-        }
-
-        if (vehicleState.CarStatus?.Value.NetworkPaused is > 0)
-        {
-            return true;
-        }
-
-        if (vehicleState.Lap?.Value.DriverStatus == 0)
-        {
-            return true;
-        }
-
-        return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
-    }
-
-    private static bool IsTelemetryFresh(
-        VehicleState vehicleState,
-        uint maximumFrameLag)
-    {
-        return VehicleStateFreshness.EvaluateTelemetry(
-            vehicleState,
-            DateTimeOffset.UtcNow,
-            0,
-            TimeProvider.System,
-            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
-    }
-
-    private static float SurfaceGain(byte surfaceTypeId)
-    {
-        return surfaceTypeId switch
-        {
-            0 => 0.18f,
-            1 => 0.90f,
-            2 => 0.28f,
-            3 => 0.55f,
-            4 => 0.65f,
-            5 => 0.38f,
-            6 => 0.32f,
-            7 => 0.42f,
-            8 => 0.20f,
-            9 => 0.70f,
-            10 => 0.50f,
-            11 => 0.85f,
+            SurfaceKind.Tarmac => 0.18f,
+            SurfaceKind.RumbleStrip => 0.90f,
+            SurfaceKind.Concrete => 0.28f,
+            SurfaceKind.Rock => 0.55f,
+            SurfaceKind.Gravel => 0.65f,
+            SurfaceKind.Mud => 0.38f,
+            SurfaceKind.Sand => 0.32f,
+            SurfaceKind.Grass => 0.42f,
+            SurfaceKind.Water => 0.20f,
+            SurfaceKind.Cobblestone => 0.70f,
+            SurfaceKind.Metal => 0.50f,
+            SurfaceKind.Ridged => 0.85f,
             _ => 0.25f
         };
-    }
-
-    private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)
-    {
-        return new TelemetryFreshnessPolicy(
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            TimeSpan.MaxValue,
-            maximumFrameLag);
     }
 
     private static float SpeedScale(float speedKph, float minimumSpeedKph, float fullIntensitySpeedKph)

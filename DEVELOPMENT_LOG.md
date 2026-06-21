@@ -7043,3 +7043,82 @@ Self-review:
 - Runtime lifecycle ownership is now explicit and serialized instead of being spread across overlapping event handlers.
 - The new generation guard keeps slow rebuild completions from older selections from mutating the current runtime after the user has already moved on.
 - This stage intentionally stops at shell/runtime serialization; the next hardening step is the formal game-registry plus canonical-frame boundary so effects stop consuming F1-specific state directly.
+
+## Stage 26E - Game Registry and Canonical Haptic Frame
+
+Status: Complete.
+
+Goal: Introduce a formal game-integration registry and a canonical `HapticFrame` boundary so effects and future actuator paths no longer depend on raw F1-specific packet ids, surface ids, or scattered driving-state enum checks on the active path.
+
+Changes:
+
+- Added `HapticDrive.Asio.Core.Games` with:
+  - `GameIntegrationId`,
+  - `TelemetryPacketKind`,
+  - `GameCapabilities`,
+  - `GameTelemetryEndpointDefaults`,
+  - `GameIntegrationDescriptor`,
+  - `IGameIntegrationRegistry`.
+- Reworked the app-side game catalog onto a formal registry seam:
+  - F1 25 now registers through a descriptor instead of remaining only an app-local hardcoded special case,
+  - registry defaults now carry loopback/port/capability metadata for the shipped integration,
+  - `GameTelemetryCatalog` now creates both the adapter and the normalizer from that registry seam.
+- Added canonical haptics APIs under `HapticDrive.Asio.Core.Haptics`:
+  - `SurfaceKind`,
+  - `DrivingPhase`,
+  - `PitState`,
+  - `HapticFrameIdentity`,
+  - `HapticWheelSignals<T>`,
+  - `HapticTelemetrySignals`,
+  - `HapticDrivingContext`,
+  - `HapticFrame`,
+  - `IVehicleStateNormalizer`,
+  - shared canonical freshness key names.
+- Added `F125VehicleStateNormalizer`:
+  - converts speed from kph to m/s,
+  - maps verified F1 25 v3 surface ids to canonical `SurfaceKind`,
+  - carries canonical gear / rpm / pedal / brake-temperature / tyre-slip signals,
+  - builds canonical driving context from paused / pit / player-control state,
+  - attaches centralized per-signal freshness to the frame.
+- Updated runtime snapshots and coordinator flow:
+  - `HapticPipelineSnapshot` now carries the current canonical `HapticFrame`,
+  - `HapticPipelineCoordinator` now normalizes the current `VehicleState` before live effect updates and snapshot publication when a normalizer is available,
+  - the app now passes the selected game's normalizer into the pipeline.
+- Updated audio-effect and actuation live-path seams to consume canonical frame data:
+  - effect engine input now carries `HapticFrame` plus underlying `VehicleState`,
+  - production effect files no longer read raw F1 surface ids or driver/pit/session enums directly,
+  - actuation driving-armed and pedal-routing live paths now consume canonical driving context/freshness, with legacy shims retained only for compatibility-only call sites.
+- Added compatibility shims intentionally limited to legacy/transition paths:
+  - `LegacyHapticEffectInputFactory`,
+  - `LegacyActuationHapticFrameFactory`.
+  These preserve existing call surfaces while the live runtime moves onto the canonical frame seam.
+
+Tests:
+
+- Added `GameIntegrationRegistryTests`:
+  - `DefaultIntegrationIsF125`,
+  - `F125DescriptorUsesV3Protocol`,
+  - `UnknownGameIdThrowsClearException`.
+- Added `F125VehicleStateNormalizerTests`:
+  - `MapsVerifiedSurfaceIds`,
+  - `UnknownSurfaceIdMapsToUnknown`,
+  - `DoesNotMarkDrivingOutputAllowedWhenTelemetryStale`.
+- Added `EffectInputGuardrailTests.EffectsDoNotReadRawF125SurfaceIdsOrDriverEnums`.
+- Updated actuation/runtime coverage so replay, driving-armed, and mock P-HPR routing continue to work through the new canonical-frame seam.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build tests\HapticDrive.Asio.Telemetry.F1_25.Tests\HapticDrive.Asio.Telemetry.F1_25.Tests.csproj -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe build tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe build tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Telemetry.F1_25.Tests\HapticDrive.Asio.Telemetry.F1_25.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Audio.Tests\HapticDrive.Asio.Audio.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build` passed.
+
+Self-review:
+
+- The live runtime now has a real cross-game seam: parser/adaptor code still owns `VehicleState`, but effects and future actuators can target `HapticFrame` instead of depending on F1-specific state layouts.
+- The transition is intentionally incremental: compatibility shims remain in a few legacy paths, but the active production effect/router code is now behind canonical context and freshness rather than raw surface-id comparisons.
+- This stage intentionally stops at the game/normalizer boundary; the next hardening step is the effect descriptor registry plus profile schema work so new effects stop requiring fixed-key central plumbing.

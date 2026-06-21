@@ -5,6 +5,7 @@ using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle.Freshness;
@@ -27,6 +28,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private readonly string _manualAsioHardwareSessionId = Guid.NewGuid().ToString("N");
     private readonly string _localBst1PulseRendererInstanceId = $"local-bst1-renderer-{Guid.NewGuid():N}";
     private readonly IGameTelemetryAdapter _telemetryGameAdapter;
+    private readonly IVehicleStateNormalizer? _vehicleStateNormalizer;
     private readonly IOutputInterlock _outputInterlock;
     private readonly long[] _packetIdCounts;
     private readonly DateTimeOffset?[] _packetIdLastObservedAtUtc;
@@ -84,9 +86,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         HapticDriveProfile? profile = null,
         HapticPipelineOptions? options = null,
         IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null,
-        IOutputInterlock? outputInterlock = null)
+        IOutputInterlock? outputInterlock = null,
+        IVehicleStateNormalizer? vehicleStateNormalizer = null)
     {
         _telemetryGameAdapter = telemetryGameAdapter ?? throw new ArgumentNullException(nameof(telemetryGameAdapter));
+        _vehicleStateNormalizer = vehicleStateNormalizer;
         Configuration = configuration ?? AudioOutputConfiguration.Default;
         _options = options ?? HapticPipelineOptions.Default;
         _outputInterlock = outputInterlock ?? new OutputInterlock();
@@ -901,7 +905,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             CarStatusFreshness = carStatusFreshness,
             DamageFreshness = damageFreshness,
             MotionExFreshness = motionExFreshness,
-            EventFreshness = eventFreshness
+            EventFreshness = eventFreshness,
+            HapticFrame = NormalizeHapticFrame(vehicleState, nowUtc, nowTimestamp, freshnessPolicy)
         };
     }
 
@@ -1025,7 +1030,15 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         if (vehicleStateUpdated)
         {
             Interlocked.Increment(ref _vehicleStateUpdateCount);
-            EffectEngine.Update(vehicleStateUpdate.State);
+            var normalizedFrame = NormalizeHapticFrame(vehicleStateUpdate.State, packet.ReceivedAtUtc, packet.ReceivedAtTimestamp, CreateTelemetryFreshnessPolicy());
+            if (normalizedFrame is not null)
+            {
+                EffectEngine.Update(new HapticEffectInput(normalizedFrame, vehicleStateUpdate.State));
+            }
+            else
+            {
+                EffectEngine.Update(vehicleStateUpdate.State);
+            }
 
             lock (_diagnosticsGate)
             {
@@ -1142,6 +1155,12 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
         if (shouldRenderEffects)
         {
+            var normalizedFrame = NormalizeHapticFrame(_telemetryGameAdapter.CurrentVehicleState, renderStartedAtUtc, nowTimestamp, freshnessPolicy);
+            if (normalizedFrame is not null)
+            {
+                EffectEngine.Update(new HapticEffectInput(normalizedFrame, _telemetryGameAdapter.CurrentVehicleState));
+            }
+
             var effectRender = EffectEngine.RenderNextBuffer();
             _lastEffectSnapshot = effectRender.Snapshot;
             mixerInputs.AddRange(effectRender.MixerInputs);
@@ -1952,6 +1971,20 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             TelemetryFreshnessPolicy.Default.MaxLapAge,
             TelemetryFreshnessPolicy.Default.MaxStatusAge,
             TelemetryFreshnessPolicy.Default.MaxFrameLag);
+    }
+
+    private HapticFrame? NormalizeHapticFrame(
+        HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState,
+        DateTimeOffset nowUtc,
+        long nowTimestamp,
+        TelemetryFreshnessPolicy freshnessPolicy)
+    {
+        return _vehicleStateNormalizer?.Normalize(
+            vehicleState,
+            nowUtc,
+            nowTimestamp,
+            TimeProvider.System,
+            freshnessPolicy);
     }
 
     private static bool IsMTrackAsioDriver(string? driverName)

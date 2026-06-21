@@ -1,5 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
-using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Haptics;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -49,10 +49,10 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
         };
     }
 
-    public void Update(VehicleState vehicleState)
+    public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
-        _evaluation = Evaluate(vehicleState, Options);
+        ArgumentNullException.ThrowIfNull(input);
+        _evaluation = Evaluate(input, Options);
         Snapshot = new EngineVibrationEffectSnapshot(
             Options.IsEnabled,
             _evaluation.IsActive,
@@ -61,6 +61,11 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
             _evaluation.FrequencyHz,
             _evaluation.Amplitude,
             PeakLevel: 0f);
+    }
+
+    public void Update(HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState)
+    {
+        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -105,28 +110,27 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
         return new HapticEffectRenderResult(Name, Options.IsEnabled, IsActive: true, peak);
     }
 
-    private static EngineEvaluation Evaluate(VehicleState vehicleState, EngineVibrationEffectOptions options)
+    private static EngineEvaluation Evaluate(HapticEffectInput input, EngineVibrationEffectOptions options)
     {
-        if (!options.IsEnabled || vehicleState.Telemetry is null)
+        if (!options.IsEnabled || input.Frame.Signals.EngineRpm is null)
         {
             return EngineEvaluation.Inactive;
         }
 
-        var telemetry = vehicleState.Telemetry.Value;
-        var rpm = telemetry.EngineRpm;
+        var rpm = (ushort)Math.Max(0, input.Frame.Signals.EngineRpm.Value);
         if (rpm == 0 || rpm > options.MaximumAllowedRpm)
         {
             return EngineEvaluation.Inactive with { Rpm = rpm };
         }
 
-        if (ShouldMuteForVehicleState(vehicleState))
+        if (HapticFrameEffectGuards.ShouldMuteForDrivingState(input.Frame))
         {
-            return EngineEvaluation.Inactive with { Rpm = rpm, Throttle = SanitizeThrottle(telemetry.Throttle) };
+            return EngineEvaluation.Inactive with { Rpm = rpm, Throttle = SanitizeThrottle(input.Frame.Signals.Throttle ?? 0f) };
         }
 
-        var throttle = SanitizeThrottle(telemetry.Throttle);
-        var idleRpm = ResolveIdleRpm(vehicleState, options);
-        var maxRpm = ResolveMaxRpm(vehicleState, options, idleRpm);
+        var throttle = SanitizeThrottle(input.Frame.Signals.Throttle ?? 0f);
+        var idleRpm = ResolveIdleRpm(input, options);
+        var maxRpm = ResolveMaxRpm(input, options, idleRpm);
         var rpmAmount = HapticEffectMath.Clamp((rpm - idleRpm) / (double)(maxRpm - idleRpm), 0.0, 1.0);
         var minimumFrequencyHz = SanitizeFrequency(options.MinimumFrequencyHz);
         var maximumFrequencyHz = Math.Max(minimumFrequencyHz, SanitizeFrequency(options.MaximumFrequencyHz));
@@ -135,7 +139,7 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
         var idleThrottleGain = HapticEffectMath.Clamp(options.IdleThrottleGain, 0f, 1f);
         var throttleAmount = idleThrottleGain + ((1f - idleThrottleGain) * throttle);
         var rpmGain = 0.5 + (0.5 * rpmAmount);
-        var pitMultiplier = IsInPit(vehicleState)
+        var pitMultiplier = IsInPit(input.Frame)
             ? HapticEffectMath.Clamp(options.PitGainMultiplier, 0f, 1f)
             : 1f;
         var amplitude = (float)(gain * throttleAmount * rpmGain * pitMultiplier);
@@ -158,29 +162,9 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
             amplitude);
     }
 
-    private static bool ShouldMuteForVehicleState(VehicleState vehicleState)
+    private static bool IsInPit(HapticFrame frame)
     {
-        if (vehicleState.Session?.Value.GamePaused is > 0)
-        {
-            return true;
-        }
-
-        if (vehicleState.CarStatus?.Value.NetworkPaused is > 0)
-        {
-            return true;
-        }
-
-        if (vehicleState.Lap?.Value.DriverStatus == 0)
-        {
-            return true;
-        }
-
-        return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
-    }
-
-    private static bool IsInPit(VehicleState vehicleState)
-    {
-        return vehicleState.Lap?.Value.PitStatus is 1 or 2;
+        return frame.Context.PitState is PitState.Pitting or PitState.InPitArea;
     }
 
     private static float SanitizeThrottle(float throttle)
@@ -188,9 +172,9 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
         return HapticEffectMath.Clamp(throttle, 0f, 1f);
     }
 
-    private static ushort ResolveIdleRpm(VehicleState vehicleState, EngineVibrationEffectOptions options)
+    private static ushort ResolveIdleRpm(HapticEffectInput input, EngineVibrationEffectOptions options)
     {
-        var idleRpm = vehicleState.CarStatus?.Value.IdleRpm ?? options.DefaultIdleRpm;
+        var idleRpm = (ushort?)input.Frame.Signals.IdleRpm ?? input.VehicleState.CarStatus?.Value.IdleRpm ?? options.DefaultIdleRpm;
         if (idleRpm == 0 || idleRpm >= options.MaximumAllowedRpm)
         {
             return options.DefaultIdleRpm;
@@ -200,11 +184,11 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
     }
 
     private static ushort ResolveMaxRpm(
-        VehicleState vehicleState,
+        HapticEffectInput input,
         EngineVibrationEffectOptions options,
         ushort idleRpm)
     {
-        var maxRpm = vehicleState.CarStatus?.Value.MaxRpm ?? options.DefaultMaxRpm;
+        var maxRpm = (ushort?)input.Frame.Signals.MaxRpm ?? input.VehicleState.CarStatus?.Value.MaxRpm ?? options.DefaultMaxRpm;
         if (maxRpm <= idleRpm || maxRpm > options.MaximumAllowedRpm)
         {
             maxRpm = options.DefaultMaxRpm;

@@ -1,5 +1,4 @@
 using HapticDrive.Asio.Core.Audio;
-using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -9,7 +8,7 @@ public interface IHapticEffectSource
 
     void Reset();
 
-    void Update(VehicleState vehicleState);
+    void Update(HapticEffectInput input);
 
     HapticEffectRenderResult Render(AudioSampleBuffer destination);
 }

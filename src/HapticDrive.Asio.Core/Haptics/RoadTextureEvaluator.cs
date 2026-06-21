@@ -167,7 +167,10 @@ public sealed class RoadTextureEvaluator
             noiseAmount,
             gearDuckingActive,
             duckingGain,
-            SuppressedReason: outputIntensity > 0f ? null : "road intensity zero");
+            SuppressedReason: outputIntensity > 0f ? null : "road intensity zero")
+        {
+            DominantSurfaceTypeId = surface.DominantSurfaceTypeId
+        };
         return Store(signal);
     }
 
@@ -266,6 +269,7 @@ public sealed class RoadTextureEvaluator
         var bst1Frequency = Clamp(weightedBst1 / denominator, 15f, 90f);
         var phprFrequency = Clamp(weightedPHpr / denominator, 1f, 50f);
         return new SurfaceEvaluation(
+            dominant.SurfaceTypeId,
             surfaceMix,
             dominant.SurfaceClass,
             dominant.Name,
@@ -476,6 +480,7 @@ public sealed class RoadTextureEvaluator
     }
 
     private sealed record SurfaceEvaluation(
+        byte? DominantSurfaceTypeId,
         float SurfaceMix,
         RoadTextureSurfaceClass SurfaceClass,
         string SurfaceName,
@@ -485,6 +490,7 @@ public sealed class RoadTextureEvaluator
         float NoiseAmount)
     {
         public static SurfaceEvaluation Inactive { get; } = new(
+            null,
             0f,
             RoadTextureSurfaceClass.None,
             "None",

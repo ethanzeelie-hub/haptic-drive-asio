@@ -2,6 +2,7 @@ using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Effects;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
@@ -59,6 +60,8 @@ public sealed record HapticPipelineSnapshot(
     public VehicleSignalFreshness MotionExFreshness { get; init; } = new(false, false, false, false, false, null, null);
 
     public VehicleSignalFreshness EventFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public HapticFrame? HapticFrame { get; init; }
 }
 
 public sealed record HapticPipelinePacketDiagnostics(

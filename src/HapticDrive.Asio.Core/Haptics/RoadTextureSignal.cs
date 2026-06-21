@@ -38,6 +38,8 @@ public sealed record RoadTextureSignal(
 {
     public bool IsActive => OutputIntensity > 0f && SuppressedReason is null;
 
+    public byte? DominantSurfaceTypeId { get; init; }
+
     public static RoadTextureSignal Inactive(DateTimeOffset timestampUtc, string? reason = null)
     {
         return new RoadTextureSignal(

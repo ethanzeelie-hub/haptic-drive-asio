@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
@@ -38,11 +39,16 @@ public sealed class KerbEffect : IHapticEffectSource
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
     }
 
+    public void Update(HapticEffectInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        _evaluation = Evaluate(input, Options);
+        Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
+    }
+
     public void Update(VehicleState vehicleState)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
-        _evaluation = Evaluate(vehicleState, Options);
-        Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
+        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -95,18 +101,19 @@ public sealed class KerbEffect : IHapticEffectSource
         return new HapticEffectRenderResult(Name, Options.IsEnabled, IsActive: peak > 0f, peak);
     }
 
-    private static KerbEvaluation Evaluate(VehicleState vehicleState, KerbEffectOptions options)
+    private static KerbEvaluation Evaluate(HapticEffectInput input, KerbEffectOptions options)
     {
         if (!options.IsEnabled
-            || VehicleStateEffectGuards.ShouldMuteForDrivingState(vehicleState)
-            || !VehicleStateEffectGuards.IsTelemetryFresh(vehicleState, options.MaximumTelemetryFrameLag))
+            || HapticFrameEffectGuards.ShouldMuteForDrivingState(input.Frame)
+            || !HapticFrameEffectGuards.IsTelemetryFresh(input.Frame)
+            || input.Frame.Signals.SurfaceKinds is null
+            || input.Frame.Signals.SpeedMetersPerSecond is null)
         {
             return KerbEvaluation.Inactive;
         }
 
-        var telemetry = vehicleState.Telemetry!.Value;
         var speedScale = HapticEffectMath.SpeedScale(
-            telemetry.SpeedKph,
+            input.Frame.Signals.SpeedMetersPerSecond.Value * 3.6f,
             options.MinimumSpeedKph,
             options.FullIntensitySpeedKph);
         if (speedScale <= 0f)
@@ -115,25 +122,26 @@ public sealed class KerbEffect : IHapticEffectSource
         }
 
         var activeWheelCount = 0;
-        byte? dominantSurfaceTypeId = null;
-        for (var wheel = 0; wheel < 4; wheel++)
+        var surfaces = input.Frame.Signals.SurfaceKinds;
+        var orderedSurfaces = new[] { surfaces.RearLeft, surfaces.RearRight, surfaces.FrontLeft, surfaces.FrontRight };
+        SurfaceKind? dominantSurfaceKind = null;
+        foreach (var surfaceKind in orderedSurfaces)
         {
-            var surfaceTypeId = telemetry.SurfaceTypeIds[wheel];
-            if (!IsKerbSurface(surfaceTypeId))
+            if (!IsKerbSurface(surfaceKind))
             {
                 continue;
             }
 
             activeWheelCount++;
-            dominantSurfaceTypeId ??= surfaceTypeId;
+            dominantSurfaceKind ??= surfaceKind;
         }
 
-        if (activeWheelCount == 0 || dominantSurfaceTypeId is null)
+        if (activeWheelCount == 0 || dominantSurfaceKind is null)
         {
             return KerbEvaluation.Inactive;
         }
 
-        var contactMultiplier = ResolveContactMultiplier(vehicleState, options);
+        var contactMultiplier = ResolveContactMultiplier(input, options);
         var wheelMultiplier = 0.55f + (0.45f * (activeWheelCount / 4f));
         var amplitude = options.Gain * speedScale * wheelMultiplier * contactMultiplier;
         amplitude = HapticEffectMath.Clamp(amplitude, 0f, options.MaximumAmplitude);
@@ -145,26 +153,26 @@ public sealed class KerbEffect : IHapticEffectSource
 
         return new KerbEvaluation(
             IsActive: true,
-            dominantSurfaceTypeId,
-            VehicleSurfaceTypes.GetName(dominantSurfaceTypeId.Value),
+            (byte)dominantSurfaceKind.Value,
+            dominantSurfaceKind.Value.ToString(),
             SanitizeFrequency(options.BaseFrequencyHz),
             amplitude,
             activeWheelCount);
     }
 
-    private static bool IsKerbSurface(byte surfaceTypeId)
+    private static bool IsKerbSurface(SurfaceKind surfaceKind)
     {
-        return surfaceTypeId is VehicleSurfaceTypes.RumbleStrip or VehicleSurfaceTypes.Ridged;
+        return surfaceKind is SurfaceKind.RumbleStrip or SurfaceKind.Ridged;
     }
 
-    private static float ResolveContactMultiplier(VehicleState vehicleState, KerbEffectOptions options)
+    private static float ResolveContactMultiplier(HapticEffectInput input, KerbEffectOptions options)
     {
-        if (!VehicleStateEffectGuards.IsMotionExFresh(vehicleState, options.MaximumTelemetryFrameLag))
+        if (!HapticFrameEffectGuards.IsMotionExFresh(input.Frame))
         {
             return 1f;
         }
 
-        var motionEx = vehicleState.MotionEx!.Value;
+        var motionEx = input.VehicleState.MotionEx!.Value;
         var verticalForce = VehicleStateEffectGuards.CalculateWheelAverage(
             motionEx.WheelVertForce,
             value => value >= 0f && value <= 100_000f ? value : null);

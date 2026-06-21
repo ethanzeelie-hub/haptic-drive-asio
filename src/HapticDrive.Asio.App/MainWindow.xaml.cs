@@ -1817,7 +1817,8 @@ public partial class MainWindow : Window
             CreateSelectedOutputDevice(),
             profile: _currentProfile,
             forwardingDestinations: CreateForwardingDestinations(),
-            outputInterlock: _outputInterlock);
+            outputInterlock: _outputInterlock,
+            vehicleStateNormalizer: GameTelemetryCatalog.CreateNormalizer(_selectedGameId));
         pipeline.SetManualAsioHardwareTestFlightRecorder(
             new FileManualAsioHardwareTestFlightRecorder(GetLocalValidationResultsDirectory()));
         return pipeline;

@@ -1,6 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -39,18 +38,24 @@ public sealed class SlipEffect : IHapticEffectSource
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
     }
 
-    public void Update(VehicleState vehicleState)
+    public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
+        ArgumentNullException.ThrowIfNull(input);
         _evaluation = Evaluate(
             _slipLockEvaluator.Evaluate(
-                SlipLockEvaluationInput.FromVehicleState(
-                    vehicleState,
+                SlipLockEvaluationInput.FromHapticFrame(
+                    input.Frame,
+                    input.VehicleState,
                     _slipLockEvaluator.Options,
                     Options.WheelSlipEnabled,
                     Options.WheelLockEnabled)),
             Options);
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
+    }
+
+    public void Update(HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState)
+    {
+        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)

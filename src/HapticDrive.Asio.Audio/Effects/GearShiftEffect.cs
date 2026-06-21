@@ -63,21 +63,20 @@ public sealed class GearShiftEffect : IHapticEffectSource
         };
     }
 
-    public void Update(VehicleState vehicleState)
+    public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
+        ArgumentNullException.ThrowIfNull(input);
 
-        if (!Options.IsEnabled || vehicleState.Telemetry is null)
+        if (!Options.IsEnabled || input.Frame.Signals.Gear is null)
         {
             Snapshot = CreateSnapshot(isActive: _pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
             return;
         }
 
-        var telemetry = vehicleState.Telemetry.Value;
-        var currentGear = telemetry.Gear;
+        var currentGear = (sbyte)input.Frame.Signals.Gear.Value;
         _lastObservedGear = currentGear;
 
-        if (!IsValidForwardGear(currentGear, vehicleState))
+        if (!IsValidForwardGear(currentGear, input))
         {
             Snapshot = CreateSnapshot(isActive: _pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
             return;
@@ -96,16 +95,21 @@ public sealed class GearShiftEffect : IHapticEffectSource
             return;
         }
 
-        if (CanTrigger(vehicleState))
+        if (CanTrigger(input.VehicleState))
         {
             _pendingPulse = true;
-            _pendingPulseAmplitude = CalculatePulseAmplitude(vehicleState);
-            _lastShiftSessionTime = vehicleState.Telemetry.Stamp.SessionTime;
-            _lastShiftFrameIdentifier = vehicleState.Telemetry.Stamp.FrameIdentifier;
+            _pendingPulseAmplitude = CalculatePulseAmplitude(input);
+            _lastShiftSessionTime = input.VehicleState.Telemetry?.Stamp.SessionTime;
+            _lastShiftFrameIdentifier = input.Frame.Identity.OverallFrameIdentifier ?? input.VehicleState.Telemetry?.Stamp.FrameIdentifier;
         }
 
         _lastForwardGear = currentGear;
         Snapshot = CreateSnapshot(isActive: _pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
+    }
+
+    public void Update(VehicleState vehicleState)
+    {
+        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -183,22 +187,22 @@ public sealed class GearShiftEffect : IHapticEffectSource
         return elapsed >= Options.EngagingDebounceDuration.TotalSeconds;
     }
 
-    private float CalculatePulseAmplitude(VehicleState vehicleState)
+    private float CalculatePulseAmplitude(HapticEffectInput input)
     {
         var gain = HapticEffectMath.Clamp(Options.Gain, 0f, 1f);
-        if (!Options.ModulateGainByRpm || vehicleState.Telemetry is null)
+        if (!Options.ModulateGainByRpm || input.Frame.Signals.EngineRpm is null)
         {
             return gain;
         }
 
-        var rpm = vehicleState.Telemetry.Value.EngineRpm;
+        var rpm = input.Frame.Signals.EngineRpm.Value;
         if (rpm == 0)
         {
             return gain * 0.5f;
         }
 
-        var idleRpm = vehicleState.CarStatus?.Value.IdleRpm ?? Options.DefaultIdleRpm;
-        var maxRpm = vehicleState.CarStatus?.Value.MaxRpm ?? Options.DefaultMaxRpm;
+        var idleRpm = (ushort?)input.Frame.Signals.IdleRpm ?? input.VehicleState.CarStatus?.Value.IdleRpm ?? Options.DefaultIdleRpm;
+        var maxRpm = (ushort?)input.Frame.Signals.MaxRpm ?? input.VehicleState.CarStatus?.Value.MaxRpm ?? Options.DefaultMaxRpm;
         if (idleRpm == 0 || maxRpm <= idleRpm)
         {
             idleRpm = Options.DefaultIdleRpm;
@@ -209,14 +213,14 @@ public sealed class GearShiftEffect : IHapticEffectSource
         return gain * (float)(0.5 + (0.5 * rpmAmount));
     }
 
-    private bool IsValidForwardGear(sbyte gear, VehicleState vehicleState)
+    private bool IsValidForwardGear(sbyte gear, HapticEffectInput input)
     {
         if (Options.DetectionMode != GearShiftDetectionMode.ForwardGearChangesOnly)
         {
             return false;
         }
 
-        var maxGears = vehicleState.CarStatus?.Value.MaxGears;
+        var maxGears = input.VehicleState.CarStatus?.Value.MaxGears;
         var maximumForwardGear = maxGears is > 0 and <= 12 ? maxGears.Value : (byte)8;
         return gear >= 1 && gear <= maximumForwardGear;
     }
