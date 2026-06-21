@@ -3615,23 +3615,16 @@ public partial class MainWindow : Window
         UpdateMixerStatus();
         UpdateEffectStatus();
         UpdateDiagnosticsStatus();
+        var feedback = AudioProfileWorkflowFeedbackPlanner.BuildTuningChangedFeedback(saveResult, _hapticsStarted);
 
-        if (!saveResult.Succeeded)
+        if (feedback.ShouldUpdateProfileStatus)
         {
-            UpdateProfileStatus(saveResult.Message, saveResult.ValidationMessages);
+            UpdateProfileStatus(feedback.ProfileStatusMessage, feedback.ProfileValidationMessages);
         }
 
-        if (!saveResult.Succeeded)
+        if (feedback.FooterStatusText is not null)
         {
-            FooterStatusText.Text = saveResult.Message;
-        }
-        else if (_hapticsStarted)
-        {
-            FooterStatusText.Text = "Tuning applied to the output-owned render path.";
-        }
-        else
-        {
-            FooterStatusText.Text = "Tuning applied; haptics are still stopped.";
+            FooterStatusText.Text = feedback.FooterStatusText;
         }
     }
 
@@ -3656,12 +3649,13 @@ public partial class MainWindow : Window
 
         _currentProfile = BuildProfileFromControls();
         var result = PersistCurrentAudioProfile();
-        if (!result.Succeeded)
+        var feedback = AudioProfileWorkflowFeedbackPlanner.BuildProfileNameCommitFeedback(result);
+        if (feedback.FooterStatusText is not null)
         {
-            FooterStatusText.Text = result.Message;
+            FooterStatusText.Text = feedback.FooterStatusText;
         }
 
-        UpdateProfileStatus(result.Message, result.ValidationMessages);
+        UpdateProfileStatus(feedback.ProfileStatusMessage, feedback.ProfileValidationMessages);
     }
 
     private AudioProfileControlInputs BuildCurrentAudioProfileControlInputs()
@@ -3758,13 +3752,6 @@ public partial class MainWindow : Window
         UpdateDiagnosticsStatus();
     }
 
-    private static IReadOnlyList<string> CombineValidationMessages(
-        IReadOnlyList<string> audioMessages,
-        IReadOnlyList<string> phprMessages)
-    {
-        return audioMessages.Concat(phprMessages).ToArray();
-    }
-
     private async void SaveProfileButton_Click(object sender, RoutedEventArgs e)
     {
         var profile = BuildProfileFromControls();
@@ -3778,13 +3765,10 @@ public partial class MainWindow : Window
             ApplyProfileToControls(_currentProfile);
             ApplyProfileToRuntime(_currentProfile);
         }
+        var feedback = AudioProfileWorkflowFeedbackPlanner.BuildSaveProfilesFeedback(result, phprResult);
 
-        UpdateProfileStatus(
-            $"{result.Message} {phprResult.Message}",
-            CombineValidationMessages(result.ValidationMessages, phprResult.ValidationMessages));
-        FooterStatusText.Text = result.Succeeded && phprResult.Succeeded
-            ? $"Saved profiles {Path.GetFileName(result.Path)} and {Path.GetFileName(phprResult.Path)}."
-            : $"{result.Message} {phprResult.Message}";
+        UpdateProfileStatus(feedback.ProfileStatusMessage, feedback.ProfileValidationMessages);
+        FooterStatusText.Text = feedback.FooterStatusText ?? string.Empty;
     }
 
     private async void LoadProfileButton_Click(object sender, RoutedEventArgs e)
@@ -3804,11 +3788,10 @@ public partial class MainWindow : Window
             ApplyPhprEffectProfileToRuntime(phprResult.Profile);
             SaveAppSettings();
         }
+        var feedback = AudioProfileWorkflowFeedbackPlanner.BuildLoadProfilesFeedback(result, phprResult);
 
-        UpdateProfileStatus(
-            $"{result.Message} {phprResult.Message}",
-            CombineValidationMessages(result.ValidationMessages, phprResult.ValidationMessages));
-        FooterStatusText.Text = $"{result.Message} {phprResult.Message}";
+        UpdateProfileStatus(feedback.ProfileStatusMessage, feedback.ProfileValidationMessages);
+        FooterStatusText.Text = feedback.FooterStatusText ?? string.Empty;
     }
 
     private void ResetProfileButton_Click(object sender, RoutedEventArgs e)
@@ -3822,25 +3805,9 @@ public partial class MainWindow : Window
         SaveAppSettings();
         UpdateEffectStatus();
         UpdateMixerStatus();
-        UpdateProfileStatus(
-            audioSaveResult.Succeeded
-                ? "Reset to current rig audio, BST-1 local gear, and P-HPR defaults."
-                : audioSaveResult.Message,
-            audioSaveResult.ValidationMessages);
-
-        if (!audioSaveResult.Succeeded)
-        {
-            FooterStatusText.Text = audioSaveResult.Message;
-            return;
-        }
-
-        if (_hapticsStarted)
-        {
-            FooterStatusText.Text = "Reset tuning to the current rig defaults for the output-owned render path.";
-            return;
-        }
-
-        FooterStatusText.Text = "Reset tuning to the current rig defaults.";
+        var feedback = AudioProfileWorkflowFeedbackPlanner.BuildResetFeedback(audioSaveResult, _hapticsStarted);
+        UpdateProfileStatus(feedback.ProfileStatusMessage, feedback.ProfileValidationMessages);
+        FooterStatusText.Text = feedback.FooterStatusText ?? string.Empty;
     }
 
     private void RefreshDiagnosticsButton_Click(object sender, RoutedEventArgs e)

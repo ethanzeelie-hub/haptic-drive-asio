@@ -5311,6 +5311,55 @@ Self-review:
 - No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
 - The broader effect surface is still explicitly typed, but this stage removes one more way that stale `MainWindow` coupling could quietly creep back in.
 
+## Stage 25AM - Audio-Profile Workflow Feedback Planner Seam
+
+Date: 2026-06-21
+
+Status: Complete.
+
+Goal: Continue the profile-workflow cleanup by moving repeated tuning/save/load/reset feedback planning out of `MainWindow` and behind one pure app-side helper without changing runtime behavior, persisted profile behavior, or WPF layout.
+
+Notes:
+
+- Re-audited the post-25AL profile workflow:
+  - control hydration and capture already had dedicated seams,
+  - stale accessors were already removed from `MainWindow`,
+  - but the shell still repeated save-result and footer/profile-status branching across tuning-change, name-commit, save, load, and reset handlers.
+- Added `AudioProfileWorkflowFeedbackPlanner` plus a small typed `AudioProfileWorkflowFeedback` result:
+  - tuning-change feedback,
+  - profile-name commit feedback,
+  - combined audio plus P-HPR save feedback,
+  - combined audio plus P-HPR load feedback,
+  - reset feedback.
+- Updated `MainWindow` to use the planner instead of repeating those message branches inline.
+- Added focused tests and guardrails:
+  - `AudioProfileWorkflowFeedbackPlannerTests`,
+  - `AudioProfileWorkflowFeedbackPlannerGuardrailTests`.
+- Kept the stage intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no profile schema change,
+  - no WPF layout rewrite,
+  - no control-capture or control-application ownership change.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "AudioProfileWorkflowFeedbackPlanner"` passed.
+- `Get-Process | Where-Object { $_.ProcessName -like 'testhost*' } | Stop-Process -Force` completed before the full suite.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AM is a good low-risk workflow cleanup stage.
+- `MainWindow` still owns execution, but it no longer owns every footer/profile-status wording branch for the audio-profile workflow.
+- No persisted profile shape changed.
+- No WPF layout changed.
+- No runtime haptic behavior changed.
+- No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
+- The broader effect surface is still explicitly typed, but one more shell workflow hotspot now has a real seam instead of repeated inline branching.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

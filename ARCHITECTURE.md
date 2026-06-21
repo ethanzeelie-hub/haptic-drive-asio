@@ -3141,3 +3141,33 @@ Stage 25AL architecture result:
 - The result improves maintainability because the shell boundary now matches the real ownership split instead of leaving obsolete direct-access escape hatches behind.
 
 Stage 25AL deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across persisted settings and tuning UI. It finishes this local shell cleanup first so later effect-surface work starts from a cleaner composition root.
+
+## Stage 25AM Audio-Profile Workflow Feedback Planner Seam
+
+Stage 25AM continues the same profile-workflow cleanup by removing repeated user-feedback branching from `MainWindow` and centralizing it behind one pure planner.
+
+Stage 25AM architecture result:
+
+- Audio-profile workflow feedback now has one shared app-side seam:
+  - tuning-change save feedback,
+  - profile-name commit feedback,
+  - combined audio plus P-HPR save feedback,
+  - combined audio plus P-HPR load feedback,
+  - reset-to-default feedback.
+- `AudioProfileWorkflowFeedbackPlanner` owns:
+  - footer-status text selection,
+  - whether profile-status text should be refreshed,
+  - profile-status message selection,
+  - validation-message handoff for those workflow paths.
+- `MainWindow` still keeps the same visible ownership boundary:
+  - it still executes runtime changes, persistence, and control application,
+  - it still decides when each workflow runs,
+  - it now delegates the repeated message/feedback branching to the planner instead of hardcoding it inline.
+- The stage stays intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no persisted profile schema change,
+  - no WPF layout rewrite,
+  - no dynamic control generation.
+- The result improves maintainability because later profile-workflow changes can evolve one feedback seam instead of re-editing repeated `FooterStatusText` and `UpdateProfileStatus(...)` branches across multiple shell handlers.
+
+Stage 25AM deliberately does not move persistence execution, runtime application, or control capture/application ownership out of `MainWindow`. It isolates workflow feedback first so later workflow/orchestration cleanup can build on a more consistent message contract.
