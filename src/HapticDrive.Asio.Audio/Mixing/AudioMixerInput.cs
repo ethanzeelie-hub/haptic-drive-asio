@@ -2,7 +2,7 @@ using HapticDrive.Asio.Core.Audio;
 
 namespace HapticDrive.Asio.Audio.Mixing;
 
-public sealed record AudioMixerInput
+public readonly record struct AudioMixerInput
 {
     public AudioMixerInput(
         AudioSampleBuffer buffer,

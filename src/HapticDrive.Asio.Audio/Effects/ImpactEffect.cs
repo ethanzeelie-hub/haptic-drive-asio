@@ -3,7 +3,7 @@ using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
-public sealed class ImpactEffect : IHapticEffectSource
+public sealed class ImpactEffect : IHapticEffectSource, IConfigurableHapticEffectSource<ImpactEffectOptions>
 {
     private ImpactMetrics? _lastMetrics;
     private uint? _lastConsumedCollisionFrame;
@@ -29,7 +29,7 @@ public sealed class ImpactEffect : IHapticEffectSource
 
     public string Name => "Impact";
 
-    public ImpactEffectOptions Options { get; }
+    public ImpactEffectOptions Options { get; private set; }
 
     public ImpactEffectSnapshot Snapshot { get; private set; }
 
@@ -50,8 +50,6 @@ public sealed class ImpactEffect : IHapticEffectSource
 
     public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(input);
-
         if (!Options.IsEnabled || HapticFrameEffectGuards.ShouldMuteForDrivingState(input.Frame))
         {
             Snapshot = CreateSnapshot(_pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
@@ -66,7 +64,7 @@ public sealed class ImpactEffect : IHapticEffectSource
             return;
         }
 
-        var intensity = CalculateIntensity(metrics, _lastMetrics, Options);
+        var intensity = CalculateIntensity(metrics, _lastMetrics.Value, Options);
         if (HasNewCollision(metrics))
         {
             intensity = Math.Max(intensity, HapticEffectMath.Clamp(Options.CollisionEventIntensity, 0f, 1f));
@@ -92,6 +90,12 @@ public sealed class ImpactEffect : IHapticEffectSource
     public void Update(VehicleState vehicleState)
     {
         Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
+    }
+
+    public void UpdateOptions(ImpactEffectOptions options)
+    {
+        Options = options ?? throw new ArgumentNullException(nameof(options));
+        Snapshot = CreateSnapshot(_pendingPulse || _remainingPulseFrames > 0, Snapshot.PeakLevel);
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -287,7 +291,7 @@ public sealed class ImpactEffect : IHapticEffectSource
             peakLevel);
     }
 
-    private sealed record ImpactMetrics(
+    private readonly record struct ImpactMetrics(
         float? VerticalG,
         float? WheelVerticalForce,
         float? SuspensionAcceleration,

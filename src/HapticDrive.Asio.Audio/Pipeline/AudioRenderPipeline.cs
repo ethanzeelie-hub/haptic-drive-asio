@@ -26,6 +26,34 @@ public sealed class AudioRenderPipeline
         IReadOnlyList<AudioMixerInput>? inputs,
         AudioSampleBuffer outputBuffer)
     {
+        if (inputs is null)
+        {
+            return Process(ReadOnlySpan<AudioMixerInput>.Empty, outputBuffer);
+        }
+
+        if (inputs is AudioMixerInput[] array)
+        {
+            return Process(array.AsSpan(0, inputs.Count), outputBuffer);
+        }
+
+        if (inputs is ArraySegment<AudioMixerInput> segment)
+        {
+            return Process(segment.AsSpan(), outputBuffer);
+        }
+
+        var copiedInputs = new AudioMixerInput[inputs.Count];
+        for (var i = 0; i < inputs.Count; i++)
+        {
+            copiedInputs[i] = inputs[i];
+        }
+
+        return Process(copiedInputs.AsSpan(), outputBuffer);
+    }
+
+    public AudioRenderPipelineSnapshot Process(
+        ReadOnlySpan<AudioMixerInput> inputs,
+        AudioSampleBuffer outputBuffer)
+    {
         ArgumentNullException.ThrowIfNull(outputBuffer);
         AudioSampleBuffer.EnsureSameFormat(Format, outputBuffer.Format);
 
@@ -59,5 +87,16 @@ public sealed class AudioRenderPipeline
         ArgumentNullException.ThrowIfNull(outputDevice);
         Process(inputs, outputBuffer);
         return await outputDevice.SubmitBufferAsync(outputBuffer, cancellationToken).ConfigureAwait(false);
+    }
+
+    public ValueTask<AudioOutputDeviceResult> ProcessAndSubmitAsync(
+        ReadOnlySpan<AudioMixerInput> inputs,
+        AudioSampleBuffer outputBuffer,
+        IAudioOutputDevice outputDevice,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(outputDevice);
+        Process(inputs, outputBuffer);
+        return outputDevice.SubmitBufferAsync(outputBuffer, cancellationToken);
     }
 }

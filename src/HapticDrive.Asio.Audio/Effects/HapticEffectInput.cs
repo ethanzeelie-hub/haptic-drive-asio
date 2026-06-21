@@ -3,6 +3,6 @@ using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
-public sealed record HapticEffectInput(
+public readonly record struct HapticEffectInput(
     HapticFrame Frame,
     VehicleState VehicleState);

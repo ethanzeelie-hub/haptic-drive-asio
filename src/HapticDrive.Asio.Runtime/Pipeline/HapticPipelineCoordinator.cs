@@ -10,6 +10,7 @@ using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Recording;
+using System.Diagnostics;
 
 namespace HapticDrive.Asio.Runtime.Pipeline;
 
@@ -24,7 +25,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly AudioSampleBuffer _outputBuffer;
+    private readonly AudioMixerInput[] _renderMixerInputs = new AudioMixerInput[8];
     private readonly HapticPipelineOptions _options;
+    private readonly TelemetryFreshnessPolicy _telemetryFreshnessPolicy;
     private readonly string _manualAsioHardwareSessionId = Guid.NewGuid().ToString("N");
     private readonly string _localBst1PulseRendererInstanceId = $"local-bst1-renderer-{Guid.NewGuid():N}";
     private readonly IGameTelemetryAdapter _telemetryGameAdapter;
@@ -42,7 +45,6 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private HapticPipelineInputSource _inputSource = HapticPipelineInputSource.None;
     private DateTimeOffset? _lastPacketAtUtc;
     private DateTimeOffset? _lastVehicleStateUpdateAtUtc;
-    private TimeSpan? _lastRenderTelemetryAge;
     private string _lastPacketMessage;
     private string _lastVehicleStateMessage;
     private string? _lastPipelineError;
@@ -68,13 +70,18 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private bool _outputOpened;
     private bool _localAsioPulseStreaming;
     private bool _normalMuted;
-    private bool _telemetryTimedOutMuted;
     private long _packetsObserved;
     private long _packetParseSuccessCount;
     private long _packetParseIgnoredCount;
     private long _packetParseFailureCount;
     private long _vehicleStateUpdateCount;
     private long _renderedBufferCount;
+    private long _renderOverrunCount;
+    private long _staleFrameSilenceCount;
+    private long _interlockSilenceCount;
+    private long _maxRenderDurationTicks;
+    private long _lastRenderTelemetryAgeTicks = long.MinValue;
+    private int _telemetryTimedOutMutedFlag;
 
     public HapticPipelineCoordinator(
         IGameTelemetryAdapter telemetryGameAdapter,
@@ -93,6 +100,13 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         _vehicleStateNormalizer = vehicleStateNormalizer;
         Configuration = configuration ?? AudioOutputConfiguration.Default;
         _options = options ?? HapticPipelineOptions.Default;
+        _telemetryFreshnessPolicy = new TelemetryFreshnessPolicy(
+            _options.TelemetryMuteTimeout,
+            TelemetryFreshnessPolicy.Default.MaxMotionAge,
+            TelemetryFreshnessPolicy.Default.MaxSessionAge,
+            TelemetryFreshnessPolicy.Default.MaxLapAge,
+            TelemetryFreshnessPolicy.Default.MaxStatusAge,
+            TelemetryFreshnessPolicy.Default.MaxFrameLag);
         _outputInterlock = outputInterlock ?? new OutputInterlock();
         Format = AudioSampleFormat.FromConfiguration(Configuration);
         OutputDevice = outputDevice ?? new NullAudioOutputDevice();
@@ -839,8 +853,6 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         string lastVehicleStateMessage;
         string? lastPipelineError;
         HapticPipelineInputSource inputSource;
-        TimeSpan? telemetryAge;
-        bool telemetryTimedOutMuted;
 
         lock (_diagnosticsGate)
         {
@@ -850,9 +862,13 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lastVehicleStateMessage = _lastVehicleStateMessage;
             lastPipelineError = _lastPipelineError;
             inputSource = _inputSource;
-            telemetryAge = _lastRenderTelemetryAge;
-            telemetryTimedOutMuted = _telemetryTimedOutMuted;
         }
+
+        var telemetryAgeTicks = Interlocked.Read(ref _lastRenderTelemetryAgeTicks);
+        TimeSpan? telemetryAge = telemetryAgeTicks == long.MinValue
+            ? null
+            : TimeSpan.FromTicks(telemetryAgeTicks);
+        var telemetryTimedOutMuted = Volatile.Read(ref _telemetryTimedOutMutedFlag) != 0;
 
         var vehicleState = _telemetryGameAdapter.CurrentVehicleState;
         var freshnessPolicy = CreateTelemetryFreshnessPolicy();
@@ -887,7 +903,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lastVehicleStateMessage,
             lastPipelineError,
             vehicleState,
-            _lastEffectSnapshot,
+            EffectEngine.GetSnapshot(),
             _lastAudioSnapshot,
             OutputDevice.GetStatus(),
             GetManualAsioHardwareTestSnapshot(),
@@ -906,7 +922,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             DamageFreshness = damageFreshness,
             MotionExFreshness = motionExFreshness,
             EventFreshness = eventFreshness,
-            HapticFrame = NormalizeHapticFrame(vehicleState, nowUtc, nowTimestamp, freshnessPolicy)
+            HapticFrame = NormalizeHapticFrame(vehicleState, nowUtc, nowTimestamp, freshnessPolicy),
+            RenderOverrunCount = Interlocked.Read(ref _renderOverrunCount),
+            StaleFrameSilenceCount = Interlocked.Read(ref _staleFrameSilenceCount),
+            InterlockSilenceCount = Interlocked.Read(ref _interlockSilenceCount),
+            MaxRenderDurationTicks = Interlocked.Read(ref _maxRenderDurationTicks)
         };
     }
 
@@ -1043,8 +1063,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lock (_diagnosticsGate)
             {
                 _lastVehicleStateUpdateAtUtc = packet.ReceivedAtUtc;
-                _telemetryTimedOutMuted = false;
             }
+            Volatile.Write(ref _telemetryTimedOutMutedFlag, 0);
         }
 
         lock (_diagnosticsGate)
@@ -1066,6 +1086,20 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         }
     }
 
+    private static void UpdateMaximumTicks(ref long target, long candidate)
+    {
+        long current;
+        do
+        {
+            current = Interlocked.Read(ref target);
+            if (candidate <= current)
+            {
+                return;
+            }
+        }
+        while (Interlocked.CompareExchange(ref target, candidate, current) != current);
+    }
+
     private AudioOutputRenderCallbackResult RenderOutputBuffer(
         AudioSampleBuffer destination,
         AudioOutputRenderContext context)
@@ -1079,6 +1113,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         if (!Monitor.TryEnter(_renderCallbackGate))
         {
             destination.Clear();
+            Interlocked.Increment(ref _renderOverrunCount);
             return AudioOutputRenderCallbackResult.Failure("Haptic render callback skipped because the previous render is still active.");
         }
 
@@ -1096,130 +1131,121 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         AudioSampleBuffer destination,
         DateTimeOffset renderStartedAtUtc)
     {
+        var renderStartedTimestamp = Stopwatch.GetTimestamp();
         AudioSampleBuffer.EnsureSameFormat(Format, destination.Format);
 
-        var nowTimestamp = TimeProvider.System.GetTimestamp();
-        var freshnessPolicy = CreateTelemetryFreshnessPolicy();
-        var telemetryFreshness = VehicleStateFreshness.EvaluateTelemetry(
-            _telemetryGameAdapter.CurrentVehicleState,
-            renderStartedAtUtc,
-            nowTimestamp,
-            TimeProvider.System,
-            freshnessPolicy);
-        var telemetryAge = telemetryFreshness.Age;
-        var hasVehicleState = Interlocked.Read(ref _vehicleStateUpdateCount) > 0;
-        var telemetryTimedOut = hasVehicleState
-            && telemetryFreshness.IsPresent
-            && !telemetryFreshness.IsFresh;
-        if (telemetryTimedOut
-            && telemetryAge is { } age
-            && age >= TelemetryFreshnessPolicy.Default.MaxTelemetryAge)
+        try
         {
-            _outputInterlock.Trip(
-                OutputInterlockReason.TelemetryStale,
-                $"Critical driving telemetry is stale ({age.TotalMilliseconds:0} ms); output remains muted until fresh telemetry arrives and the interlock is reset.");
-        }
+            var interlockSnapshot = _outputInterlock.Current;
+            if (interlockSnapshot.IsLatched)
+            {
+                AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
+                {
+                    IsMuted = true,
+                    EmergencyMute = true
+                };
+                AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
+                {
+                    EmergencyMute = true
+                };
+                _lastAudioSnapshot = AudioPipeline.Process(ReadOnlySpan<AudioMixerInput>.Empty, destination);
+                Interlocked.Increment(ref _interlockSilenceCount);
+                Interlocked.Increment(ref _renderedBufferCount);
+                SetPipelineError(null);
+                return AudioOutputRenderCallbackResult.Success("Output interlock latched; rendered safety silence.");
+            }
 
-        var interlockSnapshot = _outputInterlock.Current;
-        var emergencyMuted = interlockSnapshot.IsLatched;
-        var shouldRenderEffects = hasVehicleState
-            && !telemetryTimedOut
-            && !_normalMuted
-            && !emergencyMuted;
-        var mixerInputs = new List<AudioMixerInput>();
+            var nowTimestamp = TimeProvider.System.GetTimestamp();
+            var freshnessPolicy = CreateTelemetryFreshnessPolicy();
+            var currentVehicleState = _telemetryGameAdapter.CurrentVehicleState;
+            var telemetryFreshness = VehicleStateFreshness.EvaluateTelemetry(
+                currentVehicleState,
+                renderStartedAtUtc,
+                nowTimestamp,
+                TimeProvider.System,
+                freshnessPolicy);
+            var telemetryAge = telemetryFreshness.Age;
+            var hasVehicleState = Interlocked.Read(ref _vehicleStateUpdateCount) > 0;
+            var telemetryTimedOut = hasVehicleState
+                && telemetryFreshness.IsPresent
+                && !telemetryFreshness.IsFresh;
+            if (telemetryTimedOut
+                && telemetryAge is { } age
+                && age >= TelemetryFreshnessPolicy.Default.MaxTelemetryAge)
+            {
+                _outputInterlock.Trip(
+                    OutputInterlockReason.TelemetryStale,
+                    "Critical driving telemetry is stale; output remains muted until fresh telemetry arrives and the interlock is reset.");
+            }
 
-        if (emergencyMuted)
-        {
+            Interlocked.Exchange(ref _lastRenderTelemetryAgeTicks, telemetryAge?.Ticks ?? long.MinValue);
+            Volatile.Write(ref _telemetryTimedOutMutedFlag, telemetryTimedOut ? 1 : 0);
+
+            var renderInputCount = 0;
+            var shouldRenderEffects = hasVehicleState
+                && !telemetryTimedOut
+                && !_normalMuted;
+            if (shouldRenderEffects)
+            {
+                renderInputCount = EffectEngine.RenderInto(_renderMixerInputs);
+            }
+
+            var manualAsioHardwareTestActive = TryAddManualAsioHardwareTestInput(
+                _renderMixerInputs,
+                ref renderInputCount,
+                out var manualAsioHardwareTestRun);
+            var telemetryMuteAppliesToMixer = telemetryTimedOut && !manualAsioHardwareTestActive;
+
             AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
             {
-                IsMuted = true,
-                EmergencyMute = true
+                IsMuted = _normalMuted || telemetryMuteAppliesToMixer,
+                EmergencyMute = false
             };
             AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
             {
-                EmergencyMute = true
+                EmergencyMute = false
             };
-            _lastAudioSnapshot = AudioPipeline.Process(mixerInputs, destination);
+
+            _lastAudioSnapshot = AudioPipeline.Process(_renderMixerInputs.AsSpan(0, renderInputCount), destination);
+            if (manualAsioHardwareTestRun is not null)
+            {
+                var consumed = manualAsioHardwareTestRun.RecordPostLimiterOutput(destination);
+                if (consumed > 0)
+                {
+                    Interlocked.Add(ref _manualAsioHardwareTestRenderedFrameCount, consumed);
+                    _lastManualAsioHardwareTestPeak = Math.Max(
+                        _lastManualAsioHardwareTestPeak,
+                        manualAsioHardwareTestRun.PulseOwnedPeakPostLimiter);
+                    _lastManualAsioHardwareTestLimiterApplied =
+                        _lastManualAsioHardwareTestLimiterApplied
+                        || _lastAudioSnapshot.Value.LimitedSampleCount > 0
+                        || _lastAudioSnapshot.Value.ClippedSampleCount > 0;
+                }
+            }
+
+            if (telemetryMuteAppliesToMixer)
+            {
+                Interlocked.Increment(ref _staleFrameSilenceCount);
+            }
+
             Interlocked.Increment(ref _renderedBufferCount);
-
-            lock (_diagnosticsGate)
-            {
-                _lastRenderTelemetryAge = telemetryAge;
-                _telemetryTimedOutMuted = telemetryTimedOut;
-                _lastVehicleStateMessage = $"Output interlock latched ({interlockSnapshot.Reason}); rendered safety silence.";
-            }
-
             SetPipelineError(null);
-            return AudioOutputRenderCallbackResult.Success("Output interlock latched; rendered safety silence.");
+            return AudioOutputRenderCallbackResult.Success(
+                telemetryTimedOut ? "Telemetry stale; rendered safety silence." : "Rendered haptic buffer.",
+                telemetryAge,
+                telemetryTimedOut);
         }
-
-        if (shouldRenderEffects)
+        finally
         {
-            var normalizedFrame = NormalizeHapticFrame(_telemetryGameAdapter.CurrentVehicleState, renderStartedAtUtc, nowTimestamp, freshnessPolicy);
-            if (normalizedFrame is not null)
-            {
-                EffectEngine.Update(new HapticEffectInput(normalizedFrame, _telemetryGameAdapter.CurrentVehicleState));
-            }
-
-            var effectRender = EffectEngine.RenderNextBuffer();
-            _lastEffectSnapshot = effectRender.Snapshot;
-            mixerInputs.AddRange(effectRender.MixerInputs);
+            UpdateMaximumTicks(ref _maxRenderDurationTicks, Stopwatch.GetElapsedTime(renderStartedTimestamp).Ticks);
         }
+    }
 
-        var manualAsioHardwareTestActive = TryAddManualAsioHardwareTestInput(
-            mixerInputs,
-            out var manualAsioHardwareTestRun);
-        var telemetryMuteAppliesToMixer = telemetryTimedOut && !manualAsioHardwareTestActive;
-
-        if (manualAsioHardwareTestActive)
-        {
-            _lastEffectSnapshot = EffectEngine.GetSnapshot();
-        }
-
-        AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
-        {
-            IsMuted = _normalMuted || telemetryMuteAppliesToMixer,
-            EmergencyMute = false
-        };
-        AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
-        {
-            EmergencyMute = false
-        };
-
-        _lastAudioSnapshot = AudioPipeline.Process(mixerInputs, destination);
-        if (manualAsioHardwareTestRun is not null)
-        {
-            var consumed = manualAsioHardwareTestRun.RecordPostLimiterOutput(destination);
-            if (consumed > 0)
-            {
-                Interlocked.Add(ref _manualAsioHardwareTestRenderedFrameCount, consumed);
-                _lastManualAsioHardwareTestPeak = Math.Max(
-                    _lastManualAsioHardwareTestPeak,
-                    manualAsioHardwareTestRun.PulseOwnedPeakPostLimiter);
-                _lastManualAsioHardwareTestLimiterApplied =
-                    _lastManualAsioHardwareTestLimiterApplied
-                    || _lastAudioSnapshot.LimitedSampleCount > 0
-                    || _lastAudioSnapshot.ClippedSampleCount > 0;
-            }
-        }
-        Interlocked.Increment(ref _renderedBufferCount);
-        lock (_diagnosticsGate)
-        {
-            _lastRenderTelemetryAge = telemetryAge;
-            _telemetryTimedOutMuted = telemetryTimedOut;
-            if (telemetryTimedOut)
-            {
-                _lastVehicleStateMessage = manualAsioHardwareTestActive
-                    ? $"Telemetry stale for {telemetryAge!.Value.TotalMilliseconds:0} ms; normal effects muted while Manual ASIO Hardware Test remains local."
-                    : $"Telemetry stale for {telemetryAge!.Value.TotalMilliseconds:0} ms; effects muted until fresh VehicleState arrives.";
-            }
-        }
-
-        SetPipelineError(null);
-        return AudioOutputRenderCallbackResult.Success(
-            telemetryTimedOut ? "Telemetry stale; rendered safety silence." : "Rendered haptic buffer.",
-            telemetryAge,
-            telemetryTimedOut);
+    internal AudioOutputRenderCallbackResult RenderIntoBufferForTesting(
+        AudioSampleBuffer destination,
+        DateTimeOffset renderStartedAtUtc)
+    {
+        return RenderIntoBuffer(destination, renderStartedAtUtc);
     }
 
     private bool ShouldKeepLocalAsioPulseCallbackAlive()
@@ -1235,7 +1261,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     }
 
     private bool TryAddManualAsioHardwareTestInput(
-        List<AudioMixerInput> mixerInputs,
+        AudioMixerInput[] mixerInputs,
+        ref int mixerInputCount,
         out ManualAsioHardwareTestRun? activeRun)
     {
         activeRun = null;
@@ -1265,9 +1292,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
                 activeRun.FramesRemaining -= framesThisBuffer;
                 activeRun.RecordPreLimiterInput(framesThisBuffer);
-                mixerInputs.Add(new AudioMixerInput(
+                mixerInputs[mixerInputCount++] = new AudioMixerInput(
                     activeRun.SignalBuffer,
-                    name: $"BST-1 ASIO Pulse {activeRun.Request.SignalName}"));
+                    name: activeRun.MixerInputName);
 
                 if (activeRun.FramesRemaining <= 0)
                 {
@@ -1342,15 +1369,15 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 }
 
                 var audioSnapshot = _lastAudioSnapshot;
-                if (audioSnapshot is not null)
+                if (audioSnapshot.HasValue)
                 {
                     _lastManualAsioHardwareTestPeak = Math.Max(
                         _lastManualAsioHardwareTestPeak,
-                        audioSnapshot.OutputPeakLevel);
+                        audioSnapshot.Value.OutputPeakLevel);
                     _lastManualAsioHardwareTestLimiterApplied =
                         _lastManualAsioHardwareTestLimiterApplied
-                        || audioSnapshot.LimitedSampleCount > 0
-                        || audioSnapshot.ClippedSampleCount > 0;
+                        || audioSnapshot.Value.LimitedSampleCount > 0
+                        || audioSnapshot.Value.ClippedSampleCount > 0;
                 }
 
                 var submitResult = await OutputDevice.SubmitBufferAsync(_outputBuffer, cancellationToken).ConfigureAwait(false);
@@ -1964,13 +1991,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
     private TelemetryFreshnessPolicy CreateTelemetryFreshnessPolicy()
     {
-        return new TelemetryFreshnessPolicy(
-            _options.TelemetryMuteTimeout,
-            TelemetryFreshnessPolicy.Default.MaxMotionAge,
-            TelemetryFreshnessPolicy.Default.MaxSessionAge,
-            TelemetryFreshnessPolicy.Default.MaxLapAge,
-            TelemetryFreshnessPolicy.Default.MaxStatusAge,
-            TelemetryFreshnessPolicy.Default.MaxFrameLag);
+        return _telemetryFreshnessPolicy;
     }
 
     private HapticFrame? NormalizeHapticFrame(
@@ -2043,6 +2064,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         }
 
         public string PulseSourceId { get; }
+
+        public string MixerInputName { get; } = "BST-1 ASIO Pulse";
 
         public IAudioTestSignalGenerator Generator { get; }
 

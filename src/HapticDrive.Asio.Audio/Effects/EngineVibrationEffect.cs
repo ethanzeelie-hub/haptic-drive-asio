@@ -3,7 +3,7 @@ using HapticDrive.Asio.Core.Haptics;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
-public sealed class EngineVibrationEffect : IHapticEffectSource
+public sealed class EngineVibrationEffect : IHapticEffectSource, IConfigurableHapticEffectSource<EngineVibrationEffectOptions>
 {
     private double _basePhase;
     private double _highPhase;
@@ -30,7 +30,7 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
 
     public string Name => "Engine vibration";
 
-    public EngineVibrationEffectOptions Options { get; }
+    public EngineVibrationEffectOptions Options { get; private set; }
 
     public EngineVibrationEffectSnapshot Snapshot { get; private set; }
 
@@ -51,7 +51,6 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
 
     public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(input);
         _evaluation = Evaluate(input, Options);
         Snapshot = new EngineVibrationEffectSnapshot(
             Options.IsEnabled,
@@ -66,6 +65,12 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
     public void Update(HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState)
     {
         Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
+    }
+
+    public void UpdateOptions(EngineVibrationEffectOptions options)
+    {
+        Options = options ?? throw new ArgumentNullException(nameof(options));
+        Snapshot = Snapshot with { IsEnabled = Options.IsEnabled };
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -241,7 +246,7 @@ public sealed class EngineVibrationEffect : IHapticEffectSource
         }
     }
 
-    private sealed record EngineEvaluation(
+    private readonly record struct EngineEvaluation(
         bool IsActive,
         ushort? Rpm,
         float Throttle,

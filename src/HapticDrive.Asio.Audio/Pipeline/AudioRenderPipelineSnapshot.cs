@@ -3,7 +3,7 @@ using HapticDrive.Asio.Audio.Safety;
 
 namespace HapticDrive.Asio.Audio.Pipeline;
 
-public sealed record AudioRenderPipelineSnapshot(
+public readonly record struct AudioRenderPipelineSnapshot(
     bool IsRunning,
     bool IsMuted,
     bool EmergencyMute,

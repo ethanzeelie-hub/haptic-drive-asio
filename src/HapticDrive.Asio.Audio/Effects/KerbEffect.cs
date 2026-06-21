@@ -4,7 +4,7 @@ using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
-public sealed class KerbEffect : IHapticEffectSource
+public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectSource<KerbEffectOptions>
 {
     private double _basePhase;
     private double _highPhase;
@@ -25,7 +25,7 @@ public sealed class KerbEffect : IHapticEffectSource
 
     public string Name => "Kerb";
 
-    public KerbEffectOptions Options { get; }
+    public KerbEffectOptions Options { get; private set; }
 
     public KerbEffectSnapshot Snapshot { get; private set; }
 
@@ -41,7 +41,6 @@ public sealed class KerbEffect : IHapticEffectSource
 
     public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(input);
         _evaluation = Evaluate(input, Options);
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
     }
@@ -49,6 +48,12 @@ public sealed class KerbEffect : IHapticEffectSource
     public void Update(VehicleState vehicleState)
     {
         Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
+    }
+
+    public void UpdateOptions(KerbEffectOptions options)
+    {
+        Options = options ?? throw new ArgumentNullException(nameof(options));
+        Snapshot = CreateSnapshot(_evaluation, Snapshot.PeakLevel);
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -210,7 +215,7 @@ public sealed class KerbEffect : IHapticEffectSource
             peakLevel);
     }
 
-    private sealed record KerbEvaluation(
+    private readonly record struct KerbEvaluation(
         bool IsActive,
         byte? DominantSurfaceTypeId,
         string DominantSurfaceName,

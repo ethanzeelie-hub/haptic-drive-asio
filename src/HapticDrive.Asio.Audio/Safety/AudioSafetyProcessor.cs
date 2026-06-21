@@ -13,12 +13,12 @@ public sealed class AudioSafetyProcessor
         ArgumentNullException.ThrowIfNull(destination);
         AudioSampleBuffer.EnsureSameFormat(source.Format, destination.Format);
 
-        options ??= AudioSafetyProcessorOptions.Default;
-        var outputGain = SanitizeOutputGain(options.OutputGain);
-        var outputCeiling = SanitizeCeiling(options.OutputGainCeiling);
-        var limiterEnabled = options.LimiterEnabled;
+        var effectiveOptions = options ?? AudioSafetyProcessorOptions.Default;
+        var outputGain = SanitizeOutputGain(effectiveOptions.OutputGain);
+        var outputCeiling = SanitizeCeiling(effectiveOptions.OutputGainCeiling);
+        var limiterEnabled = effectiveOptions.LimiterEnabled;
 
-        if (options.EmergencyMute)
+        if (effectiveOptions.EmergencyMute)
         {
             destination.Clear();
             return new AudioSafetyProcessorSnapshot(

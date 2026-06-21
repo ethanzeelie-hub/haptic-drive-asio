@@ -234,9 +234,8 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
         _asioOut = null;
     }
 
-    private sealed class QueuedAsioWaveProvider : IWaveProvider
+    internal sealed class QueuedAsioWaveProvider : IWaveProvider
     {
-        private readonly object _gate = new();
         private readonly float[][] _slots;
         private readonly int _samplesPerBuffer;
         private readonly TimeSpan _expectedPeriod;
@@ -302,18 +301,16 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
                 return false;
             }
 
-            lock (_gate)
+            if (Volatile.Read(ref _queuedBufferCount) == _slots.Length)
             {
-                if (_queuedBufferCount == _slots.Length)
-                {
-                    Interlocked.Increment(ref _droppedBufferCount);
-                    return false;
-                }
-
-                samples.CopyTo(_slots[_writeSlotIndex]);
-                _writeSlotIndex = (_writeSlotIndex + 1) % _slots.Length;
-                _queuedBufferCount++;
+                Interlocked.Increment(ref _droppedBufferCount);
+                return false;
             }
+
+            var slotIndex = _writeSlotIndex;
+            samples.CopyTo(_slots[slotIndex]);
+            _writeSlotIndex = (slotIndex + 1) % _slots.Length;
+            Interlocked.Increment(ref _queuedBufferCount);
 
             Interlocked.Increment(ref _submittedBufferCount);
             return true;
@@ -321,63 +318,54 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
 
         public void Reset()
         {
-            lock (_gate)
-            {
-                _readSlotIndex = 0;
-                _writeSlotIndex = 0;
-                _queuedBufferCount = 0;
-                _readSampleOffset = 0;
-            }
+            _readSlotIndex = 0;
+            _writeSlotIndex = 0;
+            _readSampleOffset = 0;
+            Volatile.Write(ref _queuedBufferCount, 0);
+            Interlocked.Exchange(ref _lastCallbackTimestamp, 0);
         }
 
         public QueuedAsioWaveProviderSnapshot GetSnapshot()
         {
-            lock (_gate)
-            {
-                return new QueuedAsioWaveProviderSnapshot(
-                    Interlocked.Read(ref _submittedBufferCount),
-                    Interlocked.Read(ref _droppedBufferCount),
-                    Interlocked.Read(ref _callbackCount),
-                    Interlocked.Read(ref _underrunCount),
-                    _queuedBufferCount,
-                    ReadOptionalTimeSpan(ref _lastCallbackJitterTicks),
-                    ReadOptionalTimeSpan(ref _maximumCallbackJitterTicks),
-                    _slots.Length);
-            }
+            return new QueuedAsioWaveProviderSnapshot(
+                Interlocked.Read(ref _submittedBufferCount),
+                Interlocked.Read(ref _droppedBufferCount),
+                Interlocked.Read(ref _callbackCount),
+                Interlocked.Read(ref _underrunCount),
+                Volatile.Read(ref _queuedBufferCount),
+                ReadOptionalTimeSpan(ref _lastCallbackJitterTicks),
+                ReadOptionalTimeSpan(ref _maximumCallbackJitterTicks),
+                _slots.Length);
         }
 
         private int CopyQueuedSamples(byte[] buffer, int offset, int count)
         {
-            lock (_gate)
+            if (Volatile.Read(ref _queuedBufferCount) == 0)
             {
-                if (_queuedBufferCount == 0)
-                {
-                    return 0;
-                }
-
-                var currentSlot = _slots[_readSlotIndex];
-                var availableSamples = _samplesPerBuffer - _readSampleOffset;
-                var requestedSamples = count / sizeof(float);
-                var samplesToCopy = Math.Min(availableSamples, requestedSamples);
-                var bytesToCopy = samplesToCopy * sizeof(float);
-                Buffer.BlockCopy(
-                    currentSlot,
-                    _readSampleOffset * sizeof(float),
-                    buffer,
-                    offset,
-                    bytesToCopy);
-
-                _readSampleOffset += samplesToCopy;
-                if (_readSampleOffset == _samplesPerBuffer)
-                {
-                    Array.Clear(currentSlot);
-                    _readSampleOffset = 0;
-                    _readSlotIndex = (_readSlotIndex + 1) % _slots.Length;
-                    _queuedBufferCount--;
-                }
-
-                return bytesToCopy;
+                return 0;
             }
+
+            var currentSlot = _slots[_readSlotIndex];
+            var availableSamples = _samplesPerBuffer - _readSampleOffset;
+            var requestedSamples = count / sizeof(float);
+            var samplesToCopy = Math.Min(availableSamples, requestedSamples);
+            var bytesToCopy = samplesToCopy * sizeof(float);
+            Buffer.BlockCopy(
+                currentSlot,
+                _readSampleOffset * sizeof(float),
+                buffer,
+                offset,
+                bytesToCopy);
+
+            _readSampleOffset += samplesToCopy;
+            if (_readSampleOffset == _samplesPerBuffer)
+            {
+                _readSampleOffset = 0;
+                _readSlotIndex = (_readSlotIndex + 1) % _slots.Length;
+                Interlocked.Decrement(ref _queuedBufferCount);
+            }
+
+            return bytesToCopy;
         }
 
         private void RecordCallback(long callbackTimestamp, int requestedByteCount)
@@ -422,7 +410,7 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
         }
     }
 
-    private sealed record QueuedAsioWaveProviderSnapshot(
+    internal readonly record struct QueuedAsioWaveProviderSnapshot(
         long SubmittedBufferCount,
         long DroppedBufferCount,
         long CallbackCount,

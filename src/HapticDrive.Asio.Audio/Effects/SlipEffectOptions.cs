@@ -53,7 +53,7 @@ public sealed record SlipEffectOptions(
         MaximumTelemetryFrameLag: 120);
 }
 
-public sealed record SlipEffectSnapshot(
+public readonly record struct SlipEffectSnapshot(
     bool IsEnabled,
     bool WheelSlipEnabled,
     bool WheelLockEnabled,

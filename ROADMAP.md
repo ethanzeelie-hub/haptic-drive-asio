@@ -124,6 +124,7 @@
 - Stage 26D: Runtime lifecycle serialization complete.
 - Stage 26E: Game integration registry and canonical haptic frame complete.
 - Stage 26F: Effect descriptor registry and profile schema v2 complete.
+- Stage 26G: Real-time audio render path hardening complete.
 
 ## Current Hardening Program
 
@@ -133,7 +134,8 @@
 - Stage 26D complete: shell-triggered runtime lifecycle work now runs through one serialized coordinator with generation guards, telemetry status ticks are single-flight, shutdown trips the global interlock first, and close cleanup now uses a bounded asynchronous shutdown path instead of overlapping fire-and-forget work.
 - Stage 26E complete: the app now registers F1 25 through a formal game-integration registry, normalizes adapter output through `IVehicleStateNormalizer`, emits canonical `HapticFrame` snapshots, and routes audio/actuation live paths through canonical driving context and freshness instead of direct F1-specific enums on the active path.
 - Stage 26F complete: shipped effects now register through `IHapticEffectRegistry`, profiles now save schema-v2 effect documents keyed by stable effect key, descriptor validation/defaulting repairs invalid settings safely, and unknown future effect keys round-trip without becoming runtime requirements.
-- Next production-hardening priority: harden the real-time audio render path so steady-state rendering and ASIO callback behavior become allocation-free and callback-safe.
+- Stage 26G complete: the steady-state engine/pipeline render path now uses reusable buffers/value snapshots, only renders enabled effect runtimes, avoids per-buffer status-string construction, and the native ASIO callback now consumes from a fixed preallocated ring without the old shared callback lock.
+- Next production-hardening priority: decompose `MainWindow` into controllers/view-models and move tuning persistence onto the planned async/debounced controller boundary.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

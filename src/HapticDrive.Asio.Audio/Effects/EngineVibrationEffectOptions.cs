@@ -31,7 +31,7 @@ public sealed record EngineVibrationEffectOptions(
         MaximumAllowedRpm: 30_000);
 }
 
-public sealed record EngineVibrationEffectSnapshot(
+public readonly record struct EngineVibrationEffectSnapshot(
     bool IsEnabled,
     bool IsActive,
     ushort? LastRpm,

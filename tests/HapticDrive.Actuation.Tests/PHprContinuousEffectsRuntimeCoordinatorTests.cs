@@ -417,10 +417,10 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
                 LastPipelineError: null,
                 VehicleState: vehicleState,
                 Effects: new HapticEffectEngineSnapshot(
-                    Engine: null!,
-                    GearShift: null!,
-                    Kerb: null!,
-                    Impact: null!,
+                    Engine: default,
+                    GearShift: default,
+                    Kerb: default,
+                    Impact: default,
                     RoadTexture: new RoadTextureEffectSnapshot(
                         IsEnabled: true,
                         Bst1OutputEnabled: true,
@@ -433,7 +433,7 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
                         PeakLevel: signal.OutputIntensity,
                         Signal: signal,
                         RmsLevel: signal.OutputIntensity),
-                    Slip: null!,
+                    Slip: default,
                     ActiveEffectCount: signal.IsActive ? 1 : 0,
                     PeakLevel: signal.OutputIntensity),
                 Audio: null,

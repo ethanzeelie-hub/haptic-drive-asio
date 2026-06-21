@@ -29,7 +29,7 @@ public sealed record KerbEffectOptions(
         MaximumTelemetryFrameLag: 120);
 }
 
-public sealed record KerbEffectSnapshot(
+public readonly record struct KerbEffectSnapshot(
     bool IsEnabled,
     bool IsActive,
     byte? DominantSurfaceTypeId,

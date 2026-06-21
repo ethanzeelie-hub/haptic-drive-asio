@@ -50,7 +50,8 @@ public sealed class HapticPipelineCoordinatorTests
         var snapshot = coordinator.GetSnapshot();
         Assert.Equal(0, snapshot.ParserSuccessCount);
         Assert.Equal(0f, snapshot.NullOutput!.LastPeakLevel);
-        Assert.Equal(0f, snapshot.Audio!.OutputPeakLevel);
+        Assert.True(snapshot.Audio.HasValue);
+        Assert.Equal(0f, snapshot.Audio.Value.OutputPeakLevel);
     }
 
     [Fact]
@@ -80,7 +81,8 @@ public sealed class HapticPipelineCoordinatorTests
         Assert.Equal(1, snapshot.ParserSuccessCount);
         Assert.Equal(1, snapshot.VehicleStateUpdateCount);
         Assert.True(snapshot.Effects.Engine.IsActive);
-        Assert.True(snapshot.Audio!.ActiveSourceCount > 0);
+        Assert.True(snapshot.Audio.HasValue);
+        Assert.True(snapshot.Audio.Value.ActiveSourceCount > 0);
         Assert.True(snapshot.NullOutput!.LastPeakLevel > 0f);
         var packetDiagnostics = snapshot.PacketDiagnostics.Single(item => item.PacketId == 6);
         Assert.Equal("Car Telemetry", packetDiagnostics.Name);

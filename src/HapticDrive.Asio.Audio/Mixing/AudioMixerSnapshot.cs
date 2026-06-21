@@ -1,6 +1,6 @@
 namespace HapticDrive.Asio.Audio.Mixing;
 
-public sealed record AudioMixerSnapshot(
+public readonly record struct AudioMixerSnapshot(
     bool IsRunning,
     bool IsMuted,
     bool EmergencyMute,

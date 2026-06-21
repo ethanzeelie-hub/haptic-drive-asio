@@ -9,20 +9,49 @@ public sealed class AudioMixer
         AudioSampleBuffer destination,
         AudioMixerSettings? settings = null)
     {
+        if (inputs is null)
+        {
+            return Mix(ReadOnlySpan<AudioMixerInput>.Empty, destination, settings);
+        }
+
+        if (inputs is AudioMixerInput[] array)
+        {
+            return Mix(array.AsSpan(0, inputs.Count), destination, settings);
+        }
+
+        if (inputs is ArraySegment<AudioMixerInput> segment)
+        {
+            return Mix(segment.AsSpan(), destination, settings);
+        }
+
+        var copiedInputs = new AudioMixerInput[inputs.Count];
+        for (var i = 0; i < inputs.Count; i++)
+        {
+            copiedInputs[i] = inputs[i];
+        }
+
+        return Mix(copiedInputs.AsSpan(), destination, settings);
+    }
+
+    public AudioMixerSnapshot Mix(
+        ReadOnlySpan<AudioMixerInput> inputs,
+        AudioSampleBuffer destination,
+        AudioMixerSettings? settings = null)
+    {
         ArgumentNullException.ThrowIfNull(destination);
-        settings ??= AudioMixerSettings.Default;
+        var effectiveSettings = settings ?? AudioMixerSettings.Default;
 
         destination.Clear();
 
-        var inputSourceCount = inputs?.Count ?? 0;
-        var masterGain = SanitizeGain(settings.MasterGain);
+        var inputSourceCount = inputs.Length;
+        var masterGain = SanitizeGain(effectiveSettings.MasterGain);
 
-        if (settings.IsMuted || settings.EmergencyMute || inputs is null || inputs.Count == 0)
+        if (effectiveSettings.IsMuted || effectiveSettings.EmergencyMute || inputs.Length == 0)
         {
             return new AudioMixerSnapshot(
                 IsRunning: false,
-                settings.IsMuted,
-                settings.EmergencyMute,
+                effectiveSettings.IsMuted,
+                effectiveSettings.EmergencyMute,
                 inputSourceCount,
                 ActiveSourceCount: 0,
                 masterGain,
@@ -30,8 +59,9 @@ public sealed class AudioMixer
         }
 
         var activeSourceCount = 0;
-        foreach (var input in inputs)
+        for (var i = 0; i < inputs.Length; i++)
         {
+            var input = inputs[i];
             if (input.IsMuted)
             {
                 continue;
@@ -50,8 +80,8 @@ public sealed class AudioMixer
 
         return new AudioMixerSnapshot(
             IsRunning: activeSourceCount > 0,
-            settings.IsMuted,
-            settings.EmergencyMute,
+            effectiveSettings.IsMuted,
+            effectiveSettings.EmergencyMute,
             inputSourceCount,
             activeSourceCount,
             masterGain,

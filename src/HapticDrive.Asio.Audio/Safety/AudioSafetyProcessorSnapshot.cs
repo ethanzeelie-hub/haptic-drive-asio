@@ -1,6 +1,6 @@
 namespace HapticDrive.Asio.Audio.Safety;
 
-public sealed record AudioSafetyProcessorSnapshot(
+public readonly record struct AudioSafetyProcessorSnapshot(
     bool EmergencyMute,
     bool LimiterEnabled,
     float OutputGain,

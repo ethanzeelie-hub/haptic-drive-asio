@@ -7199,3 +7199,63 @@ Self-review:
 - Descriptor-backed persistence and validation are now in place, which removes the biggest schema/extension bottleneck before the real-time engine rewrite.
 - The runtime DSP layer is intentionally still the current fixed strong-typed engine; this stage hardens effect metadata, validation, and persistence without mixing in the Stage 26G render-path rewrite.
 - The WPF tuning surface still reflects the currently shipped effect set; a later UI-generation stage is still needed before the descriptor system fully replaces fixed control layouts.
+
+## Stage 26G - Real-Time Audio Render Path Hardening
+
+Status: Complete.
+
+Goal: Remove steady-state allocations and presentation work from the hot render path, tighten the ASIO callback buffer handoff, and add measurable performance guardrails around the live audio pipeline.
+
+Changes:
+
+- Hardened the effect engine hot path:
+  - effect render snapshots, mixer snapshots, safety snapshots, and pipeline snapshots used on the steady-state path now use value semantics instead of per-buffer heap allocation,
+  - `HapticEffectEngine` now keeps one enabled render-slot array and only renders effects whose descriptors/options are currently enabled,
+  - the engine hot path now renders into caller-provided mixer-input spans instead of building a fresh `List<AudioMixerInput>` every buffer,
+  - activity-item construction stays outside the real-time path and is only rebuilt when snapshots are requested for diagnostics/UI.
+- Preserved effect runtime state across parameter-only changes:
+  - shipped effect classes now implement in-place `UpdateOptions(...)` instead of being recreated on every profile/options update,
+  - transient phase/state such as gear-pulse progression now survives descriptor/profile parameter changes as long as the runtime stays the same effect.
+- Tightened the pipeline render path:
+  - `RenderIntoBuffer(...)` no longer re-normalizes `VehicleState` into a new `HapticFrame` every audio buffer,
+  - live telemetry updates still refresh effects when packets arrive, while the steady-state render path now consumes the already-updated effect state,
+  - render-time diagnostics now use atomic counters and cached primitives instead of formatting status strings in the callback path,
+  - added atomic render counters for overruns, stale-frame silences, interlock silences, and max render duration ticks.
+- Tightened real-time-safe configuration flow:
+  - hot-path mixer/safety settings now use value semantics so muting/interlock application no longer allocates on every render,
+  - the coordinator now short-circuits directly to interlock silence before re-running freshness work once the global interlock is latched.
+- Hardened the native ASIO queue/callback handoff:
+  - `QueuedAsioWaveProvider` now uses a fixed preallocated ring without a callback-path lock,
+  - queue full conditions drop producer buffers instead of blocking callback consumption,
+  - underruns still zero-fill the callback output and increment counters without formatting/logging work.
+- Added test-only visibility for the hardened hot paths:
+  - audio tests can now exercise the native ASIO queue directly,
+  - runtime tests can now drive the coordinator render path without async wrapper allocations masking render-path regressions.
+
+Tests:
+
+- Added `HapticEffectEnginePerformanceTests`:
+  - `RenderSteadyStateAllocatesAtMost1024Bytes`,
+  - `ParameterUpdatePreservesRuntimePhase`.
+- Added `NativeAsioOutputBackendPerformanceTests`:
+  - `CallbackWritesZerosOnUnderrun`,
+  - `CallbackPathDoesNotAllocateAfterWarmup`,
+  - `ProducerOverrunDoesNotBlockCallback`.
+- Added `HapticPipelineCoordinatorPerformanceTests.RenderIntoBufferDoesNotBuildDiagnosticsStrings`.
+- Updated existing audio/runtime tests for the value-based snapshot and span-backed render-path changes.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Audio.Tests\HapticDrive.Asio.Audio.Tests.csproj -c Release --no-build --filter Performance` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build --filter Performance` passed.
+
+Self-review:
+
+- The production hot path is materially tighter now: enabled effects render through reusable buffers only, the coordinator no longer allocates presentation/state objects per audio buffer, and the ASIO callback no longer takes the old shared queue lock.
+- The diagnostics/UI snapshot surface is still available, but it now rebuilds outside the render path instead of inside it.
+- The next hardening stage can focus on UI/controller decomposition without dragging hot-path callback work back into `MainWindow` or the runtime render loop.

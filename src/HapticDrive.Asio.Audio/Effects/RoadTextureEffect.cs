@@ -4,7 +4,7 @@ using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
-public sealed class RoadTextureEffect : IHapticEffectSource
+public sealed class RoadTextureEffect : IHapticEffectSource, IConfigurableHapticEffectSource<RoadTextureEffectOptions>
 {
     private readonly RoadTextureEvaluator _evaluator;
     private double _basePhase;
@@ -29,7 +29,7 @@ public sealed class RoadTextureEffect : IHapticEffectSource
 
     public string Name => "Road texture";
 
-    public RoadTextureEffectOptions Options { get; }
+    public RoadTextureEffectOptions Options { get; private set; }
 
     public RoadTextureEffectSnapshot Snapshot { get; private set; }
 
@@ -54,7 +54,6 @@ public sealed class RoadTextureEffect : IHapticEffectSource
 
     public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(input);
         _signal = _evaluator.Evaluate(
             input.VehicleState,
             new RoadTextureEvaluationContext(
@@ -70,6 +69,13 @@ public sealed class RoadTextureEffect : IHapticEffectSource
     public void Update(VehicleState vehicleState)
     {
         Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
+    }
+
+    public void UpdateOptions(RoadTextureEffectOptions options)
+    {
+        Options = options ?? throw new ArgumentNullException(nameof(options));
+        _evaluator.Configure(Options.ToEvaluatorOptions());
+        Snapshot = CreateSnapshot(_signal, Snapshot.PeakLevel, Snapshot.RmsLevel);
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)

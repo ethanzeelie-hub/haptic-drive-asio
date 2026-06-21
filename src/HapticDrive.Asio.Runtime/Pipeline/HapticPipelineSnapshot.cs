@@ -62,6 +62,14 @@ public sealed record HapticPipelineSnapshot(
     public VehicleSignalFreshness EventFreshness { get; init; } = new(false, false, false, false, false, null, null);
 
     public HapticFrame? HapticFrame { get; init; }
+
+    public long RenderOverrunCount { get; init; }
+
+    public long StaleFrameSilenceCount { get; init; }
+
+    public long InterlockSilenceCount { get; init; }
+
+    public long MaxRenderDurationTicks { get; init; }
 }
 
 public sealed record HapticPipelinePacketDiagnostics(

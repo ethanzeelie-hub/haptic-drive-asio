@@ -3,7 +3,7 @@ using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
-public sealed class GearShiftEffect : IHapticEffectSource
+public sealed class GearShiftEffect : IHapticEffectSource, IConfigurableHapticEffectSource<GearShiftEffectOptions>
 {
     private sbyte? _lastObservedGear;
     private sbyte? _lastForwardGear;
@@ -36,7 +36,7 @@ public sealed class GearShiftEffect : IHapticEffectSource
 
     public string Name => "Gear shift";
 
-    public GearShiftEffectOptions Options { get; }
+    public GearShiftEffectOptions Options { get; private set; }
 
     public GearShiftEffectSnapshot Snapshot { get; private set; }
 
@@ -65,8 +65,6 @@ public sealed class GearShiftEffect : IHapticEffectSource
 
     public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(input);
-
         if (!Options.IsEnabled || input.Frame.Signals.Gear is null)
         {
             Snapshot = CreateSnapshot(isActive: _pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
@@ -110,6 +108,12 @@ public sealed class GearShiftEffect : IHapticEffectSource
     public void Update(VehicleState vehicleState)
     {
         Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
+    }
+
+    public void UpdateOptions(GearShiftEffectOptions options)
+    {
+        Options = options ?? throw new ArgumentNullException(nameof(options));
+        Snapshot = CreateSnapshot(_pendingPulse || _remainingPulseFrames > 0, Snapshot.PeakLevel);
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)

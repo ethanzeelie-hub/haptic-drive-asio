@@ -3,12 +3,12 @@ using HapticDrive.Asio.Core.Haptics;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
-public sealed class SlipEffect : IHapticEffectSource
+public sealed class SlipEffect : IHapticEffectSource, IConfigurableHapticEffectSource<SlipEffectOptions>
 {
     private double _basePhase;
     private long _frameCursor;
     private float _smoothedAmplitude;
-    private readonly SlipLockEvaluator _slipLockEvaluator;
+    private SlipLockEvaluator _slipLockEvaluator;
     private SlipEvaluation _evaluation = SlipEvaluation.Inactive("not evaluated");
 
     public SlipEffect()
@@ -25,7 +25,7 @@ public sealed class SlipEffect : IHapticEffectSource
 
     public string Name => "Slip";
 
-    public SlipEffectOptions Options { get; }
+    public SlipEffectOptions Options { get; private set; }
 
     public SlipEffectSnapshot Snapshot { get; private set; }
 
@@ -40,7 +40,6 @@ public sealed class SlipEffect : IHapticEffectSource
 
     public void Update(HapticEffectInput input)
     {
-        ArgumentNullException.ThrowIfNull(input);
         _evaluation = Evaluate(
             _slipLockEvaluator.Evaluate(
                 SlipLockEvaluationInput.FromHapticFrame(
@@ -56,6 +55,13 @@ public sealed class SlipEffect : IHapticEffectSource
     public void Update(HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState)
     {
         Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
+    }
+
+    public void UpdateOptions(SlipEffectOptions options)
+    {
+        Options = options ?? throw new ArgumentNullException(nameof(options));
+        _slipLockEvaluator = new SlipLockEvaluator(CreateEvaluatorOptions(Options));
+        Snapshot = CreateSnapshot(_evaluation, Snapshot.PeakLevel);
     }
 
     public HapticEffectRenderResult Render(AudioSampleBuffer destination)
@@ -218,7 +224,7 @@ public sealed class SlipEffect : IHapticEffectSource
             peakLevel);
     }
 
-    private sealed record SlipEvaluation(
+    private readonly record struct SlipEvaluation(
         bool IsActive,
         bool WheelSlipEnabled,
         bool WheelLockEnabled,

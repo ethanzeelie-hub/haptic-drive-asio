@@ -619,7 +619,7 @@ public sealed class HapticEffectTests
         Assert.True((await outputDevice.StartAsync()).Succeeded);
         engine.Update(State(rpm: 9_000, throttle: 0.75f, gear: 4));
         var render = engine.RenderNextBuffer();
-        var result = await pipeline.ProcessAndSubmitAsync(render.MixerInputs, outputBuffer, outputDevice);
+        var result = await pipeline.ProcessAndSubmitAsync(render.MixerInputs.Span, outputBuffer, outputDevice);
         var sink = outputDevice.GetSampleSinkSnapshot();
 
         Assert.True(result.Succeeded, result.Message);
@@ -651,7 +651,7 @@ public sealed class HapticEffectTests
             wheelSlipAngle: Wheels(0.2f),
             wheelSpeed: Wheels(20f)));
         var render = engine.RenderNextBuffer();
-        var result = await pipeline.ProcessAndSubmitAsync(render.MixerInputs, outputBuffer, outputDevice);
+        var result = await pipeline.ProcessAndSubmitAsync(render.MixerInputs.Span, outputBuffer, outputDevice);
         var sink = outputDevice.GetSampleSinkSnapshot();
 
         Assert.True(result.Succeeded, result.Message);
@@ -679,7 +679,7 @@ public sealed class HapticEffectTests
         var render = engine.RenderNextBuffer();
 
         Assert.Collection(
-            render.MixerInputs,
+            render.MixerInputs.ToArray(),
             input => Assert.Equal("Kerb", input.Name),
             input => Assert.Equal("Road texture", input.Name),
             input => Assert.Equal("Slip", input.Name));
@@ -701,7 +701,7 @@ public sealed class HapticEffectTests
 
         engine.Update(State(rpm: 9_000, throttle: 1f, gear: 3));
         var render = engine.RenderNextBuffer();
-        var snapshot = pipeline.Process(render.MixerInputs, outputBuffer);
+        var snapshot = pipeline.Process(render.MixerInputs.Span, outputBuffer);
 
         Assert.True(render.Snapshot.ActiveEffectCount > 0);
         Assert.True(snapshot.EmergencyMute);
@@ -762,7 +762,7 @@ public sealed class HapticEffectTests
     private static void CopyMixed(HapticEffectEngineRenderResult render, AudioSampleBuffer destination)
     {
         destination.Clear();
-        foreach (var input in render.MixerInputs)
+        foreach (var input in render.MixerInputs.Span)
         {
             for (var i = 0; i < destination.SampleCount; i++)
             {

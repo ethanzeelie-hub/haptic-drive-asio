@@ -28,7 +28,7 @@ public sealed record GearShiftEffectOptions(
         DefaultMaxRpm: 12_000);
 }
 
-public sealed record GearShiftEffectSnapshot(
+public readonly record struct GearShiftEffectSnapshot(
     bool IsEnabled,
     bool IsActive,
     sbyte? LastObservedGear,

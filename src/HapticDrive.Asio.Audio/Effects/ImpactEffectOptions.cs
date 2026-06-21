@@ -29,7 +29,7 @@ public sealed record ImpactEffectOptions(
         MaximumTelemetryFrameLag: 120);
 }
 
-public sealed record ImpactEffectSnapshot(
+public readonly record struct ImpactEffectSnapshot(
     bool IsEnabled,
     bool IsActive,
     uint? LastImpactFrameIdentifier,

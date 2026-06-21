@@ -55,7 +55,7 @@ public sealed record RoadTextureEffectOptions(
     }
 }
 
-public sealed record RoadTextureEffectSnapshot(
+public readonly record struct RoadTextureEffectSnapshot(
     bool IsEnabled,
     bool Bst1OutputEnabled,
     bool IsActive,

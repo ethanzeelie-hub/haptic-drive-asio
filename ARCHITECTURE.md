@@ -109,6 +109,19 @@ This is intentionally a two-layer model during the hardening program:
 
 That keeps effect persistence extensible now without forcing the real-time engine rewrite into the same stage.
 
+## Real-Time Render Path Rules
+
+Stage 26G hardens the live audio hot path around a few explicit rules:
+
+- packet parsing, normalization, recording, forwarding, UI binding, and diagnostics text generation stay out of the steady-state render callback;
+- the effect engine now renders from one enabled-runtime slot array into reusable mixer-input buffers instead of rebuilding a new list per audio buffer;
+- effect parameter updates are applied in place so runtime state such as active pulses/phases survives parameter-only profile changes;
+- mixer/safety snapshots on the render path now use value semantics so the callback does not allocate presentation objects per buffer;
+- once the global output interlock is latched, the coordinator short-circuits directly to rendered silence before re-running freshness work;
+- native ASIO buffering now uses a fixed preallocated ring so callback consumption does not take the old shared queue lock.
+
+Diagnostics snapshots are still available for the shell and support workflows, but they are rebuilt outside the render path from cached counters/state instead of being assembled inline during steady-state audio rendering.
+
 ## Phase 2 Planned Actuator Boundary
 
 Phase 2 adds planned Simagic P-HPR pedal support as a separate non-audio actuator path. Stage 2Q includes read-only paddle/input diagnostics, cached `DrivingArmed` shift-intent diagnostics, read-only P700 / P-HPR inventory tooling, capture metadata workflow tooling, read-only capture analysis tooling, analysis-only protocol hypotheses, mock-only protocol/output diagnostics, a reusable P-HPR safety limiter, mock-only gear pulse routing, mock-only road/slip/lock pedal-effect routing, read-only SimPro / SimHub coexistence detection, a controlled-write readiness model/runbook, and a gated minimal Windows HID real-output adapter. Stage 2R adds a controlled validation harness. Phase 3A hardens the real-output adapter lifecycle and diagnostics. Phase 3B completes instant paddle gear-pulse production integration with safe per-pedal settings persistence and latency trace diagnostics. Phase 3C completes real road-vibration production integration with safe per-pedal road scaling and route-interval suppression. Phase 3D completes real wheel-slip and wheel-lock production integration with safe per-effect settings, route-interval suppression, and priority above road and below gear pulse. Phase 3E adds UI workflow summaries, safe P-HPR effect profiles, and diagnostics report coverage around those existing routes. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock output only. Phase 3G adds a passive live F1 25 validation checklist and diagnostics line. Phase 3H packages final quick-start, troubleshooting, acceptance, and safety documentation. Phase 3I simplifies normal app navigation and moves P-HPR research internals behind persisted Advanced diagnostics while keeping the same actuator boundaries. The real adapter is disabled/unarmed by default and is not physically validated.
