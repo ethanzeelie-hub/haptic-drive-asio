@@ -28,11 +28,7 @@ public sealed class LocalGearReadinessPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesLocalGearPresenterInsteadOfOwningInlineReadinessStrings()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("LocalGearReadinessPresenter.Build(readiness, _localGearTestAutoStartListener)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Start Haptics required: NO; F1 telemetry required: NO; live telemetry effects started: NO.", source, StringComparison.Ordinal);

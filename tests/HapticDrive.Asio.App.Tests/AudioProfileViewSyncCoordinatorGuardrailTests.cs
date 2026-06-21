@@ -25,11 +25,7 @@ public sealed class AudioProfileViewSyncCoordinatorGuardrailTests
     [Fact]
     public void MainWindowSource_UsesViewSyncCoordinatorForAudioProfileViewOperations()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("AudioProfileViewSyncCoordinator.BuildCurrentControlInputs(", source, StringComparison.Ordinal);
         Assert.Contains("AudioProfileViewSyncCoordinator.ApplyControlValues(", source, StringComparison.Ordinal);

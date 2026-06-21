@@ -25,11 +25,7 @@ public sealed class DiagnosticsStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesDiagnosticsPresenterInsteadOfOwningClipboardAndWorkflowDiagnosticsStrings()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("DiagnosticsStatusSnapshotBuilder.Build(new DiagnosticsStatusBuildInputs(", source, StringComparison.Ordinal);
         Assert.Contains("Bst1DiagnosticsSectionBuilder.Build(new Bst1DiagnosticsSectionInputs(", source, StringComparison.Ordinal);

@@ -26,11 +26,7 @@ public sealed class PhprWorkflowStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesWorkflowPresenterInsteadOfOwningStatusStrings()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("PhprWorkflowStatusSnapshotBuilder.Build(new PhprWorkflowStatusBuildInputs(", source, StringComparison.Ordinal);
         Assert.Contains("PhprWorkflowStatusPresenter.Build(snapshot)", source, StringComparison.Ordinal);

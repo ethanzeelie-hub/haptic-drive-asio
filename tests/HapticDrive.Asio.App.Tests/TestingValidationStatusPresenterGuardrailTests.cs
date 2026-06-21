@@ -26,11 +26,7 @@ public sealed class TestingValidationStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesTestingValidationPresenterAndViewBoundary()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("TestingValidationViewControl.Apply(BuildTestingValidationStatusPresentation());", source, StringComparison.Ordinal);
         Assert.Contains("TestingValidationStatusPresenter.Build(new TestingValidationStatusSnapshot(", source, StringComparison.Ordinal);

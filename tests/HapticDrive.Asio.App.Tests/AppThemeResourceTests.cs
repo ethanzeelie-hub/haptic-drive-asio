@@ -82,11 +82,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("TestingValidationViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("\"Testing / Validation\"", mainWindowCode, StringComparison.Ordinal);
@@ -103,11 +99,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("AdvancedDiagnosticsViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("\"Advanced / Diagnostics\"", mainWindowCode, StringComparison.Ordinal);
@@ -124,11 +116,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var codeSource = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var codeSource = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.DoesNotContain("Stage 18", xamlSource, StringComparison.Ordinal);
         Assert.DoesNotContain("Stage 18", codeSource, StringComparison.Ordinal);
@@ -157,11 +145,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("DashboardViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("\"Dashboard\"", mainWindowCode, StringComparison.Ordinal);
@@ -176,11 +160,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("DevicesViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("DevicesViewControl.Visibility = page.NavigationLabel == \"Devices\"", mainWindowCode, StringComparison.Ordinal);
@@ -196,11 +176,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("EffectsViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("EffectsViewControl.Visibility = page.NavigationLabel == \"Effects\"", mainWindowCode, StringComparison.Ordinal);
@@ -217,11 +193,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("RoutingMixerViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("RoutingMixerViewControl.Visibility = page.NavigationLabel == \"Routing / Mixer\"", mainWindowCode, StringComparison.Ordinal);
@@ -238,15 +210,12 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("TelemetryUdpViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("TelemetryUdpViewControl.Visibility = isTelemetryPage", mainWindowCode, StringComparison.Ordinal);
-        Assert.Contains("TelemetryUdpViewControl.Apply(BuildTelemetryUdpStatusPresentation());", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("var presentation = BuildTelemetryUdpStatusPresentation();", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("TelemetryUdpViewControl.Apply(presentation);", mainWindowCode, StringComparison.Ordinal);
         Assert.Contains("TelemetryUdpStatusPresenter.Build(new TelemetryUdpStatusSnapshot(", mainWindowCode, StringComparison.Ordinal);
     }
 
@@ -258,11 +227,7 @@ public sealed class AppThemeResourceTests
             "src",
             "HapticDrive.Asio.App",
             "MainWindow.xaml"));
-        var mainWindowCode = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var mainWindowCode = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("ProfilesViewControl", mainWindowXaml, StringComparison.Ordinal);
         Assert.Contains("ProfilesViewControl.Visibility = isProfilesPage", mainWindowCode, StringComparison.Ordinal);

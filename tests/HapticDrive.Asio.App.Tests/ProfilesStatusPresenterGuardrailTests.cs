@@ -28,11 +28,7 @@ public sealed class ProfilesStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesProfilesPresenterAndViewBoundary()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("ProfilesViewControl.Apply(BuildProfilesStatusPresentation(message, validationMessages));", source, StringComparison.Ordinal);
         Assert.Contains("ProfilesStatusPresenter.Build(new ProfilesStatusSnapshot(", source, StringComparison.Ordinal);

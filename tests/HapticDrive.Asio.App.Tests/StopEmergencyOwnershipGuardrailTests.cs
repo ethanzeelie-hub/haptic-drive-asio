@@ -7,11 +7,7 @@ public sealed class StopEmergencyOwnershipGuardrailTests
     [Fact]
     public void MainWindowSource_KeepsStopAllEmergencyStopAndRecoveryExecutionInline()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("private async void MockGearPulseEmergencyStopButton_Click", source, StringComparison.Ordinal);
         Assert.Contains("await _mockGearPulseRouter.EmergencyStopAsync();", source, StringComparison.Ordinal);

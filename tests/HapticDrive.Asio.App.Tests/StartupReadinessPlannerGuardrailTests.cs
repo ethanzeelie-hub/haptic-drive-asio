@@ -32,11 +32,7 @@ public sealed class StartupReadinessPlannerGuardrailTests
     [Fact]
     public void MainWindowSource_UsesStartupPlannerForExtractedStartupReadinessPlanning()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("StartupReadinessPlanner.BuildAsioSelectionPlan(", source, StringComparison.Ordinal);
         Assert.Contains("StartupReadinessPlanner.BuildStartupPhprAutoReadySelection(", source, StringComparison.Ordinal);

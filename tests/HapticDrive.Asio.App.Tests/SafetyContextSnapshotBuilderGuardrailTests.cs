@@ -34,11 +34,7 @@ public sealed class SafetyContextSnapshotBuilderGuardrailTests
     [Fact]
     public void MainWindowSource_UsesSafetyContextBuilderButKeepsExecutionAndMutationOwnership()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("SafetyContextSnapshotBuilder.BuildMockRuntimeSnapshot(", source, StringComparison.Ordinal);
         Assert.Contains("SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(", source, StringComparison.Ordinal);

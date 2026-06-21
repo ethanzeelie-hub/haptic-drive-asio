@@ -30,11 +30,7 @@ public sealed class DashboardStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesDashboardPresenterAndViewBoundary()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("var presentation = BuildDashboardStatusPresentation(pipelineSnapshot);", source, StringComparison.Ordinal);
         Assert.Contains("DashboardViewControl.Apply(presentation);", source, StringComparison.Ordinal);

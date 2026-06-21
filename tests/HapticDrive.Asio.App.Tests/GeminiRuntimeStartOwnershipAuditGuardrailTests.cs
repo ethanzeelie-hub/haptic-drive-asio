@@ -39,11 +39,7 @@ public sealed class GeminiRuntimeStartOwnershipAuditGuardrailTests
     [Fact]
     public void MainWindowSource_KeepsCompositionStartupAndSafetyExecutionInline()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("_phprDirectRuntime = new PHprDirectRuntimeCoordinator(", source, StringComparison.Ordinal);
         Assert.Contains("_realPhprContinuousEffectsRuntime = new PHprContinuousEffectsRuntimeCoordinator(", source, StringComparison.Ordinal);

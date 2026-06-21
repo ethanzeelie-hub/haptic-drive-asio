@@ -30,11 +30,7 @@ public sealed class EffectsStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesEffectsPresenterAndViewBoundary()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("EffectsViewControl.Apply(presentation);", source, StringComparison.Ordinal);
         Assert.Contains("EffectsStatusPresenter.Build(", source, StringComparison.Ordinal);

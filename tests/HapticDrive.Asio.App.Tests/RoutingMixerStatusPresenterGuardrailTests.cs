@@ -30,11 +30,7 @@ public sealed class RoutingMixerStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesRoutingMixerPresenterAndViewBoundary()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("RoutingMixerViewControl.Apply(presentation);", source, StringComparison.Ordinal);
         Assert.Contains("RoutingMixerStatusPresenter.Build(", source, StringComparison.Ordinal);

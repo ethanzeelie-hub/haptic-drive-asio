@@ -135,7 +135,8 @@
 - Stage 26E complete: the app now registers F1 25 through a formal game-integration registry, normalizes adapter output through `IVehicleStateNormalizer`, emits canonical `HapticFrame` snapshots, and routes audio/actuation live paths through canonical driving context and freshness instead of direct F1-specific enums on the active path.
 - Stage 26F complete: shipped effects now register through `IHapticEffectRegistry`, profiles now save schema-v2 effect documents keyed by stable effect key, descriptor validation/defaulting repairs invalid settings safely, and unknown future effect keys round-trip without becoming runtime requirements.
 - Stage 26G complete: the steady-state engine/pipeline render path now uses reusable buffers/value snapshots, only renders enabled effect runtimes, avoids per-buffer status-string construction, and the native ASIO callback now consumes from a fixed preallocated ring without the old shared callback lock.
-- Next production-hardening priority: decompose `MainWindow` into controllers/view-models and move tuning persistence onto the planned async/debounced controller boundary.
+- Stage 26H complete: shell status/workflow publication now runs through focused controllers/view-models, `MainWindow.xaml.cs` is back below the Stage 26H size guardrail, and profile tuning now persists through an async debounced controller path instead of synchronous inline save work.
+- Next production-hardening priority: add the resilient recording/replay v2 file format with footer recovery, metadata completeness, and absolute-deadline replay timing.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

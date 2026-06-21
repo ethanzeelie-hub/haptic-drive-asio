@@ -7259,3 +7259,74 @@ Self-review:
 - The production hot path is materially tighter now: enabled effects render through reusable buffers only, the coordinator no longer allocates presentation/state objects per audio buffer, and the ASIO callback no longer takes the old shared queue lock.
 - The diagnostics/UI snapshot surface is still available, but it now rebuilds outside the render path instead of inside it.
 - The next hardening stage can focus on UI/controller decomposition without dragging hot-path callback work back into `MainWindow` or the runtime render loop.
+
+## Stage 26H - UI Controller Decomposition and Async Tuning Persistence
+
+Status: Complete.
+
+Goal: Pull shell orchestration out of the oversized `MainWindow` code-behind, establish controller/view-model seams for safety/telemetry/output/profile workflows, and move effect-tuning persistence onto an async debounced controller path.
+
+Changes:
+
+- Decomposed the WPF shell around new controller seams in `HapticDrive.Asio.App.Controllers`:
+  - `ApplicationSafetyController`,
+  - `TelemetrySessionController`,
+  - `AudioOutputController`,
+  - `RecordingReplayController`,
+  - `PhprOutputController`,
+  - `DiagnosticsPresentationController`,
+  - `ProfileTuningController`.
+- Added focused view models in `HapticDrive.Asio.App.ViewModels` for:
+  - safety state,
+  - telemetry status,
+  - output-device status,
+  - recording/replay status,
+  - P-HPR status,
+  - diagnostics summary,
+  - descriptor-driven effect settings.
+- Split `MainWindow` into partial files so shell glue, device workflow, recording/replay flow, profile/theme flow, presentation flow, and control accessors no longer live in one 6k+ file.
+  - `MainWindow.xaml.cs` is now below the Stage 26H guardrail target at 1976 lines.
+- Moved live-tuning persistence behind `ProfileTuningController`:
+  - live preview still applies immediately,
+  - profile saves are debounced by 250 ms by default,
+  - persistent saves are serialized behind one async gate,
+  - save failures surface through feedback + non-blocking footer reporting,
+  - descriptor-driven effect items now refresh from the current profile without a `MainWindow` switch table.
+- Added the first descriptor-driven generated effect-settings surface in `EffectsView.xaml`:
+  - effect cards are now bound from `EffectSettingsListViewModel`,
+  - reset-to-default actions use WPF commands,
+  - generated rows now surface default/min/max/unit metadata and validation text from descriptors.
+- Hardened async atomic persistence:
+  - `AtomicFileWriter.WriteAsync(...)` now flushes the async stream and then forces a disk flush before replace/move.
+- Hardened audio-profile migration ordering:
+  - legacy v0 documents now migrate explicitly `v0 -> v1 -> v2`,
+  - v1 documents still migrate to schema v2,
+  - unsupported future versions still fail clearly without overwriting the source file.
+- Updated shell wiring to route new safety/telemetry/output/P-HPR/diagnostics/status publications through the new controllers instead of leaving those responsibilities inline in `MainWindow`.
+
+Tests:
+
+- Added `ProfileTuningControllerTests`:
+  - `DebouncesPersistentSave`,
+  - `LivePreviewDoesNotWaitForDisk`,
+  - `SaveFailuresAreReported`.
+- Added `MainWindowSizeGuardrailTests.MainWindowCodeBehindBelow3000Lines`.
+- Added `MainWindowBindingTests.EffectSettingsAreGeneratedFromRegistry`.
+- Added `ProfileMigrationTests.MigratesV0ToV1ToV2InOrder`.
+- Added `AtomicFileWriterAsyncTests.AsyncWriteFlushesAndReplacesAtomically`.
+- Updated the existing `MainWindow` source-guardrail tests to read the combined `MainWindow*.cs` partial surface instead of assuming all shell orchestration lives in `MainWindow.xaml.cs`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj -c Release --no-build` passed.
+
+Self-review:
+
+- The shell is materially easier to extend now: controller/view-model seams own status publication, live profile tuning no longer blocks on synchronous disk work, and `MainWindow.xaml.cs` is back under a maintainable threshold.
+- The generated effect-settings section is intentionally incremental; the legacy hand-authored tuning controls still exist for the currently shipped effect set until a later stage fully replaces the fixed layout with descriptor-driven editing.
+- The next hardening stage can now focus on resilient recording/replay format work without dragging more persistence or presentation complexity back into the shell code-behind.

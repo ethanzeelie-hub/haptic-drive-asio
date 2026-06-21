@@ -9,10 +9,11 @@
 - Stage 26E now routes live effect/actuation evaluation through a canonical `HapticFrame` boundary and formal F1 25 game-registration seam instead of letting production effect/router code depend directly on raw F1 surface IDs.
 - Stage 26F now registers shipped effects through descriptors and persists audio profiles as schema-v2 effect-setting documents keyed by stable effect key.
 - Stage 26G now renders only enabled effect runtimes on the hot path, keeps diagnostics/activity rebuilding off the steady-state render path, and uses a fixed native ASIO ring queue instead of the old callback lock/heap-list flow.
+- Stage 26H now routes shell status publication through focused controllers/view-models, keeps effect-tuning saves off the synchronous UI path, and holds `MainWindow.xaml.cs` below the current Stage 26H size guardrail.
 - The output interlock starts latched by default and now requires an explicit reset after haptics are started and output configuration is valid.
 - The app still ships only one production game integration: F1 25. The registry/normalizer seam is now in place, but a second game adapter is still future work.
-- The descriptor/profile seam is now in place, but the WPF tuning surface is still built around the currently shipped effect controls until the later UI-generation stage replaces the fixed control layout.
-- The production UI shell is still too centralized in `MainWindow.xaml.cs`; Stage 26H is still required to finish controller/view-model decomposition and async tuning persistence hardening.
+- The descriptor/profile seam is now in place, but the WPF tuning surface is still only partially descriptor-driven; the generated effect-settings section exists, while the legacy fixed controls still remain for the currently shipped effect set.
+- Recording files still use the pre-v2 format and need the planned footer/CRC/recovery hardening before the recording pipeline is considered production-ready.
 
 ## Stage 00
 

@@ -261,32 +261,34 @@ public sealed class HapticProfileStore
             }
             else
             {
-                profile = await JsonSerializer.DeserializeAsync<HapticDriveProfile>(
-                        stream,
-                        JsonOptions,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                if (profile is null)
+                var legacyProfile = JsonSerializer.Deserialize<HapticDriveProfile>(json, JsonOptions);
+                if (legacyProfile is null)
                 {
                     return HapticProfileLoadResult.Corrupt("Profile file did not contain a profile.");
                 }
 
+                var migratedProfile = legacyProfile;
+                if (sourceVersion == 0)
+                {
+                    migratedProfile = migratedProfile with
+                    {
+                        Version = 1,
+                        SchemaVersion = 1
+                    };
+                    migrationMessages.Add("Legacy document version 0 was migrated to version 1.");
+                }
+
+                var sourceV1Effects = migratedProfile.Effects ?? HapticDriveProfile.Default.Effects;
                 var migratedEffectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(
-                    profile.Effects ?? HapticDriveProfile.Default.Effects,
+                    sourceV1Effects,
                     registry);
-                profile = profile with
+                profile = migratedProfile with
                 {
                     Version = HapticDriveProfile.CurrentVersion,
                     SchemaVersion = HapticDriveProfile.CurrentVersion,
                     EffectSettings = migratedEffectSettings
                 };
-
-                migrationMessages.Add(sourceVersion switch
-                {
-                    0 => $"Legacy document version 0 was migrated to version {HapticDriveProfile.CurrentVersion}.",
-                    1 => $"Profile schema version 1 was migrated to version {HapticDriveProfile.CurrentVersion}.",
-                    _ => $"Profile schema version {sourceVersion} was migrated to version {HapticDriveProfile.CurrentVersion}."
-                });
+                migrationMessages.Add($"Profile schema version 1 was migrated to version {HapticDriveProfile.CurrentVersion}.");
             }
 
             if (profile is null)

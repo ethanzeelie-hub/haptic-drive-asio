@@ -7,18 +7,9 @@ public sealed class MainWindowTelemetryTests
     [Fact]
     public void PacketReceivedHandlerOnlyEnqueues()
     {
-        var source = File.ReadAllText(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "..",
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
-        Assert.Contains("_telemetryIngressWorker.Enqueue(e.Packet);", source, StringComparison.Ordinal);
+        Assert.Contains("_telemetrySessionController.Enqueue(_telemetryIngressWorker, e.Packet);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("HandleLiveTelemetryPacketAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_hapticPipeline.OfferLiveTelemetryPacketAsync", source, StringComparison.Ordinal);
     }

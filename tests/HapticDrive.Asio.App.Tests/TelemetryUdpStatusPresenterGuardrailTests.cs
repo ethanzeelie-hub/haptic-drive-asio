@@ -28,13 +28,10 @@ public sealed class TelemetryUdpStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesTelemetryUdpPresenterAndViewBoundary()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
-        Assert.Contains("TelemetryUdpViewControl.Apply(BuildTelemetryUdpStatusPresentation());", source, StringComparison.Ordinal);
+        Assert.Contains("var presentation = BuildTelemetryUdpStatusPresentation();", source, StringComparison.Ordinal);
+        Assert.Contains("TelemetryUdpViewControl.Apply(presentation);", source, StringComparison.Ordinal);
         Assert.Contains("TelemetryUdpStatusPresenter.Build(new TelemetryUdpStatusSnapshot(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("RecordingsDetailText.Text =", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ReplayDetailText.Text =", source, StringComparison.Ordinal);

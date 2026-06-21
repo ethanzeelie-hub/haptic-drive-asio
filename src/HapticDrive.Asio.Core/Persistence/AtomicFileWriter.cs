@@ -84,6 +84,7 @@ public static class AtomicFileWriter
             {
                 await writeAsync(stream, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                stream.Flush(flushToDisk: true);
             }
 
             ReplaceTempFile(fullPath, tempPath, backupPath);

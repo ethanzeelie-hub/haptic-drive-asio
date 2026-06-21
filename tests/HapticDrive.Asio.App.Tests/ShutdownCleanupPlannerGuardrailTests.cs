@@ -31,11 +31,7 @@ public sealed class ShutdownCleanupPlannerGuardrailTests
     [Fact]
     public void MainWindowSource_UsesShutdownPlannerButKeepsActualCleanupExecutionInline()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", source, StringComparison.Ordinal);
         Assert.Contains("switch (step.Kind)", source, StringComparison.Ordinal);

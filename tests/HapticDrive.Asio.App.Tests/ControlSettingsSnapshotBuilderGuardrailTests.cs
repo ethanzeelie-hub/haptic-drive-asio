@@ -28,11 +28,7 @@ public sealed class ControlSettingsSnapshotBuilderGuardrailTests
     [Fact]
     public void MainWindowSource_UsesControlSettingsBuilderInsteadOfOwningMovedParsingBlocks()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("ControlSettingsSnapshotBuilder.TryBuildPaddleMapping(", source, StringComparison.Ordinal);
         Assert.Contains("ControlSettingsSnapshotBuilder.TryBuildMockGearPulseOptions(", source, StringComparison.Ordinal);

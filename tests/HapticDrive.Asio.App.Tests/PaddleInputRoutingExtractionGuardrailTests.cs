@@ -34,11 +34,7 @@ public sealed class PaddleInputRoutingExtractionGuardrailTests
     [Fact]
     public void MainWindowSource_NoLongerDeclaresPaddleRoutingBodyHelpers()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("_paddleInputRoutingCoordinator.HandleAsync(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("private async Task<string> RoutePaddleGearBenchAsync(", source, StringComparison.Ordinal);

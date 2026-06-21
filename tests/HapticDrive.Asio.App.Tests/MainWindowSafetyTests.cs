@@ -7,11 +7,7 @@ public sealed class MainWindowSafetyTests
     [Fact]
     public void EmergencyMuteTripsGlobalInterlock()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("_outputInterlock.Trip(", source, StringComparison.Ordinal);
         Assert.Contains("OutputInterlockReason.UserEmergencyMute", source, StringComparison.Ordinal);
@@ -21,11 +17,7 @@ public sealed class MainWindowSafetyTests
     [Fact]
     public void KeyboardShortcutsAndShutdownUseGlobalInterlock()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("if (e.Key == Key.M)", source, StringComparison.Ordinal);
         Assert.Contains("if (e.Key == Key.R)", source, StringComparison.Ordinal);

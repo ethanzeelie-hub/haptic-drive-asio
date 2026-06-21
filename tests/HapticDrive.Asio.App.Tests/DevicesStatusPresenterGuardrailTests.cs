@@ -29,11 +29,7 @@ public sealed class DevicesStatusPresenterGuardrailTests
     [Fact]
     public void MainWindowSource_UsesDevicesPresenterAndViewBoundary()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("DevicesViewControl.Apply(presentation);", source, StringComparison.Ordinal);
         Assert.Contains("DevicesStatusPresenter.Build(new DevicesStatusSnapshot(", source, StringComparison.Ordinal);

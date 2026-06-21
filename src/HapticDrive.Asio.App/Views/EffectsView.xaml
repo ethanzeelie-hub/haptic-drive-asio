@@ -23,6 +23,79 @@
                         CornerRadius="8">
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold"
+                                   Text="Descriptor-Driven Effect Settings" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource MutedTextBlockStyle}"
+                                   Text="This list is generated from the effect registry so new effects appear here without a MainWindow switch-case or manual page wiring." />
+                        <ItemsControl x:Name="GeneratedEffectSettingsItemsControl"
+                                      Margin="0,12,0,0"
+                                      ItemsSource="{Binding Items}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,10"
+                                            Padding="12"
+                                            Background="{DynamicResource AppSurfaceBrush}"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="False">
+                                                <StackPanel DockPanel.Dock="Left">
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               Text="{Binding DisplayName}" />
+                                                    <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                               Text="{Binding EffectKey}" />
+                                                </StackPanel>
+                                                <Button DockPanel.Dock="Right"
+                                                        Style="{StaticResource TopBarButtonStyle}"
+                                                        Command="{Binding ResetToDefaultsCommand}"
+                                                        Content="Reset To Defaults" />
+                                            </DockPanel>
+                                            <TextBlock Margin="0,8,0,0"
+                                                       Style="{StaticResource MutedTextBlockStyle}"
+                                                       Text="{Binding Category}" />
+                                            <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                       Text="{Binding RequiredSignalsText}" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Style="{StaticResource MutedTextBlockStyle}"
+                                                       Text="{Binding ValidationText}" />
+                                            <ItemsControl Margin="0,8,0,0"
+                                                          ItemsSource="{Binding Parameters}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,4">
+                                                            <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                                       Text="{Binding DisplayName}" />
+                                                            <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                                       Text="{Binding Unit, StringFormat=Unit: {0}}" />
+                                                            <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                                       Text="{Binding CurrentValue, StringFormat={}{0} current}" />
+                                                            <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                                       Text="{Binding DefaultValue, StringFormat={}{0} default}" />
+                                                            <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                                       Text="{Binding Minimum, StringFormat={}{0} min}" />
+                                                            <TextBlock Style="{StaticResource MutedTextBlockStyle}"
+                                                                       Text="{Binding Maximum, StringFormat={}{0} max}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        Background="{DynamicResource AppSurfaceAltBrush}"
+                        BorderBrush="{DynamicResource AppBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold"
                                    Text="Shared / Global Effect Settings" />
                         <CheckBox x:Name="SharedRoadSignalEnabledCheckBox"
                                   Margin="0,10,0,0"

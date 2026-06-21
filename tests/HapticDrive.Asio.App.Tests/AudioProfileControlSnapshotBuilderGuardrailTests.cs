@@ -28,11 +28,7 @@ public sealed class AudioProfileControlSnapshotBuilderGuardrailTests
     [Fact]
     public void MainWindowSource_UsesAudioProfileBuilderInsteadOfOwningInlineProfileMapping()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
         Assert.Contains("AudioProfileControlSnapshotBuilder.BuildProfile(", source, StringComparison.Ordinal);
         Assert.Contains("AudioProfileControlSnapshotBuilder.BuildApplicationPlan(", source, StringComparison.Ordinal);

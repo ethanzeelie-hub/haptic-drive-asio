@@ -26,21 +26,22 @@ public sealed class AudioProfileWorkflowFeedbackPlannerGuardrailTests
     [Fact]
     public void MainWindowSource_UsesFeedbackPlannerForAudioProfileWorkflowMessages()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+        var mainWindowSource = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
+        var controllerSource = MainWindowSourceTestHelper.ReadRepositoryFile(
             "src",
             "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
+            "Controllers",
+            "ProfileTuningController.cs");
 
-        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildTuningChangedFeedback(", source, StringComparison.Ordinal);
-        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildProfileNameCommitFeedback(", source, StringComparison.Ordinal);
-        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildSaveProfilesFeedback(", source, StringComparison.Ordinal);
-        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildLoadProfilesFeedback(", source, StringComparison.Ordinal);
-        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildResetFeedback(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("FooterStatusText.Text = \"Tuning applied to the output-owned render path.\"", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("FooterStatusText.Text = \"Tuning applied; haptics are still stopped.\"", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("FooterStatusText.Text = \"Reset tuning to the current rig defaults.\"", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("FooterStatusText.Text = \"Reset tuning to the current rig defaults for the output-owned render path.\"", source, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildSaveProfilesFeedback(", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildLoadProfilesFeedback(", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildResetFeedback(", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildTuningChangedFeedback(", controllerSource, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileWorkflowFeedbackPlanner.BuildProfileNameCommitFeedback(", controllerSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("FooterStatusText.Text = \"Tuning applied to the output-owned render path.\"", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("FooterStatusText.Text = \"Tuning applied; haptics are still stopped.\"", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("FooterStatusText.Text = \"Reset tuning to the current rig defaults.\"", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("FooterStatusText.Text = \"Reset tuning to the current rig defaults for the output-owned render path.\"", mainWindowSource, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

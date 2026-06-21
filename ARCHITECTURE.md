@@ -74,6 +74,31 @@ That means future effect additions no longer need a new profile-file schema fiel
 
 Runtime lifecycle is now serialized separately from live packet flow. `RuntimeLifecycleCoordinator` owns one gate and a generation counter for shell-triggered operations such as output rebuilds, haptics start/stop, recording start/stop, and shutdown. That keeps output-device selection, pipeline rebuild, and shutdown cleanup from overlapping each other while still letting the timer-driven UI and the bounded ingress worker stay responsive.
 
+## Current Shell Controller Boundary
+
+Stage 26H moves the WPF shell closer to a controller/view-model split without changing the app's WPF/.NET 8 shape:
+
+```text
+MainWindow (view glue / event boundary)
+-> ApplicationSafetyController
+-> TelemetrySessionController
+-> AudioOutputController
+-> RecordingReplayController
+-> PhprOutputController
+-> DiagnosticsPresentationController
+-> ProfileTuningController
+-> small view models bound to extracted views
+```
+
+Current intent of that boundary:
+
+- `MainWindow` still owns WPF event boundaries, composition, and legacy page glue.
+- Controllers own publication of derived status/workflow state into view models or existing view surfaces.
+- `ProfileTuningController` owns live preview, debounced persistence, save serialization, and descriptor-driven effect-settings regeneration.
+- View models provide small binding-friendly state holders for safety, telemetry, output, recording/replay, P-HPR, diagnostics, and generated effect settings.
+
+This is intentionally transitional rather than a full MVVM rewrite. The hardening goal is to keep disk persistence, feedback planning, and shell status publication out of ad hoc inline event handlers while preserving the existing WPF surface and shipped workflows.
+
 Manual ASIO hardware validation reuses the same audio boundary:
 
 ```text
