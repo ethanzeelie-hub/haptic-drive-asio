@@ -117,6 +117,7 @@ public partial class MainWindow
     private TextBlock SettingsPathText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(SettingsPathText));
     private TextBlock RuntimePrerequisiteText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(RuntimePrerequisiteText));
     private Border DiagnosticsPanel => AdvancedDiagnosticsViewControl.GetRequiredControl<Border>(nameof(DiagnosticsPanel));
+    private CheckBox ExtendedSupportBundleDiagnosticsCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(ExtendedSupportBundleDiagnosticsCheckBox));
     private CheckBox RoadTextureFlightRecorderCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RoadTextureFlightRecorderCheckBox));
     private TextBlock RoadTextureFlightRecorderStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureFlightRecorderStatusText));
     private TextBlock DiagnosticsSummaryText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(DiagnosticsSummaryText));

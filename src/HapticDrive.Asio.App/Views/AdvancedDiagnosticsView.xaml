@@ -733,6 +733,9 @@
                             Click="CopyDiagnosticsButton_Click"
                             Content="Copy Report" />
                 </WrapPanel>
+                <CheckBox x:Name="ExtendedSupportBundleDiagnosticsCheckBox"
+                          Margin="0,12,0,0"
+                          Content="Include extended diagnostics in support bundles (private IPs only; serials, raw USB payloads, hostnames, and process IDs stay redacted)" />
                 <CheckBox x:Name="RoadTextureFlightRecorderCheckBox"
                           Margin="0,14,0,0"
                           Checked="RoadTextureFlightRecorderCheckBox_Changed"

@@ -7430,3 +7430,69 @@ Self-review:
 - The layering is cleaner now: runtime remains responsible for live snapshot gathering, while actuation consumes canonical frame/state/context inputs and can evolve without pulling runtime types along with it.
 - The safety boundary is materially tighter: startup no longer eagerly creates a real HID writer, real writer construction is explicit, and the automated test surface stays fake/mock-only.
 - The next hardening stage can focus on structured diagnostics/privacy without carrying the old actuation/runtime coupling forward.
+
+## Stage 26K - Structured Diagnostics and Redacted Support Bundles
+
+Status: Complete.
+
+Goal: Add a centralized structured diagnostics model, machine-readable support-bundle events, privacy redaction, and an explicit safe-vs-extended support-bundle export mode without introducing render-path logging or leaking private local data by default.
+
+Changes:
+
+- Added `HapticDrive.Asio.Core.Diagnostics` with:
+  - `DiagnosticSeverity`,
+  - `DiagnosticRedactionMode`,
+  - `DiagnosticEvent`,
+  - `IDiagnosticRedactor`.
+- Added app-side structured diagnostics support:
+  - `SupportBundleCorrelationIds`,
+  - `SupportBundleStructuredDiagnostics`,
+  - `StructuredDiagnosticsBuildInputs`,
+  - `StructuredDiagnosticsBuilder`,
+  - `SupportBundleDiagnosticRedactor`.
+- Structured support-bundle events now capture health-relevant diagnostics for:
+  - global output interlock trips,
+  - telemetry stale mute / freshness failures,
+  - ingress drops / ignored remotes / oversized datagrams,
+  - audio underruns / dropped buffers / render overruns,
+  - recording drop / incomplete capture conditions,
+  - settings persistence recovery or warning conditions.
+- Added support-bundle correlation IDs for:
+  - app session,
+  - telemetry session,
+  - recording session,
+  - output-device session.
+- Hardened the support-bundle exporter:
+  - format version advanced to `2`,
+  - bundles now include `diagnostic-events.json`,
+  - manifest now records redaction mode, event count, and correlation IDs,
+  - diagnostics report, summary JSON, event messages/properties, and selected recording detail are all redacted on export instead of assuming source strings are already safe.
+- Added two bundle modes:
+  - Safe mode is the default and redacts private IPs, serial-like values, HID path tails, raw USB payload bytes, process IDs, hostnames, and full local paths.
+  - Extended mode is an explicit UI opt-in and still keeps serials, raw USB payloads, hostnames, and process IDs redacted while allowing private IP visibility when the user deliberately requests it.
+- Added a diagnostics-panel checkbox for extended support-bundle diagnostics so privacy elevation is always explicit in the UI.
+- Preserved the Stage 11 render-path rule:
+  - no new callback/render logging was added,
+  - render/callback code remains counter-only from the diagnostics perspective.
+
+Tests:
+
+- Added `DiagnosticRedactorTests.RedactsUserProfilePaths`.
+- Added `DiagnosticRedactorTests.RedactsPrivateIpAddressesInSafeMode`.
+- Added `DiagnosticRedactorTests.RedactsSerialNumbers`.
+- Added `SupportBundleExporterTests.SafeModeContainsNoRawUsbOrPrivateInventory`.
+- Added `SupportBundleExporterTests.ManifestMarksRedactionMode`.
+- Added `DiagnosticEventTests.EventsIncludeCorrelationIds`.
+- Added `RenderPathLoggingGuardrailTests.AudioCallbackDoesNotLog`.
+- Updated support-bundle exporter tests for the new Stage 11 bundle structure and manifest/event output.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj -c Release --no-restore` passed.
+
+Self-review:
+
+- The support-bundle path is materially safer now: redaction happens at export time in one place, safe mode is the default, and machine-readable events no longer depend on copyable free-form text alone.
+- The structured diagnostics layer is intentionally snapshot-oriented for this stage. It gives us stable health events and correlation IDs without pushing logging or string work into the audio/render callbacks.
+- The next hardening stage can focus on packaging/dependency governance while building on top of a clearer diagnostics/privacy baseline.

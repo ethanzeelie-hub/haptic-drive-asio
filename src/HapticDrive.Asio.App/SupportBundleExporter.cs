@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using HapticDrive.Asio.Core.Diagnostics;
 
 namespace HapticDrive.Asio.App;
 
@@ -11,12 +12,14 @@ internal sealed record SupportBundleExportInputs(
     string SelectedGameId,
     string SelectedGameDisplayName,
     DiagnosticsStatusPresentation DiagnosticsPresentation,
+    SupportBundleStructuredDiagnostics StructuredDiagnostics,
+    DiagnosticRedactionMode RedactionMode,
     string? SelectedRecordingFileName = null,
     string? SelectedRecordingDetailText = null);
 
 internal sealed class SupportBundleExporter
 {
-    private const int CurrentFormatVersion = 1;
+    private const int CurrentFormatVersion = 2;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -32,6 +35,7 @@ internal sealed class SupportBundleExporter
             throw new ArgumentException("Export directory is required.", nameof(directory));
         }
 
+        var redactor = new SupportBundleDiagnosticRedactor(inputs.RedactionMode);
         var supportBundlesDirectory = Path.Combine(directory, "support-bundles");
         Directory.CreateDirectory(supportBundlesDirectory);
 
@@ -48,18 +52,19 @@ internal sealed class SupportBundleExporter
         {
             using (var archive = ZipFile.Open(tempPath, ZipArchiveMode.Create))
             {
-                WriteStringEntry(archive, "README.txt", BuildReadme());
-                WriteStringEntry(archive, "diagnostics-report.txt", NormalizeLineEndings(inputs.DiagnosticsPresentation.ClipboardReportText));
-                WriteStringEntry(archive, "diagnostics-summary.json", BuildDiagnosticsSummaryJson(inputs));
+                WriteStringEntry(archive, "README.txt", BuildReadme(inputs.RedactionMode));
+                WriteStringEntry(archive, "diagnostics-report.txt", NormalizeLineEndings(redactor.RedactText(inputs.DiagnosticsPresentation.ClipboardReportText)));
+                WriteStringEntry(archive, "diagnostics-summary.json", BuildDiagnosticsSummaryJson(inputs, redactor));
+                WriteStringEntry(archive, "diagnostic-events.json", SupportBundleJson.SerializeEvents(inputs.StructuredDiagnostics.Events, redactor, JsonOptions));
                 if (!string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText))
                 {
                     WriteStringEntry(
                         archive,
                         "selected-recording-detail.txt",
-                        NormalizeLineEndings(inputs.SelectedRecordingDetailText));
+                        NormalizeLineEndings(redactor.RedactText(inputs.SelectedRecordingDetailText)));
                 }
 
-                WriteStringEntry(archive, "manifest.json", BuildManifestJson(inputs));
+                WriteStringEntry(archive, "manifest.json", BuildManifestJson(inputs, redactor));
             }
 
             if (File.Exists(finalPath))
@@ -81,33 +86,38 @@ internal sealed class SupportBundleExporter
         }
     }
 
-    private static string BuildReadme()
+    private static string BuildReadme(DiagnosticRedactionMode redactionMode)
     {
         return NormalizeLineEndings(
-            """
+            $"""
             Haptic Drive ASIO support bundle
 
-            Private local export. This bundle contains sanitized diagnostics text plus optional selected-recording detail text only.
+            Private local export. This bundle contains structured diagnostics, sanitized diagnostics text, and optional selected-recording detail text only.
             No hardware output is triggered by export.
-            Do not commit raw captures, serial numbers, or private device paths.
+            Redaction mode: {redactionMode}.
+            Safe mode excludes private IPs, serials, raw USB payloads, and full local paths.
+            Extended mode still redacts raw USB payloads, serials, hostnames, and process IDs.
+            Do not commit raw captures, serial numbers, private device paths, or raw USB data.
             """);
     }
 
-    private static string BuildDiagnosticsSummaryJson(SupportBundleExportInputs inputs)
+    private static string BuildDiagnosticsSummaryJson(SupportBundleExportInputs inputs, IDiagnosticRedactor redactor)
     {
         var payload = new
         {
             GeneratedAtUtc = inputs.GeneratedAtUtc,
-            inputs.SelectedRecordingFileName,
-            inputs.DiagnosticsPresentation.RoadRecorderStatusText,
-            inputs.DiagnosticsPresentation.SummaryText,
-            Items = inputs.DiagnosticsPresentation.Items
+            RedactionMode = inputs.RedactionMode.ToString(),
+            SelectedRecordingFileName = redactor.RedactText(inputs.SelectedRecordingFileName ?? string.Empty),
+            RoadRecorderStatusText = redactor.RedactText(inputs.DiagnosticsPresentation.RoadRecorderStatusText),
+            SummaryText = redactor.RedactText(inputs.DiagnosticsPresentation.SummaryText),
+            Items = inputs.DiagnosticsPresentation.Items.Select(redactor.RedactText).ToArray(),
+            CorrelationIds = inputs.StructuredDiagnostics.CorrelationIds
         };
 
         return JsonSerializer.Serialize(payload, JsonOptions);
     }
 
-    private static string BuildManifestJson(SupportBundleExportInputs inputs)
+    private static string BuildManifestJson(SupportBundleExportInputs inputs, IDiagnosticRedactor redactor)
     {
         var payload = new
         {
@@ -115,11 +125,18 @@ internal sealed class SupportBundleExporter
             Application = "Haptic Drive ASIO",
             ApplicationVersion = ResolveApplicationVersion(),
             GeneratedAtUtc = inputs.GeneratedAtUtc,
-            inputs.SelectedGameId,
-            inputs.SelectedGameDisplayName,
+            RedactionMode = inputs.RedactionMode.ToString(),
+            SelectedGameId = inputs.SelectedGameId,
+            SelectedGameDisplayName = inputs.SelectedGameDisplayName,
             ContainsSelectedRecordingDetail = !string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText),
             ContainsRawCaptures = false,
             ContainsPrivateDevicePaths = false,
+            ContainsPrivateIpAddresses = inputs.RedactionMode == DiagnosticRedactionMode.Extended,
+            ContainsSerialNumbers = false,
+            ContainsRawUsbPayloads = false,
+            CorrelationIds = inputs.StructuredDiagnostics.CorrelationIds,
+            EventCount = inputs.StructuredDiagnostics.Events.Count,
+            SelectedRecordingFileName = redactor.RedactText(inputs.SelectedRecordingFileName ?? string.Empty),
             Files = BuildManifestFiles(inputs)
         };
 
@@ -133,6 +150,7 @@ internal sealed class SupportBundleExporter
             "README.txt",
             "diagnostics-report.txt",
             "diagnostics-summary.json"
+            , "diagnostic-events.json"
         };
 
         if (!string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText))

@@ -685,6 +685,10 @@ public partial class MainWindow : Window
     {
         var presentation = BuildDiagnosticsStatusPresentation();
         ApplyDiagnosticsStatusPresentation(presentation);
+        var generatedAtUtc = DateTimeOffset.UtcNow;
+        var redactionMode = ExtendedSupportBundleDiagnosticsCheckBox.IsChecked == true
+            ? HapticDrive.Asio.Core.Diagnostics.DiagnosticRedactionMode.Extended
+            : HapticDrive.Asio.Core.Diagnostics.DiagnosticRedactionMode.Safe;
 
         try
         {
@@ -702,15 +706,18 @@ public partial class MainWindow : Window
             }
 
             var directory = GetLocalValidationResultsDirectory();
+            var structuredDiagnostics = BuildSupportBundleStructuredDiagnostics(generatedAtUtc);
             var inputs = new SupportBundleExportInputs(
-                DateTimeOffset.UtcNow,
+                generatedAtUtc,
                 GameTelemetryCatalog.NormalizeGameId(_selectedGameId),
                 GameTelemetryCatalog.GetDisplayName(_selectedGameId),
                 presentation,
+                structuredDiagnostics,
+                redactionMode,
                 selectedRecordingFileName,
                 selectedRecordingDetailText);
             _lastSupportBundleExportPath = _supportBundleExporter.ExportZip(inputs, directory);
-            FooterStatusText.Text = $"Support bundle exported locally to {_lastSupportBundleExportPath}.";
+            FooterStatusText.Text = $"Support bundle exported locally to {_lastSupportBundleExportPath} in {redactionMode} mode.";
         }
         catch (OperationCanceledException)
         {
@@ -1404,6 +1411,36 @@ public partial class MainWindow : Window
             RuntimePrerequisitesText: $".NET {Environment.Version}; WPF desktop runtime is present because the app is running; launch script sets DOTNET_ROOT to the repo-local runtime before starting the executable.",
             AppSettingsText: BuildPersistedSettingsStatusPresentation().DiagnosticsText));
         return DiagnosticsStatusPresenter.Build(snapshot);
+    }
+
+    private SupportBundleStructuredDiagnostics BuildSupportBundleStructuredDiagnostics(DateTimeOffset generatedAtUtc)
+    {
+        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        var outputStatus = pipelineSnapshot.Output;
+        var effectSnapshot = pipelineSnapshot.Effects;
+        var testBenchSnapshot = _testBench.GetSnapshot();
+        var audioDiagnostics = AudioRuntimeDiagnosticsSnapshot.Create(
+            outputStatus,
+            effectSnapshot,
+            pipelineSnapshot.Audio,
+            testBenchSnapshot);
+        var receiverSnapshot = _telemetryReceiver.GetSnapshot();
+        var ingressSnapshot = _telemetryIngressWorker.GetSnapshot();
+        var correlationIds = CaptureSupportBundleCorrelationIds(pipelineSnapshot);
+
+        return StructuredDiagnosticsBuilder.Build(
+            new StructuredDiagnosticsBuildInputs(
+                generatedAtUtc,
+                GameTelemetryCatalog.NormalizeGameId(_selectedGameId),
+                GameTelemetryCatalog.GetDisplayName(_selectedGameId),
+                BuildSelectedOutputId(),
+                _currentProfile.Name,
+                _settingsError,
+                pipelineSnapshot,
+                receiverSnapshot,
+                ingressSnapshot,
+                audioDiagnostics,
+                correlationIds));
     }
 
     private void ApplyDiagnosticsStatusPresentation(DiagnosticsStatusPresentation presentation)

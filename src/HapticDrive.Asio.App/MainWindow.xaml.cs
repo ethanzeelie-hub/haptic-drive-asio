@@ -281,10 +281,17 @@ public partial class MainWindow : Window
     private int _telemetryStatusTickInFlight;
     private long _telemetryStatusTickSkippedCount;
     private readonly string _roadTextureFlightRecorderSessionId = Guid.NewGuid().ToString("N");
+    private readonly string _appSessionCorrelationId = Guid.NewGuid().ToString("N");
     private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
     private string? _lastSupportBundleExportPath;
+    private string? _telemetrySessionCorrelationId;
+    private string? _telemetrySessionFingerprint;
+    private string? _recordingSessionCorrelationId;
+    private string? _recordingSessionFingerprint;
+    private string _outputDeviceSessionCorrelationId = Guid.NewGuid().ToString("N");
+    private string? _outputDeviceSessionFingerprint;
     private string _lastPhprPedalsPulseMessage = "No normal P-HPR test pulse has been sent.";
     private string _lastBst1PaddleGearPulseMessage = "BST-1 paddle gear pulse is disabled.";
     private bool _bst1PaddleGearPulseEnabled;
@@ -764,6 +771,68 @@ public partial class MainWindow : Window
             AudioOutputDeviceKind.WasapiDebug => "wasapi-debug",
             _ => "null"
         };
+    }
+
+    private SupportBundleCorrelationIds CaptureSupportBundleCorrelationIds(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(pipelineSnapshot);
+
+        UpdateTelemetrySessionCorrelation(pipelineSnapshot);
+        UpdateRecordingSessionCorrelation(pipelineSnapshot.Recording);
+        UpdateOutputSessionCorrelation(BuildSelectedOutputId());
+
+        return new SupportBundleCorrelationIds(
+            _appSessionCorrelationId,
+            _telemetrySessionCorrelationId,
+            _recordingSessionCorrelationId,
+            _outputDeviceSessionCorrelationId);
+    }
+
+    private void UpdateTelemetrySessionCorrelation(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        var identity = pipelineSnapshot.HapticFrame?.Identity;
+        var source = identity?.Source ?? pipelineSnapshot.VehicleState.Frame.Source;
+        var sessionUid = identity?.SessionUid ?? pipelineSnapshot.VehicleState.Frame.SessionUid;
+        var playerCarIndex = identity?.PlayerCarIndex ?? pipelineSnapshot.VehicleState.Frame.PlayerCarIndex;
+        if (string.IsNullOrWhiteSpace(source) && sessionUid is null && playerCarIndex is null)
+        {
+            return;
+        }
+
+        var fingerprint = $"{source ?? "unknown"}|{sessionUid?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{playerCarIndex?.ToString(CultureInfo.InvariantCulture) ?? "none"}";
+        if (!string.Equals(_telemetrySessionFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            _telemetrySessionFingerprint = fingerprint;
+            _telemetrySessionCorrelationId = Guid.NewGuid().ToString("N");
+        }
+    }
+
+    private void UpdateRecordingSessionCorrelation(TelemetryRecordingSnapshot recordingSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(recordingSnapshot);
+
+        if (!recordingSnapshot.IsRecording || string.IsNullOrWhiteSpace(recordingSnapshot.FilePath))
+        {
+            _recordingSessionFingerprint = null;
+            _recordingSessionCorrelationId = null;
+            return;
+        }
+
+        var fingerprint = recordingSnapshot.FilePath.Trim();
+        if (!string.Equals(_recordingSessionFingerprint, fingerprint, StringComparison.OrdinalIgnoreCase))
+        {
+            _recordingSessionFingerprint = fingerprint;
+            _recordingSessionCorrelationId = Guid.NewGuid().ToString("N");
+        }
+    }
+
+    private void UpdateOutputSessionCorrelation(string outputId)
+    {
+        if (!string.Equals(_outputDeviceSessionFingerprint, outputId, StringComparison.Ordinal))
+        {
+            _outputDeviceSessionFingerprint = outputId;
+            _outputDeviceSessionCorrelationId = Guid.NewGuid().ToString("N");
+        }
     }
 
     private static string ComputeProfileHash(HapticDriveProfile profile)

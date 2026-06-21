@@ -1204,3 +1204,11 @@
 - Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
+
+## Stage 26K
+
+- Support bundles now default to safe redaction and can export structured diagnostic events plus correlation IDs, but the app still does not maintain a long-lived centralized background event store; Stage 26K intentionally keeps diagnostics snapshot-oriented so the render/callback path remains free of logging/string work.
+- Extended support-bundle mode deliberately allows private IP visibility when the user explicitly opts in, but it still redacts raw USB payloads, serial-like values, hostnames, process IDs, and full private path details.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Release packaging now carries stronger diagnostics metadata, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, third-party notice packaging, or install/uninstall validation.
