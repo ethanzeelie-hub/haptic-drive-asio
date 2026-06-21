@@ -3171,3 +3171,32 @@ Stage 25AM architecture result:
 - The result improves maintainability because later profile-workflow changes can evolve one feedback seam instead of re-editing repeated `FooterStatusText` and `UpdateProfileStatus(...)` branches across multiple shell handlers.
 
 Stage 25AM deliberately does not move persistence execution, runtime application, or control capture/application ownership out of `MainWindow`. It isolates workflow feedback first so later workflow/orchestration cleanup can build on a more consistent message contract.
+
+## Stage 25AN Audio-Profile View Sync Coordinator Seam
+
+Stage 25AN continues the same profile-control cleanup by removing the remaining cross-view audio-profile call choreography from `MainWindow` and centralizing it behind one coordinator with narrow interfaces.
+
+Stage 25AN architecture result:
+
+- Audio-profile view synchronization now has one shared app-side seam:
+  - current profile control-input capture across Profiles/Effects/Routing views,
+  - control-value application across those views,
+  - control-text application across Effects/Routing views.
+- `AudioProfileViewSyncCoordinator` owns that cross-view choreography and depends only on narrow interfaces:
+  - `IAudioProfileProfilesViewSync`,
+  - `IAudioProfileEffectsViewSync`,
+  - `IAudioProfileRoutingMixerViewSync`.
+- The extracted views now implement those sync interfaces explicitly while keeping their existing internal methods and event-forwarding behavior.
+- `MainWindow` still keeps the same visible ownership boundary:
+  - it still owns `_updatingTuningUi`,
+  - it still builds/validates profiles through the existing snapshot builders,
+  - it still owns runtime application and workflow execution,
+  - it no longer manually stitches together every profile-control capture/application call across the three views.
+- The stage stays intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no persisted profile schema change,
+  - no WPF layout rewrite,
+  - no dynamic control generation.
+- The result improves maintainability because later profile-control surface changes can extend one coordinator seam instead of reopening `MainWindow` for every cross-view wiring edit.
+
+Stage 25AN deliberately does not move runtime execution or persistence orchestration out of `MainWindow`, and it does not make the effect surface data-driven. It isolates the cross-view synchronization seam first so later workflow/orchestration cleanup can build on a cleaner shell boundary.

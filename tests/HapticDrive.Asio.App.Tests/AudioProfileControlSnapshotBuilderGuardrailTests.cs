@@ -36,14 +36,9 @@ public sealed class AudioProfileControlSnapshotBuilderGuardrailTests
 
         Assert.Contains("AudioProfileControlSnapshotBuilder.BuildProfile(", source, StringComparison.Ordinal);
         Assert.Contains("AudioProfileControlSnapshotBuilder.BuildApplicationPlan(", source, StringComparison.Ordinal);
-        Assert.Contains("ProfilesViewControl.ApplyAudioProfileControlValues(", source, StringComparison.Ordinal);
-        Assert.Contains("EffectsViewControl.ApplyAudioProfileEffectControlValues(", source, StringComparison.Ordinal);
-        Assert.Contains("EffectsViewControl.ApplyAudioProfileEffectControlText(", source, StringComparison.Ordinal);
-        Assert.Contains("RoutingMixerViewControl.ApplyAudioProfileMixerControlValues(", source, StringComparison.Ordinal);
-        Assert.Contains("RoutingMixerViewControl.ApplyAudioProfileMixerControlText(", source, StringComparison.Ordinal);
-        Assert.Contains("ProfilesViewControl.BuildAudioProfileNameInput(", source, StringComparison.Ordinal);
-        Assert.Contains("EffectsViewControl.BuildAudioProfileEffectControlInputs(", source, StringComparison.Ordinal);
-        Assert.Contains("RoutingMixerViewControl.BuildAudioProfileMixerControlInputs(", source, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileViewSyncCoordinator.BuildCurrentControlInputs(", source, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileViewSyncCoordinator.ApplyControlValues(", source, StringComparison.Ordinal);
+        Assert.Contains("AudioProfileViewSyncCoordinator.ApplyControlText(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("return HapticProfileValidator.Validate(_currentProfile with", source, StringComparison.Ordinal);
         Assert.DoesNotContain("EngineGainValueText.Text = $\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("RoadTextureSpeedFrequencyInfluenceValueText.Text = $\"", source, StringComparison.Ordinal);

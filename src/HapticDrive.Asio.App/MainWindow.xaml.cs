@@ -3660,14 +3660,10 @@ public partial class MainWindow : Window
 
     private AudioProfileControlInputs BuildCurrentAudioProfileControlInputs()
     {
-        var mixerInputs = RoutingMixerViewControl.BuildAudioProfileMixerControlInputs();
-
-        return new AudioProfileControlInputs(
-            ProfileName: ProfilesViewControl.BuildAudioProfileNameInput(),
-            Effects: EffectsViewControl.BuildAudioProfileEffectControlInputs(),
-            MasterGainValue: mixerInputs.MasterGainValue,
-            MixerMuted: mixerInputs.MixerMuted,
-            SafetyOutputGainValue: mixerInputs.SafetyOutputGainValue);
+        return AudioProfileViewSyncCoordinator.BuildCurrentControlInputs(
+            ProfilesViewControl,
+            EffectsViewControl,
+            RoutingMixerViewControl);
     }
 
     private HapticDriveProfile BuildProfileFromControls()
@@ -3691,12 +3687,13 @@ public partial class MainWindow : Window
     private void ApplyProfileToControls(HapticDriveProfile profile)
     {
         var plan = AudioProfileControlSnapshotBuilder.BuildApplicationPlan(profile);
-        var values = plan.ControlValues;
         _updatingTuningUi = true;
 
-        ProfilesViewControl.ApplyAudioProfileControlValues(values);
-        EffectsViewControl.ApplyAudioProfileEffectControlValues(values.Effects);
-        RoutingMixerViewControl.ApplyAudioProfileMixerControlValues(values);
+        AudioProfileViewSyncCoordinator.ApplyControlValues(
+            plan.ControlValues,
+            ProfilesViewControl,
+            EffectsViewControl,
+            RoutingMixerViewControl);
 
         _updatingTuningUi = false;
         ApplyProfileControlText(plan.TextValues);
@@ -3709,8 +3706,10 @@ public partial class MainWindow : Window
 
     private void ApplyProfileControlText(AudioProfileControlTextValues values)
     {
-        EffectsViewControl.ApplyAudioProfileEffectControlText(values.Effects);
-        RoutingMixerViewControl.ApplyAudioProfileMixerControlText(values);
+        AudioProfileViewSyncCoordinator.ApplyControlText(
+            values,
+            EffectsViewControl,
+            RoutingMixerViewControl);
     }
 
     private PhprEffectProfile BuildPhprEffectProfileFromCurrentSettings(string name)

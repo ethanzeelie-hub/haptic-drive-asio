@@ -5360,6 +5360,57 @@ Self-review:
 - No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
 - The broader effect surface is still explicitly typed, but one more shell workflow hotspot now has a real seam instead of repeated inline branching.
 
+## Stage 25AN - Audio-Profile View Sync Coordinator Seam
+
+Date: 2026-06-21
+
+Status: Complete.
+
+Goal: Continue the profile-control cleanup by moving the remaining cross-view audio-profile capture/application choreography out of `MainWindow` and behind one coordinator with narrow interfaces, without changing runtime behavior, persisted profile behavior, or WPF layout.
+
+Notes:
+
+- Re-audited the post-25AM profile-control flow:
+  - hydration already lived on the extracted views,
+  - input capture already lived on the extracted views,
+  - but `MainWindow` still manually stitched together the three view calls required to capture inputs and apply values/text.
+- Added `AudioProfileViewSyncCoordinator` plus narrow sync interfaces:
+  - `IAudioProfileProfilesViewSync`,
+  - `IAudioProfileEffectsViewSync`,
+  - `IAudioProfileRoutingMixerViewSync`.
+- Updated `ProfilesView`, `EffectsView`, and `RoutingMixerView` to implement those interfaces explicitly while keeping their current internal helper methods intact.
+- Updated `MainWindow` to use the coordinator for:
+  - current control-input capture,
+  - control-value application,
+  - control-text application.
+- Added focused coordinator coverage:
+  - `AudioProfileViewSyncCoordinatorTests`,
+  - `AudioProfileViewSyncCoordinatorGuardrailTests`.
+- Kept the stage intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no profile schema change,
+  - no WPF layout rewrite,
+  - no data-driven control generation.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "AudioProfileViewSyncCoordinator"` passed.
+- `Get-Process | Where-Object { $_.ProcessName -like 'testhost*' } | Stop-Process -Force` completed before the full suite.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AN is the right follow-through after the `25AJ`/`25AK`/`25AL`/`25AM` stream.
+- `MainWindow` still owns the workflow, but it no longer owns the cross-view choreography details for the audio-profile seam.
+- No persisted profile shape changed.
+- No WPF layout changed.
+- No runtime haptic behavior changed.
+- No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
+- The broader effect surface is still explicitly typed, but one more category of shell glue now has a dedicated seam instead of being hand-wired inline.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

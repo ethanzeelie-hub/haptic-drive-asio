@@ -3,7 +3,7 @@ using System.Windows.Controls;
 
 namespace HapticDrive.Asio.App.Views;
 
-public partial class EffectsView : UserControl
+public partial class EffectsView : UserControl, IAudioProfileEffectsViewSync
 {
     internal event RoutedEventHandler? TuningControlChanged;
     internal event RoutedEventHandler? PhprPedalsControlChanged;
@@ -143,6 +143,21 @@ public partial class EffectsView : UserControl
             SlipWheelLockNoiseValue: SlipWheelLockNoiseSlider.Value,
             SlipWheelLockSensitivityValue: SlipWheelLockSensitivitySlider.Value,
             SlipThresholdValue: SlipThresholdSlider.Value);
+    }
+
+    Bst1AudioProfileEffectControlInputs IAudioProfileEffectsViewSync.BuildAudioProfileEffectControlInputs()
+    {
+        return BuildAudioProfileEffectControlInputs();
+    }
+
+    void IAudioProfileEffectsViewSync.ApplyAudioProfileEffectControlValues(Bst1AudioProfileEffectControlValues values)
+    {
+        ApplyAudioProfileEffectControlValues(values);
+    }
+
+    void IAudioProfileEffectsViewSync.ApplyAudioProfileEffectControlText(Bst1AudioProfileEffectControlTextValues values)
+    {
+        ApplyAudioProfileEffectControlText(values);
     }
 
     internal T GetRequiredControl<T>(string name)

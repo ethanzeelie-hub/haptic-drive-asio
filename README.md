@@ -8,7 +8,7 @@ The M-Audio M-Track Solo interface, Fosi Audio BT20A amplifier, and Dayton BST-1
 
 ## Current Stage
 
-Stage 25AM: Audio-profile workflow feedback planner seam complete.
+Stage 25AN: Audio-profile view sync coordinator seam complete.
 
 ## Current Architecture Baseline
 
@@ -26,6 +26,7 @@ Stage 25AM: Audio-profile workflow feedback planner seam complete.
 - Audio-profile save/apply now also captures profile-name, BST-1 effect, and mixer/safety inputs through those extracted view seams instead of leaving one more large direct control-read block inline in `MainWindow`.
 - `MainWindow` no longer keeps a leftover strip of dead profile-related BST-1 and mixer control accessors after those seams moved onto the extracted views, which makes the shell boundary cleaner and reduces the chance of old direct-control paths quietly creeping back in.
 - Audio-profile tuning/save/load/reset feedback text now also comes through a dedicated workflow feedback planner instead of repeating save-result and footer-message branching inline across multiple `MainWindow` handlers.
+- Audio-profile control capture/application now also runs through a dedicated view sync coordinator with narrow interfaces, so the shell no longer has to manually stitch together cross-view profile input/value/text calls itself.
 - Replay from `.hdrec` files now streams packets directly from disk through the replay service instead of fully materializing the whole recording first.
 - Live recording now uses a bounded background queue with queue-capacity and dropped-packet diagnostics instead of the earlier unbounded queue model, and the recording library now surfaces streamed duration/payload/sequence-gap health summaries plus in-app filterable query text without loading whole recordings into memory.
 - Recording summaries now also expose streamed sequence-range and approximate packet-rate metadata, so the library can surface richer per-file health/search hints without coupling the recording core to a game-specific parser.

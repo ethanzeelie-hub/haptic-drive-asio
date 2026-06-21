@@ -3,7 +3,7 @@ using System.Windows.Controls;
 
 namespace HapticDrive.Asio.App.Views;
 
-public partial class RoutingMixerView : UserControl
+public partial class RoutingMixerView : UserControl, IAudioProfileRoutingMixerViewSync
 {
     internal event RoutedEventHandler? TuningControlChanged;
 
@@ -52,6 +52,21 @@ public partial class RoutingMixerView : UserControl
             MasterGainValue: MasterGainSlider.Value,
             MixerMuted: MixerMuteCheckBox.IsChecked == true,
             SafetyOutputGainValue: SafetyOutputGainSlider.Value);
+    }
+
+    AudioProfileMixerControlInputs IAudioProfileRoutingMixerViewSync.BuildAudioProfileMixerControlInputs()
+    {
+        return BuildAudioProfileMixerControlInputs();
+    }
+
+    void IAudioProfileRoutingMixerViewSync.ApplyAudioProfileMixerControlValues(AudioProfileControlValues values)
+    {
+        ApplyAudioProfileMixerControlValues(values);
+    }
+
+    void IAudioProfileRoutingMixerViewSync.ApplyAudioProfileMixerControlText(AudioProfileControlTextValues values)
+    {
+        ApplyAudioProfileMixerControlText(values);
     }
 
     internal T GetRequiredControl<T>(string name)

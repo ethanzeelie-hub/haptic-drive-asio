@@ -3,7 +3,7 @@ using System.Windows.Controls;
 
 namespace HapticDrive.Asio.App.Views;
 
-public partial class ProfilesView : UserControl
+public partial class ProfilesView : UserControl, IAudioProfileProfilesViewSync
 {
     internal event RoutedEventHandler? ProfileNameLostFocus;
     internal event RoutedEventHandler? SaveProfileClicked;
@@ -33,6 +33,16 @@ public partial class ProfilesView : UserControl
     internal string? BuildAudioProfileNameInput()
     {
         return ProfileNameTextBox.Text;
+    }
+
+    string? IAudioProfileProfilesViewSync.BuildAudioProfileNameInput()
+    {
+        return BuildAudioProfileNameInput();
+    }
+
+    void IAudioProfileProfilesViewSync.ApplyAudioProfileControlValues(AudioProfileControlValues values)
+    {
+        ApplyAudioProfileControlValues(values);
     }
 
     internal T GetRequiredControl<T>(string name)
