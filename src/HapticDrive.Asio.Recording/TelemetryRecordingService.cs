@@ -50,7 +50,9 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
                 _lastErrorMessage,
                 _session?.QueueCapacityPackets,
                 _session?.QueuedPacketCount ?? 0,
-                _session?.DroppedPacketCount ?? 0);
+                _session?.DroppedPacketCount ?? 0,
+                _session?.RecordingIncomplete ?? false,
+                _session?.IncompleteReason);
         }
     }
 
@@ -196,6 +198,20 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         return TelemetryRecordingOperationResult.Success("Packet queued for recording.");
     }
 
+    public void MarkIncomplete(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = "Recording is incomplete.";
+        }
+
+        lock (_gate)
+        {
+            _session?.MarkIncomplete(message);
+            _lastErrorMessage = message;
+        }
+    }
+
     public async ValueTask<TelemetryRecordingOperationResult> StopAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -335,12 +351,17 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
 
         public long DroppedPacketCount => Interlocked.Read(ref _droppedPacketCount);
 
+        public bool RecordingIncomplete => Volatile.Read(ref _recordingIncomplete) > 0;
+
+        public string? IncompleteReason { get; private set; }
+
         public TimeSpan? LastPacketRelativeTime { get; private set; }
 
         private long _packetCount;
         private long _enqueuedPacketCount;
         private long _dequeuedPacketCount;
         private long _droppedPacketCount;
+        private int _recordingIncomplete;
 
         public void MarkPacketRecorded(TimeSpan relativeTime)
         {
@@ -357,6 +378,12 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         public void MarkPacketDropped()
         {
             Interlocked.Increment(ref _droppedPacketCount);
+        }
+
+        public void MarkIncomplete(string message)
+        {
+            Interlocked.Exchange(ref _recordingIncomplete, 1);
+            IncompleteReason = message;
         }
 
         public void AttachWriterTask(Task<RecordingWriterResult> writerTask)

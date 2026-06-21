@@ -17,6 +17,8 @@ public partial class TelemetryUdpView : UserControl
     internal event TextChangedEventHandler? RecordingLibraryFilterTextChanged;
     internal event RoutedEventHandler? ClearRecordingLibraryFilterClicked;
     internal event SelectionChangedEventHandler? RecordingLibrarySelectionChanged;
+    internal event RoutedEventHandler? AllowLanTelemetryChanged;
+    internal event RoutedEventHandler? AllowedRemoteAddressesLostFocus;
     internal event RoutedEventHandler? SaveForwardingDestinationClicked;
     internal event RoutedEventHandler? RemoveForwardingDestinationClicked;
     internal event RoutedEventHandler? ClearForwardingDestinationClicked;
@@ -32,6 +34,7 @@ public partial class TelemetryUdpView : UserControl
         ReplayTimingModeHelpText.Text = presentation.ReplayTimingModeHelpText;
         RecordingsStartStopButton.Content = presentation.RecordingsStartStopButtonText;
         ReplayStartStopButton.Content = presentation.ReplayStartStopButtonText;
+        TelemetryListenerStatusText.Text = presentation.ListenerDetailText;
         RecordingsDetailText.Text = presentation.RecordingsDetailText;
         ReplayDetailText.Text = presentation.ReplayDetailText;
         ForwardingDestinationsSummaryText.Text = presentation.ForwardingDestinationsSummaryText;
@@ -102,6 +105,16 @@ public partial class TelemetryUdpView : UserControl
     private void RecordingLibraryListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         RecordingLibrarySelectionChanged?.Invoke(sender, e);
+    }
+
+    private void AllowLanTelemetryCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        AllowLanTelemetryChanged?.Invoke(sender, e);
+    }
+
+    private void AllowedRemoteAddressesTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        AllowedRemoteAddressesLostFocus?.Invoke(sender, e);
     }
 
     private void SaveForwardingDestinationButton_Click(object sender, RoutedEventArgs e)

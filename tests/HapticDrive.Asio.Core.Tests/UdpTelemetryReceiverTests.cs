@@ -128,6 +128,30 @@ public sealed class UdpTelemetryReceiverTests
 
         Assert.False(receivedPacket.Task.IsCompleted);
         Assert.Equal(0, receiver.GetSnapshot().PacketCount);
+        Assert.Equal(1, receiver.GetSnapshot().IgnoredRemotePacketCount);
+    }
+
+    [Fact]
+    public async Task OversizedDatagramIsCountedAndIgnored()
+    {
+        await using var receiver = new UdpTelemetryReceiver(
+            new UdpTelemetryReceiverOptions(
+                Port: 0,
+                BindAddress: IPAddress.Loopback,
+                MaxDatagramBytes: 4));
+
+        await receiver.StartAsync();
+        var boundPort = receiver.GetSnapshot().BoundPort;
+
+        using var sender = new UdpClient();
+        var payload = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 };
+        await sender.SendAsync(payload, payload.Length, new IPEndPoint(IPAddress.Loopback, boundPort));
+        await Task.Delay(100);
+
+        var snapshot = receiver.GetSnapshot();
+
+        Assert.Equal(0, snapshot.PacketCount);
+        Assert.Equal(1, snapshot.OversizedDatagramCount);
     }
 
     private static async Task<T> WaitForAsync<T>(Task<T> task, TimeSpan timeout)

@@ -12,6 +12,7 @@ using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Asio.Runtime.Telemetry;
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Actuation.Shift;
@@ -76,7 +77,6 @@ public partial class MainWindow : Window
         new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider());
     private readonly IPHprDirectOutputCandidateProvider _phprDirectOutputCandidateProvider =
         new WindowsPhprDirectOutputCandidateProvider();
-    private readonly IUdpTelemetryReceiver _telemetryReceiver = new UdpTelemetryReceiver();
     private readonly HapticProfileStore _profileStore = new();
     private readonly PhprEffectProfileStore _phprProfileStore = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
@@ -204,6 +204,7 @@ public partial class MainWindow : Window
     private bool _hapticsStarted;
     private bool _emergencyMuted;
     private bool _lightTheme;
+    private bool _allowLanTelemetry;
     private bool _updatingOutputUi;
     private bool _startupAsioDefaultsApplied;
     private bool _shutdownCleanupStarted;
@@ -214,6 +215,7 @@ public partial class MainWindow : Window
     private int? _selectedAsioOutputChannel;
     private bool _asioArmed;
     private string? _telemetryStartError;
+    private string? _telemetryListenerWarning;
     private string? _recordingError;
     private string? _replayError;
     private string? _settingsError;
@@ -273,12 +275,15 @@ public partial class MainWindow : Window
     private int _bst1PaddleGearCustomDurationMs = 45;
     private PHprDirectGearPulseRoutingResult? _lastRealPhprGearPulseRoutingResult;
     private List<ForwardingDestinationSetting> _forwardingDestinations = [];
+    private List<string> _allowedTelemetryRemoteAddresses = [];
     private List<ForwardingDestinationListItem> _forwardingDestinationItems = [];
     private List<PaddleDeviceListItem> _paddleDeviceItems = [];
     private List<PhprDirectOutputCandidateListItem> _realPhprCandidateItems = [];
     private List<RecordingLibraryItem> _recordingLibraryItems = [];
     private List<RecordingLibraryItem> _filteredRecordingLibraryItems = [];
     private readonly Dictionary<string, string> _recordingLibraryHistogramTextByPath = new(StringComparer.OrdinalIgnoreCase);
+    private IUdpTelemetryReceiver _telemetryReceiver;
+    private TelemetryIngressWorker _telemetryIngressWorker;
 
     public MainWindow()
     {
@@ -290,6 +295,8 @@ public partial class MainWindow : Window
         _lightTheme = appSettings.UseLightTheme;
         _advancedDiagnosticsEnabled = appSettings.AdvancedDiagnosticsEnabled;
         _selectedGameId = appSettings.SelectedGameId;
+        _allowLanTelemetry = appSettings.AllowLanTelemetry;
+        _allowedTelemetryRemoteAddresses = appSettings.AllowedTelemetryRemoteAddresses.ToList();
         _hasPersistedOutputModePreference = appSettings.HasPersistedOutputModePreference;
         _phprPedalsEnabledPreference = appSettings.PhprPedalsEnabledPreference;
         _phprPedalsModePreference = appSettings.PhprPedalsModePreference;
@@ -343,6 +350,8 @@ public partial class MainWindow : Window
         ApplyPersistedPhprPedalsPreferenceToRuntime(saveSafeSettings: false, updateUi: false);
         LoadPersistedAudioProfile();
         _hapticPipeline = CreatePipelineForSelectedOutput();
+        _telemetryReceiver = CreateTelemetryReceiver();
+        _telemetryIngressWorker = CreateTelemetryIngressWorker(_hapticPipeline);
         SyncOutputInterlockState(_outputInterlock.Current);
         _paddleInputRoutingCoordinator = new PaddleInputRoutingCoordinator(
             _shiftIntentProcessor,
@@ -400,6 +409,8 @@ public partial class MainWindow : Window
         TelemetryUdpViewControl.RecordingLibraryFilterTextChanged += RecordingLibraryFilterTextBox_TextChanged;
         TelemetryUdpViewControl.ClearRecordingLibraryFilterClicked += ClearRecordingLibraryFilterButton_Click;
         TelemetryUdpViewControl.RecordingLibrarySelectionChanged += RecordingLibraryListBox_SelectionChanged;
+        TelemetryUdpViewControl.AllowLanTelemetryChanged += AllowLanTelemetryCheckBox_Changed;
+        TelemetryUdpViewControl.AllowedRemoteAddressesLostFocus += AllowedRemoteAddressesTextBox_LostFocus;
         TelemetryUdpViewControl.SaveForwardingDestinationClicked += SaveForwardingDestinationButton_Click;
         TelemetryUdpViewControl.RemoveForwardingDestinationClicked += RemoveForwardingDestinationButton_Click;
         TelemetryUdpViewControl.ClearForwardingDestinationClicked += ClearForwardingDestinationButton_Click;
@@ -503,6 +514,7 @@ public partial class MainWindow : Window
         ReplayTimingModeComboBox.ItemsSource = _replayTimingModeOptions;
         ReplayTimingModeComboBox.SelectedItem = ControlSettingsSnapshotBuilder.GetReplayTimingModeOption(appSettings.ReplayTimingPreference);
         ApplyTheme(_lightTheme);
+        ApplyTelemetryListenerSettingsToControls();
         RefreshForwardingDestinationItems();
         ApplyProfileToControls(_currentProfile);
         ApplyProfileToRuntime(_currentProfile);
@@ -540,6 +552,7 @@ public partial class MainWindow : Window
 
         try
         {
+            await _telemetryIngressWorker.StartAsync();
             await _telemetryReceiver.StartAsync();
             _telemetryStatusTimer.Start();
             _realPhprContinuousEffectsRuntime.StartSlipLockRuntime();
@@ -593,6 +606,76 @@ public partial class MainWindow : Window
         _lastBst1PaddleGearPulseMessage = _bst1PaddleGearPulseEnabled
             ? "BST-1 paddle gear pulse enabled for accepted bench Pressed events."
             : "BST-1 paddle gear pulse is disabled.";
+    }
+
+    private void ApplyTelemetryListenerSettingsToControls()
+    {
+        AllowLanTelemetryCheckBox.IsChecked = _allowLanTelemetry;
+        AllowedRemoteAddressesTextBox.Text = string.Join(", ", _allowedTelemetryRemoteAddresses);
+        UpdateTelemetryListenerWarning();
+    }
+
+    private void UpdateTelemetryListenerWarning()
+    {
+        _telemetryListenerWarning = _allowLanTelemetry && _allowedTelemetryRemoteAddresses.Count == 0
+            ? "LAN telemetry is enabled without an IP allowlist. Any sender on the LAN can reach the listener until you add allowed remote IPs."
+            : null;
+    }
+
+    private IUdpTelemetryReceiver CreateTelemetryReceiver()
+    {
+        return new UdpTelemetryReceiver(BuildTelemetryReceiverOptions());
+    }
+
+    private TelemetryIngressWorker CreateTelemetryIngressWorker(HapticPipelineCoordinator pipeline)
+    {
+        return new TelemetryIngressWorker(
+            pipeline.ProcessLiveTelemetryPacket,
+            () => pipeline.RecordingService.GetSnapshot().IsRecording,
+            pipeline.RecordingService.RecordPacket,
+            pipeline.RecordingService.MarkIncomplete,
+            () => pipeline.TelemetryForwarder.GetSnapshot().IsEnabled,
+            pipeline.TelemetryForwarder.ForwardAsync);
+    }
+
+    private UdpTelemetryReceiverOptions BuildTelemetryReceiverOptions()
+    {
+        var allowlist = _allowedTelemetryRemoteAddresses
+            .Select(IPAddress.Parse)
+            .ToHashSet();
+
+        return new UdpTelemetryReceiverOptions(
+            Port: UdpTelemetryReceiverOptions.DefaultPort,
+            AllowLanTelemetry: _allowLanTelemetry,
+            AllowedRemoteAddresses: allowlist.Count == 0 ? null : allowlist);
+    }
+
+    private static bool TryParseTelemetryRemoteAddresses(
+        string? rawValue,
+        out List<string> normalizedAddresses,
+        out string message)
+    {
+        normalizedAddresses = [];
+        var tokens = (rawValue ?? string.Empty)
+            .Split([',', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var token in tokens)
+        {
+            if (!IPAddress.TryParse(token, out _))
+            {
+                message = $"Allowed remote IP '{token}' is not a valid IP address.";
+                return false;
+            }
+
+            if (!normalizedAddresses.Contains(token, StringComparer.OrdinalIgnoreCase))
+            {
+                normalizedAddresses.Add(token);
+            }
+        }
+
+        message = normalizedAddresses.Count == 0
+            ? "LAN telemetry allowlist cleared. Loopback-only remains the safest default."
+            : $"LAN telemetry allowlist saved with {normalizedAddresses.Count:N0} remote IP(s).";
+        return true;
     }
 
     private void MainWindow_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
@@ -1620,8 +1703,12 @@ public partial class MainWindow : Window
         _hapticsStarted = false;
 
         var previousPipeline = _hapticPipeline;
+        var previousIngressWorker = _telemetryIngressWorker;
         _hapticPipeline = CreatePipelineForSelectedOutput();
         _hapticPipeline.ApplyProfile(_currentProfile);
+        _telemetryIngressWorker = CreateTelemetryIngressWorker(_hapticPipeline);
+        await _telemetryIngressWorker.StartAsync();
+        await previousIngressWorker.DisposeAsync();
         await previousPipeline.DisposeAsync();
         var hydrationMessage = await HydrateSelectedOutputReadinessAsync();
 
@@ -1706,6 +1793,58 @@ public partial class MainWindow : Window
         }
 
         return destinations;
+    }
+
+    private async void AllowLanTelemetryCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        _allowLanTelemetry = AllowLanTelemetryCheckBox.IsChecked == true;
+        UpdateTelemetryListenerWarning();
+        SaveAppSettings();
+        await ReconfigureTelemetryReceiverAsync(
+            _allowLanTelemetry
+                ? "LAN telemetry enabled."
+                : "Telemetry listener returned to loopback-only mode.");
+    }
+
+    private async void AllowedRemoteAddressesTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!TryParseTelemetryRemoteAddresses(AllowedRemoteAddressesTextBox.Text, out var addresses, out var message))
+        {
+            TelemetryListenerStatusText.Text = message;
+            FooterStatusText.Text = message;
+            return;
+        }
+
+        _allowedTelemetryRemoteAddresses = addresses;
+        AllowedRemoteAddressesTextBox.Text = string.Join(", ", _allowedTelemetryRemoteAddresses);
+        UpdateTelemetryListenerWarning();
+        SaveAppSettings();
+        await ReconfigureTelemetryReceiverAsync(message);
+    }
+
+    private async Task ReconfigureTelemetryReceiverAsync(string footerMessage)
+    {
+        var previousReceiver = _telemetryReceiver;
+        previousReceiver.PacketReceived -= TelemetryReceiver_PacketReceived;
+
+        await previousReceiver.StopAsync();
+        await previousReceiver.DisposeAsync();
+
+        try
+        {
+            _telemetryReceiver = CreateTelemetryReceiver();
+            _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
+            await _telemetryReceiver.StartAsync();
+            _telemetryStartError = null;
+            FooterStatusText.Text = footerMessage;
+        }
+        catch (Exception ex)
+        {
+            _telemetryStartError = ex.Message;
+            FooterStatusText.Text = ex.Message;
+        }
+        UpdateTelemetryStatus();
+        UpdateDiagnosticsStatus();
     }
 
     private async void SaveForwardingDestinationButton_Click(object sender, RoutedEventArgs e)
@@ -2907,6 +3046,8 @@ public partial class MainWindow : Window
             UseLightTheme: _lightTheme,
             AdvancedDiagnosticsEnabled: _advancedDiagnosticsEnabled,
             SelectedGameId: _selectedGameId,
+            AllowLanTelemetry: _allowLanTelemetry,
+            AllowedTelemetryRemoteAddresses: _allowedTelemetryRemoteAddresses.ToList(),
             SelectedOutputKind: _selectedOutputKind,
             PhprPedalsEnabledPreference: _phprPedalsEnabledPreference,
             PhprPedalsModePreference: _phprPedalsModePreference,
@@ -4896,6 +5037,7 @@ public partial class MainWindow : Window
             pipelineSnapshot.Audio,
             testBenchSnapshot);
         var receiverSnapshot = _telemetryReceiver.GetSnapshot();
+        var ingressSnapshot = _telemetryIngressWorker.GetSnapshot();
         var forwarderSnapshot = pipelineSnapshot.Forwarding;
         var recordingSnapshot = pipelineSnapshot.Recording;
         var replaySnapshot = pipelineSnapshot.Replay;
@@ -4931,13 +5073,13 @@ public partial class MainWindow : Window
             OutputPeakLevel: audioDiagnostics.OutputPeakLevel,
             RenderCallbackCount: outputStatus.RenderCallbackCount,
             PipelineText: $"{(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); telemetry age {(pipelineSnapshot.TelemetryAge is null ? "none" : $"{pipelineSnapshot.TelemetryAge.Value.TotalMilliseconds:0} ms")}; stale mute {pipelineSnapshot.TelemetryTimedOutMuted}; last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
-            UdpListenerText: $"{(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}.",
-            UdpForwardingText: $"{forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; {forwarderSnapshot.ErrorCount:N0} error(s).",
+            UdpListenerText: $"{(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; bind {BuildTelemetryBindAddressText()}; allow LAN {_allowLanTelemetry}; allowlist {_allowedTelemetryRemoteAddresses.Count:N0}; received {ingressSnapshot.ReceivedPacketCount:N0}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; ignored remotes {receiverSnapshot.IgnoredRemotePacketCount:N0}; oversized {receiverSnapshot.OversizedDatagramCount:N0}; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}; warning {_telemetryListenerWarning ?? "none"}.",
+            UdpForwardingText: $"{forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; ingress dropped {ingressSnapshot.ForwardingDroppedPacketCount:N0}; {forwarderSnapshot.ErrorCount:N0} error(s).",
             UdpForwardingDestinationsText: BuildForwardingDestinationsText(),
             ParserText: $"{parserSuccess:N0} valid, {parserIgnored:N0} ignored, {parserFailed:N0} failed. {pipelineSnapshot.LastPacketMessage}",
             PacketIdsText: packetDiagnostics,
             VehicleStateText: $"{vehicleUpdates:N0} update(s). {pipelineSnapshot.LastVehicleStateMessage}",
-            RecordingText: $"{(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}.",
+            RecordingText: $"{(recordingSnapshot.IsRecording ? "active" : "inactive")}; {recordingSnapshot.PacketCount:N0} packet(s); file {(recordingSnapshot.FilePath is null ? "none" : Path.GetFileName(recordingSnapshot.FilePath))}; ingress dropped {ingressSnapshot.RecordingDroppedPacketCount:N0}; queued dropped {recordingSnapshot.DroppedPacketCount:N0}; incomplete {(recordingSnapshot.RecordingIncomplete || ingressSnapshot.RecordingMarkedIncomplete)}.",
             ReplayText: $"{(replaySnapshot.IsReplaying ? "active" : "inactive")}; source {FormatReplaySource(pipelineSnapshot)}; {replaySnapshot.PacketsReplayed:N0} packet(s); {replaySnapshot.StatusMessage}",
             Effects: bst1Diagnostics.Effects,
             Bst1SlipLockText: bst1Diagnostics.SlipLockText,
@@ -5413,6 +5555,11 @@ public partial class MainWindow : Window
                 $"{(destination.Enabled ? "enabled" : "disabled")} {destination.Name}->{destination.Host}:{destination.Port}"));
     }
 
+    private string BuildTelemetryBindAddressText()
+    {
+        return _allowLanTelemetry ? "0.0.0.0" : IPAddress.Loopback.ToString();
+    }
+
     private async Task RefreshAsioVisibilityDiagnosticsAsync()
     {
         _asioVisibilitySnapshot = await _asioVisibilityDiagnostics.RefreshAsync();
@@ -5698,25 +5845,7 @@ public partial class MainWindow : Window
 
     private void TelemetryReceiver_PacketReceived(object? sender, UdpTelemetryPacketReceivedEventArgs e)
     {
-        _ = HandleLiveTelemetryPacketAsync(e.Packet);
-    }
-
-    private async Task HandleLiveTelemetryPacketAsync(UdpTelemetryPacket packet)
-    {
-        try
-        {
-            var result = await _hapticPipeline.OfferLiveTelemetryPacketAsync(packet);
-            if (result.RecordingStatus is TelemetryRecordingOperationStatus.Failure or TelemetryRecordingOperationStatus.Dropped)
-            {
-                _recordingError = result.RecordingMessage;
-            }
-        }
-        catch (Exception ex)
-        {
-            _recordingError ??= $"Telemetry pipeline error: {ex.Message}";
-        }
-
-        await Dispatcher.InvokeAsync(UpdateTelemetryStatus);
+        _telemetryIngressWorker.Enqueue(e.Packet);
     }
 
     private HapticPipelineSnapshot RefreshDrivingArmedAndShiftIntentTelemetry()
@@ -5951,6 +6080,7 @@ public partial class MainWindow : Window
             PageStatusText.Text = BuildTelemetryUdpStatusPresentation(
                 pipelineSnapshot,
                 snapshot,
+                _telemetryIngressWorker.GetSnapshot(),
                 status).TelemetryUdpPageStatusText;
         }
     }
@@ -6004,12 +6134,14 @@ public partial class MainWindow : Window
         return BuildTelemetryUdpStatusPresentation(
             _hapticPipeline.GetSnapshot(),
             _telemetryReceiver.GetSnapshot(),
+            _telemetryIngressWorker.GetSnapshot(),
             GetTelemetryListenerPageStatus());
     }
 
     private TelemetryUdpStatusPresentation BuildTelemetryUdpStatusPresentation(
         HapticPipelineSnapshot pipelineSnapshot,
         UdpTelemetryReceiverSnapshot receiverSnapshot,
+        TelemetryIngressWorkerSnapshot ingressSnapshot,
         string listenerStatusText)
     {
         var recordingSnapshot = pipelineSnapshot.Recording;
@@ -6022,7 +6154,7 @@ public partial class MainWindow : Window
             RecordingActive: recordingSnapshot.IsRecording,
             RecordingFileName: recordingSnapshot.FilePath is null ? string.Empty : Path.GetFileName(recordingSnapshot.FilePath),
             RecordingLastPacketRelativeTime: recordingSnapshot.LastPacketRelativeTime,
-            RecordingError: _recordingError ?? recordingSnapshot.LastErrorMessage,
+            RecordingError: _recordingError ?? recordingSnapshot.LastErrorMessage ?? ingressSnapshot.LastErrorMessage,
             ReplayActive: replaySnapshot.IsReplaying,
             ReplayModeLabel: replayMode.Label,
             ReplaySourceFileName: replaySnapshot.SourceFilePath is null ? string.Empty : Path.GetFileName(replaySnapshot.SourceFilePath),
@@ -6031,11 +6163,20 @@ public partial class MainWindow : Window
             ReplayError: _replayError,
             ListenerStatusText: listenerStatusText,
             ListenerPort: receiverSnapshot.BoundPort,
+            AllowLanTelemetry: _allowLanTelemetry,
+            HasAllowedRemoteAddresses: _allowedTelemetryRemoteAddresses.Count > 0,
+            LanWarningText: _telemetryListenerWarning,
+            ReceivedPacketCount: ingressSnapshot.ReceivedPacketCount,
+            HapticDroppedPacketCount: ingressSnapshot.HapticDroppedPacketCount,
+            ForwardingDroppedPacketCount: ingressSnapshot.ForwardingDroppedPacketCount,
+            IgnoredRemotePacketCount: receiverSnapshot.IgnoredRemotePacketCount,
+            OversizedDatagramCount: receiverSnapshot.OversizedDatagramCount,
             ForwardedDatagramCount: forwardingSnapshot.ForwardedDatagramCount,
             RecordingPacketCount: recordingSnapshot.PacketCount,
             RecordingQueuedPacketCount: recordingSnapshot.QueuedPacketCount,
             RecordingQueueCapacityPackets: recordingSnapshot.QueueCapacityPackets,
-            RecordingDroppedPacketCount: recordingSnapshot.DroppedPacketCount,
+            RecordingDroppedPacketCount: recordingSnapshot.DroppedPacketCount + ingressSnapshot.RecordingDroppedPacketCount,
+            RecordingIncomplete: recordingSnapshot.RecordingIncomplete || ingressSnapshot.RecordingMarkedIncomplete,
             ParserSuccessCount: pipelineSnapshot.ParserSuccessCount,
             VehicleStateUpdateCount: pipelineSnapshot.VehicleStateUpdateCount,
             ForwardingDestinationCount: _forwardingDestinations.Count,
@@ -6369,6 +6510,7 @@ public partial class MainWindow : Window
                 case ShutdownCleanupStepKind.DisposeTelemetryReceiver:
                     try
                     {
+                        await _telemetryIngressWorker.DisposeAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                         await _telemetryReceiver.DisposeAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                         udpListenerDisposed = true;
                     }
@@ -6554,6 +6696,12 @@ public partial class MainWindow : Window
     private ComboBox ReplayTimingModeComboBox => TelemetryUdpViewControl.GetRequiredControl<ComboBox>(nameof(ReplayTimingModeComboBox));
 
     private TextBlock ReplayTimingModeHelpText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(ReplayTimingModeHelpText));
+
+    private CheckBox AllowLanTelemetryCheckBox => TelemetryUdpViewControl.GetRequiredControl<CheckBox>(nameof(AllowLanTelemetryCheckBox));
+
+    private TextBox AllowedRemoteAddressesTextBox => TelemetryUdpViewControl.GetRequiredControl<TextBox>(nameof(AllowedRemoteAddressesTextBox));
+
+    private TextBlock TelemetryListenerStatusText => TelemetryUdpViewControl.GetRequiredControl<TextBlock>(nameof(TelemetryListenerStatusText));
 
     private Border AdvancedPhprDiagnosticsPanel => AdvancedDiagnosticsViewControl.GetRequiredControl<Border>(nameof(AdvancedPhprDiagnosticsPanel));
 

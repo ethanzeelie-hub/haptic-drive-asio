@@ -13,6 +13,8 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
     private DateTimeOffset? _startedAtUtc;
     private DateTimeOffset? _lastPacketAtUtc;
     private long _packetCount;
+    private long _ignoredRemotePacketCount;
+    private long _oversizedDatagramCount;
     private long _errorCount;
     private long _sequenceNumber;
     private string? _lastErrorMessage;
@@ -28,7 +30,7 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
 
     public UdpTelemetryReceiverSnapshot GetSnapshot()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _options.EffectiveTimeProvider.GetUtcNow();
         DateTimeOffset? startedAtUtc;
         DateTimeOffset? lastPacketAtUtc;
         string? lastErrorMessage;
@@ -56,6 +58,8 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
             _options.Port,
             boundPort,
             packetCount,
+            Interlocked.Read(ref _ignoredRemotePacketCount),
+            Interlocked.Read(ref _oversizedDatagramCount),
             isRunning ? packetCount / elapsedSeconds : 0,
             startedAtUtc,
             lastPacketAtUtc,
@@ -87,6 +91,8 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
             _lastPacketAtUtc = null;
             _lastErrorMessage = null;
             Interlocked.Exchange(ref _packetCount, 0);
+            Interlocked.Exchange(ref _ignoredRemotePacketCount, 0);
+            Interlocked.Exchange(ref _oversizedDatagramCount, 0);
             Interlocked.Exchange(ref _errorCount, 0);
             Interlocked.Exchange(ref _sequenceNumber, 0);
             _receiveTask = Task.Run(() => ReceiveLoopAsync(udpClient, stopCts.Token), CancellationToken.None);
@@ -154,6 +160,7 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
                 var result = await udpClient.ReceiveAsync(cancellationToken).ConfigureAwait(false);
                 if (result.Buffer.Length > _options.MaxDatagramBytes)
                 {
+                    Interlocked.Increment(ref _oversizedDatagramCount);
                     Interlocked.Increment(ref _errorCount);
                     lock (_gate)
                     {
@@ -166,6 +173,7 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
                 if (_options.AllowedRemoteAddresses is { Count: > 0 }
                     && !_options.AllowedRemoteAddresses.Contains(result.RemoteEndPoint.Address))
                 {
+                    Interlocked.Increment(ref _ignoredRemotePacketCount);
                     continue;
                 }
 

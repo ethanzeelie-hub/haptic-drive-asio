@@ -125,7 +125,8 @@
 
 - Stage 26A complete: global output safety interlock now owns emergency stop/mute latching across BST-1 audio, manual test rendering, and P-HPR routing/runtime surfaces.
 - Stage 26B complete: telemetry now carries monotonic receive timestamps, F1 25 state resets on source/session/player identity changes, older same-session frames are ignored, per-signal freshness is centralized, and stale driving telemetry can latch the global output interlock.
-- Next production-hardening priority: bounded UDP ingress, forwarding/recording backpressure handling, and safer LAN telemetry defaults so live packet flow cannot grow tasks or memory unbounded.
+- Stage 26C complete: live UDP telemetry now flows through one bounded ingress worker with dedicated haptic/forwarding/recording channels, loopback remains the default bind, LAN telemetry is explicit opt-in, and diagnostics now surface ignored remotes, oversized datagrams, and ingress drop counts.
+- Next production-hardening priority: serialize runtime lifecycle work so output switching, pipeline rebuilds, timer updates, telemetry processing, and shutdown cannot overlap unsafely.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

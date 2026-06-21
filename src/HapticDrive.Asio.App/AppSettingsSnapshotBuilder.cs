@@ -14,6 +14,8 @@ internal sealed record AppSettingsHydrationSnapshot(
     bool UseLightTheme,
     bool AdvancedDiagnosticsEnabled,
     string SelectedGameId,
+    bool AllowLanTelemetry,
+    IReadOnlyList<string> AllowedTelemetryRemoteAddresses,
     bool HasPersistedOutputModePreference,
     bool PhprPedalsEnabledPreference,
     PhprPedalsModePreference PhprPedalsModePreference,
@@ -36,6 +38,8 @@ internal sealed record AppSettingsSaveInputs(
     bool UseLightTheme,
     bool AdvancedDiagnosticsEnabled,
     string SelectedGameId,
+    bool AllowLanTelemetry,
+    IReadOnlyList<string> AllowedTelemetryRemoteAddresses,
     AudioOutputDeviceKind SelectedOutputKind,
     bool PhprPedalsEnabledPreference,
     PhprPedalsModePreference PhprPedalsModePreference,
@@ -106,6 +110,8 @@ internal static class AppSettingsSnapshotBuilder
             UseLightTheme: sanitized.UseLightTheme,
             AdvancedDiagnosticsEnabled: sanitized.AdvancedDiagnosticsEnabled,
             SelectedGameId: sanitized.SelectedGameId,
+            AllowLanTelemetry: sanitized.AllowLanTelemetry,
+            AllowedTelemetryRemoteAddresses: sanitized.AllowedTelemetryRemoteAddresses.ToList(),
             HasPersistedOutputModePreference: sanitized.PreferredOutputMode is not null,
             PhprPedalsEnabledPreference: phprPedalsEnabledPreference,
             PhprPedalsModePreference: phprPedalsModePreference,
@@ -132,6 +138,12 @@ internal static class AppSettingsSnapshotBuilder
             UseLightTheme = inputs.UseLightTheme,
             AdvancedDiagnosticsEnabled = inputs.AdvancedDiagnosticsEnabled,
             SelectedGameId = GameTelemetryCatalog.NormalizeGameId(inputs.SelectedGameId),
+            AllowLanTelemetry = inputs.AllowLanTelemetry,
+            AllowedTelemetryRemoteAddresses = inputs.AllowedTelemetryRemoteAddresses
+                .Where(address => !string.IsNullOrWhiteSpace(address))
+                .Select(address => address.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             PreferredOutputMode = inputs.SelectedOutputKind,
             PreferredPhprPedalsEnabled = inputs.PhprPedalsEnabledPreference,
             PreferredPhprPedalsMode = inputs.PhprPedalsModePreference,

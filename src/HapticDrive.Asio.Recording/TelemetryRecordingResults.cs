@@ -171,7 +171,9 @@ public sealed record TelemetryRecordingSnapshot(
     string? LastErrorMessage,
     int? QueueCapacityPackets = null,
     int QueuedPacketCount = 0,
-    long DroppedPacketCount = 0);
+    long DroppedPacketCount = 0,
+    bool RecordingIncomplete = false,
+    string? IncompleteReason = null);
 
 public sealed record TelemetryReplaySnapshot(
     bool IsReplaying,

@@ -3,7 +3,8 @@
 ## Current Hardening Focus
 
 - The old audio-only emergency mute path has been replaced by the Stage 26A global output interlock.
-- Stage 26B now uses session-aware per-signal freshness and reset protection for the shipped F1 25 path, but bounded UDP ingress/backpressure hardening is still the next production-hardening priority.
+- Stage 26B now uses session-aware per-signal freshness and reset protection for the shipped F1 25 path.
+- Stage 26C now routes live UDP packets through one bounded ingress worker, exposes ignored-remote / oversized / drop counters, and defaults the listener to loopback with explicit LAN opt-in.
 - The output interlock starts latched by default and now requires an explicit reset after haptics are started and output configuration is valid.
 
 ## Stage 00

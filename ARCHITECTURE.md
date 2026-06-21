@@ -22,6 +22,22 @@ F1 25 UDP packets
 -> audio output device
 ```
 
+Current production-hardening shape for live telemetry:
+
+```text
+UDP receiver (loopback default, LAN opt-in)
+-> bounded telemetry ingress worker
+   -> bounded haptic-processing channel
+   -> bounded forwarding channel
+   -> bounded recording channel
+-> shared VehicleState / freshness checks
+-> haptic effect engine
+-> mixer and safety chain
+-> audio output device
+```
+
+The ingress worker exists so packet receive never creates one task per datagram and so forwarding/recording backpressure can stay visible without blocking the live haptic path. Forwarding continues to send `UdpTelemetryPacket.Payload` byte-for-byte, and recording continues to preserve the original UDP payload independently of parser success.
+
 Manual ASIO hardware validation reuses the same audio boundary:
 
 ```text

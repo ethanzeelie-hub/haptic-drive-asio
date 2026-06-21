@@ -700,7 +700,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             SetPipelineError(recordingResult.Message);
         }
 
-        var parseResult = ProcessTelemetryPacket(packet, HapticPipelineInputSource.LiveUdp);
+        var parseResult = ProcessLiveTelemetryPacket(packet);
         var forwardingAttempted = false;
 
         try
@@ -720,6 +720,22 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             recordingResult.Status,
             recordingResult.Message,
             forwardingAttempted,
+            parseResult.Message);
+    }
+
+    public HapticPipelinePacketResult ProcessLiveTelemetryPacket(UdpTelemetryPacket packet)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(packet);
+
+        var parseResult = ProcessTelemetryPacket(packet, HapticPipelineInputSource.LiveUdp);
+        return new HapticPipelinePacketResult(
+            HapticPipelineInputSource.LiveUdp,
+            parseResult.ParseStatus,
+            parseResult.VehicleStateUpdated,
+            TelemetryRecordingOperationStatus.NotRecording,
+            null,
+            ForwardingAttempted: false,
             parseResult.Message);
     }
 

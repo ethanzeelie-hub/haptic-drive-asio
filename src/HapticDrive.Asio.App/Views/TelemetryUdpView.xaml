@@ -7,6 +7,34 @@
              d:DesignHeight="760"
              d:DesignWidth="980">
     <StackPanel x:Name="TelemetryUdpPanel">
+        <Border Style="{StaticResource CardBorderStyle}">
+            <StackPanel>
+                <TextBlock FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="Telemetry Listener Safety" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           Text="Loopback is the default safety mode. LAN telemetry requires explicit opt-in and should be paired with allowed remote IPs." />
+                <CheckBox x:Name="AllowLanTelemetryCheckBox"
+                          Margin="0,16,0,0"
+                          Content="Allow LAN telemetry"
+                          Checked="AllowLanTelemetryCheckBox_Changed"
+                          Unchecked="AllowLanTelemetryCheckBox_Changed" />
+                <TextBlock Margin="0,12,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           Text="Allowed remote IPs (comma or semicolon separated)" />
+                <TextBox x:Name="AllowedRemoteAddressesTextBox"
+                         MaxWidth="420"
+                         HorizontalAlignment="Left"
+                         LostFocus="AllowedRemoteAddressesTextBox_LostFocus"
+                         Style="{StaticResource FieldTextBoxStyle}" />
+                <TextBlock x:Name="TelemetryListenerStatusText"
+                           Margin="0,12,0,0"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
         <Border x:Name="RecordingsPanel"
                 Style="{StaticResource CardBorderStyle}">
             <StackPanel>

@@ -138,6 +138,12 @@ public sealed class AppSettingsSnapshotBuilderTests
             UseLightTheme: true,
             AdvancedDiagnosticsEnabled: true,
             SelectedGameId: GameTelemetryCatalog.DefaultGameId,
+            AllowLanTelemetry: true,
+            AllowedTelemetryRemoteAddresses:
+            [
+                "192.168.0.10",
+                "192.168.0.11"
+            ],
             SelectedOutputKind: AudioOutputDeviceKind.Asio,
             PhprPedalsEnabledPreference: true,
             PhprPedalsModePreference: PhprPedalsModePreference.Direct,
@@ -241,6 +247,8 @@ public sealed class AppSettingsSnapshotBuilderTests
 
         Assert.True(settings.UseLightTheme);
         Assert.True(settings.AdvancedDiagnosticsEnabled);
+        Assert.True(settings.AllowLanTelemetry);
+        Assert.Equal(["192.168.0.10", "192.168.0.11"], settings.AllowedTelemetryRemoteAddresses);
         Assert.Equal(AudioOutputDeviceKind.Asio, settings.PreferredOutputMode);
         Assert.True(settings.PreferredPhprPedalsEnabled);
         Assert.Equal(PhprPedalsModePreference.Direct, settings.PreferredPhprPedalsMode);

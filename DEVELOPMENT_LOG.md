@@ -6909,3 +6909,70 @@ Self-review:
 - Session, lap, and event packets no longer make stale car telemetry look fresh.
 - F1 25 state no longer mixes old source/session/player-car samples into the current `VehicleState`.
 - The current repo still needs the next ingress/backpressure stage: UDP packet handling is not yet moved onto the bounded worker/channel model from the roadmap.
+
+## Stage 26C - Bounded UDP Ingress and Safer Listener Defaults
+
+Status: Complete.
+
+Goal: Move live telemetry receive off the fire-and-forget per-packet WPF path, add bounded backpressure for haptic/forwarding/recording work, and make loopback-only UDP listening the production-safe default unless LAN telemetry is explicitly enabled.
+
+Changes:
+
+- Added `TelemetryIngressWorker` under `HapticDrive.Asio.Runtime.Telemetry`:
+  - one bounded haptic-processing channel with capacity `512` and `DropOldest`,
+  - one bounded forwarding channel with capacity `2048` and `DropOldest`,
+  - one bounded recording channel with capacity `8192` and `DropWrite`,
+  - exactly three long-running background workers instead of one task per UDP packet,
+  - ingress diagnostics for received packets, haptic drops, forwarding drops, recording drops, and recording-incomplete state.
+- Split live telemetry processing ownership:
+  - `HapticPipelineCoordinator.ProcessLiveTelemetryPacket` now provides parse/update-only live packet application for the ingress worker,
+  - the existing `OfferLiveTelemetryPacketAsync` path remains available for compatibility coverage.
+- Hardened recording/drop diagnostics:
+  - `TelemetryRecordingService` now exposes `MarkIncomplete`,
+  - recording snapshots now surface `RecordingIncomplete` plus `IncompleteReason`,
+  - ingress-side recording drops mark the current recording incomplete without introducing hardware requirements.
+- Extended UDP listener diagnostics:
+  - `UdpTelemetryReceiverSnapshot` now exposes `IgnoredRemotePacketCount` and `OversizedDatagramCount`,
+  - receiver snapshot timing now uses the configured `TimeProvider`,
+  - ignored remote IPs and oversized datagrams now increment dedicated counters before dispatch is skipped.
+- Rewired the app listener flow:
+  - `MainWindow` now owns a re-creatable `IUdpTelemetryReceiver` configured from persisted safe listener settings,
+  - `TelemetryReceiver_PacketReceived` now enqueues only into `_telemetryIngressWorker`,
+  - the old per-packet async handler path was removed,
+  - pipeline rebuilds now rebuild the ingress worker alongside the pipeline.
+- Added safer telemetry listener UX:
+  - new `Allow LAN telemetry` checkbox,
+  - optional allowed-remote IP textbox,
+  - persisted app settings for LAN opt-in and allowed remote addresses,
+  - explicit UI and diagnostics warning when LAN telemetry is enabled with no allowlist.
+- Updated Telemetry / UDP and diagnostics presentations to show:
+  - loopback vs LAN listener mode,
+  - allowed-remote warning state,
+  - ingress received count,
+  - haptic / recording / forwarding drop counts,
+  - ignored remote packet count,
+  - oversized datagram count.
+
+Tests:
+
+- Added `TelemetryIngressWorkerTests`:
+  - `DoesNotCreatePerPacketTasks`,
+  - `HapticChannelDropsOldestUnderLoad`,
+  - `ForwarderPreservesPayloadBytes`,
+  - `RecordingDropMarksRecordingIncomplete`.
+- Added `MainWindowTelemetryTests.PacketReceivedHandlerOnlyEnqueues`.
+- Extended `UdpTelemetryReceiverTests` with ignored-remote and oversized-datagram counter coverage.
+- Updated presentation/app-settings tests for the new listener settings and status text.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Core.Tests\HapticDrive.Asio.Core.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj -c Release --no-build` passed.
+
+Self-review:
+
+- Live packet receive now returns quickly and no longer spins up WPF-attached work per datagram.
+- Byte preservation for forwarding/recording remains intact because the ingress worker forwards the original `UdpTelemetryPacket.Payload`.
+- This stage intentionally stops at ingress/backpressure and listener safety; runtime lifecycle serialization and overlapping async operation hardening remain the next stage.
