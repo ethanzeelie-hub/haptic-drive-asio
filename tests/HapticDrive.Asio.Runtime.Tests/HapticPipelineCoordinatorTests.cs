@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Net;
+using HapticDrive.Actuation.Driving;
 using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.Safety;
@@ -324,6 +325,125 @@ public sealed class HapticPipelineCoordinatorTests
     }
 
     [Fact]
+    public async Task StaleTelemetryRendersSilenceEvenWhenSessionPacketsContinue()
+    {
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                Engine = HapticDriveProfile.Default.Effects.Engine with { IsEnabled = true }
+            }
+        };
+        var options = HapticPipelineOptions.ManualRendering with
+        {
+            TelemetryMuteTimeout = TimeSpan.FromMilliseconds(50)
+        };
+        await using var coordinator = RuntimeTestPipelineFactory.Create(profile: profile, options: options);
+
+        Assert.True((await coordinator.StartAsync()).Succeeded);
+        Assert.Equal(
+            TelemetryPacketParseStatus.Success,
+            (await coordinator.OfferLiveTelemetryPacketAsync(
+                CreatePacket(
+                    CreateCarTelemetryDatagram(rpm: 9_000, throttle: 0.9f, gear: 6, frameIdentifier: 10, overallFrameIdentifier: 10),
+                    receivedAtUtc: DateTimeOffset.UtcNow,
+                    receivedAtTimestamp: TimeProvider.System.GetTimestamp()))).ParseStatus);
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+        Assert.True(coordinator.GetSnapshot().NullOutput!.LastPeakLevel > 0f);
+
+        await Task.Delay(80);
+        Assert.Equal(
+            TelemetryPacketParseStatus.Success,
+            (await coordinator.OfferLiveTelemetryPacketAsync(
+                CreatePacket(
+                    CreateSessionDatagram(frameIdentifier: 11, overallFrameIdentifier: 11),
+                    receivedAtUtc: DateTimeOffset.UtcNow,
+                    receivedAtTimestamp: TimeProvider.System.GetTimestamp()))).ParseStatus);
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+
+        var snapshot = coordinator.GetSnapshot();
+        Assert.True(snapshot.TelemetryTimedOutMuted);
+        Assert.Equal(0f, snapshot.NullOutput!.LastPeakLevel);
+        Assert.True(snapshot.TelemetryFreshness.Age >= options.TelemetryMuteTimeout);
+        Assert.True(snapshot.SessionFreshness.IsFresh);
+        Assert.False(snapshot.TelemetryFreshness.IsFresh);
+    }
+
+    [Fact]
+    public async Task TelemetryStaleTripsOutputInterlock()
+    {
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                Engine = HapticDriveProfile.Default.Effects.Engine with { IsEnabled = true }
+            }
+        };
+        var options = HapticPipelineOptions.ManualRendering with
+        {
+            TelemetryMuteTimeout = TimeSpan.FromMilliseconds(50)
+        };
+        await using var coordinator = RuntimeTestPipelineFactory.Create(profile: profile, options: options);
+
+        Assert.True((await coordinator.StartAsync()).Succeeded);
+        Assert.Equal(
+            TelemetryPacketParseStatus.Success,
+            (await coordinator.OfferLiveTelemetryPacketAsync(
+                CreatePacket(
+                    CreateCarTelemetryDatagram(rpm: 9_000, throttle: 0.9f, gear: 6, frameIdentifier: 10, overallFrameIdentifier: 10),
+                    receivedAtUtc: DateTimeOffset.UtcNow,
+                    receivedAtTimestamp: TimeProvider.System.GetTimestamp()))).ParseStatus);
+        await Task.Delay(300);
+
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+
+        var snapshot = coordinator.GetSnapshot();
+        Assert.True(snapshot.OutputInterlock.IsLatched);
+        Assert.Equal(OutputInterlockReason.TelemetryStale, snapshot.OutputInterlock.Reason);
+        Assert.Equal(0f, snapshot.NullOutput!.LastPeakLevel);
+    }
+
+    [Fact]
+    public async Task DrivingArmedFalseWhenCriticalTelemetryStale()
+    {
+        var profile = HapticDriveProfile.Default with
+        {
+            Effects = HapticDriveProfile.Default.Effects with
+            {
+                Engine = HapticDriveProfile.Default.Effects.Engine with { IsEnabled = true }
+            }
+        };
+        var options = HapticPipelineOptions.ManualRendering with
+        {
+            TelemetryMuteTimeout = TimeSpan.FromMilliseconds(50)
+        };
+        await using var coordinator = RuntimeTestPipelineFactory.Create(profile: profile, options: options);
+        var drivingArmed = new DrivingArmedStateService();
+
+        Assert.True((await coordinator.StartAsync()).Succeeded);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
+            CreatePacket(CreateSessionDatagram(frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
+            CreatePacket(CreateLapDataDatagram(driverStatus: 4, resultStatus: 2, frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
+            CreatePacket(CreateCarStatusDatagram(networkPaused: 0, frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
+            CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 0.9f, gear: 6, frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
+
+        var freshState = drivingArmed.UpdateFromPipelineSnapshot(coordinator.GetSnapshot());
+        Assert.True(freshState.IsArmed, freshState.Reason);
+
+        await Task.Delay(80);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
+            CreatePacket(CreateSessionDatagram(frameIdentifier: 11, overallFrameIdentifier: 11)))).ParseStatus);
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+
+        var staleState = drivingArmed.UpdateFromPipelineSnapshot(coordinator.GetSnapshot());
+        Assert.False(staleState.IsArmed);
+        Assert.Equal(DrivingArmedSuppressionReason.StaleTelemetry, drivingArmed.GetSnapshot().LastSuppressionReason);
+    }
+
+    [Fact]
     public async Task InjectedGameTelemetryAdapter_DrivesPacketDiagnosticsWithoutF125Parsing()
     {
         var adapter = new FakeGameTelemetryAdapter(
@@ -359,16 +479,37 @@ public sealed class HapticPipelineCoordinatorTests
             1,
             payload,
             new IPEndPoint(IPAddress.Loopback, 20778),
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            TimeProvider.System.GetTimestamp());
+    }
+
+    private static UdpTelemetryPacket CreatePacket(
+        byte[] payload,
+        long sequenceNumber = 1,
+        DateTimeOffset? receivedAtUtc = null,
+        long? receivedAtTimestamp = null)
+    {
+        return new UdpTelemetryPacket(
+            sequenceNumber,
+            payload,
+            new IPEndPoint(IPAddress.Loopback, 20778),
+            receivedAtUtc ?? DateTimeOffset.UtcNow,
+            receivedAtTimestamp ?? TimeProvider.System.GetTimestamp());
     }
 
     private const int HeaderOffset = F125PacketDefinitions.HeaderSize;
 
-    private static byte[] CreateCarTelemetryDatagram(ushort rpm, float throttle, sbyte gear)
+    private static byte[] CreateCarTelemetryDatagram(
+        ushort rpm,
+        float throttle,
+        sbyte gear,
+        ulong sessionUid = 123456789,
+        uint frameIdentifier = 42,
+        uint overallFrameIdentifier = 84)
     {
         var definition = F125PacketDefinitions.All.Single(item => item.Kind == F125PacketKind.CarTelemetry);
         var datagram = new byte[definition.Size];
-        WriteHeader(datagram, definition.Id, playerCarIndex: 0);
+        WriteHeader(datagram, definition.Id, playerCarIndex: 0, sessionUid, frameIdentifier, overallFrameIdentifier);
         WriteUInt16(datagram, 0, 120);
         WriteSingle(datagram, 2, throttle);
         datagram[HeaderOffset + 15] = unchecked((byte)gear);
@@ -376,7 +517,54 @@ public sealed class HapticPipelineCoordinatorTests
         return datagram;
     }
 
-    private static void WriteHeader(byte[] datagram, byte packetId, byte playerCarIndex)
+    private static byte[] CreateSessionDatagram(
+        ulong sessionUid = 123456789,
+        uint frameIdentifier = 42,
+        uint overallFrameIdentifier = 84)
+    {
+        var definition = F125PacketDefinitions.All.Single(item => item.Kind == F125PacketKind.Session);
+        var datagram = new byte[definition.Size];
+        WriteHeader(datagram, definition.Id, playerCarIndex: 0, sessionUid, frameIdentifier, overallFrameIdentifier);
+        datagram[HeaderOffset + 14] = 0;
+        datagram[HeaderOffset + 124] = 0;
+        return datagram;
+    }
+
+    private static byte[] CreateLapDataDatagram(
+        byte driverStatus,
+        byte resultStatus,
+        ulong sessionUid = 123456789,
+        uint frameIdentifier = 42,
+        uint overallFrameIdentifier = 84)
+    {
+        var definition = F125PacketDefinitions.All.Single(item => item.Kind == F125PacketKind.LapData);
+        var datagram = new byte[definition.Size];
+        WriteHeader(datagram, definition.Id, playerCarIndex: 0, sessionUid, frameIdentifier, overallFrameIdentifier);
+        datagram[HeaderOffset + 44] = driverStatus;
+        datagram[HeaderOffset + 45] = resultStatus;
+        return datagram;
+    }
+
+    private static byte[] CreateCarStatusDatagram(
+        byte networkPaused,
+        ulong sessionUid = 123456789,
+        uint frameIdentifier = 42,
+        uint overallFrameIdentifier = 84)
+    {
+        var definition = F125PacketDefinitions.All.Single(item => item.Kind == F125PacketKind.CarStatus);
+        var datagram = new byte[definition.Size];
+        WriteHeader(datagram, definition.Id, playerCarIndex: 0, sessionUid, frameIdentifier, overallFrameIdentifier);
+        datagram[HeaderOffset + 54] = networkPaused;
+        return datagram;
+    }
+
+    private static void WriteHeader(
+        byte[] datagram,
+        byte packetId,
+        byte playerCarIndex,
+        ulong sessionUid,
+        uint frameIdentifier,
+        uint overallFrameIdentifier)
     {
         BinaryPrimitives.WriteUInt16LittleEndian(datagram.AsSpan(0, 2), 2025);
         datagram[2] = 25;
@@ -384,10 +572,10 @@ public sealed class HapticPipelineCoordinatorTests
         datagram[4] = 0;
         datagram[5] = 1;
         datagram[6] = packetId;
-        BinaryPrimitives.WriteUInt64LittleEndian(datagram.AsSpan(7, 8), 123456789);
+        BinaryPrimitives.WriteUInt64LittleEndian(datagram.AsSpan(7, 8), sessionUid);
         BinaryPrimitives.WriteInt32LittleEndian(datagram.AsSpan(15, 4), BitConverter.SingleToInt32Bits(12.25f));
-        BinaryPrimitives.WriteUInt32LittleEndian(datagram.AsSpan(19, 4), 42);
-        BinaryPrimitives.WriteUInt32LittleEndian(datagram.AsSpan(23, 4), 84);
+        BinaryPrimitives.WriteUInt32LittleEndian(datagram.AsSpan(19, 4), frameIdentifier);
+        BinaryPrimitives.WriteUInt32LittleEndian(datagram.AsSpan(23, 4), overallFrameIdentifier);
         datagram[27] = playerCarIndex;
         datagram[28] = 255;
     }
@@ -469,6 +657,10 @@ public sealed class HapticPipelineCoordinatorTests
         public TelemetryPacketProcessResult Process(UdpTelemetryPacket packet)
         {
             return _result;
+        }
+
+        public void Reset(VehicleStateResetReason reason)
+        {
         }
     }
 }

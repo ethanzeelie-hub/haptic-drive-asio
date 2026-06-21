@@ -1,5 +1,6 @@
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -341,7 +342,7 @@ public sealed class PHprPedalEffectsRouter
     {
         if (!state.IsEnabled
             || ShouldMuteForDrivingState(vehicleState)
-            || !IsFresh(vehicleState, vehicleState.Telemetry, MaximumTelemetryFrameLag))
+            || !IsTelemetryFresh(vehicleState, MaximumTelemetryFrameLag))
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.RoadVibration, state);
         }
@@ -625,29 +626,16 @@ public sealed class PHprPedalEffectsRouter
         return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
     }
 
-    private static bool IsFresh<T>(
+    private static bool IsTelemetryFresh(
         VehicleState vehicleState,
-        VehicleStateSample<T>? sample,
         uint maximumFrameLag)
     {
-        if (sample is null)
-        {
-            return false;
-        }
-
-        var currentFrame = vehicleState.Frame.OverallFrameIdentifier;
-        if (currentFrame is null || maximumFrameLag == 0)
-        {
-            return true;
-        }
-
-        var sampleFrame = sample.Stamp.OverallFrameIdentifier;
-        if (sampleFrame > currentFrame.Value)
-        {
-            return true;
-        }
-
-        return currentFrame.Value - sampleFrame <= maximumFrameLag;
+        return VehicleStateFreshness.EvaluateTelemetry(
+            vehicleState,
+            DateTimeOffset.UtcNow,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
     }
 
     private static float SurfaceGain(byte surfaceTypeId)
@@ -668,6 +656,17 @@ public sealed class PHprPedalEffectsRouter
             11 => 0.85f,
             _ => 0.25f
         };
+    }
+
+    private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)
+    {
+        return new TelemetryFreshnessPolicy(
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            maximumFrameLag);
     }
 
     private static float SpeedScale(float speedKph, float minimumSpeedKph, float fullIntensitySpeedKph)

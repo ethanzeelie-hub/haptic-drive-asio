@@ -119,11 +119,13 @@
 - Stage 25H: Live recording queue/backpressure hardening complete.
 - Stage 25I: Atomic persistence hardening complete.
 - Stage 26A: Global output safety interlock complete.
+- Stage 26B: Session-aware telemetry freshness hardening complete.
 
 ## Current Hardening Program
 
 - Stage 26A complete: global output safety interlock now owns emergency stop/mute latching across BST-1 audio, manual test rendering, and P-HPR routing/runtime surfaces.
-- Next production-hardening priority: telemetry freshness, session reset, and out-of-order protection so stale data cannot continue driving haptics.
+- Stage 26B complete: telemetry now carries monotonic receive timestamps, F1 25 state resets on source/session/player identity changes, older same-session frames are ignored, per-signal freshness is centralized, and stale driving telemetry can latch the global output interlock.
+- Next production-hardening priority: bounded UDP ingress, forwarding/recording backpressure handling, and safer LAN telemetry defaults so live packet flow cannot grow tasks or memory unbounded.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

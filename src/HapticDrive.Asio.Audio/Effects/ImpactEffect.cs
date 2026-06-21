@@ -166,7 +166,7 @@ public sealed class ImpactEffect : IHapticEffectSource
     private static ImpactMetrics ReadMetrics(VehicleState vehicleState, ImpactEffectOptions options)
     {
         float? verticalG = null;
-        if (VehicleStateEffectGuards.IsFresh(vehicleState, vehicleState.Motion, options.MaximumTelemetryFrameLag))
+        if (VehicleStateEffectGuards.IsMotionFresh(vehicleState, options.MaximumTelemetryFrameLag))
         {
             var value = vehicleState.Motion!.Value.GForceVertical;
             if (float.IsFinite(value) && Math.Abs(value) <= 20f)
@@ -177,7 +177,7 @@ public sealed class ImpactEffect : IHapticEffectSource
 
         float? wheelVerticalForce = null;
         float? suspensionAcceleration = null;
-        if (VehicleStateEffectGuards.IsFresh(vehicleState, vehicleState.MotionEx, options.MaximumTelemetryFrameLag))
+        if (VehicleStateEffectGuards.IsMotionExFresh(vehicleState, options.MaximumTelemetryFrameLag))
         {
             var motionEx = vehicleState.MotionEx!.Value;
             var force = VehicleStateEffectGuards.CalculateWheelMaximum(
@@ -198,7 +198,7 @@ public sealed class ImpactEffect : IHapticEffectSource
         }
 
         uint? collisionFrame = null;
-        if (VehicleStateEffectGuards.IsFresh(vehicleState, vehicleState.LastEvent, options.MaximumTelemetryFrameLag)
+        if (VehicleStateEffectGuards.IsLastEventFresh(vehicleState, options.MaximumTelemetryFrameLag)
             && vehicleState.LastEvent!.Value.EventCode == "COLL"
             && vehicleState.LastEvent.Value.InvolvesPlayer)
         {

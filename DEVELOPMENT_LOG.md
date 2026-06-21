@@ -6834,3 +6834,78 @@ Self-review:
 - The global interlock is now the safety source of truth for Stage 26A.
 - Public runtime snapshots still expose `EmergencyMute` for compatibility, but the value is derived from the interlock.
 - This stage intentionally does not yet add telemetry-freshness trips or per-signal stale detection; that remains the next hardening stage.
+
+## Stage 26B - Session-Aware Telemetry Freshness
+
+Status: Complete.
+
+Goal: Make telemetry freshness depend on the actual stamped signal sample instead of generic packet activity, prevent stale/old-session/state-mixed packets from continuing to drive output, and centralize freshness checks so audio and mock actuation paths agree on what is safe.
+
+Changes:
+
+- Extended telemetry packet timing and receiver options:
+  - `UdpTelemetryPacket` now carries both `ReceivedAtUtc` and `ReceivedAtTimestamp`,
+  - `UdpTelemetryReceiverOptions` now exposes `TimeProvider`, loopback-by-default bind behavior, LAN opt-in support, remote-IP allowlisting, and `MaxDatagramBytes`,
+  - `UdpTelemetryReceiver` now stamps monotonic receive timestamps and rejects oversized or disallowed packets before dispatch.
+- Extended `VehicleState` metadata:
+  - `VehicleStateStamp` now carries both UTC and monotonic receive timestamps,
+  - added `VehicleStateUpdatedSignals`,
+  - added `VehicleStateResetReason`.
+- Hardened the F1 25 adapter/state builder:
+  - source identity is now `F1 25|<remote-ip>`,
+  - `_current` resets on source-IP change, `SessionUid` change, or player-car change,
+  - older same-session `OverallFrameIdentifier` packets are ignored,
+  - equal-frame packets can still merge different packet types,
+  - applied results now report both updated signal flags and reset reason.
+- Added centralized per-signal freshness evaluation under `HapticDrive.Asio.Core.Vehicle.Freshness`:
+  - `TelemetryFreshnessPolicy`,
+  - `VehicleSignalFreshness`,
+  - `VehicleStateFreshness` for telemetry, motion, session, lap, car status, damage, motion ex, and event samples.
+- Updated runtime freshness behavior:
+  - `HapticPipelineCoordinator` now evaluates car-telemetry freshness from `VehicleState.Telemetry.Stamp` rather than from generic “last packet” activity,
+  - pipeline snapshots now expose separate freshness snapshots for telemetry, motion, session, lap, car status, damage, motion ex, and event samples,
+  - stale driving telemetry can now trip the global `OutputInterlock` with `TelemetryStale`,
+  - replay packets now preserve recorded UTC receive time while also carrying a fresh monotonic timestamp so replay stays compatible with the new freshness model.
+- Removed duplicated freshness drift from core effect and mock-actuation seams:
+  - BST-1 effect guards now route freshness checks through `VehicleStateFreshness`,
+  - `RoadTextureEvaluator`,
+  - `SlipLockEvaluationInput`,
+  - and mock `PHprPedalEffectsRouter`
+  now use the same freshness rules for session/frame validity.
+
+Tests:
+
+- Added F1 adapter reset/out-of-order coverage:
+  - `SessionUidChangeResetsOldSamples`,
+  - `SourceIpChangeResetsOldSamples`,
+  - `PlayerCarChangeResetsOldSamples`,
+  - `OlderOverallFrameIsIgnored`,
+  - `EqualOverallFrameCanMergeDifferentPacketTypes`,
+  - `UpdatedSignalsReflectAppliedPacketType`.
+- Added freshness helper coverage:
+  - `FreshSessionPacketDoesNotRefreshStaleCarTelemetry`,
+  - `FutureFrameSampleIsNotFresh`,
+  - `WrongSessionSampleIsNotFresh`,
+  - `FrameLagAbovePolicyIsNotFresh`,
+  - `MonotonicAgeAbovePolicyIsNotFresh`.
+- Added runtime behavior coverage:
+  - `StaleTelemetryRendersSilenceEvenWhenSessionPacketsContinue`,
+  - `TelemetryStaleTripsOutputInterlock`,
+  - `DrivingArmedFalseWhenCriticalTelemetryStale`.
+- Added UDP safety-default coverage:
+  - `DefaultBindAddressIsLoopback`,
+  - `AllowLanTelemetryUsesAnyWhenNoBindAddressProvided`,
+  - `AllowedRemoteAddressRejectsUnexpectedSender`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Telemetry.F1_25.Tests\HapticDrive.Asio.Telemetry.F1_25.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Core.Tests\HapticDrive.Asio.Core.Tests.csproj -c Release --no-build` passed.
+
+Self-review:
+
+- Session, lap, and event packets no longer make stale car telemetry look fresh.
+- F1 25 state no longer mixes old source/session/player-car samples into the current `VehicleState`.
+- The current repo still needs the next ingress/backpressure stage: UDP packet handling is not yet moved onto the bounded worker/channel model from the roadmap.

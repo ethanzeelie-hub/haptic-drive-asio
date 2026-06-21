@@ -7,6 +7,22 @@ namespace HapticDrive.Asio.Core.Tests;
 public sealed class UdpTelemetryReceiverTests
 {
     [Fact]
+    public void DefaultBindAddressIsLoopback()
+    {
+        var options = new UdpTelemetryReceiverOptions();
+
+        Assert.Equal(IPAddress.Loopback, options.EffectiveBindAddress);
+    }
+
+    [Fact]
+    public void AllowLanTelemetryUsesAnyWhenNoBindAddressProvided()
+    {
+        var options = new UdpTelemetryReceiverOptions(AllowLanTelemetry: true);
+
+        Assert.Equal(IPAddress.Any, options.EffectiveBindAddress);
+    }
+
+    [Fact]
     public async Task Receiver_UsesDefaultF125ForwardedTelemetryPort()
     {
         await using var receiver = new UdpTelemetryReceiver();
@@ -88,6 +104,30 @@ public sealed class UdpTelemetryReceiverTests
         var snapshot = receiver.GetSnapshot();
 
         Assert.False(snapshot.IsRunning);
+    }
+
+    [Fact]
+    public async Task AllowedRemoteAddressRejectsUnexpectedSender()
+    {
+        var allowed = new HashSet<IPAddress> { IPAddress.Parse("127.0.0.2") };
+        await using var receiver = new UdpTelemetryReceiver(
+            new UdpTelemetryReceiverOptions(
+                Port: 0,
+                BindAddress: IPAddress.Loopback,
+                AllowedRemoteAddresses: allowed));
+        var receivedPacket = new TaskCompletionSource<UdpTelemetryPacket>(TaskCreationOptions.RunContinuationsAsynchronously);
+        receiver.PacketReceived += (_, args) => receivedPacket.TrySetResult(args.Packet);
+
+        await receiver.StartAsync();
+        var boundPort = receiver.GetSnapshot().BoundPort;
+
+        using var sender = new UdpClient();
+        var payload = new byte[] { 0x01, 0x02, 0x03 };
+        await sender.SendAsync(payload, payload.Length, new IPEndPoint(IPAddress.Loopback, boundPort));
+        await Task.Delay(100);
+
+        Assert.False(receivedPacket.Task.IsCompleted);
+        Assert.Equal(0, receiver.GetSnapshot().PacketCount);
     }
 
     private static async Task<T> WaitForAsync<T>(Task<T> task, TimeSpan timeout)

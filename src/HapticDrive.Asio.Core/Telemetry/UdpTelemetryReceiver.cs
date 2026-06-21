@@ -152,7 +152,25 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
             try
             {
                 var result = await udpClient.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-                var receivedAtUtc = DateTimeOffset.UtcNow;
+                if (result.Buffer.Length > _options.MaxDatagramBytes)
+                {
+                    Interlocked.Increment(ref _errorCount);
+                    lock (_gate)
+                    {
+                        _lastErrorMessage = $"Ignored oversized datagram ({result.Buffer.Length:N0} bytes).";
+                    }
+
+                    continue;
+                }
+
+                if (_options.AllowedRemoteAddresses is { Count: > 0 }
+                    && !_options.AllowedRemoteAddresses.Contains(result.RemoteEndPoint.Address))
+                {
+                    continue;
+                }
+
+                var receivedAtUtc = _options.EffectiveTimeProvider.GetUtcNow();
+                var receivedAtTimestamp = _options.EffectiveTimeProvider.GetTimestamp();
                 lock (_gate)
                 {
                     _lastPacketAtUtc = receivedAtUtc;
@@ -168,7 +186,8 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
                             sequenceNumber,
                             result.Buffer.ToArray(),
                             result.RemoteEndPoint,
-                            receivedAtUtc)));
+                            receivedAtUtc,
+                            receivedAtTimestamp)));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

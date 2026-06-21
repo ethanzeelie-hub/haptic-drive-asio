@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -24,29 +25,52 @@ internal static class VehicleStateEffectGuards
         return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
     }
 
-    public static bool IsFresh<T>(
+    public static bool IsTelemetryFresh(
         VehicleState vehicleState,
-        VehicleStateSample<T>? sample,
         uint maximumFrameLag)
     {
-        if (sample is null)
-        {
-            return false;
-        }
+        return VehicleStateFreshness.EvaluateTelemetry(
+            vehicleState,
+            DateTimeOffset.UtcNow,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
+    }
 
-        var currentFrame = vehicleState.Frame.OverallFrameIdentifier;
-        if (currentFrame is null || maximumFrameLag == 0)
-        {
-            return true;
-        }
+    public static bool IsMotionFresh(
+        VehicleState vehicleState,
+        uint maximumFrameLag)
+    {
+        return VehicleStateFreshness.EvaluateMotion(
+            vehicleState,
+            DateTimeOffset.UtcNow,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
+    }
 
-        var sampleFrame = sample.Stamp.OverallFrameIdentifier;
-        if (sampleFrame > currentFrame.Value)
-        {
-            return true;
-        }
+    public static bool IsMotionExFresh(
+        VehicleState vehicleState,
+        uint maximumFrameLag)
+    {
+        return VehicleStateFreshness.EvaluateMotionEx(
+            vehicleState,
+            DateTimeOffset.UtcNow,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
+    }
 
-        return currentFrame.Value - sampleFrame <= maximumFrameLag;
+    public static bool IsLastEventFresh(
+        VehicleState vehicleState,
+        uint maximumFrameLag)
+    {
+        return VehicleStateFreshness.EvaluateLastEvent(
+            vehicleState,
+            DateTimeOffset.UtcNow,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
     }
 
     public static float SanitizeUnit(float value)
@@ -104,5 +128,16 @@ internal static class VehicleStateEffectGuards
         }
 
         return maximum;
+    }
+
+    private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)
+    {
+        return new TelemetryFreshnessPolicy(
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            maximumFrameLag);
     }
 }

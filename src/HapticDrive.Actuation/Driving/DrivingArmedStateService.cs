@@ -37,7 +37,7 @@ public sealed class DrivingArmedStateService : IDrivingArmedStateProvider
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var now = nowUtc ?? DateTimeOffset.UtcNow;
-        var telemetryAge = snapshot.TelemetryAge ?? CalculateAge(snapshot.LastVehicleStateUpdateAtUtc, now);
+        var telemetryAge = snapshot.TelemetryFreshness.Age ?? snapshot.TelemetryAge ?? CalculateAge(snapshot.LastVehicleStateUpdateAtUtc, now);
         var context = new DrivingArmedEvaluationContext
         {
             HapticsRunning = snapshot.IsRunning,
@@ -46,6 +46,7 @@ public sealed class DrivingArmedStateService : IDrivingArmedStateProvider
             LastVehicleStateUpdateAtUtc = snapshot.LastVehicleStateUpdateAtUtc,
             TelemetryAge = telemetryAge,
             TelemetryTimedOutMuted = snapshot.TelemetryTimedOutMuted
+                || (snapshot.TelemetryFreshness.IsPresent && !snapshot.TelemetryFreshness.IsFresh)
         };
 
         return UpdateFromVehicleState(snapshot.VehicleState, context, now);

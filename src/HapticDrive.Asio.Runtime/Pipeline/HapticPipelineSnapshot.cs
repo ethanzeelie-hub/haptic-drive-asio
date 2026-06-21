@@ -5,6 +5,7 @@ using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Recording;
 
 namespace HapticDrive.Asio.Runtime.Pipeline;
@@ -42,6 +43,22 @@ public sealed record HapticPipelineSnapshot(
     public bool HasParsedPackets => ParserSuccessCount > 0 || ParserIgnoredCount > 0 || ParserFailureCount > 0;
 
     public OutputInterlockSnapshot OutputInterlock { get; init; } = OutputInterlockSnapshot.StartupSafeDefault();
+
+    public VehicleSignalFreshness TelemetryFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public VehicleSignalFreshness MotionFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public VehicleSignalFreshness SessionFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public VehicleSignalFreshness LapFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public VehicleSignalFreshness CarStatusFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public VehicleSignalFreshness DamageFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public VehicleSignalFreshness MotionExFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
+    public VehicleSignalFreshness EventFreshness { get; init; } = new(false, false, false, false, false, null, null);
 }
 
 public sealed record HapticPipelinePacketDiagnostics(

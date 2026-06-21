@@ -17,12 +17,17 @@ public sealed class F125GameTelemetryAdapter : IGameTelemetryAdapter
 
     public IReadOnlyList<TelemetryPacketDescriptor> PacketDescriptors => PacketDescriptorsValue;
 
+    public void Reset(VehicleStateResetReason reason)
+    {
+        _vehicleStateAdapter.Reset(reason);
+    }
+
     public TelemetryPacketProcessResult Process(UdpTelemetryPacket packet)
     {
         ArgumentNullException.ThrowIfNull(packet);
 
         var parseResult = F125PacketParser.Parse(packet.Payload);
-        var vehicleStateUpdate = _vehicleStateAdapter.Apply(parseResult);
+        var vehicleStateUpdate = _vehicleStateAdapter.Apply(packet, parseResult);
 
         return new TelemetryPacketProcessResult(
             Map(parseResult.Status),
@@ -45,7 +50,7 @@ public sealed class F125GameTelemetryAdapter : IGameTelemetryAdapter
     private static TelemetryVehicleStateUpdateResult Map(F125VehicleStateUpdateResult result)
     {
         return result.WasApplied
-            ? TelemetryVehicleStateUpdateResult.Applied(result.State, result.Message)
-            : TelemetryVehicleStateUpdateResult.Ignored(result.State, result.Message);
+            ? TelemetryVehicleStateUpdateResult.Applied(result.State, result.Message, result.UpdatedSignals, result.ResetReason)
+            : TelemetryVehicleStateUpdateResult.Ignored(result.State, result.Message, result.UpdatedSignals, result.ResetReason);
     }
 }

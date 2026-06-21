@@ -7,6 +7,7 @@ using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Recording;
 
 namespace HapticDrive.Asio.Runtime.Pipeline;
@@ -39,7 +40,6 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private HapticPipelineInputSource _inputSource = HapticPipelineInputSource.None;
     private DateTimeOffset? _lastPacketAtUtc;
     private DateTimeOffset? _lastVehicleStateUpdateAtUtc;
-    private DateTimeOffset? _lastVehicleStateWallClockAtUtc;
     private TimeSpan? _lastRenderTelemetryAge;
     private string _lastPacketMessage;
     private string _lastVehicleStateMessage;
@@ -834,6 +834,19 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             telemetryTimedOutMuted = _telemetryTimedOutMuted;
         }
 
+        var vehicleState = _telemetryGameAdapter.CurrentVehicleState;
+        var freshnessPolicy = CreateTelemetryFreshnessPolicy();
+        var nowUtc = DateTimeOffset.UtcNow;
+        var nowTimestamp = TimeProvider.System.GetTimestamp();
+        var telemetryFreshness = VehicleStateFreshness.EvaluateTelemetry(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var motionFreshness = VehicleStateFreshness.EvaluateMotion(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var sessionFreshness = VehicleStateFreshness.EvaluateSession(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var lapFreshness = VehicleStateFreshness.EvaluateLap(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var carStatusFreshness = VehicleStateFreshness.EvaluateCarStatus(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var damageFreshness = VehicleStateFreshness.EvaluateDamage(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var motionExFreshness = VehicleStateFreshness.EvaluateMotionEx(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var eventFreshness = VehicleStateFreshness.EvaluateLastEvent(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+
         return new HapticPipelineSnapshot(
             _isRunning,
             inputSource,
@@ -853,7 +866,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lastPacketMessage,
             lastVehicleStateMessage,
             lastPipelineError,
-            _telemetryGameAdapter.CurrentVehicleState,
+            vehicleState,
             _lastEffectSnapshot,
             _lastAudioSnapshot,
             OutputDevice.GetStatus(),
@@ -864,7 +877,15 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             RecordingService.GetSnapshot(),
             ReplayService.GetSnapshot())
         {
-            OutputInterlock = _outputInterlock.Current
+            OutputInterlock = _outputInterlock.Current,
+            TelemetryFreshness = telemetryFreshness,
+            MotionFreshness = motionFreshness,
+            SessionFreshness = sessionFreshness,
+            LapFreshness = lapFreshness,
+            CarStatusFreshness = carStatusFreshness,
+            DamageFreshness = damageFreshness,
+            MotionExFreshness = motionExFreshness,
+            EventFreshness = eventFreshness
         };
     }
 
@@ -993,7 +1014,6 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lock (_diagnosticsGate)
             {
                 _lastVehicleStateUpdateAtUtc = packet.ReceivedAtUtc;
-                _lastVehicleStateWallClockAtUtc = DateTimeOffset.UtcNow;
                 _telemetryTimedOutMuted = false;
             }
         }
@@ -1049,11 +1069,28 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     {
         AudioSampleBuffer.EnsureSameFormat(Format, destination.Format);
 
-        var telemetryAge = CalculateTelemetryAge(renderStartedAtUtc);
+        var nowTimestamp = TimeProvider.System.GetTimestamp();
+        var freshnessPolicy = CreateTelemetryFreshnessPolicy();
+        var telemetryFreshness = VehicleStateFreshness.EvaluateTelemetry(
+            _telemetryGameAdapter.CurrentVehicleState,
+            renderStartedAtUtc,
+            nowTimestamp,
+            TimeProvider.System,
+            freshnessPolicy);
+        var telemetryAge = telemetryFreshness.Age;
         var hasVehicleState = Interlocked.Read(ref _vehicleStateUpdateCount) > 0;
         var telemetryTimedOut = hasVehicleState
-            && telemetryAge is not null
-            && telemetryAge.Value > _options.TelemetryMuteTimeout;
+            && telemetryFreshness.IsPresent
+            && !telemetryFreshness.IsFresh;
+        if (telemetryTimedOut
+            && telemetryAge is { } age
+            && age >= TelemetryFreshnessPolicy.Default.MaxTelemetryAge)
+        {
+            _outputInterlock.Trip(
+                OutputInterlockReason.TelemetryStale,
+                $"Critical driving telemetry is stale ({age.TotalMilliseconds:0} ms); output remains muted until fresh telemetry arrives and the interlock is reset.");
+        }
+
         var interlockSnapshot = _outputInterlock.Current;
         var emergencyMuted = interlockSnapshot.IsLatched;
         var shouldRenderEffects = hasVehicleState
@@ -1079,7 +1116,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             lock (_diagnosticsGate)
             {
                 _lastRenderTelemetryAge = telemetryAge;
-                _telemetryTimedOutMuted = false;
+                _telemetryTimedOutMuted = telemetryTimedOut;
                 _lastVehicleStateMessage = $"Output interlock latched ({interlockSnapshot.Reason}); rendered safety silence.";
             }
 
@@ -1160,16 +1197,6 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         var status = OutputDevice.GetStatus();
         return status.Kind == AudioOutputDeviceKind.Asio
             && status.State == AudioOutputDeviceState.Started;
-    }
-
-    private TimeSpan? CalculateTelemetryAge(DateTimeOffset nowUtc)
-    {
-        lock (_diagnosticsGate)
-        {
-            return _lastVehicleStateWallClockAtUtc is null
-                ? null
-                : nowUtc - _lastVehicleStateWallClockAtUtc.Value;
-        }
     }
 
     private bool TryAddManualAsioHardwareTestInput(
@@ -1898,6 +1925,17 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     {
         return !string.IsNullOrWhiteSpace(source)
             && source.Contains("paddle gear", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private TelemetryFreshnessPolicy CreateTelemetryFreshnessPolicy()
+    {
+        return new TelemetryFreshnessPolicy(
+            _options.TelemetryMuteTimeout,
+            TelemetryFreshnessPolicy.Default.MaxMotionAge,
+            TelemetryFreshnessPolicy.Default.MaxSessionAge,
+            TelemetryFreshnessPolicy.Default.MaxLapAge,
+            TelemetryFreshnessPolicy.Default.MaxStatusAge,
+            TelemetryFreshnessPolicy.Default.MaxFrameLag);
     }
 
     private static bool IsMTrackAsioDriver(string? driverName)

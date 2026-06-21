@@ -99,7 +99,7 @@ public sealed class KerbEffect : IHapticEffectSource
     {
         if (!options.IsEnabled
             || VehicleStateEffectGuards.ShouldMuteForDrivingState(vehicleState)
-            || !VehicleStateEffectGuards.IsFresh(vehicleState, vehicleState.Telemetry, options.MaximumTelemetryFrameLag))
+            || !VehicleStateEffectGuards.IsTelemetryFresh(vehicleState, options.MaximumTelemetryFrameLag))
         {
             return KerbEvaluation.Inactive;
         }
@@ -159,7 +159,7 @@ public sealed class KerbEffect : IHapticEffectSource
 
     private static float ResolveContactMultiplier(VehicleState vehicleState, KerbEffectOptions options)
     {
-        if (!VehicleStateEffectGuards.IsFresh(vehicleState, vehicleState.MotionEx, options.MaximumTelemetryFrameLag))
+        if (!VehicleStateEffectGuards.IsMotionExFresh(vehicleState, options.MaximumTelemetryFrameLag))
         {
             return 1f;
         }

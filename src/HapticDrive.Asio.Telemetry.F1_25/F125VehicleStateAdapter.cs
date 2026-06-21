@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Telemetry.F1_25;
@@ -6,6 +7,7 @@ public sealed class F125VehicleStateAdapter
 {
     private readonly object _gate = new();
     private VehicleState _current = VehicleState.Empty;
+    private string? _sourceIdentity;
 
     public VehicleState Current
     {
@@ -18,22 +20,47 @@ public sealed class F125VehicleStateAdapter
         }
     }
 
-    public F125VehicleStateUpdateResult Apply(F125PacketParseResult parseResult)
+    public void Reset(VehicleStateResetReason reason)
+    {
+        lock (_gate)
+        {
+            _current = VehicleState.Empty;
+            _sourceIdentity = null;
+        }
+    }
+
+    public F125VehicleStateUpdateResult Apply(UdpTelemetryPacket packet, F125PacketParseResult parseResult)
     {
         if (!parseResult.Succeeded || parseResult.Packet is null)
         {
             return F125VehicleStateUpdateResult.Ignored(Current, parseResult.Message);
         }
 
-        return Apply(parseResult.Packet);
+        return Apply(packet, parseResult.Packet);
     }
 
-    public F125VehicleStateUpdateResult Apply(F125Packet packet)
+    public F125VehicleStateUpdateResult Apply(F125PacketParseResult parseResult)
+    {
+        return Apply(CreateSyntheticTelemetryPacket(), parseResult);
+    }
+
+    public F125VehicleStateUpdateResult Apply(UdpTelemetryPacket telemetryPacket, F125Packet packet)
     {
         lock (_gate)
         {
-            var stamp = CreateStamp(packet.Header, packet.Definition);
+            var resetReason = ResetStateIfRequired(telemetryPacket, packet.Header);
+            if (ShouldIgnoreOlderFrame(packet.Header))
+            {
+                return F125VehicleStateUpdateResult.Ignored(
+                    _current,
+                    $"{packet.Definition.Name} packet frame {packet.Header.OverallFrameIdentifier} is older than the current VehicleState frame.",
+                    VehicleStateUpdatedSignals.None,
+                    resetReason);
+            }
+
+            var stamp = CreateStamp(telemetryPacket, packet.Header, packet.Definition);
             var frame = CreateFrame(packet.Header, packet.Definition);
+            var updatedSignals = VehicleStateUpdatedSignals.None;
 
             switch (packet.Body)
             {
@@ -48,6 +75,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         Motion = new VehicleStateSample<VehicleMotionState>(MapMotion(motion), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.Motion;
                     break;
 
                 case F125SessionPacketBody body:
@@ -56,6 +84,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         Session = new VehicleStateSample<VehicleSessionState>(MapSession(body), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.Session;
                     break;
 
                 case F125LapDataPacketBody body:
@@ -69,6 +98,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         Lap = new VehicleStateSample<VehicleLapState>(MapLap(lap), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.Lap;
                     break;
 
                 case F125ParticipantsPacketBody body:
@@ -82,6 +112,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         Participant = new VehicleStateSample<VehicleParticipantState>(MapParticipant(participant), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.Participant;
                     break;
 
                 case F125CarTelemetryPacketBody body:
@@ -95,6 +126,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         Telemetry = new VehicleStateSample<VehicleTelemetryState>(MapTelemetry(telemetry, body.SuggestedGear), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.Telemetry;
                     break;
 
                 case F125CarStatusPacketBody body:
@@ -108,6 +140,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         CarStatus = new VehicleStateSample<VehicleCarStatusState>(MapCarStatus(carStatus), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.CarStatus;
                     break;
 
                 case F125CarDamagePacketBody body:
@@ -121,6 +154,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         Damage = new VehicleStateSample<VehicleDamageState>(MapDamage(damage), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.Damage;
                     break;
 
                 case F125MotionExPacketBody body:
@@ -129,6 +163,7 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         MotionEx = new VehicleStateSample<VehicleMotionExState>(MapMotionEx(body), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.MotionEx;
                     break;
 
                 case F125EventPacketBody body:
@@ -137,21 +172,31 @@ public sealed class F125VehicleStateAdapter
                         Frame = frame,
                         LastEvent = new VehicleStateSample<VehicleEventState>(MapEvent(body, packet.Header.PlayerCarIndex), stamp)
                     };
+                    updatedSignals = VehicleStateUpdatedSignals.Event;
                     break;
 
                 default:
                     return F125VehicleStateUpdateResult.Ignored(
                         _current,
-                        $"{packet.Definition.Name} packet body is not mapped to VehicleState in Stage 08.");
+                        $"{packet.Definition.Name} packet body is not mapped to VehicleState in Stage 08.",
+                        VehicleStateUpdatedSignals.None,
+                        resetReason);
             }
 
             return F125VehicleStateUpdateResult.Applied(
                 _current,
-                $"{packet.Definition.Name} packet updated VehicleState.");
+                $"{packet.Definition.Name} packet updated VehicleState.",
+                updatedSignals,
+                resetReason);
         }
     }
 
-    private static VehicleStateStamp CreateStamp(F125PacketHeader header, F125PacketDefinition definition)
+    public F125VehicleStateUpdateResult Apply(F125Packet packet)
+    {
+        return Apply(CreateSyntheticTelemetryPacket(), packet);
+    }
+
+    private static VehicleStateStamp CreateStamp(UdpTelemetryPacket telemetryPacket, F125PacketHeader header, F125PacketDefinition definition)
     {
         return new(
             definition.Name,
@@ -159,7 +204,9 @@ public sealed class F125VehicleStateAdapter
             header.SessionTime,
             header.FrameIdentifier,
             header.OverallFrameIdentifier,
-            header.PlayerCarIndex);
+            header.PlayerCarIndex,
+            telemetryPacket.ReceivedAtUtc,
+            telemetryPacket.ReceivedAtTimestamp);
     }
 
     private static VehicleStateFrame CreateFrame(F125PacketHeader header, F125PacketDefinition definition)
@@ -190,6 +237,55 @@ public sealed class F125VehicleStateAdapter
         return F125VehicleStateUpdateResult.Ignored(
             _current,
             $"Player car index {packet.Header.PlayerCarIndex} is outside {entryCount} {packet.Definition.Name} entries.");
+    }
+
+    private VehicleStateResetReason ResetStateIfRequired(UdpTelemetryPacket telemetryPacket, F125PacketHeader header)
+    {
+        var sourceIdentity = $"F1 25|{telemetryPacket.RemoteEndPoint.Address}";
+
+        if (_sourceIdentity is not null && !string.Equals(_sourceIdentity, sourceIdentity, StringComparison.Ordinal))
+        {
+            ResetLocked(sourceIdentity);
+            return VehicleStateResetReason.SourceChanged;
+        }
+
+        if (_current.Frame.SessionUid is { } currentSessionUid && currentSessionUid != header.SessionUid)
+        {
+            ResetLocked(sourceIdentity);
+            return VehicleStateResetReason.SessionUidChanged;
+        }
+
+        if (_current.Frame.PlayerCarIndex is { } currentPlayerCarIndex && currentPlayerCarIndex != header.PlayerCarIndex)
+        {
+            ResetLocked(sourceIdentity);
+            return VehicleStateResetReason.PlayerCarChanged;
+        }
+
+        _sourceIdentity = sourceIdentity;
+        return VehicleStateResetReason.None;
+    }
+
+    private bool ShouldIgnoreOlderFrame(F125PacketHeader header)
+    {
+        return _current.Frame.SessionUid == header.SessionUid
+            && _current.Frame.OverallFrameIdentifier is { } currentFrame
+            && header.OverallFrameIdentifier < currentFrame;
+    }
+
+    private void ResetLocked(string sourceIdentity)
+    {
+        _current = VehicleState.Empty;
+        _sourceIdentity = sourceIdentity;
+    }
+
+    private static UdpTelemetryPacket CreateSyntheticTelemetryPacket()
+    {
+        return new UdpTelemetryPacket(
+            0,
+            [],
+            new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 20778),
+            DateTimeOffset.UtcNow,
+            TimeProvider.System.GetTimestamp());
     }
 
     private static VehicleMotionState MapMotion(F125CarMotionData data)
@@ -412,19 +508,29 @@ public enum F125VehicleStateUpdateStatus
 public sealed record F125VehicleStateUpdateResult(
     F125VehicleStateUpdateStatus Status,
     VehicleState State,
-    string Message)
+    string Message,
+    VehicleStateUpdatedSignals UpdatedSignals,
+    VehicleStateResetReason ResetReason = VehicleStateResetReason.None)
 {
     public bool WasApplied => Status == F125VehicleStateUpdateStatus.Applied;
 
     public bool WasIgnored => Status == F125VehicleStateUpdateStatus.Ignored;
 
-    public static F125VehicleStateUpdateResult Applied(VehicleState state, string message)
+    public static F125VehicleStateUpdateResult Applied(
+        VehicleState state,
+        string message,
+        VehicleStateUpdatedSignals updatedSignals,
+        VehicleStateResetReason resetReason = VehicleStateResetReason.None)
     {
-        return new(F125VehicleStateUpdateStatus.Applied, state, message);
+        return new(F125VehicleStateUpdateStatus.Applied, state, message, updatedSignals, resetReason);
     }
 
-    public static F125VehicleStateUpdateResult Ignored(VehicleState state, string message)
+    public static F125VehicleStateUpdateResult Ignored(
+        VehicleState state,
+        string message,
+        VehicleStateUpdatedSignals updatedSignals = VehicleStateUpdatedSignals.None,
+        VehicleStateResetReason resetReason = VehicleStateResetReason.None)
     {
-        return new(F125VehicleStateUpdateStatus.Ignored, state, message);
+        return new(F125VehicleStateUpdateStatus.Ignored, state, message, updatedSignals, resetReason);
     }
 }

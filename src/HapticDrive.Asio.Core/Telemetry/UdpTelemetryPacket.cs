@@ -6,4 +6,5 @@ public sealed record UdpTelemetryPacket(
     long SequenceNumber,
     byte[] Payload,
     IPEndPoint RemoteEndPoint,
-    DateTimeOffset ReceivedAtUtc);
+    DateTimeOffset ReceivedAtUtc = default,
+    long ReceivedAtTimestamp = 0);

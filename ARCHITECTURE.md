@@ -3200,3 +3200,36 @@ Stage 25AN architecture result:
 - The result improves maintainability because later profile-control surface changes can extend one coordinator seam instead of reopening `MainWindow` for every cross-view wiring edit.
 
 Stage 25AN deliberately does not move runtime execution or persistence orchestration out of `MainWindow`, and it does not make the effect surface data-driven. It isolates the cross-view synchronization seam first so later workflow/orchestration cleanup can build on a cleaner shell boundary.
+
+## Stage 26B Session-Aware Telemetry Freshness
+
+Stage 26B hardens the telemetry-to-runtime safety boundary so freshness follows the actual signal sample that output depends on instead of whichever packet happened to arrive last.
+
+Stage 26B architecture result:
+
+- Telemetry timing is now carried end-to-end:
+  - `UdpTelemetryPacket` includes `ReceivedAtUtc` and `ReceivedAtTimestamp`,
+  - `VehicleStateStamp` carries those same receive-time fields into every applied signal sample.
+- The F1 25 adapter is now session-aware at the `VehicleState` boundary:
+  - source identity is `F1 25|<remote-ip>`,
+  - source-IP, `SessionUid`, and player-car changes reset accumulated state before applying the new packet,
+  - older same-session `OverallFrameIdentifier` packets are ignored,
+  - equal-frame packets can still merge complementary packet types into the current `VehicleState`.
+- Freshness rules are centralized in `HapticDrive.Asio.Core.Vehicle.Freshness.VehicleStateFreshness`:
+  - one evaluator exists for telemetry, motion, session, lap, car status, damage, motion ex, and event samples,
+  - freshness now checks presence, same-session identity, no future-frame regression, frame-lag tolerance, and age threshold together.
+- Runtime freshness is now signal-specific:
+  - `HapticPipelineCoordinator` evaluates telemetry freshness from `VehicleState.Telemetry.Stamp`,
+  - fresh session/lap/event traffic no longer makes stale car telemetry appear fresh,
+  - pipeline snapshots now surface separate freshness snapshots for telemetry, motion, session, lap, car status, damage, motion ex, and event samples.
+- Duplicate freshness drift is reduced across the codebase:
+  - BST-1 effect guards,
+  - `RoadTextureEvaluator`,
+  - `SlipLockEvaluationInput`,
+  - and mock `PHprPedalEffectsRouter`
+  now route their session/frame-validity checks through the centralized freshness model instead of carrying divergent local logic.
+- Safety integration is now tighter:
+  - stale telemetry still mutes telemetry-driven rendering immediately,
+  - when critical driving telemetry stays stale past the hardening threshold, the same global `OutputInterlock` can latch with `TelemetryStale`.
+
+Stage 26B deliberately does not yet change the repo's live packet-ingress topology. UDP receive/forward/record handling still needs the next bounded-worker/backpressure stage so packet flow, forwarding, and recording can be hardened under sustained load.

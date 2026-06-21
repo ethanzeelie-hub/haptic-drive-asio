@@ -42,9 +42,37 @@ public sealed record VehicleStateStamp(
     float SessionTime,
     uint FrameIdentifier,
     uint OverallFrameIdentifier,
-    byte PlayerCarIndex);
+    byte PlayerCarIndex,
+    DateTimeOffset ReceivedAtUtc = default,
+    long ReceivedAtTimestamp = 0);
 
 public sealed record VehicleStateSample<T>(T Value, VehicleStateStamp Stamp);
+
+[Flags]
+public enum VehicleStateUpdatedSignals
+{
+    None = 0,
+    Motion = 1,
+    Session = 2,
+    Lap = 4,
+    Participant = 8,
+    Telemetry = 16,
+    CarStatus = 32,
+    Damage = 64,
+    MotionEx = 128,
+    Event = 256
+}
+
+public enum VehicleStateResetReason
+{
+    None,
+    Manual,
+    SessionUidChanged,
+    SourceChanged,
+    PlayerCarChanged,
+    ReplayRestarted,
+    AdapterRestarted
+}
 
 public sealed record VehicleWheelData<T>(T RearLeft, T RearRight, T FrontLeft, T FrontRight)
 {

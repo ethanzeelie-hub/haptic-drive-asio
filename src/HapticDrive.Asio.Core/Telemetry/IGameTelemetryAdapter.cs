@@ -11,6 +11,8 @@ public interface IGameTelemetryAdapter
     IReadOnlyList<TelemetryPacketDescriptor> PacketDescriptors { get; }
 
     TelemetryPacketProcessResult Process(UdpTelemetryPacket packet);
+
+    void Reset(VehicleStateResetReason reason);
 }
 
 public sealed record TelemetryPacketDescriptor(
@@ -33,20 +35,30 @@ public enum TelemetryVehicleStateUpdateStatus
 public sealed record TelemetryVehicleStateUpdateResult(
     TelemetryVehicleStateUpdateStatus Status,
     VehicleState State,
-    string Message)
+    string Message,
+    VehicleStateUpdatedSignals UpdatedSignals,
+    VehicleStateResetReason ResetReason = VehicleStateResetReason.None)
 {
     public bool WasApplied => Status == TelemetryVehicleStateUpdateStatus.Applied;
 
     public bool WasIgnored => Status == TelemetryVehicleStateUpdateStatus.Ignored;
 
-    public static TelemetryVehicleStateUpdateResult Applied(VehicleState state, string message)
+    public static TelemetryVehicleStateUpdateResult Applied(
+        VehicleState state,
+        string message,
+        VehicleStateUpdatedSignals updatedSignals = VehicleStateUpdatedSignals.None,
+        VehicleStateResetReason resetReason = VehicleStateResetReason.None)
     {
-        return new(TelemetryVehicleStateUpdateStatus.Applied, state, message);
+        return new(TelemetryVehicleStateUpdateStatus.Applied, state, message, updatedSignals, resetReason);
     }
 
-    public static TelemetryVehicleStateUpdateResult Ignored(VehicleState state, string message)
+    public static TelemetryVehicleStateUpdateResult Ignored(
+        VehicleState state,
+        string message,
+        VehicleStateUpdatedSignals updatedSignals = VehicleStateUpdatedSignals.None,
+        VehicleStateResetReason resetReason = VehicleStateResetReason.None)
     {
-        return new(TelemetryVehicleStateUpdateStatus.Ignored, state, message);
+        return new(TelemetryVehicleStateUpdateStatus.Ignored, state, message, updatedSignals, resetReason);
     }
 }
 

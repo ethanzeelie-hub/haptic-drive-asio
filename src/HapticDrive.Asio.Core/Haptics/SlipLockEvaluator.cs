@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 
 namespace HapticDrive.Asio.Core.Haptics;
 
@@ -120,8 +121,8 @@ public sealed record SlipLockEvaluationInput(
             WheelSlipEnabled: wheelSlipEnabled,
             WheelLockEnabled: wheelLockEnabled,
             DrivingStateMuted: ShouldMuteForDrivingState(vehicleState),
-            TelemetryFresh: IsFresh(vehicleState, vehicleState.Telemetry, evaluatorOptions.MaximumTelemetryFrameLag),
-            MotionExFresh: IsFresh(vehicleState, vehicleState.MotionEx, evaluatorOptions.MaximumTelemetryFrameLag),
+            TelemetryFresh: IsTelemetryFresh(vehicleState, evaluatorOptions.MaximumTelemetryFrameLag),
+            MotionExFresh: IsMotionExFresh(vehicleState, evaluatorOptions.MaximumTelemetryFrameLag),
             SpeedKph: telemetry?.SpeedKph ?? 0f,
             Throttle01: telemetry?.Throttle ?? 0f,
             Brake01: telemetry?.Brake ?? 0f,
@@ -152,34 +153,44 @@ public sealed record SlipLockEvaluationInput(
         return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
     }
 
-    private static bool IsFresh<T>(
+    private static bool IsTelemetryFresh(
         VehicleState vehicleState,
-        VehicleStateSample<T>? sample,
         uint maximumFrameLag)
     {
-        if (sample is null)
-        {
-            return false;
-        }
+        return VehicleStateFreshness.EvaluateTelemetry(
+            vehicleState,
+            DateTimeOffset.UtcNow,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
+    }
 
-        var currentFrame = vehicleState.Frame.OverallFrameIdentifier;
-        if (currentFrame is null || maximumFrameLag == 0)
-        {
-            return true;
-        }
-
-        var sampleFrame = sample.Stamp.OverallFrameIdentifier;
-        if (sampleFrame > currentFrame.Value)
-        {
-            return true;
-        }
-
-        return currentFrame.Value - sampleFrame <= maximumFrameLag;
+    private static bool IsMotionExFresh(
+        VehicleState vehicleState,
+        uint maximumFrameLag)
+    {
+        return VehicleStateFreshness.EvaluateMotionEx(
+            vehicleState,
+            DateTimeOffset.UtcNow,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
     }
 
     private static VehicleWheelData<float> Wheels(float value)
     {
         return new VehicleWheelData<float>(value, value, value, value);
+    }
+
+    private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)
+    {
+        return new TelemetryFreshnessPolicy(
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            maximumFrameLag);
     }
 }
 

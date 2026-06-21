@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 
 namespace HapticDrive.Asio.Core.Haptics;
 
@@ -97,7 +98,7 @@ public sealed class RoadTextureEvaluator
             return StoreSuppressed(now, "driving state muted", options, context, vehicleState);
         }
 
-        if (!IsFresh(vehicleState, vehicleState.Telemetry, options.MaximumTelemetryFrameLag))
+        if (!IsTelemetryFresh(vehicleState, now, options.MaximumTelemetryFrameLag))
         {
             Interlocked.Increment(ref _staleTelemetrySuppressedCount);
             return StoreSuppressed(now, "telemetry missing or stale", options, context, vehicleState);
@@ -366,29 +367,17 @@ public sealed class RoadTextureEvaluator
         return vehicleState.Lap?.Value.ResultStatus is 0 or 1;
     }
 
-    private static bool IsFresh<T>(
+    private static bool IsTelemetryFresh(
         VehicleState vehicleState,
-        VehicleStateSample<T>? sample,
+        DateTimeOffset nowUtc,
         uint maximumFrameLag)
     {
-        if (sample is null)
-        {
-            return false;
-        }
-
-        var currentFrame = vehicleState.Frame.OverallFrameIdentifier;
-        if (currentFrame is null || maximumFrameLag == 0)
-        {
-            return true;
-        }
-
-        var sampleFrame = sample.Stamp.OverallFrameIdentifier;
-        if (sampleFrame > currentFrame.Value)
-        {
-            return true;
-        }
-
-        return currentFrame.Value - sampleFrame <= maximumFrameLag;
+        return VehicleStateFreshness.EvaluateTelemetry(
+            vehicleState,
+            nowUtc,
+            0,
+            TimeProvider.System,
+            CreateFrameFreshnessPolicy(maximumFrameLag)).IsFresh;
     }
 
     private static bool IsGearDuckingActive(
@@ -473,6 +462,17 @@ public sealed class RoadTextureEvaluator
     private static VehicleWheelData<T> Wheels<T>(T value)
     {
         return new VehicleWheelData<T>(value, value, value, value);
+    }
+
+    private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)
+    {
+        return new TelemetryFreshnessPolicy(
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            maximumFrameLag);
     }
 
     private sealed record SurfaceEvaluation(

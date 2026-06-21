@@ -177,7 +177,8 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                     recordedPacket.SequenceNumber,
                     recordedPacket.Payload.ToArray(),
                     new IPEndPoint(IPAddress.Loopback, 0),
-                    metadata.CreatedAtUtc + recordedPacket.RelativeTime);
+                    metadata.CreatedAtUtc + recordedPacket.RelativeTime,
+                    TimeProvider.System.GetTimestamp());
 
                 PacketReplayed?.Invoke(
                     this,
