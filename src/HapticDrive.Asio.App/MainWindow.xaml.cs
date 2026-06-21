@@ -1026,6 +1026,10 @@ public partial class MainWindow : Window
         _applicationSafetyController.Publish(snapshot);
         _emergencyMuted = snapshot.IsLatched;
         _testBench.EmergencyMute = _emergencyMuted;
+        SafetyStatusText.Text = $"Safety: {_safetyStateViewModel.StatusText}";
+        SafetyStatusText.ToolTip = string.IsNullOrWhiteSpace(_safetyStateViewModel.Message)
+            ? _safetyStateViewModel.StatusText
+            : $"{_safetyStateViewModel.StatusText}. {_safetyStateViewModel.Message}";
         if (ResetOutputInterlockButton is not null)
         {
             ResetOutputInterlockButton.IsEnabled = snapshot.IsLatched;
@@ -1589,6 +1593,7 @@ public partial class MainWindow : Window
         if (_telemetryStartError is not null)
         {
             TelemetryStatusText.Text = "UDP: unavailable";
+            TelemetryStatusText.ToolTip = "Telemetry listener unavailable.";
             UpdateEffectStatus();
             UpdateRecordingStatus();
             UpdateDiagnosticsStatus();
@@ -1603,7 +1608,17 @@ public partial class MainWindow : Window
                 ? "Listening"
                 : "Stopped";
 
-        TelemetryStatusText.Text = $"UDP: {status}";
+        var telemetrySourceSummary = _allowLanTelemetry
+            ? _allowedTelemetryRemoteAddresses.Count > 0
+                ? "LAN allowlist"
+                : "LAN warning"
+            : "Loopback";
+        TelemetryStatusText.Text = $"UDP: {status} · {telemetrySourceSummary}";
+        TelemetryStatusText.ToolTip = BuildTelemetryUdpStatusPresentation(
+            pipelineSnapshot,
+            snapshot,
+            _telemetryIngressWorker.GetSnapshot(),
+            status).ListenerDetailText;
         UpdateEffectStatus();
         UpdateRecordingStatus();
         UpdateDiagnosticsStatus();

@@ -7574,3 +7574,77 @@ Self-review:
 - The repo is materially more production-like now: package versions are centralized, restores are reproducible, high/critical audit findings cannot be silently bypassed, and CI enforces a measurable quality floor instead of just compiling.
 - The artifact surface is also clearer for another engineer: the release zip now carries licensing/status/docs directly, and the manifests are safe to publish because they no longer leak local absolute paths.
 - The coverage gate is intentionally staged: Stage 12 now enforces the non-WPF production-library surface at 75%+ using merged unique lines, while the lower-coverage `HapticDrive.Asio.App` shell remains a later-stage hardening target when the plan explicitly revisits app/controller/view-model coverage.
+
+## Stage 26M - Accessibility and Documentation Consolidation
+
+Status: Complete.
+
+Goal: Make the current app surface more accessible and easier to understand, while separating live architecture/issue documentation from historical stage-by-stage notes.
+
+Changes:
+
+- Added always-visible top-bar global safety status text so the global output interlock state is visible alongside telemetry status.
+- Expanded top-bar and critical workflow controls with accessibility metadata:
+  - automation names,
+  - help text,
+  - access-key metadata,
+  - explicit emergency/reset shortcut tooltips.
+- Kept emergency mute and reset keyboard-accessible through the existing global `Ctrl+Shift+M` and `Ctrl+Shift+R` shortcuts, and made those shortcuts discoverable from the visible UI metadata.
+- Updated telemetry top-bar status so it now exposes both listener state and source mode:
+  - loopback,
+  - LAN allowlist,
+  - LAN warning.
+- Added accessibility metadata for:
+  - LAN telemetry controls,
+  - recording status surfaces,
+  - ASIO setup controls,
+  - P-HPR emergency controls,
+  - paddle listener controls,
+  - advanced diagnostics visibility toggle.
+- Archived the prior historical `ARCHITECTURE.md` and `KNOWN_ISSUES.md` stage-history documents under `docs/archive/`.
+- Replaced root `ARCHITECTURE.md` with a concise current-state architecture document covering:
+  - telemetry ingress,
+  - game integration boundary,
+  - `VehicleState`,
+  - canonical `HapticFrame`,
+  - effect registry,
+  - global output interlock,
+  - recording/replay v2,
+  - P-HPR separation,
+  - real-time render rules.
+- Replaced root `KNOWN_ISSUES.md` with an active-issues-only document organized around:
+  - active blockers,
+  - hardware-later validation,
+  - current production-hardening gaps,
+  - future enhancements.
+- Added ADRs for:
+  - global output interlock,
+  - canonical haptic frame,
+  - effect registry/profile v2,
+  - UDP loopback default,
+  - recording v2.
+- Simplified `README.md` so it now reflects the live architecture and current hardening status instead of serving as a long historical stage ledger.
+- Added Stage 13 guardrail tests for accessibility metadata and documentation consistency.
+
+Tests:
+
+- Added `AccessibilityMetadataTests.CriticalButtonsHaveAutomationNames`.
+- Added `AccessibilityMetadataTests.EmergencyActionsHaveKeyboardShortcuts`.
+- Added `DocumentationConsistencyTests.ReadmeDoesNotClaimProductionWasapiIfPlaceholder`.
+- Added `DocumentationConsistencyTests.KnownIssuesDoesNotListResolvedFreshnessBug`.
+- Added `DocumentationConsistencyTests.ArchitectureDocMentionsCanonicalHapticFrame`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -NoBuild -CheckOnly` passed.
+- `rg "WASAPI|Emergency|HapticFrame|OutputInterlock|recording v2" README.md ARCHITECTURE.md ROADMAP.md KNOWN_ISSUES.md docs` passed.
+
+Self-review:
+
+- The repo is easier to orient now because live docs and historical notes are finally separated cleanly.
+- The accessibility pass is intentionally pragmatic rather than flashy: the critical safety and telemetry surfaces now expose clear text, keyboard discoverability, and automation metadata without destabilizing the shell or forcing a full WPF rewrite.
+- This stage also sets up Stage 14 well because the remaining production-readiness work is now mostly measurable guardrails and coverage/readiness tightening rather than documentation archaeology.

@@ -17,6 +17,8 @@
                            Text="Loopback is the default safety mode. LAN telemetry requires explicit opt-in and should be paired with allowed remote IPs." />
                 <CheckBox x:Name="AllowLanTelemetryCheckBox"
                           Margin="0,16,0,0"
+                          AutomationProperties.HelpText="Unchecked keeps telemetry limited to loopback. Checked allows LAN telemetry and should be paired with an allowlist."
+                          AutomationProperties.Name="Allow LAN telemetry"
                           Content="Allow LAN telemetry"
                           Checked="AllowLanTelemetryCheckBox_Changed"
                           Unchecked="AllowLanTelemetryCheckBox_Changed" />
@@ -26,10 +28,14 @@
                 <TextBox x:Name="AllowedRemoteAddressesTextBox"
                          MaxWidth="420"
                          HorizontalAlignment="Left"
+                         AutomationProperties.HelpText="Enter allowed remote IP addresses separated by commas or semicolons when LAN telemetry is enabled."
+                         AutomationProperties.Name="Allowed remote telemetry IP addresses"
                          LostFocus="AllowedRemoteAddressesTextBox_LostFocus"
                          Style="{StaticResource FieldTextBoxStyle}" />
                 <TextBlock x:Name="TelemetryListenerStatusText"
                            Margin="0,12,0,0"
+                           AutomationProperties.HelpText="Shows telemetry source mode, LAN warning status, and listener counters."
+                           AutomationProperties.Name="Telemetry listener detail status"
                            Foreground="{DynamicResource AppMutedTextBrush}"
                            TextWrapping="Wrap" />
             </StackPanel>
@@ -69,12 +75,14 @@
                     <Button x:Name="RecordingsStartStopButton"
                             Width="150"
                             Margin="0,0,8,0"
+                            AutomationProperties.Name="Start or stop telemetry recording"
                             HorizontalAlignment="Left"
                             Click="StartRecordingButton_Click"
                             Content="Start Recording" />
                     <Button x:Name="ReplayStartStopButton"
                             Width="140"
                             Margin="0,0,8,0"
+                            AutomationProperties.Name="Start or stop replay"
                             HorizontalAlignment="Left"
                             Click="StartReplayButton_Click"
                             Content="Replay Latest" />
@@ -156,6 +164,8 @@
                          SelectionChanged="RecordingLibraryListBox_SelectionChanged" />
                 <TextBlock x:Name="RecordingLibraryStatusText"
                            Margin="0,8,0,0"
+                           AutomationProperties.HelpText="Shows whether the selected recording is complete and whether packets were dropped."
+                           AutomationProperties.Name="Recording library status"
                            Foreground="{DynamicResource AppMutedTextBrush}"
                            TextWrapping="Wrap" />
             </StackPanel>

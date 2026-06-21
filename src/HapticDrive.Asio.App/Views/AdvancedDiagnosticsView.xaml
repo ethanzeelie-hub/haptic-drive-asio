@@ -15,6 +15,7 @@
                            Text="Advanced Diagnostics" />
                 <CheckBox x:Name="AdvancedDiagnosticsEnabledCheckBox"
                           Margin="0,14,0,0"
+                          AutomationProperties.Name="Show advanced diagnostics and research controls"
                           Checked="AdvancedDiagnosticsEnabledCheckBox_Changed"
                           Unchecked="AdvancedDiagnosticsEnabledCheckBox_Changed"
                           Content="Show advanced diagnostics and research controls" />
