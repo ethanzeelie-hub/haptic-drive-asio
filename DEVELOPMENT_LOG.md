@@ -5266,6 +5266,51 @@ Self-review:
 - No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
 - The broader effect surface is still explicitly typed, but the shell boundary is now meaningfully more consistent and easier to extend.
 
+## Stage 25AL - MainWindow Audio-Profile Control Accessor Cleanup Seam
+
+Date: 2026-06-21
+
+Status: Complete.
+
+Goal: Finish the immediate audio-profile shell cleanup by removing the leftover dead profile-related control accessor strip from `MainWindow` after both profile hydration and profile input capture already moved onto extracted view seams.
+
+Notes:
+
+- Re-audited the post-25AK shell boundary:
+  - `ProfilesView`, `EffectsView`, and `RoutingMixerView` already owned profile hydration and capture,
+  - but `MainWindow` still kept a broad strip of private direct-control accessors for those same profile-related controls,
+  - which created stale escape hatches that future edits could accidentally reuse even though the real seam had already moved.
+- Removed the dead accessor strip from `MainWindow` for the audio-profile-owned surface:
+  - profile-name/profile-status accessors,
+  - BST-1 effect profile tuning/text accessors used only by the audio-profile seam,
+  - mixer/safety profile accessors used only by the audio-profile seam.
+- Kept the stage intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no profile schema change,
+  - no WPF layout rewrite,
+  - no change to the already-extracted view-owned hydration/capture flow.
+- Strengthened the guardrail again:
+  - `AudioProfileControlSnapshotBuilderGuardrailTests` now also assert that `MainWindow` does not regain representative old accessor declarations such as `EngineGainSlider`, `MasterGainSlider`, `ProfileNameTextBox`, and `ProfileStatusText`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj --no-restore --filter "AudioProfileControlSnapshotBuilderGuardrailTests"` passed.
+- `Get-Process | Where-Object { $_.ProcessName -like 'testhost*' } | Stop-Process -Force` completed before the full suite.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln --no-restore -warnaserror` passed with 0 warnings and 0 errors.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln --no-build -m:1` passed.
+- `.\Run-HapticDrive.cmd -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- Stage 25AL is intentionally small, but it is the right close-out for the `25AJ`/`25AK` seam work.
+- The shell boundary now better reflects actual ownership instead of keeping obsolete direct-access paths around.
+- No persisted profile shape changed.
+- No WPF layout changed.
+- No runtime haptic behavior changed.
+- No parser, recording/replay, routing rule, or P-HPR HID/report behavior changed.
+- The broader effect surface is still explicitly typed, but this stage removes one more way that stale `MainWindow` coupling could quietly creep back in.
+
 ## Stage 25L - Support Bundle Automation
 
 Status: Complete.

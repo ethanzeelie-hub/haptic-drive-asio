@@ -6412,23 +6412,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private CheckBox SharedRoadSignalEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(SharedRoadSignalEnabledCheckBox));
-
     private TextBox NormalPhprGearDurationTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(NormalPhprGearDurationTextBox));
-
-    private Slider RoadTextureMinimumSpeedSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureMinimumSpeedSlider));
-
-    private TextBlock RoadTextureMinimumSpeedValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureMinimumSpeedValueText));
-
-    private CheckBox GearShiftEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(GearShiftEnabledCheckBox));
-
-    private Slider GearShiftGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(GearShiftGainSlider));
-
-    private TextBlock GearShiftGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(GearShiftGainValueText));
-
-    private Slider GearShiftDurationSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(GearShiftDurationSlider));
-
-    private TextBlock GearShiftDurationValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(GearShiftDurationValueText));
 
     private CheckBox Bst1PaddleGearPulseEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(Bst1PaddleGearPulseEnabledCheckBox));
 
@@ -6441,100 +6425,6 @@ public partial class MainWindow : Window
     private TextBox Bst1PaddleGearDurationTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(Bst1PaddleGearDurationTextBox));
 
     private TextBlock Bst1PaddleGearEffectiveDurationText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(Bst1PaddleGearEffectiveDurationText));
-
-    private CheckBox Bst1RoadOutputEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(Bst1RoadOutputEnabledCheckBox));
-
-    private Slider RoadTextureGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureGainSlider));
-
-    private TextBlock RoadTextureGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureGainValueText));
-
-    private Slider RoadTextureLowSpeedFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureLowSpeedFrequencySlider));
-
-    private TextBlock RoadTextureLowSpeedFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureLowSpeedFrequencyValueText));
-
-    private Slider RoadTextureHighSpeedFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureHighSpeedFrequencySlider));
-
-    private TextBlock RoadTextureHighSpeedFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureHighSpeedFrequencyValueText));
-
-    private Slider RoadTextureSpeedReferenceSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureSpeedReferenceSlider));
-
-    private TextBlock RoadTextureSpeedReferenceValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureSpeedReferenceValueText));
-
-    private Slider RoadTextureSpeedFrequencyInfluenceSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureSpeedFrequencyInfluenceSlider));
-
-    private TextBlock RoadTextureSpeedFrequencyInfluenceValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureSpeedFrequencyInfluenceValueText));
-
-    private Slider RoadTextureGrainAmountSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(RoadTextureGrainAmountSlider));
-
-    private TextBlock RoadTextureGrainAmountValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(RoadTextureGrainAmountValueText));
-
-    private CheckBox EngineEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(EngineEnabledCheckBox));
-
-    private Slider EngineGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(EngineGainSlider));
-
-    private TextBlock EngineGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(EngineGainValueText));
-
-    private Slider EngineMinimumFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(EngineMinimumFrequencySlider));
-
-    private Slider EngineMaximumFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(EngineMaximumFrequencySlider));
-
-    private TextBlock EngineFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(EngineFrequencyValueText));
-
-    private CheckBox KerbEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(KerbEnabledCheckBox));
-
-    private Slider KerbGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(KerbGainSlider));
-
-    private TextBlock KerbGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(KerbGainValueText));
-
-    private Slider KerbBaseFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(KerbBaseFrequencySlider));
-
-    private TextBlock KerbFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(KerbFrequencyValueText));
-
-    private CheckBox ImpactEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(ImpactEnabledCheckBox));
-
-    private Slider ImpactGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(ImpactGainSlider));
-
-    private TextBlock ImpactGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(ImpactGainValueText));
-
-    private Slider ImpactDurationSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(ImpactDurationSlider));
-
-    private TextBlock ImpactDurationValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(ImpactDurationValueText));
-
-    private CheckBox SlipWheelSlipEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(SlipWheelSlipEnabledCheckBox));
-
-    private Slider SlipWheelSlipGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelSlipGainSlider));
-
-    private TextBlock SlipWheelSlipGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelSlipGainValueText));
-
-    private Slider SlipWheelSlipFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelSlipFrequencySlider));
-
-    private TextBlock SlipWheelSlipFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelSlipFrequencyValueText));
-
-    private Slider SlipWheelSlipNoiseSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelSlipNoiseSlider));
-
-    private TextBlock SlipWheelSlipNoiseValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelSlipNoiseValueText));
-
-    private Slider SlipThresholdSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipThresholdSlider));
-
-    private TextBlock SlipThresholdValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipThresholdValueText));
-
-    private CheckBox SlipWheelLockEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(SlipWheelLockEnabledCheckBox));
-
-    private Slider SlipWheelLockGainSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockGainSlider));
-
-    private TextBlock SlipWheelLockGainValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockGainValueText));
-
-    private Slider SlipWheelLockFrequencySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockFrequencySlider));
-
-    private TextBlock SlipWheelLockFrequencyValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockFrequencyValueText));
-
-    private Slider SlipWheelLockNoiseSlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockNoiseSlider));
-
-    private TextBlock SlipWheelLockNoiseValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockNoiseValueText));
-
-    private Slider SlipWheelLockSensitivitySlider => EffectsViewControl.GetRequiredControl<Slider>(nameof(SlipWheelLockSensitivitySlider));
-
-    private TextBlock SlipWheelLockSensitivityValueText => EffectsViewControl.GetRequiredControl<TextBlock>(nameof(SlipWheelLockSensitivityValueText));
 
     private CheckBox NormalPhprBrakeEnabledCheckBox => EffectsViewControl.GetRequiredControl<CheckBox>(nameof(NormalPhprBrakeEnabledCheckBox));
 
@@ -6573,16 +6463,6 @@ public partial class MainWindow : Window
     private TextBox RealSlipStrengthTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipStrengthTextBox));
 
     private TextBox RealSlipCadenceTextBox => EffectsViewControl.GetRequiredControl<TextBox>(nameof(RealSlipCadenceTextBox));
-
-    private Slider MasterGainSlider => RoutingMixerViewControl.GetRequiredControl<Slider>(nameof(MasterGainSlider));
-
-    private TextBlock MasterGainValueText => RoutingMixerViewControl.GetRequiredControl<TextBlock>(nameof(MasterGainValueText));
-
-    private CheckBox MixerMuteCheckBox => RoutingMixerViewControl.GetRequiredControl<CheckBox>(nameof(MixerMuteCheckBox));
-
-    private Slider SafetyOutputGainSlider => RoutingMixerViewControl.GetRequiredControl<Slider>(nameof(SafetyOutputGainSlider));
-
-    private TextBlock SafetyOutputGainValueText => RoutingMixerViewControl.GetRequiredControl<TextBlock>(nameof(SafetyOutputGainValueText));
 
     private ComboBox ReplayTimingModeComboBox => TelemetryUdpViewControl.GetRequiredControl<ComboBox>(nameof(ReplayTimingModeComboBox));
 
@@ -6759,16 +6639,6 @@ public partial class MainWindow : Window
     private TextBlock DiagnosticsSummaryText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(DiagnosticsSummaryText));
 
     private ItemsControl DiagnosticsItemsControl => AdvancedDiagnosticsViewControl.GetRequiredControl<ItemsControl>(nameof(DiagnosticsItemsControl));
-
-    private TextBox ProfileNameTextBox => ProfilesViewControl.GetRequiredControl<TextBox>(nameof(ProfileNameTextBox));
-
-    private TextBlock ProfileStatusText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfileStatusText));
-
-    private TextBlock ProfilePathText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfilePathText));
-
-    private TextBlock ProfilePhprStatusText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfilePhprStatusText));
-
-    private TextBlock ProfileValidationText => ProfilesViewControl.GetRequiredControl<TextBlock>(nameof(ProfileValidationText));
 
     private ComboBox TestBenchSignalComboBox => TestingValidationViewControl.GetRequiredControl<ComboBox>(nameof(TestBenchSignalComboBox));
 

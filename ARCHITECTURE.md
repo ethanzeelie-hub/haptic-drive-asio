@@ -3117,3 +3117,27 @@ Stage 25AK architecture result:
 - The result improves maintainability because future BST-1 effect/control growth now extends the extracted view seams for both profile hydration and profile capture instead of reopening another large `MainWindow` control-read block.
 
 Stage 25AK deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across persisted settings and tuning UI. It removes the matching input-capture hotspot first so later UI/schema work can build on a more consistent shell boundary.
+
+## Stage 25AL MainWindow Audio-Profile Control Accessor Cleanup Seam
+
+Stage 25AL closes the immediate audio-profile shell cleanup stream by removing the leftover dead profile-related control accessors from `MainWindow` after both hydration and input capture already moved onto the extracted views.
+
+Stage 25AL architecture result:
+
+- `MainWindow` no longer keeps stale direct accessors for:
+  - profile-name/profile-status controls,
+  - BST-1 effect tuning/profile controls used only by the audio-profile seam,
+  - mixer/safety controls used only by the audio-profile seam.
+- The extracted view seams remain the live boundary for that profile workflow:
+  - `ProfilesView` owns profile-name hydration/capture,
+  - `EffectsView` owns BST-1 effect hydration/capture,
+  - `RoutingMixerView` owns mixer/safety hydration/capture.
+- Guardrail coverage now also asserts that `MainWindow` does not regain those old profile-control accessor declarations.
+- The stage stays intentionally narrow:
+  - no runtime haptic-behavior change,
+  - no persisted profile schema change,
+  - no WPF layout rewrite,
+  - no dynamic control generation.
+- The result improves maintainability because the shell boundary now matches the real ownership split instead of leaving obsolete direct-access escape hatches behind.
+
+Stage 25AL deliberately does not add data-driven effect editors, plugin-style effect metadata, dynamic WPF control generation, or broader profile-schema generalization across persisted settings and tuning UI. It finishes this local shell cleanup first so later effect-surface work starts from a cleaner composition root.

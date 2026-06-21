@@ -146,6 +146,7 @@
 - Stage 25AI: Shared BST-1 effect catalog seam complete.
 - Stage 25AJ: Audio-profile view application seam complete.
 - Stage 25AK: Audio-profile view input capture seam complete.
+- Stage 25AL: MainWindow audio-profile control accessor cleanup seam complete.
 
 ## Planned Stages
 
@@ -264,6 +265,7 @@
 113. Stage 25AI: Shared BST-1 effect catalog seam. Complete.
 114. Stage 25AJ: Audio-profile view application seam. Complete.
 115. Stage 25AK: Audio-profile view input capture seam. Complete.
+116. Stage 25AL: MainWindow audio-profile control accessor cleanup seam. Complete.
 
 ## Phase 2 / 3 Simagic P-HPR Plan
 
@@ -341,6 +343,7 @@ The extended Phase 2 / Phase 3 master prompt authorizes implementing the gated S
 - Stage 25AI extends that same effect-extensibility stream from mapping cleanup into metadata cleanup by centralizing shipped BST-1 effect keys, labels, and ordering behind one shared catalog used by the app-side summary builders and formatters.
 - Stage 25AJ extends that same cleanup into profile hydration by moving profile-name, BST-1 effect, and mixer/safety control application onto the extracted view seams, so future effect/control growth does not have to keep expanding another large `MainWindow` control-assignment block.
 - Stage 25AK extends that same cleanup into profile input capture by moving profile-name, BST-1 effect, and mixer/safety reads onto the extracted view seams, so future effect/control growth no longer has to keep expanding another large `MainWindow` control-read block just to build the persisted profile input snapshot.
+- Stage 25AL closes that mini-stream by removing the leftover dead profile-related control accessor strip from `MainWindow`, so the shell boundary now matches the extracted view seams instead of retaining stale direct-access paths that future edits could accidentally reuse.
 - Remaining quality work still includes visible game selection UX when a second game exists, broader effect-surface generalization across profiles/tuning UI/detailed diagnostics, deeper recording-library seek/index tooling such as richer per-packet browse/index views, broader cross-file persistence repair/rollback orchestration across multiple documents, and installer/signing/release publication.
 
 ## Post-BT-1 Hardware Phases

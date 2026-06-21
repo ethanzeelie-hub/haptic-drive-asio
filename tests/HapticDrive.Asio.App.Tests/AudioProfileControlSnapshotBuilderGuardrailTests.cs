@@ -54,6 +54,10 @@ public sealed class AudioProfileControlSnapshotBuilderGuardrailTests
         Assert.DoesNotContain("ProfileName: ProfileNameTextBox.Text", source, StringComparison.Ordinal);
         Assert.DoesNotContain("EngineEnabled: EngineEnabledCheckBox.IsChecked == true", source, StringComparison.Ordinal);
         Assert.DoesNotContain("MasterGainValue: MasterGainSlider.Value", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("private Slider EngineGainSlider =>", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("private Slider MasterGainSlider =>", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("private TextBox ProfileNameTextBox =>", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("private TextBlock ProfileStatusText =>", source, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
