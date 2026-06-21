@@ -64,8 +64,9 @@ public sealed class DocumentationConsistencyTests
     {
         var knownIssues = MainWindowSourceTestHelper.ReadRepositoryFile("KNOWN_ISSUES.md");
 
-        Assert.Contains("## Active blockers", knownIssues, StringComparison.Ordinal);
-        Assert.Contains("## Hardware-later validation", knownIssues, StringComparison.Ordinal);
+        Assert.Contains("## True blockers", knownIssues, StringComparison.Ordinal);
+        Assert.Contains("## Hardware-later tuning and validation", knownIssues, StringComparison.Ordinal);
+        Assert.Contains("## Owner and legal decisions", knownIssues, StringComparison.Ordinal);
         Assert.DoesNotContain("## Stage 00", knownIssues, StringComparison.Ordinal);
         Assert.DoesNotContain("## Stage 26B", knownIssues, StringComparison.Ordinal);
     }

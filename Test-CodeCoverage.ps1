@@ -1,11 +1,60 @@
 [CmdletBinding()]
 param(
     [string]$SearchRoot = "artifacts\TestResults",
-    [double]$MinimumLineCoverage = 75.0,
+    [double]$MinimumLineCoverage = 80.0,
     [string[]]$ExcludedPackages = @("HapticDrive.Asio.App")
 )
 
 $ErrorActionPreference = "Stop"
+
+function Normalize-CoverageFileName {
+    param(
+        [string]$PackageName,
+        [string]$FileName
+    )
+
+    $normalized = if ($null -eq $FileName) {
+        [string]::Empty
+    }
+    else {
+        [string]$FileName
+    }
+
+    $normalized = $normalized.Replace('\', '/').Trim()
+    while ($normalized.StartsWith('./', [System.StringComparison]::Ordinal)) {
+        $normalized = $normalized.Substring(2)
+    }
+
+    if ($normalized.StartsWith("$PackageName/", [System.StringComparison]::Ordinal)) {
+        $normalized = $normalized.Substring($PackageName.Length + 1)
+    }
+
+    return $normalized
+}
+
+function Test-IsGeneratedCoverageFile {
+    param(
+        [string]$NormalizedFileName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NormalizedFileName)) {
+        return $true
+    }
+
+    if ($NormalizedFileName.IndexOf('/obj/', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        return $true
+    }
+
+    if ($NormalizedFileName.EndsWith('.g.cs', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
+    if ($NormalizedFileName.EndsWith('.g.i.cs', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
+    return $false
+}
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $resolvedSearchRoot = if ([System.IO.Path]::IsPathRooted($SearchRoot)) {
@@ -36,7 +85,11 @@ foreach ($coverageFile in $coverageFiles) {
         }
 
         foreach ($classNode in @($packageNode.classes.class)) {
-            $fileName = [string]$classNode.filename
+            $fileName = Normalize-CoverageFileName -PackageName $packageName -FileName ([string]$classNode.filename)
+            if (Test-IsGeneratedCoverageFile -NormalizedFileName $fileName) {
+                continue
+            }
+
             foreach ($lineNode in @($classNode.lines.line)) {
                 $key = "$packageName|$fileName|$($lineNode.number)"
                 $hits = [int]$lineNode.hits

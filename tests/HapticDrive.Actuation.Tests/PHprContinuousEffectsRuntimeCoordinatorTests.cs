@@ -66,7 +66,10 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
         harness.Runtime.StartRoadVibrationRuntime();
         await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
         harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
-        await WaitForAsync(() => harness.InnerOutput.CommandHistory.Count >= 2);
+        await WaitForAsync(() =>
+            harness.InnerOutput.CommandHistory.Count >= 2
+            && harness.RoadRouter.GetSnapshot().LastResult?.WasRouted == true
+            && harness.Runtime.GetSnapshot().LastRoadVibrationRoutingResult?.WasRouted == true);
 
         var commands = harness.InnerOutput.CommandHistory.ToArray();
         Assert.Contains(commands, command => command.Source == PHprCommandSource.RoadTexture && command.TargetModule == PHprModuleId.Brake);
@@ -84,7 +87,10 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
         harness.Runtime.StartSlipLockRuntime();
         await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
         harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
-        await WaitForAsync(() => harness.InnerOutput.CommandHistory.Count >= 1);
+        await WaitForAsync(() =>
+            harness.InnerOutput.CommandHistory.Count >= 1
+            && harness.SlipLockRouter.GetSnapshot().LastResult?.WasRouted == true
+            && harness.Runtime.GetSnapshot().LastSlipLockRoutingResult?.WasRouted == true);
 
         var command = Assert.Single(harness.InnerOutput.CommandHistory);
         Assert.Equal(PHprCommandSource.WheelSlip, command.Source);

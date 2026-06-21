@@ -39,7 +39,7 @@ jobs:
         run: dotnet test HapticDrive.Asio.sln -c Release --no-build --collect:"XPlat Code Coverage" --results-directory artifacts\TestResults
 
       - name: Coverage gate
-        run: .\Test-CodeCoverage.ps1 -SearchRoot artifacts\TestResults -MinimumLineCoverage 75
+        run: .\Test-CodeCoverage.ps1 -SearchRoot artifacts\TestResults -MinimumLineCoverage 80
 
       - name: Format
         run: dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore

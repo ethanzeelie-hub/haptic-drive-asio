@@ -3,12 +3,12 @@ namespace HapticDrive.Asio.App.Tests;
 public sealed class MainWindowSizeGuardrailTests
 {
     [Fact]
-    public void MainWindowCodeBehindBelow3000Lines()
+    public void MainWindowCodeBehindBelow1700Lines()
     {
         var lineCount = MainWindowSourceTestHelper.ReadMainWindowCodeBehindLineCount();
 
         Assert.True(
-            lineCount < 3000,
-            $"Expected MainWindow.xaml.cs to stay below 3000 lines for Stage 8, but found {lineCount}.");
+            lineCount < 1700,
+            $"Expected MainWindow.xaml.cs to stay below 1700 lines for final production readiness, but found {lineCount}.");
     }
 }

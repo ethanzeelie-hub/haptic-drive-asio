@@ -290,6 +290,7 @@ public sealed class PHprDirectRuntimeTests
             DirectSafetyContext());
         Assert.Contains("sent", first, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(PHprDirectRuntimeState.Active, harness.Runtime.GetSnapshot().State);
+        await WaitForScheduledRuntimeDelaysAsync(harness.RuntimeClock, 1);
         harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(10));
         harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(10));
         var second = await harness.Runtime.RouteBenchAsync(
@@ -302,6 +303,7 @@ public sealed class PHprDirectRuntimeTests
         Assert.Contains("sent", second, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(2, harness.Writer.Reports.Count(report => report.State == PHprHidReportState.Start));
         Assert.Equal(PHprDirectRuntimeState.Active, harness.Runtime.GetSnapshot().State);
+        await WaitForScheduledRuntimeDelaysAsync(harness.RuntimeClock, 2);
 
         harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(30));
         await WaitForDiagnosticsAsync(harness.Output, diagnostics => diagnostics.StaleStopIgnoredCount == 1);
@@ -565,6 +567,22 @@ public sealed class PHprDirectRuntimeTests
         }
 
         Assert.True(writer.Reports.Count >= count, $"Expected {count} reports but saw {writer.Reports.Count} after advancing the fake clock.");
+    }
+
+    private static async Task WaitForScheduledRuntimeDelaysAsync(FakeRuntimeClock clock, int count)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (clock.ScheduledDelayCount >= count)
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.True(clock.ScheduledDelayCount >= count, $"Expected {count} scheduled runtime delay(s) but saw {clock.ScheduledDelayCount}.");
     }
 
     private static async Task WaitForMarkerClearedAsync(IPHprBenchUncleanShutdownStore store)
@@ -870,6 +888,17 @@ public sealed class PHprDirectRuntimeTests
         public DateTimeOffset UtcNow { get; private set; } = new(2026, 6, 10, 12, 0, 0, TimeSpan.Zero);
 
         public long MonotonicTimestamp => _elapsed.Ticks;
+
+        public int ScheduledDelayCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _delays.Count;
+                }
+            }
+        }
 
         public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default)
         {

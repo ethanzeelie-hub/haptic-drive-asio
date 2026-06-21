@@ -68,12 +68,13 @@ public sealed class DependencyGovernanceTests
         Assert.Contains(@".\Test-PackageVulnerabilities.ps1 -FailOnMinimumSeverity High", ciWorkflow, StringComparison.Ordinal);
         Assert.Contains("dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror", ciWorkflow, StringComparison.Ordinal);
         Assert.Contains("dotnet test HapticDrive.Asio.sln -c Release --no-build --collect:\"XPlat Code Coverage\"", ciWorkflow, StringComparison.Ordinal);
-        Assert.Contains(@".\Test-CodeCoverage.ps1 -SearchRoot artifacts\TestResults -MinimumLineCoverage 75", ciWorkflow, StringComparison.Ordinal);
+        Assert.Contains(@".\Test-CodeCoverage.ps1 -SearchRoot artifacts\TestResults -MinimumLineCoverage 80", ciWorkflow, StringComparison.Ordinal);
         Assert.Contains("dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore", ciWorkflow, StringComparison.Ordinal);
 
         Assert.Contains("permissions:", packageWorkflow, StringComparison.Ordinal);
         Assert.Contains("contents: read", packageWorkflow, StringComparison.Ordinal);
         Assert.Contains(@".\Test-PackageVulnerabilities.ps1 -FailOnMinimumSeverity High", packageWorkflow, StringComparison.Ordinal);
+        Assert.Contains(@".\Test-CodeCoverage.ps1 -SearchRoot artifacts\TestResults -MinimumLineCoverage 80", packageWorkflow, StringComparison.Ordinal);
         Assert.Contains(@".\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64", packageWorkflow, StringComparison.Ordinal);
         Assert.Contains("artifacts/release/HapticDrive.Asio-win-x64.package-manifest.json", packageWorkflow, StringComparison.Ordinal);
     }

@@ -7648,3 +7648,58 @@ Self-review:
 - The repo is easier to orient now because live docs and historical notes are finally separated cleanly.
 - The accessibility pass is intentionally pragmatic rather than flashy: the critical safety and telemetry surfaces now expose clear text, keyboard discoverability, and automation metadata without destabilizing the shell or forcing a full WPF rewrite.
 - This stage also sets up Stage 14 well because the remaining production-readiness work is now mostly measurable guardrails and coverage/readiness tightening rather than documentation archaeology.
+
+## Stage 26N - Final Production Readiness Pass
+
+Status: Complete.
+
+Goal: Close the remaining production-hardening gaps with measurable guardrails, final validation, release-readiness checks, and a cleaner shell surface another engineer can pick up confidently.
+
+Changes:
+
+- Reduced `src/HapticDrive.Asio.App/MainWindow.xaml.cs` to `1446` lines by moving remaining output-interlock and telemetry/status orchestration into focused partials:
+  - `MainWindow.OutputInterlock.cs`
+  - `MainWindow.StatusTelemetry.cs`
+- Tightened the final `MainWindow` guardrail test from the earlier stage threshold to a final production-readiness ceiling of `1700` lines while meeting the stronger implementation target below `1500`.
+- Added `PRODUCTION_READINESS_CHECKLIST.md` with the final manual smoke list covering:
+  - launch with no hardware,
+  - Null output safety baseline,
+  - global interlock visibility/reset behavior,
+  - recording/replay smoke,
+  - support-bundle redaction,
+  - release artifact creation,
+  - remaining non-claims and authorization boundaries.
+- Raised the CI and packaging workflow coverage gate from `75%` to `80%`.
+- Hardened the merged coverage gate implementation in `Test-CodeCoverage.ps1` so it:
+  - normalizes duplicate coverage path variants before aggregation,
+  - excludes generated coverage artifacts such as `obj`, `.g.cs`, and `.g.i.cs`,
+  - keeps the production-library coverage gate stable and reproducible across local and CI runs.
+- Updated final documentation/tests to match the production-readiness end state:
+  - `KNOWN_ISSUES.md` now uses final issue categories,
+  - workflow/static governance tests now expect the `80%` gate,
+  - accessibility/doc consistency tests now validate the final issue headings,
+  - the flaky direct-runtime retrigger test now waits for fake runtime stop observers to be registered before advancing the fake clock, eliminating timing-dependent failures.
+
+Tests:
+
+- Tightened `MainWindowSizeGuardrailTests.MainWindowCodeBehindBelow1700Lines`.
+- Updated `DependencyGovernanceTests.CiWorkflowUsesMinimalPermissionsAndRequiredValidationSteps` for the final `80%` coverage gate.
+- Updated `DocumentationConsistencyTests.KnownIssuesDoesNotListResolvedFreshnessBug` for the final active-issues structure.
+- Stabilized `PHprDirectRuntimeTests.BenchRetriggerStartsWhileRuntimeIsActiveAndOldObserverIsIgnored`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build --collect:"XPlat Code Coverage"` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\Test-CodeCoverage.ps1 -SearchRoot tests -MinimumLineCoverage 80` passed with merged line coverage `81.76% (18432 / 22545)`.
+- `.\Run-HapticDrive.ps1 -NoBuild -CheckOnly` passed.
+- `.\Prepare-ReleaseArtifact.ps1` passed, including release-artifact smoke validation.
+
+Self-review:
+
+- This closes the production-hardening roadmap in a way that is measurable instead of aspirational: the repo now has final-stage guardrails for coverage, release packaging, documentation, and shell size in addition to the earlier safety/runtime/architecture changes.
+- The `MainWindow` cleanup is meaningful rather than cosmetic. The shell still owns composition and event boundaries, but the last large safety/telemetry clusters are no longer inflating one monolithic file.
+- The remaining documented blockers are intentionally outside normal software engineering hardening scope: owner-selected licensing, unauthorized real P-HPR writes, and physical hardware validation/tuning that can only happen locally on the real chain.
