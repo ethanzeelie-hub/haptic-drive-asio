@@ -5,6 +5,7 @@
 - The old audio-only emergency mute path has been replaced by the Stage 26A global output interlock.
 - Stage 26B now uses session-aware per-signal freshness and reset protection for the shipped F1 25 path.
 - Stage 26C now routes live UDP packets through one bounded ingress worker, exposes ignored-remote / oversized / drop counters, and defaults the listener to loopback with explicit LAN opt-in.
+- Stage 26D now serializes output/runtime lifecycle transitions, guards telemetry status ticks to one in-flight update, and forces shutdown through the global interlock before cleanup begins.
 - The output interlock starts latched by default and now requires an explicit reset after haptics are started and output configuration is valid.
 
 ## Stage 00

@@ -120,13 +120,16 @@
 - Stage 25I: Atomic persistence hardening complete.
 - Stage 26A: Global output safety interlock complete.
 - Stage 26B: Session-aware telemetry freshness hardening complete.
+- Stage 26C: Bounded UDP ingress and safer listener defaults complete.
+- Stage 26D: Runtime lifecycle serialization complete.
 
 ## Current Hardening Program
 
 - Stage 26A complete: global output safety interlock now owns emergency stop/mute latching across BST-1 audio, manual test rendering, and P-HPR routing/runtime surfaces.
 - Stage 26B complete: telemetry now carries monotonic receive timestamps, F1 25 state resets on source/session/player identity changes, older same-session frames are ignored, per-signal freshness is centralized, and stale driving telemetry can latch the global output interlock.
 - Stage 26C complete: live UDP telemetry now flows through one bounded ingress worker with dedicated haptic/forwarding/recording channels, loopback remains the default bind, LAN telemetry is explicit opt-in, and diagnostics now surface ignored remotes, oversized datagrams, and ingress drop counts.
-- Next production-hardening priority: serialize runtime lifecycle work so output switching, pipeline rebuilds, timer updates, telemetry processing, and shutdown cannot overlap unsafely.
+- Stage 26D complete: shell-triggered runtime lifecycle work now runs through one serialized coordinator with generation guards, telemetry status ticks are single-flight, shutdown trips the global interlock first, and close cleanup now uses a bounded asynchronous shutdown path instead of overlapping fire-and-forget work.
+- Next production-hardening priority: introduce the formal game integration registry and canonical `HapticFrame` normalizer boundary so effects and future actuators stop depending on F1-specific enums and raw state shapes.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

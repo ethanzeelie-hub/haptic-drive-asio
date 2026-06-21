@@ -6976,3 +6976,70 @@ Self-review:
 - Live packet receive now returns quickly and no longer spins up WPF-attached work per datagram.
 - Byte preservation for forwarding/recording remains intact because the ingress worker forwards the original `UdpTelemetryPacket.Payload`.
 - This stage intentionally stops at ingress/backpressure and listener safety; runtime lifecycle serialization and overlapping async operation hardening remain the next stage.
+
+## Stage 26D - Runtime Lifecycle Serialization
+
+Status: Complete.
+
+Goal: Serialize shell-triggered runtime lifecycle operations so output switching, pipeline rebuilds, telemetry status updates, recording start/stop, and shutdown cannot overlap unsafely or apply stale completions back into the live runtime.
+
+Changes:
+
+- Added `HapticRuntimeControlSnapshot` under `HapticDrive.Asio.Runtime` as an immutable runtime-control view containing:
+  - mute state,
+  - output interlock generation,
+  - selected output identifier,
+  - active profile identity/hash,
+  - sample rate and buffer size,
+  - manual-test state,
+  - telemetry freshness policy,
+  - snapshot timestamp.
+- Added `RuntimeLifecycleCoordinator` under `HapticDrive.Asio.Runtime`:
+  - one `SemaphoreSlim` gate for serialized lifecycle work,
+  - one monotonic generation counter,
+  - stale-completion guard via `ShouldApply(...)`,
+  - explicit shutdown entry that trips the global output interlock before cleanup begins.
+- Reworked `MainWindow` lifecycle entry points to delegate through the shared serialized coordinator instead of overlapping direct async work:
+  - Start / Stop Haptics,
+  - recording start,
+  - output-mode / ASIO selection rebuilds,
+  - telemetry-listener reconfiguration,
+  - replay/forwarding-related rebuild points that already share the pipeline path.
+- Added `PublishRuntimeControlSnapshot()` in `MainWindow` so diagnostics and future controller work can consume one immutable runtime snapshot instead of scattered mutable flags.
+- Hardened telemetry status updates:
+  - `TelemetryStatusTimer_Tick` is now single-flight,
+  - skipped ticks increment a dedicated atomic counter,
+  - one tick gathers one runtime snapshot and updates the visible shell from that snapshot.
+- Reworked close/shutdown flow:
+  - `OnClosing` now trips the interlock immediately,
+  - starts async shutdown only once,
+  - cancels the first close request while cleanup runs,
+  - uses a five-second shutdown timeout,
+  - falls back to best-effort disposal with warning diagnostics if cleanup does not complete in time.
+- Updated architecture documentation so the bounded ingress worker and serialized lifecycle coordinator are described as separate responsibilities: packet flow remains responsive while device/runtime ownership stays serialized.
+
+Tests:
+
+- Added `RuntimeLifecycleCoordinatorTests`:
+  - `SerializesConcurrentOutputSwitches`,
+  - `IgnoresStaleGenerationCompletion`,
+  - `ShutdownTripsInterlockFirst`,
+  - `RaceStress_WithConcurrentLifecycleRequests_RemainsSerialized`.
+- Added `MainWindowTimerTests.TelemetryStatusTickIsSingleFlight` guardrail coverage.
+- Added `MainWindowClosingTests.ShutdownTimeoutDoesNotHangUiForever` guardrail coverage.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -NoBuild -CheckOnly` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.Runtime.Tests\HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Asio.App.Tests\HapticDrive.Asio.App.Tests.csproj -c Release --no-build` passed.
+
+Self-review:
+
+- Runtime lifecycle ownership is now explicit and serialized instead of being spread across overlapping event handlers.
+- The new generation guard keeps slow rebuild completions from older selections from mutating the current runtime after the user has already moved on.
+- This stage intentionally stops at shell/runtime serialization; the next hardening step is the formal game-registry plus canonical-frame boundary so effects stop consuming F1-specific state directly.

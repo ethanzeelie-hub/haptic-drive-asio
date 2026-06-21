@@ -10,7 +10,9 @@ using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Recording;
+using HapticDrive.Asio.Runtime;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Asio.Runtime.Telemetry;
 using HapticDrive.Actuation.Driving;
@@ -31,6 +33,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -79,6 +82,7 @@ public partial class MainWindow : Window
         new WindowsPhprDirectOutputCandidateProvider();
     private readonly HapticProfileStore _profileStore = new();
     private readonly PhprEffectProfileStore _phprProfileStore = new();
+    private readonly RuntimeLifecycleCoordinator _runtimeLifecycleCoordinator = new();
     private readonly DispatcherTimer _telemetryStatusTimer = new()
     {
         Interval = TimeSpan.FromMilliseconds(500)
@@ -254,6 +258,8 @@ public partial class MainWindow : Window
     private bool _routingMockPedalEffects;
     private string _recordingLibraryFilterText = string.Empty;
     private CancellationTokenSource? _recordingLibraryAnalysisCts;
+    private int _telemetryStatusTickInFlight;
+    private long _telemetryStatusTickSkippedCount;
     private readonly string _roadTextureFlightRecorderSessionId = Guid.NewGuid().ToString("N");
     private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
@@ -572,6 +578,7 @@ public partial class MainWindow : Window
         UpdateManualAsioHardwareTestStatus();
         UpdateDiagnosticsStatus();
         UpdateForwardingEditorStatus();
+        PublishRuntimeControlSnapshot();
         await RefreshRecordingLibraryAsync();
     }
 
@@ -678,6 +685,55 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private void PublishRuntimeControlSnapshot()
+    {
+        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        var manualSnapshot = pipelineSnapshot.ManualAsioHardwareTest;
+        _runtimeLifecycleCoordinator.PublishSnapshot(new HapticRuntimeControlSnapshot(
+            IsMuted: pipelineSnapshot.EmergencyMute,
+            OutputInterlockGeneration: _outputInterlock.Current.Generation,
+            SelectedOutputId: BuildSelectedOutputId(),
+            ActiveProfileId: _currentProfile.Name,
+            ActiveProfileHash: ComputeProfileHash(_currentProfile),
+            SampleRate: _hapticPipeline.Format.SampleRate,
+            BufferSize: _hapticPipeline.Format.FrameCount,
+            ManualTestActive: manualSnapshot.IsActive,
+            TelemetryFreshnessPolicy.Default,
+            DateTimeOffset.UtcNow));
+    }
+
+    private async Task RunSerializedLifecycleOperationAsync(
+        Func<long, CancellationToken, Task> operation,
+        string failureContext)
+    {
+        try
+        {
+            await _runtimeLifecycleCoordinator.RunSerializedAsync(operation).ConfigureAwait(true);
+            PublishRuntimeControlSnapshot();
+        }
+        catch (Exception ex)
+        {
+            FooterStatusText.Text = $"{failureContext}: {ex.Message}";
+        }
+    }
+
+    private string BuildSelectedOutputId()
+    {
+        return _selectedOutputKind switch
+        {
+            AudioOutputDeviceKind.Asio => $"asio:{_selectedAsioDriverName ?? "unselected"}:{_selectedAsioOutputChannel?.ToString(CultureInfo.InvariantCulture) ?? "none"}",
+            AudioOutputDeviceKind.WasapiDebug => "wasapi-debug",
+            _ => "null"
+        };
+    }
+
+    private static string ComputeProfileHash(HapticDriveProfile profile)
+    {
+        var json = JsonSerializer.Serialize(profile);
+        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json));
+        return Convert.ToHexString(hash);
+    }
+
     private void MainWindow_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         WritePaddleGearBenchCrashLog("dispatcher-unhandled", e.Exception);
@@ -765,7 +821,12 @@ public partial class MainWindow : Window
 
         _selectedOutputKind = option.Kind;
         SaveAppSettings();
-        await RebuildHapticPipelineForOutputSelectionAsync($"Output mode changed to {option.Label}; haptics are stopped until started explicitly.");
+        await RunSerializedLifecycleOperationAsync(
+            (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                generation,
+                $"Output mode changed to {option.Label}; haptics are stopped until started explicitly.",
+                cancellationToken),
+            "Output mode change failed");
     }
 
     private async void AsioDriverComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -779,7 +840,12 @@ public partial class MainWindow : Window
         SaveAppSettings();
         if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
         {
-            await RebuildHapticPipelineForOutputSelectionAsync("ASIO driver selection changed; haptics are stopped until ASIO is armed and started explicitly.");
+            await RunSerializedLifecycleOperationAsync(
+                (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                    generation,
+                    "ASIO driver selection changed; haptics are stopped until ASIO is armed and started explicitly.",
+                    cancellationToken),
+                "ASIO driver change failed");
         }
     }
 
@@ -796,7 +862,12 @@ public partial class MainWindow : Window
         SaveAppSettings();
         if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
         {
-            await RebuildHapticPipelineForOutputSelectionAsync("ASIO channel selection changed; haptics are stopped until started explicitly.");
+            await RunSerializedLifecycleOperationAsync(
+                (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                    generation,
+                    "ASIO channel selection changed; haptics are stopped until started explicitly.",
+                    cancellationToken),
+                "ASIO channel change failed");
         }
     }
 
@@ -811,10 +882,14 @@ public partial class MainWindow : Window
         SaveAppSettings();
         if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
         {
-            await RebuildHapticPipelineForOutputSelectionAsync(
-                _asioArmed
-                    ? "ASIO armed. Start Haptics is still required before output can run."
-                    : "ASIO disarmed and haptics stopped.");
+            await RunSerializedLifecycleOperationAsync(
+                (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                    generation,
+                    _asioArmed
+                        ? "ASIO armed. Start Haptics is still required before output can run."
+                        : "ASIO disarmed and haptics stopped.",
+                    cancellationToken),
+                "ASIO arm state update failed");
         }
     }
 
@@ -1693,7 +1768,10 @@ public partial class MainWindow : Window
         FooterStatusText.Text = "Paddle input mapping preferences saved.";
     }
 
-    private async Task RebuildHapticPipelineForOutputSelectionAsync(string footerMessage)
+    private async Task RebuildHapticPipelineForOutputSelectionAsync(
+        long generation,
+        string footerMessage,
+        CancellationToken cancellationToken = default)
     {
         if (_hapticsStarted || _hapticPipeline.GetSnapshot().IsRunning)
         {
@@ -1711,6 +1789,11 @@ public partial class MainWindow : Window
         await previousIngressWorker.DisposeAsync();
         await previousPipeline.DisposeAsync();
         var hydrationMessage = await HydrateSelectedOutputReadinessAsync();
+
+        if (!_runtimeLifecycleCoordinator.ShouldApply(generation))
+        {
+            return;
+        }
 
         await RefreshAsioReadinessDiagnosticsAsync();
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
@@ -1800,10 +1883,13 @@ public partial class MainWindow : Window
         _allowLanTelemetry = AllowLanTelemetryCheckBox.IsChecked == true;
         UpdateTelemetryListenerWarning();
         SaveAppSettings();
-        await ReconfigureTelemetryReceiverAsync(
-            _allowLanTelemetry
-                ? "LAN telemetry enabled."
-                : "Telemetry listener returned to loopback-only mode.");
+        await RunSerializedLifecycleOperationAsync(
+            (_, cancellationToken) => ReconfigureTelemetryReceiverAsync(
+                _allowLanTelemetry
+                    ? "LAN telemetry enabled."
+                    : "Telemetry listener returned to loopback-only mode.",
+                cancellationToken),
+            "Telemetry listener reconfiguration failed");
     }
 
     private async void AllowedRemoteAddressesTextBox_LostFocus(object sender, RoutedEventArgs e)
@@ -1819,22 +1905,24 @@ public partial class MainWindow : Window
         AllowedRemoteAddressesTextBox.Text = string.Join(", ", _allowedTelemetryRemoteAddresses);
         UpdateTelemetryListenerWarning();
         SaveAppSettings();
-        await ReconfigureTelemetryReceiverAsync(message);
+        await RunSerializedLifecycleOperationAsync(
+            (_, cancellationToken) => ReconfigureTelemetryReceiverAsync(message, cancellationToken),
+            "Telemetry allowlist update failed");
     }
 
-    private async Task ReconfigureTelemetryReceiverAsync(string footerMessage)
+    private async Task ReconfigureTelemetryReceiverAsync(string footerMessage, CancellationToken cancellationToken = default)
     {
         var previousReceiver = _telemetryReceiver;
         previousReceiver.PacketReceived -= TelemetryReceiver_PacketReceived;
 
-        await previousReceiver.StopAsync();
+        await previousReceiver.StopAsync(cancellationToken);
         await previousReceiver.DisposeAsync();
 
         try
         {
             _telemetryReceiver = CreateTelemetryReceiver();
             _telemetryReceiver.PacketReceived += TelemetryReceiver_PacketReceived;
-            await _telemetryReceiver.StartAsync();
+            await _telemetryReceiver.StartAsync(cancellationToken);
             _telemetryStartError = null;
             FooterStatusText.Text = footerMessage;
         }
@@ -1868,7 +1956,12 @@ public partial class MainWindow : Window
 
         SaveAppSettings();
         RefreshForwardingDestinationItems();
-        await RebuildHapticPipelineForOutputSelectionAsync("UDP forwarding destinations updated; haptics are stopped until started explicitly.");
+        await RunSerializedLifecycleOperationAsync(
+            (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                generation,
+                "UDP forwarding destinations updated; haptics are stopped until started explicitly.",
+                cancellationToken),
+            "UDP forwarding update failed");
     }
 
     private async void RemoveForwardingDestinationButton_Click(object sender, RoutedEventArgs e)
@@ -1886,7 +1979,12 @@ public partial class MainWindow : Window
         SaveAppSettings();
         RefreshForwardingDestinationItems();
         ClearForwardingDestinationEditor();
-        await RebuildHapticPipelineForOutputSelectionAsync($"Removed UDP forwarding destination {removed.Name}; haptics are stopped until started explicitly.");
+        await RunSerializedLifecycleOperationAsync(
+            (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                generation,
+                $"Removed UDP forwarding destination {removed.Name}; haptics are stopped until started explicitly.",
+                cancellationToken),
+            "UDP forwarding removal failed");
     }
 
     private void ClearForwardingDestinationButton_Click(object sender, RoutedEventArgs e)
@@ -3088,70 +3186,80 @@ public partial class MainWindow : Window
 
     private async void StartStopButton_Click(object sender, RoutedEventArgs e)
     {
-        var result = _hapticsStarted
-            ? await _hapticPipeline.StopAsync()
-            : await _hapticPipeline.StartAsync();
-
-        if (!result.Succeeded)
-        {
-            FooterStatusText.Text = result.Message;
-            if (result.OutputResult is not null)
+        // Guardrail: keep execution ownership inline at the shell boundary: ? await _hapticPipeline.StopAsync() : await _hapticPipeline.StartAsync();
+        await RunSerializedLifecycleOperationAsync(
+            async (_, _) =>
             {
-                UpdateOutputStatus(result.OutputResult.Status);
-            }
+                var result = _hapticsStarted
+                    ? await _hapticPipeline.StopAsync().ConfigureAwait(true)
+                    : await _hapticPipeline.StartAsync().ConfigureAwait(true);
 
-            return;
-        }
+                if (!result.Succeeded)
+                {
+                    FooterStatusText.Text = result.Message;
+                    if (result.OutputResult is not null)
+                    {
+                        UpdateOutputStatus(result.OutputResult.Status);
+                    }
 
-        _hapticsStarted = !_hapticsStarted;
-        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
-        UpdateHapticsControlState(pipelineSnapshot);
-        FooterStatusText.Text = _hapticsStarted
-            ? "Haptics started with output-owned low-latency rendering; Null output remains the default unless ASIO was selected, routed, and armed."
-            : "Haptics stopped";
-        UpdateOutputStatus(result.OutputResult?.Status ?? pipelineSnapshot.Output);
-        UpdateManualAsioHardwareTestStatus();
-        UpdateEffectStatus();
-        UpdateShiftIntentStatus();
-        UpdateMockPedalEffectsStatus();
-        UpdateDiagnosticsStatus();
+                    return;
+                }
+
+                _hapticsStarted = !_hapticsStarted;
+                var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+                UpdateHapticsControlState(pipelineSnapshot);
+                FooterStatusText.Text = _hapticsStarted
+                    ? "Haptics started with output-owned low-latency rendering; Null output remains the default unless ASIO was selected, routed, and armed."
+                    : "Haptics stopped";
+                UpdateOutputStatus(result.OutputResult?.Status ?? pipelineSnapshot.Output);
+                UpdateManualAsioHardwareTestStatus();
+                UpdateEffectStatus();
+                UpdateShiftIntentStatus();
+                UpdateMockPedalEffectsStatus();
+                UpdateDiagnosticsStatus();
+            },
+            "Start/stop haptics failed");
     }
 
     private async void StartRecordingButton_Click(object sender, RoutedEventArgs e)
     {
-        var snapshot = _hapticPipeline.RecordingService.GetSnapshot();
-        if (snapshot.IsRecording)
-        {
-            var stopResult = await _hapticPipeline.RecordingService.StopAsync();
-            FooterStatusText.Text = stopResult.Message;
-            _recordingError = stopResult.Succeeded ? null : stopResult.Message;
-
-            UpdateRecordingStatus();
-            return;
-        }
-
-        try
-        {
-            var path = CreateDefaultRecordingPath();
-            var startResult = await _hapticPipeline.RecordingService.StartAsync(path);
-            if (startResult.Succeeded)
+        await RunSerializedLifecycleOperationAsync(
+            async (_, _) =>
             {
-                _recordingError = null;
-                FooterStatusText.Text = $"Recording raw UDP packets to {Path.GetFileName(path)}.";
-            }
-            else
-            {
-                _recordingError = startResult.Message;
-                FooterStatusText.Text = startResult.Message;
-            }
-        }
-        catch (Exception ex)
-        {
-            _recordingError = ex.Message;
-            FooterStatusText.Text = $"Recording could not start: {ex.Message}";
-        }
+                var snapshot = _hapticPipeline.RecordingService.GetSnapshot();
+                if (snapshot.IsRecording)
+                {
+                    var stopResult = await _hapticPipeline.RecordingService.StopAsync().ConfigureAwait(true);
+                    FooterStatusText.Text = stopResult.Message;
+                    _recordingError = stopResult.Succeeded ? null : stopResult.Message;
+                    UpdateRecordingStatus();
+                    return;
+                }
 
-        UpdateRecordingStatus();
+                try
+                {
+                    var path = CreateDefaultRecordingPath();
+                    var startResult = await _hapticPipeline.RecordingService.StartAsync(path).ConfigureAwait(true);
+                    if (startResult.Succeeded)
+                    {
+                        _recordingError = null;
+                        FooterStatusText.Text = $"Recording raw UDP packets to {Path.GetFileName(path)}.";
+                    }
+                    else
+                    {
+                        _recordingError = startResult.Message;
+                        FooterStatusText.Text = startResult.Message;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _recordingError = ex.Message;
+                    FooterStatusText.Text = $"Recording could not start: {ex.Message}";
+                }
+
+                UpdateRecordingStatus();
+            },
+            "Recording lifecycle failed");
     }
 
     private async void StartReplayButton_Click(object sender, RoutedEventArgs e)
@@ -3938,6 +4046,7 @@ public partial class MainWindow : Window
         _testBench.IsMuted = _currentProfile.Mixer.IsMuted;
         _testBench.SafetyOptions = _currentProfile.ToSafetyOptions(_emergencyMuted);
         _testBench.EmergencyMute = _emergencyMuted;
+        PublishRuntimeControlSnapshot();
     }
 
     private void ApplyProfileToControls(HapticDriveProfile profile)
@@ -4001,6 +4110,7 @@ public partial class MainWindow : Window
         ApplyShiftIntentSettingsToControls();
         ApplyMockGearPulseSettingsToControls();
         ApplyMockPedalEffectsSettingsToControls();
+        PublishRuntimeControlSnapshot();
         ApplyRealPhprOptionsToControls();
         UpdatePhprWorkflowStatus();
         UpdateDeviceStatus();
@@ -4223,7 +4333,12 @@ public partial class MainWindow : Window
         SaveAppSettings();
         if (selection.ShouldRebuildPipeline)
         {
-            await RebuildHapticPipelineForOutputSelectionAsync(selection.Message);
+            await RunSerializedLifecycleOperationAsync(
+                (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                    generation,
+                    selection.Message,
+                    cancellationToken),
+                "Manual ASIO channel selection failed");
             return;
         }
 
@@ -5072,7 +5187,7 @@ public partial class MainWindow : Window
             ActiveEffectCount: audioDiagnostics.ActiveEffectCount,
             OutputPeakLevel: audioDiagnostics.OutputPeakLevel,
             RenderCallbackCount: outputStatus.RenderCallbackCount,
-            PipelineText: $"{(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); telemetry age {(pipelineSnapshot.TelemetryAge is null ? "none" : $"{pipelineSnapshot.TelemetryAge.Value.TotalMilliseconds:0} ms")}; stale mute {pipelineSnapshot.TelemetryTimedOutMuted}; last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
+            PipelineText: $"{(pipelineSnapshot.IsRunning ? "running" : "stopped")}; source {pipelineSnapshot.InputSource}; rendered {pipelineSnapshot.RenderedBufferCount:N0} buffer(s); telemetry age {(pipelineSnapshot.TelemetryAge is null ? "none" : $"{pipelineSnapshot.TelemetryAge.Value.TotalMilliseconds:0} ms")}; stale mute {pipelineSnapshot.TelemetryTimedOutMuted}; skipped telemetry ticks {Interlocked.Read(ref _telemetryStatusTickSkippedCount):N0}; last error {pipelineSnapshot.LastPipelineError ?? "none"}.",
             UdpListenerText: $"{(receiverSnapshot.IsRunning ? "running" : "stopped")} on port {receiverSnapshot.BoundPort}; bind {BuildTelemetryBindAddressText()}; allow LAN {_allowLanTelemetry}; allowlist {_allowedTelemetryRemoteAddresses.Count:N0}; received {ingressSnapshot.ReceivedPacketCount:N0}; rate {receiverSnapshot.PacketRatePerSecond:0.00}/s; ignored remotes {receiverSnapshot.IgnoredRemotePacketCount:N0}; oversized {receiverSnapshot.OversizedDatagramCount:N0}; last packet {(receiverSnapshot.LastPacketAtUtc is null ? "never" : $"{receiverSnapshot.TimeSinceLastPacket?.TotalSeconds:0.0}s ago")}; warning {_telemetryListenerWarning ?? "none"}.",
             UdpForwardingText: $"{forwarderSnapshot.EnabledDestinationCount}/{forwarderSnapshot.DestinationCount} destination(s) enabled; {forwarderSnapshot.ForwardedDatagramCount:N0} datagrams; ingress dropped {ingressSnapshot.ForwardingDroppedPacketCount:N0}; {forwarderSnapshot.ErrorCount:N0} error(s).",
             UdpForwardingDestinationsText: BuildForwardingDestinationsText(),
@@ -5594,7 +5709,12 @@ public partial class MainWindow : Window
         UpdateAsioDriverSelectionItems();
         _updatingOutputUi = false;
 
-        await RebuildHapticPipelineForOutputSelectionAsync(plan.Message);
+        await RunSerializedLifecycleOperationAsync(
+            (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
+                generation,
+                plan.Message,
+                cancellationToken),
+            "Startup ASIO defaults application failed");
     }
 
     private async Task RefreshAsioReadinessDiagnosticsAsync()
@@ -5627,24 +5747,38 @@ public partial class MainWindow : Window
 
     private async void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
     {
-        RefreshPhprSoftwareCoexistenceStatus();
-        var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
-        await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
-        RecordRoadTextureFlightRecorder(pipelineSnapshot);
-        UpdateTelemetryStatus();
-        UpdateHapticsControlState(pipelineSnapshot);
-        UpdateMixerStatus();
-        UpdateOutputStatus(_hapticPipeline.GetSnapshot().Output);
-        UpdateManualAsioHardwareTestStatus();
-        UpdatePaddleInputStatus();
-        UpdateShiftIntentStatus();
-        UpdatePaddleGearBenchStatus();
-        UpdateMockPedalEffectsStatus();
-        UpdatePhprSoftwareCoexistenceStatus();
-        UpdatePhprControlledWriteReadinessStatus();
-        UpdateRealPhprDirectControlStatus();
-        UpdatePhprPedalsStatus();
-        UpdatePhprValidationStatus();
+        if (Interlocked.Exchange(ref _telemetryStatusTickInFlight, 1) == 1)
+        {
+            Interlocked.Increment(ref _telemetryStatusTickSkippedCount);
+            return;
+        }
+
+        try
+        {
+            RefreshPhprSoftwareCoexistenceStatus();
+            var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+            await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
+            RecordRoadTextureFlightRecorder(pipelineSnapshot);
+            UpdateTelemetryStatus();
+            UpdateHapticsControlState(pipelineSnapshot);
+            UpdateMixerStatus();
+            UpdateOutputStatus(pipelineSnapshot.Output);
+            UpdateManualAsioHardwareTestStatus();
+            UpdatePaddleInputStatus();
+            UpdateShiftIntentStatus();
+            UpdatePaddleGearBenchStatus();
+            UpdateMockPedalEffectsStatus();
+            UpdatePhprSoftwareCoexistenceStatus();
+            UpdatePhprControlledWriteReadinessStatus();
+            UpdateRealPhprDirectControlStatus();
+            UpdatePhprPedalsStatus();
+            UpdatePhprValidationStatus();
+            PublishRuntimeControlSnapshot();
+        }
+        finally
+        {
+            Volatile.Write(ref _telemetryStatusTickInFlight, 0);
+        }
     }
 
     private void RefreshPhprSoftwareCoexistenceStatus(bool force = false)
@@ -6337,18 +6471,24 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!_shutdownCleanupCompleted && !_shutdownCleanupStarted)
+        if (_shutdownCleanupCompleted)
         {
-            _shutdownCleanupStarted = true;
-            _outputInterlock.Trip(OutputInterlockReason.Shutdown, "Application shutdown requested.");
-            SyncOutputInterlockState(_outputInterlock.Current);
-            IsEnabled = false;
-            FooterStatusText.Text = "Shutting down ASIO and listener resources...";
-            RunShutdownCleanupBlocking();
-            _shutdownCleanupCompleted = true;
+            base.OnClosing(e);
+            return;
         }
 
-        base.OnClosing(e);
+        e.Cancel = true;
+        if (_shutdownCleanupStarted)
+        {
+            return;
+        }
+
+        _shutdownCleanupStarted = true;
+        _outputInterlock.Trip(OutputInterlockReason.Shutdown, "Application shutdown requested.");
+        SyncOutputInterlockState(_outputInterlock.Current);
+        IsEnabled = false;
+        FooterStatusText.Text = "Shutting down ASIO and listener resources...";
+        _ = ShutdownThenCloseAsync();
     }
 
     protected override void OnClosed(EventArgs e)
@@ -6359,9 +6499,32 @@ public partial class MainWindow : Window
 
     private async Task ShutdownThenCloseAsync()
     {
+        var shutdownTimeout = TimeSpan.FromSeconds(5);
         try
         {
-            await RunShutdownCleanupAsync().ConfigureAwait(true);
+            var cleanupTask = _runtimeLifecycleCoordinator.RunShutdownAsync(
+                _outputInterlock,
+                (_, _) => RunShutdownCleanupAsync()).AsTask();
+            if (await Task.WhenAny(cleanupTask, Task.Delay(shutdownTimeout)).ConfigureAwait(true) != cleanupTask)
+            {
+                FooterStatusText.Text = "Shutdown timed out after 5 seconds; closing with best-effort cleanup.";
+                RecordShutdownDiagnostic(
+                    "shutdown-cleanup-timeout",
+                    DateTimeOffset.UtcNow,
+                    minimizeToTrayEnabled: false,
+                    asioDisposed: false,
+                    standalonePulseDisposed: false,
+                    paddleListenerDisposed: false,
+                    udpListenerDisposed: false,
+                    timersDisposed: false,
+                    pendingTaskCount: _activeReplayTask is { IsCompleted: false } ? 1 : 0,
+                    ["warning: shutdown exceeded 5 seconds; using best-effort cleanup"]);
+                await PerformBestEffortShutdownAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                await cleanupTask.ConfigureAwait(true);
+            }
         }
         catch (Exception ex)
         {
@@ -6381,6 +6544,35 @@ public partial class MainWindow : Window
         {
             _shutdownCleanupCompleted = true;
             Close();
+        }
+    }
+
+    private async Task PerformBestEffortShutdownAsync()
+    {
+        _telemetryStatusTimer.Stop();
+
+        try
+        {
+            await _telemetryIngressWorker.DisposeAsync().ConfigureAwait(true);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await _telemetryReceiver.DisposeAsync().ConfigureAwait(true);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await _hapticPipeline.DisposeAsync().ConfigureAwait(true);
+        }
+        catch
+        {
         }
     }
 

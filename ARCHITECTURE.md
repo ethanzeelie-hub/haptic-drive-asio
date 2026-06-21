@@ -38,6 +38,8 @@ UDP receiver (loopback default, LAN opt-in)
 
 The ingress worker exists so packet receive never creates one task per datagram and so forwarding/recording backpressure can stay visible without blocking the live haptic path. Forwarding continues to send `UdpTelemetryPacket.Payload` byte-for-byte, and recording continues to preserve the original UDP payload independently of parser success.
 
+Runtime lifecycle is now serialized separately from live packet flow. `RuntimeLifecycleCoordinator` owns one gate and a generation counter for shell-triggered operations such as output rebuilds, haptics start/stop, recording start/stop, and shutdown. That keeps output-device selection, pipeline rebuild, and shutdown cleanup from overlapping each other while still letting the timer-driven UI and the bounded ingress worker stay responsive.
+
 Manual ASIO hardware validation reuses the same audio boundary:
 
 ```text
