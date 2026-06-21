@@ -53,7 +53,7 @@ public sealed class HapticsControlStatePresenterTests
             telemetryTimedOutMuted: true,
             outputStatus: CreateOutputStatus(AudioOutputDeviceKind.Asio, AudioOutputDeviceState.Started, "ASIO running.", isHardwareArmed: true)));
 
-        Assert.Equal("Clear Mute", presentation.EmergencyMuteButtonText);
+        Assert.Equal("Emergency Active", presentation.EmergencyMuteButtonText);
         Assert.Equal("Emergency muted", presentation.HapticsStateText);
         Assert.Equal(HapticsDisplayState.EmergencyMuted, presentation.DisplayState);
         Assert.Equal(HapticsMuteState.EmergencyMute, presentation.MuteState);
@@ -69,7 +69,7 @@ public sealed class HapticsControlStatePresenterTests
             outputStatus: CreateOutputStatus(AudioOutputDeviceKind.Null, AudioOutputDeviceState.Stopped, "Null output idle.", requiresPhysicalHardware: false)));
 
         Assert.Equal("Start Haptics", presentation.StartStopButtonText);
-        Assert.Equal("Clear Mute", presentation.EmergencyMuteButtonText);
+        Assert.Equal("Emergency Active", presentation.EmergencyMuteButtonText);
         Assert.Equal("Emergency muted", presentation.HapticsStateText);
         Assert.Equal(HapticsDisplayState.EmergencyMuted, presentation.DisplayState);
         Assert.Equal(HapticsMuteState.EmergencyMute, presentation.MuteState);

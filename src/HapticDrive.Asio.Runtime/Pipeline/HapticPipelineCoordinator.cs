@@ -5,6 +5,7 @@ using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 
@@ -25,6 +26,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private readonly string _manualAsioHardwareSessionId = Guid.NewGuid().ToString("N");
     private readonly string _localBst1PulseRendererInstanceId = $"local-bst1-renderer-{Guid.NewGuid():N}";
     private readonly IGameTelemetryAdapter _telemetryGameAdapter;
+    private readonly IOutputInterlock _outputInterlock;
     private readonly long[] _packetIdCounts;
     private readonly DateTimeOffset?[] _packetIdLastObservedAtUtc;
     private readonly bool _ownsForwarder;
@@ -64,7 +66,6 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private bool _outputOpened;
     private bool _localAsioPulseStreaming;
     private bool _normalMuted;
-    private bool _emergencyMuted;
     private bool _telemetryTimedOutMuted;
     private long _packetsObserved;
     private long _packetParseSuccessCount;
@@ -82,11 +83,13 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         ITelemetryReplayService? replayService = null,
         HapticDriveProfile? profile = null,
         HapticPipelineOptions? options = null,
-        IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null)
+        IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null,
+        IOutputInterlock? outputInterlock = null)
     {
         _telemetryGameAdapter = telemetryGameAdapter ?? throw new ArgumentNullException(nameof(telemetryGameAdapter));
         Configuration = configuration ?? AudioOutputConfiguration.Default;
         _options = options ?? HapticPipelineOptions.Default;
+        _outputInterlock = outputInterlock ?? new OutputInterlock();
         Format = AudioSampleFormat.FromConfiguration(Configuration);
         OutputDevice = outputDevice ?? new NullAudioOutputDevice();
         TelemetryForwarder = telemetryForwarder ?? new UdpTelemetryForwarder(forwardingDestinations);
@@ -130,6 +133,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     public HapticEffectEngine EffectEngine { get; }
 
     public HapticDriveProfile CurrentProfile => _currentProfile;
+
+    public IOutputInterlock OutputInterlock => _outputInterlock;
 
     public void SetManualAsioHardwareTestFlightRecorder(IManualAsioHardwareTestFlightRecorder? flightRecorder)
     {
@@ -243,8 +248,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         _currentProfile = validation.Profile;
         _normalMuted = _currentProfile.Mixer.IsMuted;
         EffectEngine.UpdateOptions(_currentProfile.ToEffectOptions());
-        AudioPipeline.MixerSettings = _currentProfile.ToMixerSettings(_emergencyMuted);
-        AudioPipeline.SafetyOptions = _currentProfile.ToSafetyOptions(_emergencyMuted);
+        SyncAudioPipelineSettings();
         _lastEffectSnapshot = EffectEngine.GetSnapshot();
     }
 
@@ -267,24 +271,32 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _emergencyMuted = emergencyMuted;
-        AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with { EmergencyMute = emergencyMuted };
-        AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with { EmergencyMute = emergencyMuted };
+        var isCurrentlyMuted = IsEmergencyMuted;
+        if (emergencyMuted && !isCurrentlyMuted)
+        {
+            _outputInterlock.Trip(OutputInterlockReason.UserEmergencyMute, "Emergency mute requested through the global output interlock.");
+        }
+        else if (!emergencyMuted && isCurrentlyMuted)
+        {
+            _outputInterlock.Reset("Emergency mute cleared through the global output interlock.");
+        }
+
+        SyncAudioPipelineSettings();
 
         if (!_isRunning)
         {
             return HapticPipelineOperationResult.Success(
                 emergencyMuted
-                    ? "Emergency mute enabled while the haptic pipeline is stopped."
-                    : "Emergency mute cleared while the haptic pipeline is stopped.");
+                    ? "Global output interlock latched while the haptic pipeline is stopped."
+                    : "Global output interlock reset while the haptic pipeline is stopped.");
         }
 
         if (_options.UseOutputOwnedRendering)
         {
             return HapticPipelineOperationResult.Success(
                 emergencyMuted
-                    ? "Emergency mute enabled for the output-owned render path."
-                    : "Emergency mute cleared for the output-owned render path.");
+                    ? "Global output interlock latched for the output-owned render path."
+                    : "Global output interlock reset for the output-owned render path.");
         }
 
         return await RenderNextBufferAsync(cancellationToken).ConfigureAwait(false);
@@ -636,7 +648,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                     || outputStatus.RenderCallbackCount > 0
                     || outputStatus.BackendCallbackCount > 0),
             HapticsRunning: _isRunning,
-            EmergencyMute: _emergencyMuted,
+            EmergencyMute: IsEmergencyMuted,
             NormalMute: _normalMuted,
             OutputPeakLevel: Math.Max(_lastAudioSnapshot?.OutputPeakLevel ?? 0f, _lastManualAsioHardwareTestPeak),
             FramesSubmitted: outputStatus.SubmittedBufferCount * Math.Max(0, outputStatus.BufferSize),
@@ -773,15 +785,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 return HapticPipelineOperationResult.Failure("Haptic pipeline is stopped; no output buffer was submitted.");
             }
 
-            AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
-            {
-                IsMuted = _normalMuted,
-                EmergencyMute = _emergencyMuted
-            };
-            AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
-            {
-                EmergencyMute = _emergencyMuted
-            };
+            SyncAudioPipelineSettings();
 
             var renderResult = RenderIntoBuffer(_outputBuffer, DateTimeOffset.UtcNow);
             if (!renderResult.Succeeded)
@@ -845,7 +849,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             _options.TelemetryMuteTimeout,
             telemetryTimedOutMuted,
             _normalMuted,
-            _emergencyMuted,
+            IsEmergencyMuted,
             lastPacketMessage,
             lastVehicleStateMessage,
             lastPipelineError,
@@ -858,7 +862,10 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             TelemetryForwarder.GetSnapshot(),
             CreatePacketDiagnosticsSnapshot(),
             RecordingService.GetSnapshot(),
-            ReplayService.GetSnapshot());
+            ReplayService.GetSnapshot())
+        {
+            OutputInterlock = _outputInterlock.Current
+        };
     }
 
     private IReadOnlyList<HapticPipelinePacketDiagnostics> CreatePacketDiagnosticsSnapshot()
@@ -1047,11 +1054,38 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         var telemetryTimedOut = hasVehicleState
             && telemetryAge is not null
             && telemetryAge.Value > _options.TelemetryMuteTimeout;
+        var interlockSnapshot = _outputInterlock.Current;
+        var emergencyMuted = interlockSnapshot.IsLatched;
         var shouldRenderEffects = hasVehicleState
             && !telemetryTimedOut
             && !_normalMuted
-            && !_emergencyMuted;
+            && !emergencyMuted;
         var mixerInputs = new List<AudioMixerInput>();
+
+        if (emergencyMuted)
+        {
+            AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
+            {
+                IsMuted = true,
+                EmergencyMute = true
+            };
+            AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
+            {
+                EmergencyMute = true
+            };
+            _lastAudioSnapshot = AudioPipeline.Process(mixerInputs, destination);
+            Interlocked.Increment(ref _renderedBufferCount);
+
+            lock (_diagnosticsGate)
+            {
+                _lastRenderTelemetryAge = telemetryAge;
+                _telemetryTimedOutMuted = false;
+                _lastVehicleStateMessage = $"Output interlock latched ({interlockSnapshot.Reason}); rendered safety silence.";
+            }
+
+            SetPipelineError(null);
+            return AudioOutputRenderCallbackResult.Success("Output interlock latched; rendered safety silence.");
+        }
 
         if (shouldRenderEffects)
         {
@@ -1073,11 +1107,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
         {
             IsMuted = _normalMuted || telemetryMuteAppliesToMixer,
-            EmergencyMute = _emergencyMuted
+            EmergencyMute = false
         };
         AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
         {
-            EmergencyMute = _emergencyMuted
+            EmergencyMute = false
         };
 
         _lastAudioSnapshot = AudioPipeline.Process(mixerInputs, destination);
@@ -1669,7 +1703,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             return "ASIO must be explicitly armed.";
         }
 
-        if (_emergencyMuted)
+        if (IsEmergencyMuted)
         {
             return "Emergency mute is active.";
         }
@@ -1871,6 +1905,22 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         return !string.IsNullOrWhiteSpace(driverName)
             && (driverName.Contains("M-Audio", StringComparison.OrdinalIgnoreCase)
                 || driverName.Contains("M-Track", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool IsEmergencyMuted => _outputInterlock.Current.IsLatched;
+
+    private void SyncAudioPipelineSettings()
+    {
+        var emergencyMuted = IsEmergencyMuted;
+        AudioPipeline.MixerSettings = _currentProfile.ToMixerSettings(emergencyMuted) with
+        {
+            IsMuted = _normalMuted,
+            EmergencyMute = emergencyMuted
+        };
+        AudioPipeline.SafetyOptions = _currentProfile.ToSafetyOptions(emergencyMuted) with
+        {
+            EmergencyMute = emergencyMuted
+        };
     }
 
     private sealed record PacketProcessingResult(

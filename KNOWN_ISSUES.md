@@ -1,5 +1,11 @@
 # Known Issues
 
+## Current Hardening Focus
+
+- The old audio-only emergency mute path has been replaced by the Stage 26A global output interlock.
+- Telemetry freshness is still based on the existing runtime timeout model; per-signal freshness and stale-session reset hardening remain outstanding for the next production-hardening stage.
+- The output interlock starts latched by default and now requires an explicit reset after haptics are started and output configuration is valid.
+
 ## Stage 00
 
 - No product functionality exists yet; this stage only creates the repository foundation.

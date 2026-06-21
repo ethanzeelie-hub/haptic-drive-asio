@@ -11,7 +11,8 @@
         MinHeight="640"
         MinWidth="980"
         Background="{DynamicResource AppBackgroundBrush}"
-        Foreground="{DynamicResource AppTextBrush}">
+        Foreground="{DynamicResource AppTextBrush}"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
     <Grid Background="{DynamicResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="68" />
@@ -70,6 +71,11 @@
                             Style="{StaticResource DangerButtonStyle}"
                             Click="EmergencyMuteButton_Click"
                             Content="Emergency Mute" />
+                    <Button x:Name="ResetOutputInterlockButton"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource TopBarButtonStyle}"
+                            Click="ResetOutputInterlockButton_Click"
+                            Content="Reset Output Interlock" />
                     <Button x:Name="ThemeButton"
                             Style="{StaticResource TopBarButtonStyle}"
                             Click="ThemeButton_Click"

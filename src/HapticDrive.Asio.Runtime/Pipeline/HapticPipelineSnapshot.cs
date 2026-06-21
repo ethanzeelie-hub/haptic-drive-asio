@@ -2,6 +2,7 @@ using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Effects;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Recording;
@@ -39,6 +40,8 @@ public sealed record HapticPipelineSnapshot(
     TelemetryReplaySnapshot Replay)
 {
     public bool HasParsedPackets => ParserSuccessCount > 0 || ParserIgnoredCount > 0 || ParserFailureCount > 0;
+
+    public OutputInterlockSnapshot OutputInterlock { get; init; } = OutputInterlockSnapshot.StartupSafeDefault();
 }
 
 public sealed record HapticPipelinePacketDiagnostics(

@@ -1,6 +1,7 @@
 using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime.Pipeline;
@@ -19,8 +20,15 @@ internal static class RuntimeTestPipelineFactory
         HapticDriveProfile? profile = null,
         HapticPipelineOptions? options = null,
         IEnumerable<UdpTelemetryForwardingDestination>? forwardingDestinations = null,
-        IGameTelemetryAdapter? telemetryGameAdapter = null)
+        IGameTelemetryAdapter? telemetryGameAdapter = null,
+        IOutputInterlock? outputInterlock = null)
     {
+        if (outputInterlock is null)
+        {
+            outputInterlock = new OutputInterlock();
+            outputInterlock.Reset("Runtime tests default to an armed interlock unless a test opts into the startup latch.");
+        }
+
         return new HapticPipelineCoordinator(
             telemetryGameAdapter ?? new F125GameTelemetryAdapter(),
             configuration,
@@ -30,6 +38,7 @@ internal static class RuntimeTestPipelineFactory
             replayService,
             profile,
             options,
-            forwardingDestinations);
+            forwardingDestinations,
+            outputInterlock);
     }
 }

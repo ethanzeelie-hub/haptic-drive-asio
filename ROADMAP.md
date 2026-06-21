@@ -118,6 +118,12 @@
 - Stage 25G: Replay-file streaming seam complete.
 - Stage 25H: Live recording queue/backpressure hardening complete.
 - Stage 25I: Atomic persistence hardening complete.
+- Stage 26A: Global output safety interlock complete.
+
+## Current Hardening Program
+
+- Stage 26A complete: global output safety interlock now owns emergency stop/mute latching across BST-1 audio, manual test rendering, and P-HPR routing/runtime surfaces.
+- Next production-hardening priority: telemetry freshness, session reset, and out-of-order protection so stale data cannot continue driving haptics.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

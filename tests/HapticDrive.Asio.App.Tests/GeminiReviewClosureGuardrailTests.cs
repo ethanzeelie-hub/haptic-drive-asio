@@ -67,8 +67,9 @@ public sealed class GeminiReviewClosureGuardrailTests
         Assert.Contains("? await _hapticPipeline.StopAsync()", source, StringComparison.Ordinal);
         Assert.Contains(": await _hapticPipeline.StartAsync();", source, StringComparison.Ordinal);
         Assert.Contains("private async void EmergencyMuteButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("var pipelineMuteResult = await _hapticPipeline.SetEmergencyMuteAsync(_emergencyMuted);", source, StringComparison.Ordinal);
-        Assert.Contains("_testBench.EmergencyMute = _emergencyMuted;", source, StringComparison.Ordinal);
+        Assert.Contains("_outputInterlock.Trip(", source, StringComparison.Ordinal);
+        Assert.Contains("private async void ResetOutputInterlockButton_Click", source, StringComparison.Ordinal);
+        Assert.Contains("private async void MainWindow_PreviewKeyDown", source, StringComparison.Ordinal);
         Assert.Contains("private async void PhprPedalsStopAllClearDeviceStateButton_Click", source, StringComparison.Ordinal);
         Assert.Contains("await _phprDirectRuntime.StopAllAsync(", source, StringComparison.Ordinal);
         Assert.Contains("await _phprDirectRuntime.EmergencyStopAsync(", source, StringComparison.Ordinal);
@@ -76,6 +77,7 @@ public sealed class GeminiReviewClosureGuardrailTests
         Assert.Contains("await _telemetryReceiver.StartAsync();", source, StringComparison.Ordinal);
         Assert.Contains("_telemetryStatusTimer.Start();", source, StringComparison.Ordinal);
         Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", source, StringComparison.Ordinal);
+        Assert.Contains("_outputInterlock.Trip(OutputInterlockReason.Shutdown", source, StringComparison.Ordinal);
         Assert.Contains("_hapticPipeline.StopManualAsioHardwareTest(", source, StringComparison.Ordinal);
     }
 

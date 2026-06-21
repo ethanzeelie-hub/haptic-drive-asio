@@ -4,6 +4,7 @@ using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.Safety;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Recording;
@@ -191,6 +192,45 @@ public sealed class HapticPipelineCoordinatorTests
         Assert.True((await coordinator.SetEmergencyMuteAsync(true)).Succeeded);
         Assert.True(coordinator.GetSnapshot().EmergencyMute);
         Assert.Equal(0f, coordinator.GetSnapshot().NullOutput!.LastPeakLevel);
+    }
+
+    [Fact]
+    public async Task InterlockTripZerosRenderedBuffer()
+    {
+        await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
+        var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
+
+        Assert.True((await coordinator.StartAsync()).Succeeded);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+        Assert.True(coordinator.GetSnapshot().NullOutput!.LastPeakLevel > 0f);
+
+        coordinator.OutputInterlock.Trip(OutputInterlockReason.UserEmergencyMute, "Trip for test.");
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+
+        var snapshot = coordinator.GetSnapshot();
+        Assert.True(snapshot.EmergencyMute);
+        Assert.True(snapshot.OutputInterlock.IsLatched);
+        Assert.Equal(0f, snapshot.NullOutput!.LastPeakLevel);
+    }
+
+    [Fact]
+    public async Task StartupLatchedInterlockRendersSilenceUntilReset()
+    {
+        var outputInterlock = new OutputInterlock();
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
+            options: HapticPipelineOptions.ManualRendering,
+            outputInterlock: outputInterlock);
+        var packet = CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 1f, gear: 7));
+
+        Assert.True((await coordinator.StartAsync()).Succeeded);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(packet)).ParseStatus);
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+        Assert.Equal(0f, coordinator.GetSnapshot().NullOutput!.LastPeakLevel);
+
+        Assert.True(outputInterlock.Reset("Runtime test reset."));
+        Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
+        Assert.True(coordinator.GetSnapshot().NullOutput!.LastPeakLevel > 0f);
     }
 
     [Fact]

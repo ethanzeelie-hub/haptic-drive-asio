@@ -6781,3 +6781,56 @@ Self-review:
 - No F1 25 parser layout, raw-packet preservation, replay format, or replay timing behavior changed.
 - No startup output, persisted arming, persisted HID paths, or physical-validation claims were introduced.
 - This continues gradual page-by-page shell extraction only; it does not claim a broad MVVM rewrite.
+
+## Stage 26A - Global Output Safety Interlock
+
+Status: Complete.
+
+Goal: Replace the old per-surface emergency mute flow with one latched global output interlock that can suppress BST-1 audio output, manual test rendering, mock P-HPR routing, and direct P-HPR runtime output from a single source of truth.
+
+Changes:
+
+- Added `HapticDrive.Asio.Core.Safety`:
+  - `OutputInterlockReason`,
+  - `OutputInterlockSnapshot`,
+  - `IOutputInterlock`,
+  - `OutputInterlock`.
+- Introduced a startup-latched interlock model:
+  - new interlocks start in `StartupSafeDefault`,
+  - reset requires an explicit action,
+  - trip/reset increments generation and raises a change event.
+- Updated `HapticPipelineCoordinator` to consume `IOutputInterlock`:
+  - `EmergencyMute` in runtime snapshots is now derived from the interlock rather than an app-owned bool,
+  - pipeline snapshots now surface `OutputInterlock`,
+  - render now produces safety silence immediately while the interlock is latched,
+  - manual render submissions sync mixer/safety state from the interlock before rendering,
+  - `SetEmergencyMuteAsync` now bridges existing callers onto the global interlock for compatibility.
+- Wired `MainWindow` to a singleton app interlock:
+  - the emergency button now trips `_outputInterlock`,
+  - added `Reset Output Interlock`,
+  - added keyboard shortcuts `Ctrl+Shift+M` and `Ctrl+Shift+R`,
+  - top-bar state and test-bench mute now mirror the interlock latch.
+- Expanded global stop behavior:
+  - interlock trips now stop mock gear-pulse routing,
+  - stop mock pedal-effects routing,
+  - emergency-stop the direct P-HPR runtime,
+  - shutdown now trips the interlock before the normal cleanup plan runs.
+- Preserved compatibility where needed:
+  - existing presenter/status code still reads `EmergencyMute`,
+  - runtime tests use an explicitly reset test interlock by default so old scenarios still express their intended starting state.
+- Added Stage 26A tests:
+  - `OutputInterlockTests`,
+  - runtime interlock render-silence coverage,
+  - source guardrails for the new MainWindow interlock/reset path.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- Targeted Stage 26A test suites for Core, Runtime, App, and Actuation passed after rebuild.
+- `rg "EmergencyMuteButton_Click|OutputInterlock|UserEmergencyMute" src tests` confirms the new interlock ownership path is present in production code and tests.
+
+Self-review:
+
+- The global interlock is now the safety source of truth for Stage 26A.
+- Public runtime snapshots still expose `EmergencyMute` for compatibility, but the value is derived from the interlock.
+- This stage intentionally does not yet add telemetry-freshness trips or per-signal stale detection; that remains the next hardening stage.

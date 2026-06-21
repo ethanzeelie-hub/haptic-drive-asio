@@ -60,7 +60,7 @@ internal static class HapticsControlStatePresenter
 
         return new HapticsControlStatePresentation(
             StartStopButtonText: snapshot.HapticsStarted ? "Stop Haptics" : "Start Haptics",
-            EmergencyMuteButtonText: snapshot.EmergencyMuteActive ? "Clear Mute" : "Emergency Mute",
+            EmergencyMuteButtonText: snapshot.EmergencyMuteActive ? "Emergency Active" : "Emergency Mute",
             HapticsStateText: BuildStateText(displayState, snapshot),
             DisplayState: displayState,
             MuteState: muteState,

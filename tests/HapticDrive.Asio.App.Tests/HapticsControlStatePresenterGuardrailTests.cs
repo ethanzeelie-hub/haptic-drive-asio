@@ -44,6 +44,7 @@ public sealed class HapticsControlStatePresenterGuardrailTests
         Assert.Contains("HapticsControlStatePresenter.Build(new HapticsControlStateSnapshot(", source, StringComparison.Ordinal);
         Assert.Contains("? await _hapticPipeline.StopAsync()", source, StringComparison.Ordinal);
         Assert.Contains(": await _hapticPipeline.StartAsync();", source, StringComparison.Ordinal);
+        Assert.Contains("_outputInterlock.Trip(", source, StringComparison.Ordinal);
         Assert.Contains("var pipelineMuteResult = await _hapticPipeline.SetEmergencyMuteAsync(_emergencyMuted);", source, StringComparison.Ordinal);
         Assert.Contains("_testBench.EmergencyMute = _emergencyMuted;", source, StringComparison.Ordinal);
         Assert.Contains("await _phprDirectRuntime.EmergencyStopAsync(", source, StringComparison.Ordinal);
