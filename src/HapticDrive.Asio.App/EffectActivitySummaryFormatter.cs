@@ -14,6 +14,8 @@ internal static class EffectActivitySummaryFormatter
             return fallback;
         }
 
-        return string.Join(separator, items.Select(item => $"{item.Label} {item.StatusText.ToLowerInvariant()}"));
+        return string.Join(
+            separator,
+            items.Select(item => $"{Bst1EffectCatalog.GetDisplayLabelOrFallback(item.Label)} {item.StatusText.ToLowerInvariant()}"));
     }
 }

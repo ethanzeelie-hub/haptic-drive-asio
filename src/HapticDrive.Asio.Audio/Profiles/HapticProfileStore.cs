@@ -1,5 +1,6 @@
 using System.Text.Json;
 using HapticDrive.Asio.Core.Persistence;
+using HapticDrive.Asio.Audio.Effects.Registry;
 
 namespace HapticDrive.Asio.Audio.Profiles;
 
@@ -130,13 +131,14 @@ public sealed class HapticProfileStore
         try
         {
             var fullPath = Path.GetFullPath(path);
+            var document = HapticDriveProfileDocumentV2.FromProfile(validation.Profile);
             await AtomicFileWriter.WriteAsync(
                     fullPath,
                     async (stream, ct) =>
                     {
                         await JsonSerializer.SerializeAsync(
                                 stream,
-                                validation.Profile,
+                                document,
                                 JsonOptions,
                                 ct)
                             .ConfigureAwait(false);
@@ -238,35 +240,65 @@ public sealed class HapticProfileStore
                 FileShare.Read,
                 bufferSize: 16 * 1024,
                 useAsync: true);
-            var sourceVersion = VersionedDocumentMigration.ReadDeclaredVersion(await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false));
-            var profile = await JsonSerializer.DeserializeAsync<HapticDriveProfile>(
-                    stream,
-                    JsonOptions,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            var json = await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false);
+            var sourceVersion = VersionedDocumentMigration.ReadDeclaredVersion(json, "SchemaVersion");
+            sourceVersion = sourceVersion == 0
+                ? VersionedDocumentMigration.ReadDeclaredVersion(json, "Version")
+                : sourceVersion;
+
+            if (sourceVersion > HapticDriveProfile.CurrentVersion)
+            {
+                return HapticProfileLoadResult.UnsupportedVersion($"Profile version {sourceVersion} is not supported.");
+            }
+
+            HapticDriveProfile? profile;
+            List<string> migrationMessages = [];
+            var registry = BuiltInHapticEffectRegistry.Instance;
+            if (sourceVersion >= HapticDriveProfile.CurrentVersion)
+            {
+                var document = JsonSerializer.Deserialize<HapticDriveProfileDocumentV2>(json, JsonOptions);
+                profile = document?.ToProfile(registry, migrationMessages);
+            }
+            else
+            {
+                profile = await JsonSerializer.DeserializeAsync<HapticDriveProfile>(
+                        stream,
+                        JsonOptions,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (profile is null)
+                {
+                    return HapticProfileLoadResult.Corrupt("Profile file did not contain a profile.");
+                }
+
+                var migratedEffectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(
+                    profile.Effects ?? HapticDriveProfile.Default.Effects,
+                    registry);
+                profile = profile with
+                {
+                    Version = HapticDriveProfile.CurrentVersion,
+                    SchemaVersion = HapticDriveProfile.CurrentVersion,
+                    EffectSettings = migratedEffectSettings
+                };
+
+                migrationMessages.Add(sourceVersion switch
+                {
+                    0 => $"Legacy document version 0 was migrated to version {HapticDriveProfile.CurrentVersion}.",
+                    1 => $"Profile schema version 1 was migrated to version {HapticDriveProfile.CurrentVersion}.",
+                    _ => $"Profile schema version {sourceVersion} was migrated to version {HapticDriveProfile.CurrentVersion}."
+                });
+            }
 
             if (profile is null)
             {
                 return HapticProfileLoadResult.Corrupt("Profile file did not contain a profile.");
             }
 
-            var migration = VersionedDocumentMigration.Plan(
-                profile,
-                sourceVersion,
-                HapticDriveProfile.CurrentVersion,
-                legacy => legacy with { Version = HapticDriveProfile.CurrentVersion },
-                version => $"Profile version {version} is not supported.");
-
-            if (!migration.IsSupportedVersion || migration.Document is null)
-            {
-                return HapticProfileLoadResult.UnsupportedVersion(migration.Messages[0]);
-            }
-
-            var validation = HapticProfileValidator.Validate(migration.Document);
-            var messages = migration.Messages.Concat(validation.Messages).ToArray();
+            var validation = HapticProfileValidator.Validate(profile);
+            var messages = migrationMessages.Concat(validation.Messages).ToArray();
             return HapticProfileLoadResult.Success(
                 validation.Profile,
-                migration.WasMigrated || validation.WasRepaired,
+                migrationMessages.Count > 0 || validation.WasRepaired,
                 messages);
         }
         catch (JsonException ex)
@@ -277,5 +309,71 @@ public sealed class HapticProfileStore
         {
             return HapticProfileLoadResult.Failure($"Profile could not be loaded: {ex.Message}");
         }
+    }
+}
+
+internal sealed record HapticDriveProfileDocumentV2(
+    int SchemaVersion,
+    string Name,
+    IReadOnlyDictionary<string, EffectSettingsDocument> Effects,
+    HapticMixerTuning Mixer,
+    HapticSafetyTuning Safety)
+{
+    public static HapticDriveProfileDocumentV2 FromProfile(HapticDriveProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var known = profile.EffectSettings ?? HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(profile.Effects, BuiltInHapticEffectRegistry.Instance);
+        var merged = new Dictionary<string, EffectSettingsDocument>(known, StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in profile.UnknownEffectSettings ?? new Dictionary<string, EffectSettingsDocument>(StringComparer.OrdinalIgnoreCase))
+        {
+            merged[pair.Key] = pair.Value;
+        }
+
+        return new HapticDriveProfileDocumentV2(
+            SchemaVersion: HapticDriveProfile.CurrentVersion,
+            Name: profile.Name,
+            Effects: merged,
+            Mixer: profile.Mixer,
+            Safety: profile.Safety);
+    }
+
+    public HapticDriveProfile ToProfile(
+        IHapticEffectRegistry registry,
+        ICollection<string>? messages = null)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+
+        var known = new Dictionary<string, EffectSettingsDocument>(StringComparer.OrdinalIgnoreCase);
+        var unknown = new Dictionary<string, EffectSettingsDocument>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pair in Effects ?? new Dictionary<string, EffectSettingsDocument>(StringComparer.OrdinalIgnoreCase))
+        {
+            if (registry.All.Any(descriptor => string.Equals(descriptor.Key, pair.Key, StringComparison.OrdinalIgnoreCase)))
+            {
+                known[pair.Key] = pair.Value;
+            }
+            else
+            {
+                unknown[pair.Key] = pair.Value;
+            }
+        }
+
+        var normalizedKnown = HapticEffectSettingsTranslator.NormalizeDocuments(
+            known.Count > 0 ? known : null,
+            registry,
+            messages);
+        var legacyTuning = HapticEffectSettingsTranslator.ToLegacyTuning(normalizedKnown);
+        return new HapticDriveProfile(
+            Version: HapticDriveProfile.CurrentVersion,
+            Name: Name,
+            Effects: legacyTuning,
+            Mixer: Mixer,
+            Safety: Safety)
+        {
+            SchemaVersion = SchemaVersion,
+            EffectSettings = normalizedKnown,
+            UnknownEffectSettings = unknown
+        };
     }
 }

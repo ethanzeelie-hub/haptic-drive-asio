@@ -7,9 +7,10 @@
 - Stage 26C now routes live UDP packets through one bounded ingress worker, exposes ignored-remote / oversized / drop counters, and defaults the listener to loopback with explicit LAN opt-in.
 - Stage 26D now serializes output/runtime lifecycle transitions, guards telemetry status ticks to one in-flight update, and forces shutdown through the global interlock before cleanup begins.
 - Stage 26E now routes live effect/actuation evaluation through a canonical `HapticFrame` boundary and formal F1 25 game-registration seam instead of letting production effect/router code depend directly on raw F1 surface IDs.
+- Stage 26F now registers shipped effects through descriptors and persists audio profiles as schema-v2 effect-setting documents keyed by stable effect key.
 - The output interlock starts latched by default and now requires an explicit reset after haptics are started and output configuration is valid.
 - The app still ships only one production game integration: F1 25. The registry/normalizer seam is now in place, but a second game adapter is still future work.
-- Effect registration and profile persistence are still fixed-schema. Adding a brand-new effect still requires coordinated descriptor/profile/UI work until the planned effect-registry stage lands.
+- The descriptor/profile seam is now in place, but the WPF tuning surface is still built around the currently shipped effect controls until the later UI-generation stage replaces the fixed control layout.
 
 ## Stage 00
 

@@ -7122,3 +7122,80 @@ Self-review:
 - The live runtime now has a real cross-game seam: parser/adaptor code still owns `VehicleState`, but effects and future actuators can target `HapticFrame` instead of depending on F1-specific state layouts.
 - The transition is intentionally incremental: compatibility shims remain in a few legacy paths, but the active production effect/router code is now behind canonical context and freshness rather than raw surface-id comparisons.
 - This stage intentionally stops at the game/normalizer boundary; the next hardening step is the effect descriptor registry plus profile schema work so new effects stop requiring fixed-key central plumbing.
+
+## Stage 26F - Effect Descriptor Registry and Profile Schema v2
+
+Status: Complete.
+
+Goal: Replace fixed-schema effect persistence with a descriptor-backed registry and schema-v2 effect-settings dictionary so shipped effects share one validation/defaulting path and future effects no longer require new profile-schema fields or `MainWindow` persistence branches just to exist.
+
+Changes:
+
+- Added `HapticDrive.Asio.Audio.Effects.Registry` with:
+  - `HapticEffectCategory`,
+  - `HapticSignalRequirement`,
+  - `EffectParameterDescriptor`,
+  - `EffectSettingsDocument`,
+  - `IHapticEffectRuntime`,
+  - `IHapticEffectDescriptor`,
+  - `IHapticEffectRegistry`,
+  - `BuiltInHapticEffectRegistry`,
+  - `HapticEffectSettingsTranslator`.
+- Registered all currently shipped audio effects through descriptors with stable keys:
+  - `engine-rpm`,
+  - `road-texture`,
+  - `kerb`,
+  - `slip-lock`,
+  - `gear-shift`,
+  - `impact`,
+  - `diagnostic-test`.
+- Added descriptor-owned defaults and validation:
+  - default settings are now generated from the registry instead of a new top-level profile field per effect,
+  - invalid or incomplete schema-v2 documents are normalized back to descriptor defaults with validation messages,
+  - the `diagnostic-test` effect exists in generated settings without any `MainWindow` effect-specific persistence branch.
+- Upgraded audio profiles to schema version 2:
+  - `HapticDriveProfile` now carries `SchemaVersion`,
+  - known effect settings are stored as a dictionary of `EffectSettingsDocument` values keyed by stable effect key,
+  - unknown future effect keys are preserved separately and round-trip through save/load while remaining ignored by runtime conversion,
+  - save now emits schema-v2 profile documents only.
+- Kept the current shipped DSP runtime strongly typed while improving persistence:
+  - descriptor documents translate into the existing strong-typed runtime options,
+  - legacy effect tuning remains the compatibility bridge for the current fixed-slot engine,
+  - future engine hardening can now evolve independently of profile schema changes.
+- Updated shipped activity/presentation seams to understand stable effect keys:
+  - runtime activity items now emit stable registry keys,
+  - `Bst1EffectCatalog` now maps shipped summary items from registry descriptors instead of remaining only a standalone hardcoded list,
+  - generic activity summary formatting now renders stable runtime labels through the shared catalog.
+- Added developer documentation:
+  - `docs/HOW_TO_ADD_A_HAPTIC_EFFECT.md` now defines the exact descriptor/runtime/test checklist for new effects.
+
+Tests:
+
+- Added `HapticEffectRegistryTests`:
+  - `ContainsAllExistingEffects`,
+  - `EffectKeysAreUniqueAndStable`.
+- Added `EffectDescriptorTests`:
+  - `DefaultSettingsValidate`,
+  - `OutOfRangeParameterReportsValidationError`.
+- Added `ProfileSchemaV2Tests`:
+  - `V1ProfileMigratesToV2EffectDictionary`,
+  - `UnknownEffectKeyIsPreservedButNotRendered`,
+  - `SavesSchemaVersion2`,
+  - `InvalidEffectSettingsAreReplacedByDescriptorDefaults`.
+- Added `NewEffectGuardrailTests.DiagnosticEffectRequiresNoMainWindowSwitch`.
+- Updated existing profile/activity tests so stable effect keys and schema-v2 migration expectations are verified.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -NoBuild -CheckOnly` passed.
+- `rg "engine-rpm|road-texture|slip-lock|gear-shift|diagnostic-test" src tests` passed for the intended Stage 26F guardrail review.
+
+Self-review:
+
+- Descriptor-backed persistence and validation are now in place, which removes the biggest schema/extension bottleneck before the real-time engine rewrite.
+- The runtime DSP layer is intentionally still the current fixed strong-typed engine; this stage hardens effect metadata, validation, and persistence without mixing in the Stage 26G render-path rewrite.
+- The WPF tuning surface still reflects the currently shipped effect set; a later UI-generation stage is still needed before the descriptor system fully replaces fixed control layouts.

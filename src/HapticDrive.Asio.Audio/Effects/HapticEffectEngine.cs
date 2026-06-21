@@ -183,13 +183,13 @@ public sealed class HapticEffectEngine
     {
         return
         [
-            new HapticEffectActivityItem("engine", _engineEffect.Effect.Snapshot.IsActive ? "active" : "idle"),
-            new HapticEffectActivityItem("gear", _gearShiftEffect.Effect.Snapshot.IsActive ? "pulse active" : "idle"),
+            new HapticEffectActivityItem("engine-rpm", _engineEffect.Effect.Snapshot.IsActive ? "active" : "idle"),
+            new HapticEffectActivityItem("gear-shift", _gearShiftEffect.Effect.Snapshot.IsActive ? "pulse active" : "idle"),
             new HapticEffectActivityItem("kerb", _kerbEffect.Effect.Snapshot.IsActive ? "active" : "idle"),
             new HapticEffectActivityItem("impact", _impactEffect.Effect.Snapshot.IsActive ? "pulse active" : "idle"),
-            new HapticEffectActivityItem("road", _roadTextureEffect.Effect.Snapshot.IsActive ? "bst-1 active" : "idle"),
+            new HapticEffectActivityItem("road-texture", _roadTextureEffect.Effect.Snapshot.IsActive ? "bst-1 active" : "idle"),
             new HapticEffectActivityItem(
-                "slip",
+                "slip-lock",
                 _slipEffect.Effect.Snapshot.IsActive
                     ? $"{(_slipEffect.Effect.Snapshot.ActiveSource ?? "slip").Trim().ToLowerInvariant()} active"
                     : "idle")

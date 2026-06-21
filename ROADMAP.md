@@ -123,6 +123,7 @@
 - Stage 26C: Bounded UDP ingress and safer listener defaults complete.
 - Stage 26D: Runtime lifecycle serialization complete.
 - Stage 26E: Game integration registry and canonical haptic frame complete.
+- Stage 26F: Effect descriptor registry and profile schema v2 complete.
 
 ## Current Hardening Program
 
@@ -131,7 +132,8 @@
 - Stage 26C complete: live UDP telemetry now flows through one bounded ingress worker with dedicated haptic/forwarding/recording channels, loopback remains the default bind, LAN telemetry is explicit opt-in, and diagnostics now surface ignored remotes, oversized datagrams, and ingress drop counts.
 - Stage 26D complete: shell-triggered runtime lifecycle work now runs through one serialized coordinator with generation guards, telemetry status ticks are single-flight, shutdown trips the global interlock first, and close cleanup now uses a bounded asynchronous shutdown path instead of overlapping fire-and-forget work.
 - Stage 26E complete: the app now registers F1 25 through a formal game-integration registry, normalizes adapter output through `IVehicleStateNormalizer`, emits canonical `HapticFrame` snapshots, and routes audio/actuation live paths through canonical driving context and freshness instead of direct F1-specific enums on the active path.
-- Next production-hardening priority: introduce the effect descriptor registry and profile schema v2 so adding a new effect no longer requires central switch updates or fixed-schema profile plumbing.
+- Stage 26F complete: shipped effects now register through `IHapticEffectRegistry`, profiles now save schema-v2 effect documents keyed by stable effect key, descriptor validation/defaulting repairs invalid settings safely, and unknown future effect keys round-trip without becoming runtime requirements.
+- Next production-hardening priority: harden the real-time audio render path so steady-state rendering and ASIO callback behavior become allocation-free and callback-safe.
 - Stage 25J: Recording library health summaries complete.
 - Stage 25K: Release packaging automation complete.
 - Stage 25L: Support bundle automation complete.

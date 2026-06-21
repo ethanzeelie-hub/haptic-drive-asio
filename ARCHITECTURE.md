@@ -56,6 +56,22 @@ Stage 26E adds the first explicit future-game seam:
 
 That means effects and future actuator logic no longer need to read raw F1 packet enums or surface IDs directly on the live path. `VehicleState` remains the parser/adaptor boundary, while `HapticFrame` is now the intended cross-game effect/actuation boundary.
 
+Stage 26F adds the next extensibility seam on the effect/profile side:
+
+- `IHapticEffectRegistry` now owns the shipped effect descriptor list.
+- Each descriptor now defines:
+  - a stable effect key,
+  - display metadata,
+  - category,
+  - required canonical signals,
+  - parameter metadata,
+  - default settings,
+  - validation rules.
+- Audio profiles now persist effect tuning as a schema-v2 dictionary of `EffectSettingsDocument` values keyed by stable effect key instead of relying only on a fixed legacy object graph.
+- Unknown future effect keys are preserved in profile files and ignored safely at runtime.
+
+That means future effect additions no longer need a new profile-file schema field or a new `MainWindow`-level persistence branch just to exist in saved settings. The legacy strongly typed tuning records still remain as the compatibility/runtime bridge for the shipped engine until the later real-time engine hardening stage replaces the fixed effect-slot model.
+
 Runtime lifecycle is now serialized separately from live packet flow. `RuntimeLifecycleCoordinator` owns one gate and a generation counter for shell-triggered operations such as output rebuilds, haptics start/stop, recording start/stop, and shutdown. That keeps output-device selection, pipeline rebuild, and shutdown cleanup from overlapping each other while still letting the timer-driven UI and the bounded ingress worker stay responsive.
 
 Manual ASIO hardware validation reuses the same audio boundary:
@@ -69,6 +85,29 @@ Manual 40/50 Hz test request
 ```
 
 The deterministic synthetic benchmark remains a separate Null-output test bench for automated validation.
+
+## Current Effect/Profile Boundary
+
+Today the effect/profile path is:
+
+```text
+canonical HapticFrame
+-> fixed runtime effect engine
+-> effect snapshot / diagnostics
+
+profile load/save
+-> schema-v2 effect settings dictionary
+-> descriptor validation/defaulting
+-> legacy strong-typed tuning bridge
+-> runtime effect options
+```
+
+This is intentionally a two-layer model during the hardening program:
+
+- descriptors and schema-v2 documents own persistence, defaults, and validation;
+- the existing strong-typed effect options still own the current shipped DSP runtime.
+
+That keeps effect persistence extensible now without forcing the real-time engine rewrite into the same stage.
 
 ## Phase 2 Planned Actuator Boundary
 

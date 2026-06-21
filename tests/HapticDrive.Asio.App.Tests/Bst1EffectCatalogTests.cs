@@ -22,6 +22,7 @@ public sealed class Bst1EffectCatalogTests
         var descriptor = Bst1EffectCatalog.GetRequired("road");
 
         Assert.Equal("road", descriptor.Key);
+        Assert.Equal("road-texture", descriptor.SourceEffectKey);
         Assert.Equal("road", descriptor.DisplayName);
         Assert.Equal(4, descriptor.DiagnosticsOrder);
         Assert.Equal(1, descriptor.RoutingOrder);

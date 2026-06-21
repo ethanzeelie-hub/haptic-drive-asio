@@ -241,7 +241,9 @@ public sealed class HapticProfileTests
         Assert.NotNull(result.Profile);
         Assert.Equal(HapticDriveProfile.CurrentVersion, result.Profile.Version);
         Assert.True(result.WasRepaired);
-        Assert.Contains(result.ValidationMessages, message => message.Contains("migrated to version 1", StringComparison.Ordinal));
+        Assert.Contains(
+            result.ValidationMessages,
+            message => message.Contains($"migrated to version {HapticDriveProfile.CurrentVersion}", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -535,12 +537,12 @@ public sealed class HapticProfileTests
             snapshot.ActivityItems,
             item =>
             {
-                Assert.Equal("engine", item.Label);
+                Assert.Equal("engine-rpm", item.Label);
                 Assert.Equal("idle", item.StatusText);
             },
             item =>
             {
-                Assert.Equal("gear", item.Label);
+                Assert.Equal("gear-shift", item.Label);
                 Assert.Equal("idle", item.StatusText);
             },
             item =>
@@ -555,12 +557,12 @@ public sealed class HapticProfileTests
             },
             item =>
             {
-                Assert.Equal("road", item.Label);
+                Assert.Equal("road-texture", item.Label);
                 Assert.Equal("idle", item.StatusText);
             },
             item =>
             {
-                Assert.Equal("slip", item.Label);
+                Assert.Equal("slip-lock", item.Label);
                 Assert.Equal("idle", item.StatusText);
             });
     }
