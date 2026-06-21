@@ -22,6 +22,7 @@ using HapticDrive.Actuation.Driving;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Actuation.Shift;
 using HapticDrive.Input.Abstractions.Devices;
+using HapticDrive.Input.Abstractions.Driving;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
 using HapticDrive.Input.Windows;
@@ -62,7 +63,7 @@ public partial class MainWindow : Window
     private readonly ShiftIntentProcessor _shiftIntentProcessor;
     private readonly MockPhprOutputDevice _mockPhprOutput = new();
     private readonly SafetyLimitedPhprOutputDevice _mockPhprSafetyOutput;
-    private readonly WindowsHidReportWriter _realPhprHidWriter = new();
+    private readonly DeferredWindowsHidReportWriter _realPhprHidWriter = new();
     private readonly SimagicPhprOutputDevice _realPhprOutput;
     private readonly IPHprDirectPulseService _phprDirectPulseService;
     private readonly IPHprDirectCommandDispatcher _phprDirectCommandDispatcher;
@@ -273,6 +274,8 @@ public partial class MainWindow : Window
     private bool _updatingBst1PulseUi;
     private bool _advancedDiagnosticsEnabled;
     private bool _routingMockPedalEffects;
+    private DrivingArmedState _lastDrivingArmedState = DrivingArmedState.Default;
+    private ActuationDrivingContext _lastActuationDrivingContext = ActuationDrivingContextFactory.SafeDefault("startup");
     private string _recordingLibraryFilterText = string.Empty;
     private CancellationTokenSource? _recordingLibraryAnalysisCts;
     private int _telemetryStatusTickInFlight;
@@ -1116,7 +1119,8 @@ public partial class MainWindow : Window
         }
 
         if (!_mockPedalEffectsRouter.GetSnapshot().Options.IsEnabled
-            || pipelineSnapshot.VehicleStateUpdateCount <= 0)
+            || pipelineSnapshot.VehicleStateUpdateCount <= 0
+            || pipelineSnapshot.HapticFrame is null)
         {
             return;
         }
@@ -1125,8 +1129,12 @@ public partial class MainWindow : Window
         try
         {
             await _mockPedalEffectsRouter.RouteAsync(
-                pipelineSnapshot,
-                BuildMockPedalEffectsSafetyContext(pipelineSnapshot));
+                pipelineSnapshot.HapticFrame,
+                pipelineSnapshot.VehicleState,
+                _lastActuationDrivingContext,
+                BuildMockPedalEffectsSafetyContext(
+                    telemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
+                    hapticsStopped: !pipelineSnapshot.IsRunning));
         }
         finally
         {
@@ -1142,17 +1150,25 @@ public partial class MainWindow : Window
             && _realPhprOptions.OpenCheckSucceeded
             && _realPhprOptions.AllowsDirectPulseReportShape
             && _realPhprOptions.Selector.IsSelected
+            && pipelineSnapshot.HapticFrame is not null
             && pipelineSnapshot.VehicleStateUpdateCount > 0;
     }
 
     private PHprContinuousEffectsRuntimeInput BuildRealContinuousEffectsRuntimeInput()
     {
         var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        UpdateActuationTelemetryCaches(pipelineSnapshot);
         return new PHprContinuousEffectsRuntimeInput(
-            pipelineSnapshot,
+            pipelineSnapshot.HapticFrame,
+            pipelineSnapshot.VehicleState,
+            _lastActuationDrivingContext,
             IsRealPhprPedalRoutingReady(pipelineSnapshot),
-            BuildRealRoadVibrationSafetyContext(pipelineSnapshot),
-            BuildRealSlipLockSafetyContext(pipelineSnapshot));
+            BuildRealRoadVibrationSafetyContext(
+                telemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
+                hapticsStopped: !pipelineSnapshot.IsRunning),
+            BuildRealSlipLockSafetyContext(
+                telemetryStale: pipelineSnapshot.TelemetryTimedOutMuted,
+                hapticsStopped: !pipelineSnapshot.IsRunning));
     }
 
     private void PaddleInputSource_InputChanged(object? sender, object e)
@@ -1231,9 +1247,73 @@ public partial class MainWindow : Window
     private HapticPipelineSnapshot RefreshDrivingArmedAndShiftIntentTelemetry()
     {
         var snapshot = _hapticPipeline.GetSnapshot();
-        _drivingArmedStateService.UpdateFromPipelineSnapshot(snapshot);
-        _shiftIntentProcessor.UpdateFromPipelineSnapshot(snapshot);
+        UpdateActuationTelemetryCaches(snapshot);
         return snapshot;
+    }
+
+    private void UpdateActuationTelemetryCaches(HapticPipelineSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var nowUtc = DateTimeOffset.UtcNow;
+        var telemetryAge = snapshot.TelemetryFreshness.Age
+            ?? snapshot.TelemetryAge
+            ?? CalculateTelemetryAge(snapshot.LastVehicleStateUpdateAtUtc, nowUtc);
+
+        _shiftIntentProcessor.UpdateTelemetry(
+            snapshot.HapticFrame,
+            snapshot.VehicleState,
+            snapshot.LastVehicleStateUpdateAtUtc,
+            telemetryAge);
+
+        if (snapshot.HapticFrame is null)
+        {
+            _lastDrivingArmedState = DrivingArmedState.NotArmed(
+                "No canonical haptic frame is available for actuation routing.",
+                nowUtc,
+                telemetryAge);
+            _lastActuationDrivingContext = ActuationDrivingContextFactory.SafeDefault(
+                snapshot.VehicleState.Frame.Source ?? snapshot.InputSource.ToString(),
+                nowUtc);
+            return;
+        }
+
+        var drivingState = _drivingArmedStateService.UpdateFromHapticFrame(
+            snapshot.HapticFrame,
+            snapshot.VehicleState,
+            BuildDrivingArmedEvaluationContext(snapshot, telemetryAge),
+            nowUtc);
+        _lastDrivingArmedState = drivingState;
+        _lastActuationDrivingContext = ActuationDrivingContextFactory.FromHapticFrame(
+            snapshot.HapticFrame,
+            drivingState.IsArmed);
+    }
+
+    private static DrivingArmedEvaluationContext BuildDrivingArmedEvaluationContext(
+        HapticPipelineSnapshot snapshot,
+        TimeSpan? telemetryAge)
+    {
+        return new DrivingArmedEvaluationContext
+        {
+            HapticsRunning = snapshot.IsRunning,
+            EmergencyMute = snapshot.EmergencyMute,
+            HasRecentTelemetry = snapshot.VehicleStateUpdateCount > 0,
+            LastVehicleStateUpdateAtUtc = snapshot.LastVehicleStateUpdateAtUtc,
+            TelemetryAge = telemetryAge,
+            TelemetryTimedOutMuted = snapshot.TelemetryTimedOutMuted
+                || (snapshot.TelemetryFreshness.IsPresent && !snapshot.TelemetryFreshness.IsFresh)
+        };
+    }
+
+    private static TimeSpan? CalculateTelemetryAge(DateTimeOffset? lastVehicleStateUpdateAtUtc, DateTimeOffset nowUtc)
+    {
+        if (lastVehicleStateUpdateAtUtc is null)
+        {
+            return null;
+        }
+
+        var age = nowUtc - lastVehicleStateUpdateAtUtc.Value;
+        return age < TimeSpan.Zero ? TimeSpan.Zero : age;
     }
 
     private WheelPaddleMapping GetPaddleMapping()
@@ -1332,14 +1412,16 @@ public partial class MainWindow : Window
     {
         var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
         return BuildMockPhprSafetyContext(
-            pipelineSnapshot,
-            shiftIntentEvent.DrivingArmedAtEvent.IsArmed);
+            _lastActuationDrivingContext with { IsArmed = shiftIntentEvent.DrivingArmedAtEvent.IsArmed },
+            pipelineSnapshot.TelemetryTimedOutMuted,
+            hapticsStopped: !pipelineSnapshot.IsRunning);
     }
 
-    private PHprSafetyContext BuildMockPedalEffectsSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
+    private PHprSafetyContext BuildMockPedalEffectsSafetyContext(
+        bool telemetryStale,
+        bool hapticsStopped)
     {
-        var driving = _drivingArmedStateService.GetSnapshot();
-        return BuildMockPhprSafetyContext(pipelineSnapshot, driving.Current.IsArmed);
+        return BuildMockPhprSafetyContext(_lastActuationDrivingContext, telemetryStale, hapticsStopped);
     }
 
     private PHprSafetyContext BuildRealGearPulseSafetyContext(ShiftIntentEvent shiftIntentEvent)
@@ -1375,30 +1457,32 @@ public partial class MainWindow : Window
             .ToSafetyContext();
     }
 
-    private PHprSafetyContext BuildRealRoadVibrationSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
+    private PHprSafetyContext BuildRealRoadVibrationSafetyContext(
+        bool telemetryStale,
+        bool hapticsStopped)
     {
         var outputSnapshot = _realPhprOutput.GetSnapshot();
-        var driving = _drivingArmedStateService.GetSnapshot();
         return SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(
                 outputSnapshot,
-                pipelineSnapshot.TelemetryTimedOutMuted,
-                hapticsStopped: !pipelineSnapshot.IsRunning,
+                telemetryStale,
+                hapticsStopped,
                 _emergencyMuted,
-                driving.Current.IsArmed,
+                _lastActuationDrivingContext.IsArmed,
                 _phprSoftwareCoexistenceSnapshot.Status)
             .ToSafetyContext();
     }
 
-    private PHprSafetyContext BuildRealSlipLockSafetyContext(HapticPipelineSnapshot pipelineSnapshot)
+    private PHprSafetyContext BuildRealSlipLockSafetyContext(
+        bool telemetryStale,
+        bool hapticsStopped)
     {
         var outputSnapshot = _realPhprOutput.GetSnapshot();
-        var driving = _drivingArmedStateService.GetSnapshot();
         return SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(
                 outputSnapshot,
-                pipelineSnapshot.TelemetryTimedOutMuted,
-                hapticsStopped: !pipelineSnapshot.IsRunning,
+                telemetryStale,
+                hapticsStopped,
                 _emergencyMuted,
-                driving.Current.IsArmed,
+                _lastActuationDrivingContext.IsArmed,
                 _phprSoftwareCoexistenceSnapshot.Status)
             .ToSafetyContext();
     }
@@ -1415,16 +1499,17 @@ public partial class MainWindow : Window
     }
 
     private PHprSafetyContext BuildMockPhprSafetyContext(
-        HapticPipelineSnapshot pipelineSnapshot,
-        bool drivingArmed)
+        ActuationDrivingContext drivingContext,
+        bool telemetryStale,
+        bool hapticsStopped)
     {
         var outputSnapshot = _mockPhprSafetyOutput.GetSnapshot();
         return SafetyContextSnapshotBuilder.BuildMockRuntimeSnapshot(
                 outputSnapshot,
-                pipelineSnapshot.TelemetryTimedOutMuted,
-                hapticsStopped: !pipelineSnapshot.IsRunning,
+                telemetryStale,
+                hapticsStopped,
                 _emergencyMuted,
-                drivingArmed,
+                drivingContext.IsArmed,
                 _phprSoftwareCoexistenceSnapshot.Status)
             .ToSafetyContext();
     }

@@ -1,4 +1,5 @@
-using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Asio.Core.Haptics;
+using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Input.Abstractions.Driving;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
@@ -159,9 +160,17 @@ public sealed class ShiftIntentProcessor : IShiftIntentSource
         }
     }
 
-    public void UpdateFromPipelineSnapshot(HapticPipelineSnapshot snapshot)
+    public void UpdateTelemetry(
+        HapticFrame? frame,
+        VehicleState vehicleState,
+        DateTimeOffset? lastVehicleStateUpdateAtUtc = null,
+        TimeSpan? telemetryAge = null)
     {
-        var telemetry = ShiftIntentTelemetrySnapshot.FromPipelineSnapshot(snapshot);
+        ArgumentNullException.ThrowIfNull(vehicleState);
+
+        var telemetry = frame is null
+            ? ShiftIntentTelemetrySnapshot.FromVehicleState(vehicleState, lastVehicleStateUpdateAtUtc, telemetryAge)
+            : ShiftIntentTelemetrySnapshot.FromHapticFrame(frame, vehicleState, lastVehicleStateUpdateAtUtc, telemetryAge);
         lock (_gate)
         {
             _lastTelemetry = telemetry;

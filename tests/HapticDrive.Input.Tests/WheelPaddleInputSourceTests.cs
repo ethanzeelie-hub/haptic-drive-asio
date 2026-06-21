@@ -248,6 +248,32 @@ public sealed class WheelPaddleInputSourceTests
     }
 
     [Fact]
+    public async Task PollingSource_ShiftIntentEventSubscriptionAndUnsubscriptionBehaveCorrectly()
+    {
+        var reader = new FakeButtonStateReader
+        {
+            Snapshot = new InputButtonStateSnapshot(
+                InputListenerStatus.Listening,
+                new Dictionary<int, InputButtonState>
+                {
+                    [4] = InputButtonState.Pressed
+                })
+        };
+        await using var source = new PollingWheelPaddleInputSource(
+            reader,
+            new WheelPaddleInputSourceOptions { PollInterval = TimeSpan.FromMilliseconds(1) });
+        var shiftIntentEvents = 0;
+        EventHandler<ShiftIntentEvent> handler = (_, _) => shiftIntentEvents++;
+        source.ShiftIntentReceived += handler;
+        source.ShiftIntentReceived -= handler;
+
+        await source.StartAsync(CreateSelection(), CreateMapping());
+        await WaitUntilAsync(() => source.GetPaddleSnapshot().PaddlePressCount == 1);
+
+        Assert.Equal(0, shiftIntentEvents);
+    }
+
+    [Fact]
     public void ListenerAbstractions_DoNotExposeUsbWriteCapableApi()
     {
         var forbiddenTerms = new[] { "Write", "Send", "Output", "Feature", "Vibrate", "Command", "Report" };

@@ -1,4 +1,5 @@
 using HapticDrive.Input.Abstractions.Shift;
+using System.Buffers;
 
 namespace HapticDrive.Input.Abstractions.Paddles;
 
@@ -7,9 +8,11 @@ public sealed class PollingWheelPaddleInputSource : IWheelPaddleInputSource
     private readonly IInputButtonStateReader _reader;
     private readonly WheelPaddleInputProcessor _processor;
     private readonly WheelPaddleInputSourceOptions _options;
+    private readonly object _shiftIntentEventGate = new();
     private CancellationTokenSource? _listenerCancellation;
     private Task? _listenerTask;
     private InputDeviceSelection? _selectedDevice;
+    private EventHandler<ShiftIntentEvent>? _shiftIntentReceived;
     private bool _disposed;
 
     public PollingWheelPaddleInputSource(
@@ -26,8 +29,20 @@ public sealed class PollingWheelPaddleInputSource : IWheelPaddleInputSource
 
     public event EventHandler<ShiftIntentEvent>? ShiftIntentReceived
     {
-        add { }
-        remove { }
+        add
+        {
+            lock (_shiftIntentEventGate)
+            {
+                _shiftIntentReceived += value;
+            }
+        }
+        remove
+        {
+            lock (_shiftIntentEventGate)
+            {
+                _shiftIntentReceived -= value;
+            }
+        }
     }
 
     public event EventHandler<WheelPaddleRawButtonEvent>? RawButtonChanged;
@@ -163,10 +178,30 @@ public sealed class PollingWheelPaddleInputSource : IWheelPaddleInputSource
 
                 if (snapshot.Status == InputListenerStatus.Listening)
                 {
-                    foreach (var button in snapshot.Buttons.OrderBy(pair => pair.Key))
+                    var buttonCount = snapshot.Buttons.Count;
+                    if (buttonCount > 0)
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        _processor.ProcessButtonState(button.Key, button.Value, _selectedDevice);
+                        var rentedKeys = ArrayPool<int>.Shared.Rent(buttonCount);
+                        try
+                        {
+                            var index = 0;
+                            foreach (var buttonId in snapshot.Buttons.Keys)
+                            {
+                                rentedKeys[index++] = buttonId;
+                            }
+
+                            Array.Sort(rentedKeys, 0, buttonCount);
+                            for (var keyIndex = 0; keyIndex < buttonCount; keyIndex++)
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                var buttonId = rentedKeys[keyIndex];
+                                _processor.ProcessButtonState(buttonId, snapshot.Buttons[buttonId], _selectedDevice);
+                            }
+                        }
+                        finally
+                        {
+                            ArrayPool<int>.Shared.Return(rentedKeys, clearArray: false);
+                        }
                     }
                 }
             }

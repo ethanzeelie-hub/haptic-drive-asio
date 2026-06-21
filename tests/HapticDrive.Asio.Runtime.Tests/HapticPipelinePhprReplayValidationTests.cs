@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.Recording;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Asio.Telemetry.F1_25;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
@@ -33,12 +34,19 @@ public sealed class HapticPipelinePhprReplayValidationTests
         {
             TelemetryFreshnessThreshold = TimeSpan.FromSeconds(5)
         });
-        var drivingState = driving.UpdateFromPipelineSnapshot(snapshot, DateTimeOffset.UtcNow);
+        var drivingState = driving.UpdateFromVehicleState(
+            snapshot.VehicleState,
+            CreateDrivingArmedContext(snapshot),
+            DateTimeOffset.UtcNow);
 
         await using var inner = new MockPhprOutputDevice();
         await using var output = new SafetyLimitedPhprOutputDevice(inner);
         var router = new PHprPedalEffectsRouter(output, PHprPedalEffectsRouterOptions.Default);
-        var routeResult = await router.RouteAsync(snapshot, BuildMockContext(snapshot, drivingState.IsArmed), BaseTime);
+        var routeResult = await router.RouteAsync(
+            snapshot.VehicleState,
+            CreateDrivingContext(snapshot, drivingState.IsArmed),
+            BuildMockContext(snapshot, drivingState.IsArmed),
+            BaseTime);
 
         Assert.True(replayResult.Succeeded, replayResult.Message);
         Assert.True(renderResult.Succeeded, renderResult.Message);
@@ -70,7 +78,11 @@ public sealed class HapticPipelinePhprReplayValidationTests
         await using var inner = new MockPhprOutputDevice();
         await using var output = new SafetyLimitedPhprOutputDevice(inner);
         var router = new PHprPedalEffectsRouter(output, PHprPedalEffectsRouterOptions.Default);
-        var routeResult = await router.RouteAsync(snapshot, BuildMockContext(snapshot, drivingArmed: true), BaseTime);
+        var routeResult = await router.RouteAsync(
+            snapshot.VehicleState,
+            CreateDrivingContext(snapshot, isArmed: true),
+            BuildMockContext(snapshot, drivingArmed: true),
+            BaseTime);
 
         Assert.True(replayResult.Succeeded, replayResult.Message);
         Assert.Equal(HapticPipelineInputSource.Replay, snapshot.InputSource);
@@ -109,7 +121,11 @@ public sealed class HapticPipelinePhprReplayValidationTests
                 WheelLock = PHprPedalEffectState.DefaultFor(PHprPedalEffectKind.WheelLock) with { IsEnabled = false }
             });
 
-        var result = await router.RouteAsync(snapshot, BuildMockContext(snapshot, drivingArmed: true), BaseTime);
+        var result = await router.RouteAsync(
+            snapshot.VehicleState,
+            CreateDrivingContext(snapshot, isArmed: true),
+            BuildMockContext(snapshot, drivingArmed: true),
+            BaseTime);
 
         Assert.True(result.WasRouted, result.Message);
         var command = Assert.Single(inner.CommandHistory);
@@ -134,12 +150,20 @@ public sealed class HapticPipelinePhprReplayValidationTests
         await using var staleInner = new MockPhprOutputDevice();
         await using var staleOutput = new SafetyLimitedPhprOutputDevice(staleInner);
         var staleRouter = new PHprPedalEffectsRouter(staleOutput, PHprPedalEffectsRouterOptions.Default);
-        var staleResult = await staleRouter.RouteAsync(snapshot with { TelemetryTimedOutMuted = true }, nowUtc: BaseTime);
+        var staleResult = await staleRouter.RouteAsync(
+            snapshot.VehicleState,
+            CreateDrivingContext(snapshot with { TelemetryTimedOutMuted = true }, isArmed: true),
+            BuildMockContext(snapshot with { TelemetryTimedOutMuted = true }, drivingArmed: true),
+            BaseTime);
 
         await using var mutedInner = new MockPhprOutputDevice();
         await using var mutedOutput = new SafetyLimitedPhprOutputDevice(mutedInner);
         var mutedRouter = new PHprPedalEffectsRouter(mutedOutput, PHprPedalEffectsRouterOptions.Default);
-        var mutedResult = await mutedRouter.RouteAsync(snapshot with { EmergencyMute = true }, nowUtc: BaseTime);
+        var mutedResult = await mutedRouter.RouteAsync(
+            snapshot.VehicleState,
+            CreateDrivingContext(snapshot with { EmergencyMute = true }, isArmed: true),
+            BuildMockContext(snapshot with { EmergencyMute = true }, drivingArmed: true),
+            BaseTime);
 
         Assert.Equal(PHprPedalEffectsRoutingStatus.RejectedBySafety, staleResult.Status);
         Assert.Equal(PHprSafetyViolationCode.TelemetryStale, staleOutput.SafetySnapshot.LastViolation?.Code);
@@ -158,6 +182,34 @@ public sealed class HapticPipelinePhprReplayValidationTests
             EmergencyMuteActive = snapshot.EmergencyMute,
             DrivingArmed = drivingArmed
         };
+    }
+
+    private static DrivingArmedEvaluationContext CreateDrivingArmedContext(HapticPipelineSnapshot snapshot)
+    {
+        return new DrivingArmedEvaluationContext
+        {
+            HapticsRunning = snapshot.IsRunning,
+            EmergencyMute = snapshot.EmergencyMute,
+            HasRecentTelemetry = snapshot.VehicleStateUpdateCount > 0,
+            LastVehicleStateUpdateAtUtc = snapshot.LastVehicleStateUpdateAtUtc,
+            TelemetryAge = snapshot.TelemetryFreshness.Age ?? snapshot.TelemetryAge,
+            TelemetryTimedOutMuted = snapshot.TelemetryTimedOutMuted
+                || (snapshot.TelemetryFreshness.IsPresent && !snapshot.TelemetryFreshness.IsFresh)
+        };
+    }
+
+    private static ActuationDrivingContext CreateDrivingContext(
+        HapticPipelineSnapshot snapshot,
+        bool isArmed)
+    {
+        return new ActuationDrivingContext(
+            IsArmed: isArmed,
+            DrivingPhase: snapshot.EmergencyMute ? DrivingPhase.Paused : DrivingPhase.Driving,
+            IsPaused: snapshot.EmergencyMute,
+            AllowsDrivingOutput: snapshot.IsRunning && !snapshot.TelemetryTimedOutMuted && !snapshot.EmergencyMute,
+            CapturedAtUtc: snapshot.LastVehicleStateUpdateAtUtc ?? BaseTime,
+            CapturedAtTimestamp: 0,
+            Source: snapshot.VehicleState.Frame.Source ?? "test");
     }
 
     private static TelemetryRecording CreateRecording(params byte[][] datagrams)

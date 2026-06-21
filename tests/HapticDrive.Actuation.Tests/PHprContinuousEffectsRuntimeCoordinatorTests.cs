@@ -1,11 +1,9 @@
+using HapticDrive.Actuation.Driving;
 using HapticDrive.Actuation.PHpr;
-using HapticDrive.Asio.Audio.Effects;
-using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Games;
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Recording;
-using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.MockProtocol;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -396,110 +394,85 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
             PHprSafetyContext roadSafetyContext,
             PHprSafetyContext slipLockSafetyContext)
         {
-            var pipelineSnapshot = new HapticPipelineSnapshot(
-                IsRunning: isRunning,
-                HapticPipelineInputSource.LiveUdp,
-                LastPacketAtUtc: Clock.UtcNow,
-                LastVehicleStateUpdateAtUtc: Clock.UtcNow,
-                PacketsObserved: 1,
-                ParserSuccessCount: 1,
-                ParserIgnoredCount: 0,
-                ParserFailureCount: 0,
-                VehicleStateUpdateCount: 1,
-                RenderedBufferCount: 0,
-                TelemetryAge: TimeSpan.Zero,
-                TelemetryMuteTimeout: TimeSpan.FromMilliseconds(500),
-                TelemetryTimedOutMuted: telemetryTimedOutMuted,
-                IsMuted: false,
-                EmergencyMute: emergencyMute,
-                LastPacketMessage: "test",
-                LastVehicleStateMessage: "test",
-                LastPipelineError: null,
-                VehicleState: vehicleState,
-                Effects: new HapticEffectEngineSnapshot(
-                    Engine: default,
-                    GearShift: default,
-                    Kerb: default,
-                    Impact: default,
-                    RoadTexture: new RoadTextureEffectSnapshot(
-                        IsEnabled: true,
-                        Bst1OutputEnabled: true,
-                        IsActive: signal.IsActive,
-                        DominantSurfaceTypeId: signal.SurfaceTypeIds.FrontLeft,
-                        DominantSurfaceName: signal.SurfaceName,
-                        CurrentFrequencyHz: signal.PHprFrequencyHz,
-                        CurrentAmplitude: signal.OutputIntensity,
-                        SurfaceMix: signal.SurfaceMix,
-                        PeakLevel: signal.OutputIntensity,
-                        Signal: signal,
-                        RmsLevel: signal.OutputIntensity),
-                    Slip: default,
-                    ActiveEffectCount: signal.IsActive ? 1 : 0,
-                    PeakLevel: signal.OutputIntensity),
-                Audio: null,
-                Output: new AudioOutputStatus(
-                    AudioOutputDeviceKind.Null,
-                    AudioOutputDeviceState.Stopped,
-                    "Null output",
-                    "test",
-                    DeviceName: null,
-                    SampleRate: 48_000,
-                    ChannelCount: 1,
-                    BufferSize: 480,
-                    RequiresPhysicalHardware: false,
-                    IsManualDebugOnly: false,
-                    IsAvailable: true),
-                ManualAsioHardwareTest: new ManualAsioHardwareTestSnapshot(
-                    IsActive: false,
-                    TestMode: "none",
-                    OutputMode: "Null",
-                    SelectedAsioDriver: "none",
-                    SelectedOutputChannel: null,
-                    AsioRunning: false,
-                    AsioArmed: false,
-                    AsioCallbackActive: false,
-                    HapticsRunning: isRunning,
-                    EmergencyMute: emergencyMute,
-                    NormalMute: false,
-                    OutputPeakLevel: 0f,
-                    FramesSubmitted: 0,
-                    FramesRendered: 0,
-                    RenderCallbackCount: 0,
-                    SubmittedFrameCount: 0,
-                    DroppedFrameCount: 0,
-                    BackendCallbackCount: 0,
-                    LastPulseUsedAsio: false,
-                    LastManualPulseUsedAsio: false,
-                    LastGearPulseUsedAsio: false,
-                    LastPulseBlocked: false,
-                    LimiterApplied: false,
-                    PulseGenerationId: 0,
-                    StaleStopIgnoredCount: 0,
-                    BlockedReason: null,
-                    LastTestSignal: null,
-                    LastTestDuration: null,
-                    LastStrengthPercent: null,
-                    LastOutputTrimPercent: null,
-                    LastEffectivePreLimiterAmplitude: null,
-                    LastEffectivePostLimiterAmplitude: null,
-                    LastFrequencyHz: null,
-                    LastDurationMs: null,
-                    LastSource: null,
-                    LastDurationMode: null,
-                    ManualPulsePeak: 0f,
-                    FlightRecorderPath: string.Empty,
-                    LastError: null),
-                NullOutput: null,
-                Forwarding: new UdpTelemetryForwarderSnapshot(false, 0, 0, 0, 0, 0, 0, null, null),
-                PacketDiagnostics: [],
-                Recording: new TelemetryRecordingSnapshot(false, null, 0, null, null),
-                Replay: new TelemetryReplaySnapshot(false, null, 0, "idle"));
+            var frame = CreateHapticFrame(
+                vehicleState,
+                isRunning,
+                telemetryTimedOutMuted,
+                emergencyMute,
+                signal,
+                Clock.UtcNow);
 
             return new PHprContinuousEffectsRuntimeInput(
-                pipelineSnapshot,
+                frame,
+                vehicleState,
+                ActuationDrivingContextFactory.FromHapticFrame(frame, slipLockSafetyContext.DrivingArmed),
                 IsPedalRoutingReady: true,
                 roadSafetyContext,
                 slipLockSafetyContext);
+        }
+
+        private static HapticFrame CreateHapticFrame(
+            VehicleState vehicleState,
+            bool isRunning,
+            bool telemetryTimedOutMuted,
+            bool emergencyMute,
+            RoadTextureSignal signal,
+            DateTimeOffset nowUtc)
+        {
+            var telemetryFresh = !telemetryTimedOutMuted;
+            return new HapticFrame(
+                new HapticFrameIdentity(
+                    new GameIntegrationId("f1-25"),
+                    vehicleState.Frame.Source ?? "test",
+                    vehicleState.Frame.SessionUid,
+                    vehicleState.Frame.OverallFrameIdentifier,
+                    vehicleState.Frame.PlayerCarIndex,
+                    nowUtc,
+                    0),
+                new HapticTelemetrySignals(
+                    SpeedMetersPerSecond: vehicleState.Telemetry is null ? null : vehicleState.Telemetry.Value.SpeedKph / 3.6f,
+                    Throttle: vehicleState.Telemetry?.Value.Throttle,
+                    Brake: vehicleState.Telemetry?.Value.Brake,
+                    Steer: vehicleState.Telemetry?.Value.Steer,
+                    Gear: vehicleState.Telemetry?.Value.Gear,
+                    EngineRpm: vehicleState.Telemetry?.Value.EngineRpm,
+                    IdleRpm: vehicleState.CarStatus?.Value.IdleRpm,
+                    MaxRpm: vehicleState.CarStatus?.Value.MaxRpm,
+                    SurfaceKinds: signal.IsActive
+                        ? new HapticWheelSignals<SurfaceKind>(SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip)
+                        : new HapticWheelSignals<SurfaceKind>(SurfaceKind.Tarmac, SurfaceKind.Tarmac, SurfaceKind.Tarmac, SurfaceKind.Tarmac),
+                    TyreSlip: vehicleState.MotionEx is null
+                        ? null
+                        : new HapticWheelSignals<float>(
+                            vehicleState.MotionEx.Value.WheelSlipRatio.RearLeft,
+                            vehicleState.MotionEx.Value.WheelSlipRatio.RearRight,
+                            vehicleState.MotionEx.Value.WheelSlipRatio.FrontLeft,
+                            vehicleState.MotionEx.Value.WheelSlipRatio.FrontRight),
+                    SuspensionVelocity: vehicleState.MotionEx is null
+                        ? null
+                        : new HapticWheelSignals<float>(
+                            vehicleState.MotionEx.Value.SuspensionVelocity.RearLeft,
+                            vehicleState.MotionEx.Value.SuspensionVelocity.RearRight,
+                            vehicleState.MotionEx.Value.SuspensionVelocity.FrontLeft,
+                            vehicleState.MotionEx.Value.SuspensionVelocity.FrontRight),
+                    BrakeTemperatureCelsius: vehicleState.Telemetry is null
+                        ? null
+                        : new HapticWheelSignals<float>(
+                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.RearLeft,
+                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.RearRight,
+                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.FrontLeft,
+                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.FrontRight)),
+                new HapticDrivingContext(
+                    isRunning && !emergencyMute ? DrivingPhase.Driving : DrivingPhase.Paused,
+                    PitState.None,
+                    IsPaused: emergencyMute,
+                    IsPlayerControlled: true,
+                    AllowsDrivingOutput: isRunning && !telemetryTimedOutMuted && !emergencyMute),
+                new Dictionary<string, VehicleSignalFreshness>(StringComparer.Ordinal)
+                {
+                    [HapticFrameSignalNames.Telemetry] = new(telemetryFresh, true, true, true, telemetryFresh, TimeSpan.Zero, 0),
+                    [HapticFrameSignalNames.MotionEx] = new(vehicleState.MotionEx is not null, true, true, true, vehicleState.MotionEx is not null, TimeSpan.Zero, 0)
+                });
         }
     }
 

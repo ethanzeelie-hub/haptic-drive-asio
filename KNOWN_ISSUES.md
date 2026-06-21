@@ -1196,3 +1196,11 @@
 - The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
 - Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.
 - Selected-recording inspection now has a structured app-side analysis seam beneath the formatted text output, but the recording workflow still does not expose random-access per-packet browsing, packet-body decode views, persistent sidecar indexes, or richer cross-game recording analysis workflows for very large recording sets.
+
+## Stage 26J
+
+- The previous `HapticDrive.Actuation -> HapticDrive.Asio.Runtime` dependency and `HapticPipelineSnapshot` actuation inputs are now resolved. Actuation consumes canonical `HapticFrame`, `VehicleState`, and `ActuationDrivingContext` inputs instead.
+- App startup no longer instantiates the concrete Windows HID writer by default. Real HID writer creation is deferred until explicit direct-control paths need it, and automated tests remain fake/mock-only.
+- Physical BST-1 shaker feel, physical P-HPR feel, safe physical gain, emergency-stop physical response, and mixed-output latency remain Ethan-local validation items.
+- The app still ships only one production game adapter: F1 25. `SelectedGameId` exists, but there is still no visible game picker because a second production game does not yet exist.
+- Release packaging now carries a generated Markdown handoff summary, but the repo still does not automate signed release publication, GitHub Releases API publication, installer generation, or automated install/uninstall validation.

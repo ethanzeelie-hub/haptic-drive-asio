@@ -7384,3 +7384,49 @@ Self-review:
 - The recording path is materially safer now: captures can be recovered after partial writes, metadata is richer, and replay timing no longer drifts simply because delay scheduling took time.
 - One intentional limitation remains for this stage: `sourceEndpoint` still falls back to `"unknown"` in app-created metadata until the live receiver snapshot exposes a durable last-source endpoint surface suitable for recording metadata.
 - The next hardening stage can focus on actuation/P-HPR layering without carrying the old fragile recording footer/count assumptions forward.
+
+## Stage 26J - Actuation / P-HPR Runtime Boundary Cleanup
+
+Status: Complete.
+
+Goal: Remove the remaining `HapticDrive.Actuation -> HapticDrive.Asio.Runtime` dependency, keep non-audio actuation on its own mock-safe boundary, and stop default app startup from eagerly creating a real HID writer.
+
+Changes:
+
+- Added `ActuationDrivingContext` plus `ActuationDrivingContextFactory` so the actuation side now consumes a canonical driving-state snapshot derived from `HapticFrame` instead of `HapticPipelineSnapshot`.
+- Removed the `HapticDrive.Asio.Runtime` project reference from `HapticDrive.Actuation`.
+- Reworked actuation entry points:
+  - `DrivingArmedStateService` no longer accepts runtime snapshots directly.
+  - `ShiftIntentProcessor` now refreshes cached telemetry from `HapticFrame` / `VehicleState`.
+  - `PHprPedalEffectsRouter`, `PHprRoadVibrationRouter`, `PHprSlipLockRouter`, and `PHprContinuousEffectsRuntimeCoordinator` now accept canonical frame/state/context inputs instead of runtime snapshot types.
+- Updated the app boundary so `MainWindow` refreshes cached actuation telemetry from runtime snapshots, then passes only canonical frame/state/context data into actuation services and continuous P-HPR runtime inputs.
+- Added `DeferredWindowsHidReportWriter` and switched the app to that deferred writer so startup no longer instantiates the concrete Windows HID writer by default.
+- Hardened the real writer boundary:
+  - `WindowsHidReportWriter` now requires an explicit unsafe/manual authorization flag at construction time.
+  - the open-check and controlled-write research paths pass that flag deliberately.
+  - automated tests no longer instantiate the real writer directly.
+- Optimized `PollingWheelPaddleInputSource`:
+  - removed the per-poll LINQ `OrderBy(...)` path,
+  - replaced it with pooled key buffers plus `Array.Sort`,
+  - fixed `ShiftIntentReceived` event add/remove behavior instead of leaving no-op accessors.
+
+Tests:
+
+- Updated actuation/runtime integration coverage to route through canonical frame/context inputs instead of runtime snapshots.
+- Added `PHprPedalEffectsRouterTests.CanonicalFrameOverload_UsesActuationDrivingContextWithoutRuntimeSnapshot`.
+- Added `WheelPaddleInputSourceTests.PollingSource_ShiftIntentEventSubscriptionAndUnsubscriptionBehaveCorrectly`.
+- Added `PHprRealOutputTests.AutomatedTests_DoNotInstantiateRealUsbWriter`.
+- Updated project-graph guardrails so actuation must not reference `HapticDrive.Asio.Runtime`.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Actuation.Tests\HapticDrive.Actuation.Tests.csproj -c Release` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Simagic.PHPR.Tests\HapticDrive.Simagic.PHPR.Tests.csproj -c Release` passed.
+- `.\.dotnet\dotnet.exe test tests\HapticDrive.Input.Tests\HapticDrive.Input.Tests.csproj -c Release` passed.
+
+Self-review:
+
+- The layering is cleaner now: runtime remains responsible for live snapshot gathering, while actuation consumes canonical frame/state/context inputs and can evolve without pulling runtime types along with it.
+- The safety boundary is materially tighter: startup no longer eagerly creates a real HID writer, real writer construction is explicit, and the automated test surface stays fake/mock-only.
+- The next hardening stage can focus on structured diagnostics/privacy without carrying the old actuation/runtime coupling forward.

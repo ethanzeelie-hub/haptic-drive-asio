@@ -1239,21 +1239,10 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
-    public async Task WindowsHidWriterRejectsCorruptedRelativePathBeforeOpen()
+    public void WindowsHidPathSafetyRejectsCorruptedRelativePathBeforeOpen()
     {
         const string corruptedPath = "\uFFFD\u0001hid#vid_3670&pid_0905#private";
-        var writer = new WindowsHidReportWriter(SelectedDevice() with
-        {
-            DevicePath = corruptedPath
-        });
-
-        var result = await writer.OpenAsync();
-
-        Assert.False(result.Succeeded);
-        Assert.Equal(PHprHidWriteStatus.InvalidReport, result.Status);
-        Assert.Equal(PHprHidPathSafety.InvalidDevicePathCategory, result.ErrorMessage);
-        Assert.DoesNotContain(corruptedPath, result.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("#private", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(PHprHidPathSafety.IsAbsoluteWindowsDevicePath(corruptedPath));
     }
 
     [Fact]
@@ -1270,6 +1259,21 @@ public sealed class PHprRealOutputTests
     private static PHprCommand TestCommand(PHprModuleId moduleId, int durationMs = 10)
     {
         return PHprCommand.Create(moduleId, 0.10d, 50d, durationMs, PHprCommandSource.TestBench);
+    }
+
+    [Fact]
+    public void AutomatedTests_DoNotInstantiateRealUsbWriter()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var testsDirectory = Path.Combine(repositoryRoot, "tests");
+        var matches = Directory.GetFiles(testsDirectory, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.EndsWith($"{Path.DirectorySeparatorChar}PHprRealOutputTests.cs", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(path => File.ReadLines(path).Select((line, index) => (path, line, index)))
+            .Where(match => match.line.Contains("new WindowsHidReportWriter(", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Empty(matches);
     }
 
     private static PHprRealOutputOptions ArmedOptions()
@@ -1832,6 +1836,22 @@ public sealed class PHprRealOutputTests
                 _registration.Dispose();
             }
         }
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "HapticDrive.Asio.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not find repository root containing HapticDrive.Asio.sln.");
     }
 
     private sealed class StaticCandidateProvider(params PHprDirectOutputCandidate[] candidates) : IPHprDirectOutputCandidateProvider

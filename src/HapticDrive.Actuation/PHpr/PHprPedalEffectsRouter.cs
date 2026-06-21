@@ -1,7 +1,6 @@
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
@@ -83,25 +82,39 @@ public sealed class PHprPedalEffectsRouter
     }
 
     public ValueTask<PHprPedalEffectsRoutingResult> RouteAsync(
-        HapticPipelineSnapshot? pipelineSnapshot,
+        HapticFrame? frame,
+        VehicleState? vehicleState,
+        ActuationDrivingContext? drivingContext = null,
         PHprSafetyContext? safetyContext = null,
         DateTimeOffset? nowUtc = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (pipelineSnapshot is null)
+        if (frame is null || vehicleState is null)
         {
             return ValueTask.FromResult(StoreIgnored(
                 PHprPedalEffectsRoutingStatus.IgnoredMissingVehicleState,
-                "No HapticPipelineSnapshot was supplied; no mock P-HPR pedal effect command was sent.",
+                "No canonical haptic frame and vehicle state were supplied; no mock P-HPR pedal effect command was sent.",
                 nowUtc ?? DateTimeOffset.UtcNow));
         }
 
-        var context = safetyContext ?? BuildContext(pipelineSnapshot);
-        return pipelineSnapshot.HapticFrame is not null
-            ? RouteAsync(pipelineSnapshot.HapticFrame, pipelineSnapshot.VehicleState, context, nowUtc, cancellationToken)
-            : RouteAsync(pipelineSnapshot.VehicleState, context, nowUtc, cancellationToken);
+        var context = BuildContext(safetyContext, drivingContext);
+        return RouteAsync(frame, vehicleState, context, nowUtc, cancellationToken);
+    }
+
+    public async ValueTask<PHprPedalEffectsRoutingResult> RouteAsync(
+        VehicleState? vehicleState,
+        ActuationDrivingContext? drivingContext,
+        PHprSafetyContext? safetyContext = null,
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await RouteAsync(
+            vehicleState,
+            BuildContext(safetyContext, drivingContext),
+            nowUtc,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<PHprPedalEffectsRoutingResult> RouteAsync(
@@ -378,24 +391,15 @@ public sealed class PHprPedalEffectsRouter
         _output.ResetSafetyState();
     }
 
-    private static PHprSafetyContext BuildContext(HapticPipelineSnapshot snapshot)
-    {
-        var context = PHprSafetyContext.DefaultMock with
-        {
-            TelemetryStale = snapshot.TelemetryTimedOutMuted,
-            HapticsStopped = !snapshot.IsRunning,
-            EmergencyMuteActive = snapshot.EmergencyMute
-        };
-
-        return BuildContext(context);
-    }
-
-    private static PHprSafetyContext BuildContext(PHprSafetyContext? safetyContext)
+    private static PHprSafetyContext BuildContext(
+        PHprSafetyContext? safetyContext,
+        ActuationDrivingContext? drivingContext = null)
     {
         var context = safetyContext ?? PHprSafetyContext.DefaultMock;
         return context with
         {
             IsMockOutput = true,
+            DrivingArmed = drivingContext?.IsArmed ?? context.DrivingArmed,
             RequiresRealDeviceWrites = false,
             SoftwareConflictStatus = context.SoftwareConflictStatus == PHprSoftwareConflictStatus.Unknown
                 ? PHprSoftwareConflictStatus.Clear

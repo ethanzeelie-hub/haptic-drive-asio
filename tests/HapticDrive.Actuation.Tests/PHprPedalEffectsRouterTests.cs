@@ -1,6 +1,8 @@
+using HapticDrive.Actuation.Driving;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.MockProtocol;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -72,6 +74,27 @@ public sealed class PHprPedalEffectsRouterTests
         var command = Assert.Single(inner.CommandHistory);
         Assert.Equal(PHprModuleId.Brake, command.TargetModule);
         Assert.Equal(PHprCommandSource.WheelLock, command.Source);
+    }
+
+    [Fact]
+    public async Task CanonicalFrameOverload_UsesActuationDrivingContextWithoutRuntimeSnapshot()
+    {
+        await using var inner = new MockPhprOutputDevice();
+        await using var output = new SafetyLimitedPhprOutputDevice(inner);
+        var router = new PHprPedalEffectsRouter(output);
+        var state = CreateRoadVehicleState();
+        var frame = CreateFrame(state);
+        var drivingContext = ActuationDrivingContextFactory.FromHapticFrame(frame, isArmed: true);
+
+        var result = await router.RouteAsync(
+            frame,
+            state,
+            drivingContext,
+            PHprSafetyContext.DefaultMock,
+            BaseTime);
+
+        Assert.True(result.WasRouted, result.Message);
+        Assert.Single(inner.CommandHistory);
     }
 
     [Fact]
@@ -459,5 +482,55 @@ public sealed class PHprPedalEffectsRouterTests
     private static VehicleWheelData<T> Wheels<T>(T value)
     {
         return new VehicleWheelData<T>(value, value, value, value);
+    }
+
+    private static HapticFrame CreateFrame(VehicleState state)
+    {
+        return new HapticFrame(
+            new HapticFrameIdentity(
+                new("f1-25"),
+                state.Frame.Source ?? "test",
+                state.Frame.SessionUid,
+                state.Frame.OverallFrameIdentifier,
+                state.Frame.PlayerCarIndex,
+                BaseTime,
+                0),
+            new HapticTelemetrySignals(
+                SpeedMetersPerSecond: state.Telemetry is null ? null : state.Telemetry.Value.SpeedKph / 3.6f,
+                Throttle: state.Telemetry?.Value.Throttle,
+                Brake: state.Telemetry?.Value.Brake,
+                Steer: state.Telemetry?.Value.Steer,
+                Gear: state.Telemetry?.Value.Gear,
+                EngineRpm: state.Telemetry?.Value.EngineRpm,
+                IdleRpm: state.CarStatus?.Value.IdleRpm,
+                MaxRpm: state.CarStatus?.Value.MaxRpm,
+                SurfaceKinds: new HapticWheelSignals<SurfaceKind>(SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip),
+                TyreSlip: state.MotionEx is null
+                    ? null
+                    : new HapticWheelSignals<float>(
+                        state.MotionEx.Value.WheelSlipRatio.RearLeft,
+                        state.MotionEx.Value.WheelSlipRatio.RearRight,
+                        state.MotionEx.Value.WheelSlipRatio.FrontLeft,
+                        state.MotionEx.Value.WheelSlipRatio.FrontRight),
+                SuspensionVelocity: state.MotionEx is null
+                    ? null
+                    : new HapticWheelSignals<float>(
+                        state.MotionEx.Value.SuspensionVelocity.RearLeft,
+                        state.MotionEx.Value.SuspensionVelocity.RearRight,
+                        state.MotionEx.Value.SuspensionVelocity.FrontLeft,
+                        state.MotionEx.Value.SuspensionVelocity.FrontRight),
+                BrakeTemperatureCelsius: state.Telemetry is null
+                    ? null
+                    : new HapticWheelSignals<float>(
+                        state.Telemetry.Value.BrakeTemperatureCelsius.RearLeft,
+                        state.Telemetry.Value.BrakeTemperatureCelsius.RearRight,
+                        state.Telemetry.Value.BrakeTemperatureCelsius.FrontLeft,
+                        state.Telemetry.Value.BrakeTemperatureCelsius.FrontRight)),
+            new HapticDrivingContext(DrivingPhase.Driving, PitState.None, false, true, true),
+            new Dictionary<string, VehicleSignalFreshness>(StringComparer.Ordinal)
+            {
+                [HapticFrameSignalNames.Telemetry] = new(true, true, true, true, true, TimeSpan.Zero, 0),
+                [HapticFrameSignalNames.MotionEx] = new(state.MotionEx is not null, true, true, true, state.MotionEx is not null, TimeSpan.Zero, 0)
+            });
     }
 }

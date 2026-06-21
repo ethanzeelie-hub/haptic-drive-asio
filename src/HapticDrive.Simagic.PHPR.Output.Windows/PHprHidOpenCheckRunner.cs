@@ -4,7 +4,7 @@ public sealed class PHprHidOpenCheckRunner(
     Func<PHprHidDeviceSelector, IPhprHidReportWriter>? writerFactory = null)
 {
     private readonly Func<PHprHidDeviceSelector, IPhprHidReportWriter> _writerFactory =
-        writerFactory ?? (selector => new WindowsHidReportWriter(selector));
+        writerFactory ?? (selector => new WindowsHidReportWriter(allowRealDeviceAccess: true, selector));
 
     public async Task<PHprHidOpenCheckResult> RunAsync(
         PHprHidDeviceSelector selector,

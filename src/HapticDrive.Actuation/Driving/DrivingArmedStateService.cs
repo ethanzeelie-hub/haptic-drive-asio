@@ -1,6 +1,5 @@
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Input.Abstractions.Driving;
 
 namespace HapticDrive.Actuation.Driving;
@@ -30,32 +29,6 @@ public sealed class DrivingArmedStateService : IDrivingArmedStateProvider
                 return _current;
             }
         }
-    }
-
-    public DrivingArmedState UpdateFromPipelineSnapshot(
-        HapticPipelineSnapshot snapshot,
-        DateTimeOffset? nowUtc = null)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        var now = nowUtc ?? DateTimeOffset.UtcNow;
-        var telemetryAge = snapshot.TelemetryFreshness.Age ?? snapshot.TelemetryAge ?? CalculateAge(snapshot.LastVehicleStateUpdateAtUtc, now);
-        var context = new DrivingArmedEvaluationContext
-        {
-            HapticsRunning = snapshot.IsRunning,
-            EmergencyMute = snapshot.EmergencyMute,
-            HasRecentTelemetry = snapshot.VehicleStateUpdateCount > 0,
-            LastVehicleStateUpdateAtUtc = snapshot.LastVehicleStateUpdateAtUtc,
-            TelemetryAge = telemetryAge,
-            TelemetryTimedOutMuted = snapshot.TelemetryTimedOutMuted
-                || (snapshot.TelemetryFreshness.IsPresent && !snapshot.TelemetryFreshness.IsFresh)
-        };
-
-        if (snapshot.HapticFrame is not null)
-        {
-            return UpdateFromHapticFrame(snapshot.HapticFrame, snapshot.VehicleState, context, now);
-        }
-
-        return UpdateFromVehicleState(snapshot.VehicleState, context, now);
     }
 
     public DrivingArmedState UpdateFromVehicleState(

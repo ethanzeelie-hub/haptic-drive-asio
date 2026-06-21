@@ -94,7 +94,7 @@ public sealed class ControlledPhprWriteTestRunner
         Func<PHprSoftwareCoexistenceSnapshot>? coexistenceScanner = null,
         Func<int, CancellationToken, Task>? delayAsync = null)
     {
-        _writerFactory = writerFactory ?? (selector => new WindowsHidReportWriter(selector));
+        _writerFactory = writerFactory ?? (selector => new WindowsHidReportWriter(allowRealDeviceAccess: true, selector));
         _coexistenceScanner = coexistenceScanner
             ?? (() => new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider()).Scan());
         _delayAsync = delayAsync ?? ((milliseconds, cancellationToken) => Task.Delay(milliseconds, cancellationToken));

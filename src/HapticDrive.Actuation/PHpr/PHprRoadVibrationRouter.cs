@@ -1,6 +1,6 @@
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Actuation.Driving;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
@@ -126,25 +126,17 @@ public sealed class PHprRoadVibrationRouter
     }
 
     public ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
-        HapticPipelineSnapshot? pipelineSnapshot,
+        VehicleState? vehicleState,
+        ActuationDrivingContext? drivingContext,
         PHprSafetyContext? safetyContext = null,
         DateTimeOffset? nowUtc = null,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (pipelineSnapshot is null)
-        {
-            var now = nowUtc ?? DateTimeOffset.UtcNow;
-            StoreRouteAttempt(now);
-            return ValueTask.FromResult(StoreIgnored(
-                PHprRoadVibrationRoutingStatus.IgnoredMissingVehicleState,
-                "No HapticPipelineSnapshot was supplied; no P-HPR road-vibration command was sent.",
-                now));
-        }
-
-        var context = safetyContext ?? BuildContext(pipelineSnapshot);
-        return RouteAsync(pipelineSnapshot.Effects.RoadTexture.Signal, context, nowUtc, cancellationToken);
+        return RouteAsync(
+            vehicleState,
+            BuildContext(safetyContext, drivingContext),
+            nowUtc,
+            cancellationToken);
     }
 
     public async ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
@@ -382,13 +374,14 @@ public sealed class PHprRoadVibrationRouter
         }
     }
 
-    private static PHprSafetyContext BuildContext(HapticPipelineSnapshot snapshot)
+    private static PHprSafetyContext BuildContext(
+        PHprSafetyContext? safetyContext,
+        ActuationDrivingContext? drivingContext)
     {
-        return PHprSafetyContext.DefaultMock with
+        var context = safetyContext ?? PHprSafetyContext.DefaultMock;
+        return context with
         {
-            TelemetryStale = snapshot.TelemetryTimedOutMuted,
-            HapticsStopped = !snapshot.IsRunning,
-            EmergencyMuteActive = snapshot.EmergencyMute
+            DrivingArmed = drivingContext?.IsArmed ?? context.DrivingArmed
         };
     }
 

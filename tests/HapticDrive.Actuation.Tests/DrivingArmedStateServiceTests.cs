@@ -1,7 +1,5 @@
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Runtime.Pipeline;
-using HapticDrive.Asio.Telemetry.F1_25;
 
 namespace HapticDrive.Actuation.Tests;
 
@@ -160,25 +158,14 @@ public sealed class DrivingArmedStateServiceTests
     }
 
     [Fact]
-    public async Task UpdateFromPipelineSnapshot_UsesCachedSnapshotWithoutBlocking()
+    public void UpdateFromVehicleState_UsesProvidedTelemetryAge()
     {
         var service = new DrivingArmedStateService();
-        await using var coordinator = new HapticPipelineCoordinator(
-            options: HapticPipelineOptions.ManualRendering,
-            telemetryGameAdapter: new F125GameTelemetryAdapter());
-        var now = DateTimeOffset.UtcNow;
-        var snapshot = coordinator.GetSnapshot() with
-        {
-            IsRunning = true,
-            VehicleState = CreateVehicleState(),
-            VehicleStateUpdateCount = 1,
-            LastVehicleStateUpdateAtUtc = now,
-            TelemetryAge = TimeSpan.FromMilliseconds(16),
-            TelemetryTimedOutMuted = false,
-            EmergencyMute = false
-        };
 
-        var state = service.UpdateFromPipelineSnapshot(snapshot, now);
+        var state = service.UpdateFromVehicleState(
+            CreateVehicleState(),
+            FreshContext() with { TelemetryAge = TimeSpan.FromMilliseconds(16) },
+            DateTimeOffset.UtcNow);
 
         Assert.True(state.IsArmed);
         Assert.Equal(TimeSpan.FromMilliseconds(16), service.GetSnapshot().LastTelemetryAge);

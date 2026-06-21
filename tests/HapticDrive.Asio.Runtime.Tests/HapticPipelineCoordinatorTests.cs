@@ -432,7 +432,10 @@ public sealed class HapticPipelineCoordinatorTests
         Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
             CreatePacket(CreateCarTelemetryDatagram(rpm: 9_000, throttle: 0.9f, gear: 6, frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
 
-        var freshState = drivingArmed.UpdateFromPipelineSnapshot(coordinator.GetSnapshot());
+        var freshSnapshot = coordinator.GetSnapshot();
+        var freshState = drivingArmed.UpdateFromVehicleState(
+            freshSnapshot.VehicleState,
+            CreateDrivingArmedContext(freshSnapshot));
         Assert.True(freshState.IsArmed, freshState.Reason);
 
         await Task.Delay(80);
@@ -440,7 +443,10 @@ public sealed class HapticPipelineCoordinatorTests
             CreatePacket(CreateSessionDatagram(frameIdentifier: 11, overallFrameIdentifier: 11)))).ParseStatus);
         Assert.True((await coordinator.RenderNextBufferAsync()).Succeeded);
 
-        var staleState = drivingArmed.UpdateFromPipelineSnapshot(coordinator.GetSnapshot());
+        var staleSnapshot = coordinator.GetSnapshot();
+        var staleState = drivingArmed.UpdateFromVehicleState(
+            staleSnapshot.VehicleState,
+            CreateDrivingArmedContext(staleSnapshot));
         Assert.False(staleState.IsArmed);
         Assert.Equal(DrivingArmedSuppressionReason.StaleTelemetry, drivingArmed.GetSnapshot().LastSuppressionReason);
     }
@@ -601,6 +607,20 @@ public sealed class HapticPipelineCoordinatorTests
         {
             await Task.Delay(5, timeout.Token);
         }
+    }
+
+    private static DrivingArmedEvaluationContext CreateDrivingArmedContext(HapticPipelineSnapshot snapshot)
+    {
+        return new DrivingArmedEvaluationContext
+        {
+            HapticsRunning = snapshot.IsRunning,
+            EmergencyMute = snapshot.EmergencyMute,
+            HasRecentTelemetry = snapshot.VehicleStateUpdateCount > 0,
+            LastVehicleStateUpdateAtUtc = snapshot.LastVehicleStateUpdateAtUtc,
+            TelemetryAge = snapshot.TelemetryFreshness.Age ?? snapshot.TelemetryAge,
+            TelemetryTimedOutMuted = snapshot.TelemetryTimedOutMuted
+                || (snapshot.TelemetryFreshness.IsPresent && !snapshot.TelemetryFreshness.IsFresh)
+        };
     }
 
     private sealed class FakeForwarder : IUdpTelemetryForwarder

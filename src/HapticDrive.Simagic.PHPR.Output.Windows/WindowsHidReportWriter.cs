@@ -5,11 +5,13 @@ namespace HapticDrive.Simagic.PHPR.Output.Windows;
 public sealed class WindowsHidReportWriter : IPhprHidReportWriter
 {
     private readonly object _gate = new();
+    private readonly bool _allowRealDeviceAccess;
     private FileStream? _stream;
     private PHprHidDeviceSelector _selector;
 
-    public WindowsHidReportWriter(PHprHidDeviceSelector? selector = null)
+    public WindowsHidReportWriter(bool allowRealDeviceAccess, PHprHidDeviceSelector? selector = null)
     {
+        _allowRealDeviceAccess = allowRealDeviceAccess;
         _selector = (selector ?? PHprHidDeviceSelector.None).Normalize();
     }
 
@@ -51,6 +53,13 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
 
         lock (_gate)
         {
+            if (!_allowRealDeviceAccess)
+            {
+                return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                    "Real P-HPR HID writer requires explicit unsafe/manual authorization before opening a device path.",
+                    status: PHprHidWriteStatus.Failed));
+            }
+
             if (_stream is not null)
             {
                 return ValueTask.FromResult(PHprHidWriteResult.Success(_selector.ReportLength, "P-HPR HID writer already open."));
@@ -106,6 +115,13 @@ public sealed class WindowsHidReportWriter : IPhprHidReportWriter
     {
         ArgumentNullException.ThrowIfNull(report);
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_allowRealDeviceAccess)
+        {
+            return PHprHidWriteResult.Failure(
+                "Real P-HPR HID writer requires explicit unsafe/manual authorization before sending reports.",
+                status: PHprHidWriteStatus.Failed);
+        }
 
         var selector = Selector;
         if (!selector.IsSelected)

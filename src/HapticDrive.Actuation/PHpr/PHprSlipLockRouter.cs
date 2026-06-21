@@ -1,6 +1,6 @@
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Actuation.Driving;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
@@ -177,30 +177,17 @@ public sealed class PHprSlipLockRouter
     }
 
     public async ValueTask<PHprSlipLockRoutingResult> RouteAsync(
-        HapticPipelineSnapshot? pipelineSnapshot,
+        VehicleState? vehicleState,
+        ActuationDrivingContext? drivingContext,
         PHprSafetyContext? safetyContext = null,
         DateTimeOffset? nowUtc = null,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (pipelineSnapshot is null)
-        {
-            var now = nowUtc ?? DateTimeOffset.UtcNow;
-            StoreRouteAttempt(now);
-            await StopOwnedModulesAsync(
-                "P-HPR slip/lock stopped because no HapticPipelineSnapshot was supplied.",
-                now,
-                countAsWatchdog: false,
-                cancellationToken).ConfigureAwait(false);
-            return StoreIgnored(
-                PHprSlipLockRoutingStatus.IgnoredMissingVehicleState,
-                "No HapticPipelineSnapshot was supplied; no P-HPR slip/lock command was sent.",
-                now);
-        }
-
-        var context = safetyContext ?? BuildContext(pipelineSnapshot);
-        return await RouteAsync(pipelineSnapshot.VehicleState, context, nowUtc, cancellationToken).ConfigureAwait(false);
+        return await RouteAsync(
+            vehicleState,
+            BuildContext(safetyContext, drivingContext),
+            nowUtc,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<PHprSlipLockRoutingResult> RouteAsync(
@@ -418,13 +405,14 @@ public sealed class PHprSlipLockRouter
         }
     }
 
-    private static PHprSafetyContext BuildContext(HapticPipelineSnapshot snapshot)
+    private static PHprSafetyContext BuildContext(
+        PHprSafetyContext? safetyContext,
+        ActuationDrivingContext? drivingContext)
     {
-        return PHprSafetyContext.DefaultMock with
+        var context = safetyContext ?? PHprSafetyContext.DefaultMock;
+        return context with
         {
-            TelemetryStale = snapshot.TelemetryTimedOutMuted,
-            HapticsStopped = !snapshot.IsRunning,
-            EmergencyMuteActive = snapshot.EmergencyMute
+            DrivingArmed = drivingContext?.IsArmed ?? context.DrivingArmed
         };
     }
 
