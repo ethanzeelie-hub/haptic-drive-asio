@@ -13,6 +13,7 @@ public partial class AdvancedDiagnosticsView : UserControl
     internal event RoutedEventHandler? OpenCheckRealPhprSelectionClicked;
     internal event SelectionChangedEventHandler? RealPhprCandidateSelectionChanged;
     internal event RoutedEventHandler? ApplyRealPhprSelectionClicked;
+    internal event RoutedEventHandler? AuthorizeRealPhprWritesClicked;
     internal event RoutedEventHandler? RealPhprDirectControlLostFocus;
     internal event RoutedEventHandler? TestRealPhprBrakePulseClicked;
     internal event RoutedEventHandler? TestRealPhprThrottlePulseClicked;
@@ -94,6 +95,11 @@ public partial class AdvancedDiagnosticsView : UserControl
     private void ApplyRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
     {
         ApplyRealPhprSelectionClicked?.Invoke(sender, e);
+    }
+
+    private void AuthorizeRealPhprWritesButton_Click(object sender, RoutedEventArgs e)
+    {
+        AuthorizeRealPhprWritesClicked?.Invoke(sender, e);
     }
 
     private void RealPhprDirectControl_LostFocus(object sender, RoutedEventArgs e)

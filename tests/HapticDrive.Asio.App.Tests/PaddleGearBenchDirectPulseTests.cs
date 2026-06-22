@@ -1,7 +1,9 @@
 using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Input.Abstractions.Driving;
 using HapticDrive.Input.Abstractions.Shift;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 using HapticDrive.Simagic.PHPR.Output.Windows;
 
 namespace HapticDrive.Asio.App.Tests;
@@ -256,7 +258,6 @@ public sealed class PaddleGearBenchDirectPulseTests
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
-            DirectControlApprovalConfirmed = true,
             CandidateIsRawInputOnly = false,
             CandidateHasOpenableHidPath = true,
             CandidateFeatureReportCapabilityKnown = true,
@@ -352,7 +353,11 @@ public sealed class PaddleGearBenchDirectPulseTests
         {
             Writer = new FakeHidReportWriter(ReadySelector());
             Clock = new FakeDirectStopClock();
-            Device = new SimagicPhprOutputDevice(Writer, ReadyOptions(), stopClock: Clock);
+            var interlock = new OutputInterlock();
+            interlock.Reset("Direct bench test harness clears interlock.");
+            var authorization = new PHprSessionWriteAuthorization();
+            Assert.True(authorization.TryAuthorize(PHprControlledWriteApproval.Phrase));
+            Device = new SimagicPhprOutputDevice(Writer, ReadyOptions(), interlock, authorization, stopClock: Clock);
             Device.SetSafetyContext(PHprSafetyContextForDirectBench());
         }
 

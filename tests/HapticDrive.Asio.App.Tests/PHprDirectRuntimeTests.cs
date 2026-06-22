@@ -1,5 +1,6 @@
 using System.IO;
 using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
@@ -516,7 +517,6 @@ public sealed class PHprDirectRuntimeTests
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
-            DirectControlApprovalConfirmed = true,
             CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
             CandidateIsRawInputOnly = false,
             CandidateHasOpenableHidPath = true,
@@ -663,7 +663,11 @@ public sealed class PHprDirectRuntimeTests
             Writer = new FakeHidReportWriter(Selector);
             OutputClock = new FakeDirectStopClock();
             RuntimeClock = new FakeRuntimeClock();
-            Output = new SimagicPhprOutputDevice(Writer, ReadyOptions(Selector), stopClock: OutputClock);
+            var interlock = new OutputInterlock();
+            interlock.Reset("Direct runtime harness clears interlock.");
+            var authorization = new PHprSessionWriteAuthorization();
+            Assert.True(authorization.TryAuthorize(PHprControlledWriteApproval.Phrase));
+            Output = new SimagicPhprOutputDevice(Writer, ReadyOptions(Selector), interlock, authorization, stopClock: OutputClock);
             PulseService = new PhprDeviceCardPulseService(Output);
             Dispatcher = new PHprDirectCommandDispatcher(PulseService, Output);
             Recorder = new FilePHprBenchFlightRecorder(_directory.Path);

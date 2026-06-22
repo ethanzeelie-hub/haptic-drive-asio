@@ -1,4 +1,5 @@
 using System.Globalization;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Simagic.PHPR.Abstractions.Coexistence;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -88,13 +89,20 @@ public sealed class ControlledPhprWriteTestRunner
     private readonly Func<PHprHidDeviceSelector, IPhprHidReportWriter> _writerFactory;
     private readonly Func<PHprSoftwareCoexistenceSnapshot> _coexistenceScanner;
     private readonly Func<int, CancellationToken, Task> _delayAsync;
+    private readonly IOutputInterlock _outputInterlock = new OutputInterlock();
+    private readonly IPHprWriteAuthorization _writeAuthorization = new PHprSessionWriteAuthorization();
 
     public ControlledPhprWriteTestRunner(
         Func<PHprHidDeviceSelector, IPhprHidReportWriter>? writerFactory = null,
         Func<PHprSoftwareCoexistenceSnapshot>? coexistenceScanner = null,
         Func<int, CancellationToken, Task>? delayAsync = null)
     {
-        _writerFactory = writerFactory ?? (selector => new WindowsHidReportWriter(allowRealDeviceAccess: true, selector));
+        _writerFactory = writerFactory ?? (selector =>
+        {
+            var writer = new DeferredWindowsHidReportWriter(null, _outputInterlock, _writeAuthorization);
+            writer.Configure(selector);
+            return writer;
+        });
         _coexistenceScanner = coexistenceScanner
             ?? (() => new PHprSoftwareCoexistenceDetector(new WindowsProcessSnapshotProvider()).Scan());
         _delayAsync = delayAsync ?? ((milliseconds, cancellationToken) => Task.Delay(milliseconds, cancellationToken));
@@ -140,10 +148,27 @@ public sealed class ControlledPhprWriteTestRunner
                 null);
         }
 
+        if (!_writeAuthorization.TryAuthorize(normalized.ApprovalPhraseText))
+        {
+            return new ControlledPhprWriteTestResult(
+                Executed: false,
+                Succeeded: false,
+                "Controlled real P-HPR write test was blocked before opening the HID writer.",
+                normalized,
+                coexistence.Status,
+                ["Session authorization failed for this controlled write session."],
+                plannedCommands,
+                [],
+                null);
+        }
+
+        _outputInterlock.Reset("Controlled real P-HPR write session is preparing a manual authorized run.");
+
         var openCheck = await new PHprHidOpenCheckRunner(_writerFactory).RunAsync(
             selector,
             PHprHidPathSafety.IsAbsoluteWindowsDevicePath(selector.DevicePath),
             candidateIsRawInputOnly: false,
+            allowHardwareAccess: true,
             cancellationToken);
         if (!openCheck.Succeeded)
         {
@@ -162,7 +187,11 @@ public sealed class ControlledPhprWriteTestRunner
         }
 
         var realOptions = BuildRealOutputOptions(normalized, selector, openCheck);
-        await using var output = new SimagicPhprOutputDevice(_writerFactory(selector), realOptions);
+        await using var output = new SimagicPhprOutputDevice(
+            _writerFactory(selector),
+            realOptions,
+            _outputInterlock,
+            _writeAuthorization);
         output.SetSafetyContext(PHprSafetyContext.DefaultMock with
         {
             IsMockOutput = false,
@@ -266,7 +295,6 @@ public sealed class ControlledPhprWriteTestRunner
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
-            DirectControlApprovalConfirmed = options.HasApprovalPhrase,
             CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
             CandidateIsRawInputOnly = false,
             CandidateHasOpenableHidPath = PHprHidPathSafety.IsAbsoluteWindowsDevicePath(selector.DevicePath),

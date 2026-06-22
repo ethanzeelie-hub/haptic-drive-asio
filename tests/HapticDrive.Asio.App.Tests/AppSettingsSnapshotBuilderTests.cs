@@ -204,7 +204,6 @@ public sealed class AppSettingsSnapshotBuilderTests
             {
                 DirectControlEnabled = true,
                 DirectControlArmed = true,
-                DirectControlApprovalConfirmed = true,
                 Selector = new PHprHidDeviceSelector("private-device-path", "Selected device", "HID", 0xF1, 64, PHprHidReportTransport.FeatureReport),
                 BrakeGearPulse = new PHprRealGearPulseSettings
                 {

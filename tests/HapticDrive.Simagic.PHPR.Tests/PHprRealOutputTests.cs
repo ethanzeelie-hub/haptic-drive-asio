@@ -1,4 +1,5 @@
 using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Input.Abstractions.Driving;
 using HapticDrive.Input.Abstractions.Paddles;
@@ -16,10 +17,10 @@ public sealed class PHprRealOutputTests
     public async Task NoRealWriteWithoutEnabledAndArmed()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, PHprRealOutputOptions.Disabled with
+        var device = CreateDevice(writer, PHprRealOutputOptions.Disabled with
         {
             Selector = SelectedDevice()
-        });
+        }, authorize: false);
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
 
@@ -31,7 +32,7 @@ public sealed class PHprRealOutputTests
     public void NoRealWriteOnStartup()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        _ = new SimagicPhprOutputDevice(writer);
+        _ = CreateDevice(writer, PHprRealOutputOptions.Disabled, authorize: false);
 
         Assert.Empty(writer.Reports);
     }
@@ -51,7 +52,7 @@ public sealed class PHprRealOutputTests
     public async Task NoWriteWhenDeviceIsNotSelected()
     {
         var writer = new FakeHidReportWriter(PHprHidDeviceSelector.None);
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        var device = CreateDevice(writer, ArmedOptions() with
         {
             Selector = PHprHidDeviceSelector.None
         });
@@ -63,19 +64,17 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
-    public async Task DirectPulseDoesNotRequireApprovalPhrase()
+    public async Task DirectPulseRequiresSessionAuthorization()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
-        {
-            DirectControlApprovalConfirmed = false
-        });
+        var device = CreateDevice(writer, ArmedOptions(), authorize: false);
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
 
-        Assert.True(result.Succeeded, result.Message);
-        Assert.Equal(1, writer.OpenCount);
-        Assert.Contains(writer.Reports, report => report.State == PHprHidReportState.Start);
+        Assert.False(result.Succeeded);
+        Assert.Contains("session authorization", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, writer.OpenCount);
+        Assert.Empty(writer.Reports);
     }
 
     [Theory]
@@ -86,7 +85,7 @@ public sealed class PHprRealOutputTests
     public async Task NoWriteWhenSoftwareCoexistenceIsNotClear(PHprSoftwareConflictStatus status)
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         device.SetSafetyContext(PHprSafetyContext.DefaultMock with
         {
             IsMockOutput = false,
@@ -104,7 +103,7 @@ public sealed class PHprRealOutputTests
     public async Task NoWriteWhenSafetyRejects()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         device.SetSafetyContext(PHprSafetyContext.DefaultMock with
         {
             IsMockOutput = false,
@@ -122,7 +121,7 @@ public sealed class PHprRealOutputTests
     public async Task FakeWriterReceivesSimHubBrakeStartAndStop()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 1));
         await WaitForReportsAsync(writer, 2);
@@ -138,7 +137,7 @@ public sealed class PHprRealOutputTests
     public async Task FakeWriterReceivesSimHubThrottleStartAndStop()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Throttle, durationMs: 1));
         await WaitForReportsAsync(writer, 2);
@@ -154,7 +153,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 40));
 
@@ -175,7 +174,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Throttle, durationMs: 35));
 
@@ -194,7 +193,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Both, durationMs: 25));
 
@@ -215,7 +214,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 100));
         await WaitForScheduledDelayAsync(clock, 1);
@@ -237,7 +236,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 20));
         await WaitForScheduledDelayAsync(clock, 1);
@@ -258,7 +257,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         var start = await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 20));
         writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("scheduled stop failed"));
@@ -285,7 +284,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 100));
         await WaitForScheduledDelayAsync(clock, 1);
@@ -307,7 +306,7 @@ public sealed class PHprRealOutputTests
     public async Task ExplicitOpenAndCloseUpdateConnectionDiagnosticsWithoutReports()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         var open = await device.OpenAsync();
         var close = await device.CloseAsync();
@@ -327,10 +326,10 @@ public sealed class PHprRealOutputTests
     public async Task ExplicitOpenRequiresEnabledArmedAndSelectedInterface()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, PHprRealOutputOptions.Disabled with
+        var device = CreateDevice(writer, PHprRealOutputOptions.Disabled with
         {
             Selector = SelectedDevice()
-        });
+        }, authorize: false);
 
         var open = await device.OpenAsync();
 
@@ -344,7 +343,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
         writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("fake write failed", "planned failure"));
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         var result = await device.SendAsync(TestCommand(PHprModuleId.Brake));
         var diagnostics = device.GetDiagnostics();
@@ -362,13 +361,13 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
         writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("fake stop failed", "planned stop failure"));
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         await device.EmergencyStopAsync();
         var diagnostics = device.GetDiagnostics();
 
         Assert.True(diagnostics.Output.IsEmergencyStopActive);
-        Assert.Equal(PHprHidConnectionState.Open, diagnostics.Connection.State);
+        Assert.Equal(PHprHidConnectionState.Faulted, diagnostics.Connection.State);
         Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.Connection.LastStopStatus);
         Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.LastEmergencyStopResultStatus);
         Assert.Contains("attempt 2", diagnostics.LastEmergencyStopResultMessage, StringComparison.OrdinalIgnoreCase);
@@ -381,7 +380,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
         writer.NextWriteResults.Enqueue(PHprHidWriteResult.Failure("fake disconnected", status: PHprHidWriteStatus.Disconnected));
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         var first = await device.SendAsync(TestCommand(PHprModuleId.Brake));
         var second = await device.SendAsync(TestCommand(PHprModuleId.Brake));
@@ -402,7 +401,7 @@ public sealed class PHprRealOutputTests
         {
             WriteDelay = TimeSpan.FromMilliseconds(100)
         };
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        var device = CreateDevice(writer, ArmedOptions() with
         {
             WriteTimeoutMs = PHprRealOutputOptions.MinWriteTimeoutMs
         });
@@ -422,7 +421,7 @@ public sealed class PHprRealOutputTests
     {
         var selector = SelectedDevice() with { ReportLength = SimHubF1EcRealReportEncoder.PayloadLengthBytes - 1 };
         var writer = new FakeHidReportWriter(selector);
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        var device = CreateDevice(writer, ArmedOptions() with
         {
             Selector = selector
         });
@@ -439,7 +438,7 @@ public sealed class PHprRealOutputTests
     public async Task EmergencyStopSendsStopFrames()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         await device.EmergencyStopAsync();
 
@@ -453,10 +452,10 @@ public sealed class PHprRealOutputTests
     public async Task DisposeDoesNotWriteWhenSelectedButUnarmed()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, PHprRealOutputOptions.Disabled with
+        var device = CreateDevice(writer, PHprRealOutputOptions.Disabled with
         {
             Selector = SelectedDevice()
-        });
+        }, authorize: false);
 
         await device.DisposeAsync();
 
@@ -464,20 +463,19 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
-    public async Task DisposeSendsStopFramesWhenArmedAndSelected()
+    public async Task DisposeAttemptsEmergencyStopsWithoutOpeningWriterWhenNoPulseIsActive()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
 
         await device.DisposeAsync();
         var diagnostics = device.GetDiagnostics();
 
         Assert.Equal(2, writer.Reports.Count);
-        Assert.Equal(1, writer.OpenCount);
-        Assert.Equal(1, writer.CloseCount);
+        Assert.Equal(0, writer.OpenCount);
+        Assert.Equal(0, writer.CloseCount);
         Assert.All(writer.Reports, report => Assert.Equal(PHprHidReportState.EmergencyStop, report.State));
         Assert.Equal(PHprHidConnectionState.Disposed, diagnostics.Connection.State);
-        Assert.Equal(PHprHidWriteStatus.Succeeded, diagnostics.Connection.LastStopStatus);
     }
 
     [Fact]
@@ -485,7 +483,7 @@ public sealed class PHprRealOutputTests
     {
         var writer = new FakeHidReportWriter(SelectedFeatureReportDevice());
         var clock = new FakeDirectStopClock();
-        var device = new SimagicPhprOutputDevice(writer, FeatureReportOptions(), stopClock: clock);
+        var device = CreateDevice(writer, FeatureReportOptions(), stopClock: clock);
 
         await device.SendAsync(TestCommand(PHprModuleId.Brake, durationMs: 100));
         await WaitForScheduledDelayAsync(clock, 1);
@@ -504,7 +502,7 @@ public sealed class PHprRealOutputTests
     public async Task GearPaddleAcceptedEventWritesOnlyWhenEnabledAndArmed()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var router = new PHprDirectGearPulseRouter(device, ArmedOptions());
 
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
@@ -521,7 +519,7 @@ public sealed class PHprRealOutputTests
         ShiftIntentDirection expectedDirection)
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var router = new PHprDirectGearPulseRouter(device, ArmedOptions());
         var paddleAtUtc = DateTimeOffset.UtcNow.AddMilliseconds(-12);
         var acceptedAtUtc = paddleAtUtc.AddMilliseconds(1);
@@ -546,10 +544,10 @@ public sealed class PHprRealOutputTests
     public async Task UpshiftAndDownshiftUseSameDefaultPulse()
     {
         var upWriter = new FakeHidReportWriter(SelectedDevice());
-        var upDevice = new SimagicPhprOutputDevice(upWriter, ArmedOptions());
+        var upDevice = CreateDevice(upWriter, ArmedOptions());
         var upRouter = new PHprDirectGearPulseRouter(upDevice, ArmedOptions());
         var downWriter = new FakeHidReportWriter(SelectedDevice());
-        var downDevice = new SimagicPhprOutputDevice(downWriter, ArmedOptions());
+        var downDevice = CreateDevice(downWriter, ArmedOptions());
         var downRouter = new PHprDirectGearPulseRouter(downDevice, ArmedOptions());
 
         await upRouter.RouteAsync(AcceptedShift(PaddleSide.Right), RealSafetyContext());
@@ -567,7 +565,7 @@ public sealed class PHprRealOutputTests
     public async Task DirectGearPulseDisabledByDefaultDoesNotWrite()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, PHprRealOutputOptions.Disabled);
+        var device = CreateDevice(writer, PHprRealOutputOptions.Disabled, authorize: false);
         var router = new PHprDirectGearPulseRouter(device, PHprRealOutputOptions.Disabled);
 
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
@@ -578,27 +576,25 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
-    public async Task DirectGearPulseWithoutApprovalStillRoutesWhenDirectReady()
+    public async Task DirectGearPulseWithoutApprovalIsRejectedBeforeWrites()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var options = ArmedOptions() with
-        {
-            DirectControlApprovalConfirmed = false
-        };
-        var device = new SimagicPhprOutputDevice(writer, options);
+        var options = ArmedOptions();
+        var device = CreateDevice(writer, options, authorize: false);
         var router = new PHprDirectGearPulseRouter(device, options);
 
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
 
-        Assert.True(result.Routed, result.Message);
-        Assert.Equal(2, writer.Reports.Count(report => report.State == PHprHidReportState.Start));
+        Assert.False(result.Routed);
+        Assert.Contains("session authorization", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(writer.Reports);
     }
 
     [Fact]
     public async Task DirectGearPulseSimProConflictRejectsWithoutWriting()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var router = new PHprDirectGearPulseRouter(device, ArmedOptions());
 
         var result = await router.RouteAsync(
@@ -619,7 +615,7 @@ public sealed class PHprRealOutputTests
             BrakeGearPulse = PHprRealGearPulseSettings.Default with { IsEnabled = true, DurationMs = 1 },
             ThrottleGearPulse = PHprRealGearPulseSettings.Default with { IsEnabled = false }
         };
-        var device = new SimagicPhprOutputDevice(writer, options);
+        var device = CreateDevice(writer, options);
         var router = new PHprDirectGearPulseRouter(device, options);
 
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
@@ -633,7 +629,7 @@ public sealed class PHprRealOutputTests
     public async Task SuppressedShiftIntentDoesNotWrite()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var router = new PHprDirectGearPulseRouter(device, ArmedOptions());
 
         var result = await router.RouteAsync(SuppressedShift(), RealSafetyContext());
@@ -657,7 +653,7 @@ public sealed class PHprRealOutputTests
                 DurationMs = 1
             }
         };
-        var device = new SimagicPhprOutputDevice(writer, options);
+        var device = CreateDevice(writer, options);
         var router = new PHprDirectGearPulseRouter(device, options);
 
         var result = await router.RouteAsync(AcceptedShift(), RealSafetyContext());
@@ -673,7 +669,7 @@ public sealed class PHprRealOutputTests
     public async Task RoadVibrationRoutesThroughFakeRealWriterWhenEnabledAndArmed()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var roadOptions = PHprRoadVibrationRouterOptions.EnabledDefault with
         {
             Brake = PHprRoadVibrationPedalSettings.Default with { DurationMs = 1 },
@@ -695,7 +691,7 @@ public sealed class PHprRealOutputTests
     public async Task RoadVibrationSimProConflictRejectsWithoutWriting()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var router = new PHprRoadVibrationRouter(
             device,
             PHprRoadVibrationRouterOptions.EnabledDefault,
@@ -713,7 +709,7 @@ public sealed class PHprRealOutputTests
     public async Task SlipLockRoutesThroughFakeRealWriterWhenEnabledAndArmed()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var slipLockOptions = PHprSlipLockRouterOptions.EnabledDefault with
         {
             WheelSlip = PHprSlipLockEffectSettings.DefaultFor(PHprPedalEffectKind.WheelSlip) with { DurationMs = 1 },
@@ -736,7 +732,7 @@ public sealed class PHprRealOutputTests
     public async Task SlipLockSimProConflictRejectsWithoutWriting()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions());
+        var device = CreateDevice(writer, ArmedOptions());
         var router = new PHprSlipLockRouter(
             device,
             PHprSlipLockRouterOptions.EnabledDefault,
@@ -751,14 +747,13 @@ public sealed class PHprRealOutputTests
     }
 
     [Fact]
-    public void RealOutputProjectDoesNotReferenceAsioAudioPath()
+    public void RealOutputProjectDoesNotReferenceAsioAudioOrAppPath()
     {
         var referenced = typeof(SimagicPhprOutputDevice).Assembly.GetReferencedAssemblies()
             .Select(name => name.Name)
             .ToArray();
 
         Assert.DoesNotContain("HapticDrive.Asio.Audio", referenced);
-        Assert.DoesNotContain("HapticDrive.Asio.Core", referenced);
         Assert.DoesNotContain("HapticDrive.Asio.App", referenced);
     }
 
@@ -837,10 +832,7 @@ public sealed class PHprRealOutputTests
     {
         var options = ArmedOptions();
 
-        var result = PHprDirectOutputDryRunValidator.Validate(
-            options,
-            PHprSoftwareConflictStatus.Clear,
-            emergencyStopActive: false);
+        var result = ValidateDryRun(options);
 
         Assert.True(result.CanPulse);
         Assert.Empty(result.Issues);
@@ -862,10 +854,7 @@ public sealed class PHprRealOutputTests
             ReportShapeValidationMessage = "Selected candidate HID output-report byte length is unavailable."
         };
 
-        var result = PHprDirectOutputDryRunValidator.Validate(
-            options,
-            PHprSoftwareConflictStatus.Clear,
-            emergencyStopActive: false);
+        var result = ValidateDryRun(options);
 
         Assert.False(result.CanPulse);
         Assert.False(result.OutputReportCapabilityKnown);
@@ -878,7 +867,7 @@ public sealed class PHprRealOutputTests
     public async Task RealOutputBlocksPulseBeforeOpeningWhenOutputReportLengthUnavailable()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        var device = CreateDevice(writer, ArmedOptions() with
         {
             CandidateOutputReportCapabilityKnown = false,
             ReportShapeValidationAttempted = true,
@@ -1116,10 +1105,7 @@ public sealed class PHprRealOutputTests
             ReportShapeValidationMessage = "Feature report shape was not validated."
         };
 
-        var result = PHprDirectOutputDryRunValidator.Validate(
-            options,
-            PHprSoftwareConflictStatus.Clear,
-            emergencyStopActive: false);
+        var result = ValidateDryRun(options);
 
         Assert.False(result.CanPulse);
         Assert.False(result.OutputReportCapabilityKnown);
@@ -1150,10 +1136,7 @@ public sealed class PHprRealOutputTests
             OpenCheckSanitizedErrorCategory = "UnauthorizedAccessException:0x80070005"
         };
 
-        var result = PHprDirectOutputDryRunValidator.Validate(
-            options,
-            PHprSoftwareConflictStatus.Clear,
-            emergencyStopActive: false);
+        var result = ValidateDryRun(options);
 
         Assert.False(result.CanPulse);
         Assert.Contains(result.Issues, issue => issue.Contains("open-check", StringComparison.OrdinalIgnoreCase));
@@ -1169,10 +1152,7 @@ public sealed class PHprRealOutputTests
             CandidateHasOpenableHidPath = false
         };
 
-        var result = PHprDirectOutputDryRunValidator.Validate(
-            options,
-            PHprSoftwareConflictStatus.Clear,
-            emergencyStopActive: false);
+        var result = ValidateDryRun(options);
 
         Assert.False(result.CanPulse);
         Assert.Contains(result.Issues, issue => issue.Contains("Raw Input metadata", StringComparison.Ordinal));
@@ -1183,7 +1163,7 @@ public sealed class PHprRealOutputTests
     public async Task RawInputOnlyCandidateIsRejectedBeforeOpeningWriter()
     {
         var writer = new FakeHidReportWriter(SelectedDevice());
-        var device = new SimagicPhprOutputDevice(writer, ArmedOptions() with
+        var device = CreateDevice(writer, ArmedOptions() with
         {
             CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.RawInputMetadata,
             CandidateIsRawInputOnly = true,
@@ -1211,7 +1191,8 @@ public sealed class PHprRealOutputTests
         var result = await runner.RunAsync(
             SelectedDevice(),
             candidateHasOpenableHidPath: false,
-            candidateIsRawInputOnly: true);
+            candidateIsRawInputOnly: true,
+            allowHardwareAccess: true);
 
         Assert.True(result.Attempted);
         Assert.True(result.Failed);
@@ -1229,7 +1210,8 @@ public sealed class PHprRealOutputTests
         var result = await runner.RunAsync(
             SelectedDevice(),
             candidateHasOpenableHidPath: true,
-            candidateIsRawInputOnly: false);
+            candidateIsRawInputOnly: false,
+            allowHardwareAccess: true);
 
         Assert.True(result.Succeeded, result.Message);
         Assert.Equal(1, writer.OpenCount);
@@ -1254,6 +1236,49 @@ public sealed class PHprRealOutputTests
 
         Assert.True(result.Succeeded);
         Assert.True(mock.CommandHistory.Single().SafetyFlags.HasFlag(PHprSafetyFlags.MockOnly));
+    }
+
+    private static SimagicPhprOutputDevice CreateDevice(
+        IPhprHidReportWriter writer,
+        PHprRealOutputOptions options,
+        bool authorize = true,
+        IPHprDirectStopClock? stopClock = null)
+    {
+        var authorization = new PHprSessionWriteAuthorization();
+        if (authorize)
+        {
+            authorization.TryAuthorize(PHprControlledWriteApproval.Phrase);
+        }
+
+        var interlock = new OutputInterlock();
+        interlock.Reset("Test helper clear interlock.");
+        return new SimagicPhprOutputDevice(writer, options, interlock, authorization, stopClock: stopClock);
+    }
+
+    private static PHprDirectOutputDryRunResult ValidateDryRun(
+        PHprRealOutputOptions options,
+        PHprSoftwareConflictStatus coexistenceStatus = PHprSoftwareConflictStatus.Clear,
+        bool interlockAllowsOutput = true,
+        bool emergencyStopActive = false,
+        bool authorized = true)
+    {
+        var interlock = new OutputInterlockSnapshot(
+            IsLatched: !interlockAllowsOutput,
+            Reason: OutputInterlockReason.StartupSafeDefault,
+            Message: interlockAllowsOutput ? "clear" : "latched",
+            ChangedAtUtc: DateTimeOffset.UtcNow,
+            Generation: 0);
+        var authorization = new PHprWriteAuthorizationSnapshot(
+            IsAuthorized: authorized,
+            AuthorizedAtUtc: authorized ? DateTimeOffset.UtcNow : null,
+            Generation: authorized ? 1 : 0,
+            Reason: authorized ? "Authorized for this session" : "Not authorized");
+        return PHprDirectOutputDryRunValidator.Validate(
+            options,
+            coexistenceStatus,
+            interlock,
+            emergencyStopActive,
+            authorization);
     }
 
     private static PHprCommand TestCommand(PHprModuleId moduleId, int durationMs = 10)
@@ -1282,7 +1307,6 @@ public sealed class PHprRealOutputTests
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
-            DirectControlApprovalConfirmed = true,
             Selector = SelectedDevice(),
             CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.HidDeviceInterface,
             CandidateIsRawInputOnly = false,

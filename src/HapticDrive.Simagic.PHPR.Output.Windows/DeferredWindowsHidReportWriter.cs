@@ -1,10 +1,26 @@
+using HapticDrive.Asio.Core.Safety;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
 public sealed class DeferredWindowsHidReportWriter : IPhprHidReportWriter
 {
     private readonly object _gate = new();
-    private WindowsHidReportWriter? _inner;
+    private readonly Func<PHprHidDeviceSelector, IPhprHidReportWriter> _writerFactory;
+    private readonly IOutputInterlock _outputInterlock;
+    private readonly IPHprWriteAuthorization _writeAuthorization;
+    private IPhprHidReportWriter? _inner;
     private PHprHidDeviceSelector _selector = PHprHidDeviceSelector.None;
+
+    public DeferredWindowsHidReportWriter(
+        Func<PHprHidDeviceSelector, IPhprHidReportWriter>? writerFactory,
+        IOutputInterlock outputInterlock,
+        IPHprWriteAuthorization writeAuthorization)
+    {
+        _writerFactory = writerFactory ?? (selector => new WindowsHidReportWriter(selector));
+        _outputInterlock = outputInterlock ?? throw new ArgumentNullException(nameof(outputInterlock));
+        _writeAuthorization = writeAuthorization ?? throw new ArgumentNullException(nameof(writeAuthorization));
+    }
 
     public PHprHidDeviceSelector Selector
     {
@@ -33,17 +49,57 @@ public sealed class DeferredWindowsHidReportWriter : IPhprHidReportWriter
         lock (_gate)
         {
             _selector = (selector ?? PHprHidDeviceSelector.None).Normalize();
-            _inner?.Configure(_selector);
+            if (_inner is WindowsHidReportWriter windowsWriter)
+            {
+                windowsWriter.Configure(_selector);
+            }
+            else
+            {
+                _inner = null;
+            }
         }
     }
 
     public ValueTask<PHprHidWriteResult> OpenAsync(CancellationToken cancellationToken = default)
     {
+        if (!_outputInterlock.Current.AllowsOutput)
+        {
+            return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                "Real P-HPR HID writer open blocked because the global output interlock is latched.",
+                status: PHprHidWriteStatus.Failed));
+        }
+
+        if (!_writeAuthorization.Current.IsAuthorized)
+        {
+            return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                "Real P-HPR HID writer open blocked because this session is not authorized for controlled writes.",
+                status: PHprHidWriteStatus.Failed));
+        }
+
         return GetOrCreate().OpenAsync(cancellationToken);
     }
 
     public ValueTask<PHprHidWriteResult> WriteReportAsync(PHprHidReport report, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(report);
+
+        if (report.State == PHprHidReportState.Start)
+        {
+            if (!_outputInterlock.Current.AllowsOutput)
+            {
+                return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                    "Real P-HPR HID start write blocked because the global output interlock is latched.",
+                    status: PHprHidWriteStatus.Failed));
+            }
+
+            if (!_writeAuthorization.Current.IsAuthorized)
+            {
+                return ValueTask.FromResult(PHprHidWriteResult.Failure(
+                    "Real P-HPR HID start write blocked because this session is not authorized for controlled writes.",
+                    status: PHprHidWriteStatus.Failed));
+            }
+        }
+
         return GetOrCreate().WriteReportAsync(report, cancellationToken);
     }
 
@@ -56,7 +112,7 @@ public sealed class DeferredWindowsHidReportWriter : IPhprHidReportWriter
         }
     }
 
-    private WindowsHidReportWriter GetOrCreate()
+    private IPhprHidReportWriter GetOrCreate()
     {
         lock (_gate)
         {
@@ -65,9 +121,7 @@ public sealed class DeferredWindowsHidReportWriter : IPhprHidReportWriter
                 return _inner;
             }
 
-            _inner = new WindowsHidReportWriter(
-                allowRealDeviceAccess: true,
-                _selector);
+            _inner = _writerFactory(_selector);
             return _inner;
         }
     }

@@ -88,13 +88,17 @@ public partial class MainWindow
     {
         var diagnostics = _realPhprOutput.GetDiagnostics();
         var options = diagnostics.Options;
+        var authorization = _phprWriteAuthorization.Current;
         var canPulse = options.DirectControlEnabled
+            && options.DirectControlArmed
             && !options.CandidateIsRawInputOnly
             && options.CandidateHasOpenableHidPath
             && options.OpenCheckSucceeded
             && options.AllowsDirectPulseReportShape
             && options.Selector.IsSelected
             && _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear
+            && _outputInterlock.Current.AllowsOutput
+            && authorization.IsAuthorized
             && !diagnostics.Output.IsEmergencyStopActive;
 
         return new PHprManualValidationChecklist(
@@ -172,11 +176,14 @@ public partial class MainWindow
     private bool IsRealPhprPedalRoutingReady(HapticPipelineSnapshot pipelineSnapshot)
     {
         return _realPhprOptions.DirectControlEnabled
+            && _realPhprOptions.DirectControlArmed
             && !_realPhprOptions.CandidateIsRawInputOnly
             && _realPhprOptions.CandidateHasOpenableHidPath
             && _realPhprOptions.OpenCheckSucceeded
             && _realPhprOptions.AllowsDirectPulseReportShape
             && _realPhprOptions.Selector.IsSelected
+            && _outputInterlock.Current.AllowsOutput
+            && _phprWriteAuthorization.Current.IsAuthorized
             && pipelineSnapshot.HapticFrame is not null
             && pipelineSnapshot.VehicleStateUpdateCount > 0;
     }

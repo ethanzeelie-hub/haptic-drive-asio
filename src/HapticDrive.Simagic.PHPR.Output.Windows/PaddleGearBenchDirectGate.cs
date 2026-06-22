@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 
@@ -10,9 +11,11 @@ internal static class PaddleGearBenchDirectGate
     public static bool TryGetReady(
         PHprRealOutputOptions options,
         PHprSoftwareConflictStatus coexistenceStatus,
+        OutputInterlockSnapshot interlockSnapshot,
         PHprOutputSnapshot outputSnapshot,
         bool roadVibrationEnabled,
         bool slipLockEnabled,
+        PHprWriteAuthorizationSnapshot authorization,
         out string message)
     {
         var normalized = (options ?? PHprRealOutputOptions.Disabled).Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
@@ -21,6 +24,12 @@ internal static class PaddleGearBenchDirectGate
         if (!normalized.DirectControlEnabled)
         {
             message = "direct control is disabled";
+            return false;
+        }
+
+        if (!normalized.DirectControlArmed)
+        {
+            message = "direct control is not armed";
             return false;
         }
 
@@ -74,6 +83,12 @@ internal static class PaddleGearBenchDirectGate
             return false;
         }
 
+        if (!interlockSnapshot.AllowsOutput)
+        {
+            message = "global output interlock is latched";
+            return false;
+        }
+
         if (outputSnapshot.IsEmergencyStopActive)
         {
             message = "emergency stop is active";
@@ -83,6 +98,12 @@ internal static class PaddleGearBenchDirectGate
         if (slipLockEnabled)
         {
             message = "real P-HPR slip/lock must be disabled for bench direct gear pulses";
+            return false;
+        }
+
+        if (!authorization.IsAuthorized)
+        {
+            message = "session authorization is required for non-stop direct bench writes";
             return false;
         }
 

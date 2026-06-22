@@ -1,4 +1,5 @@
 using System.Globalization;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Simagic.PHPR.Abstractions.Coexistence;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 using HapticDrive.Simagic.PHPR.Output.Windows;
@@ -451,7 +452,9 @@ public static class SimagicResearchCli
         var dryRun = PHprDirectOutputDryRunValidator.Validate(
             realOptions,
             coexistence.Status,
-            emergencyStopActive: false);
+            CreateClearInterlockSnapshot(),
+            emergencyStopActive: false,
+            CreateUnauthorizedSnapshot("Dry run does not authorize writes."));
 
         await output.WriteLineAsync("P-HPR direct-output dry run");
         await output.WriteLineAsync("Safety: no HID writer is opened, no output report is sent, no feature report is sent, and private HID paths are not printed.");
@@ -474,8 +477,8 @@ public static class SimagicResearchCli
         await output.WriteLineAsync($"Report-shape validation: attempted {realOptions.ReportShapeValidationAttempted}; succeeded {realOptions.ReportShapeValidationSucceeded}; failed {realOptions.ReportShapeValidationFailed}; message {realOptions.ReportShapeValidationMessage ?? "none"}.");
         await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
         await output.WriteLineAsync(dryRun.Summary);
-        await output.WriteLineAsync($"Approval phrase: {(realOptions.DirectControlApprovalConfirmed ? "present" : "missing")}");
-        await output.WriteLineAsync($"Direct gates: enabled {realOptions.DirectControlEnabled}; armed {realOptions.DirectControlArmed}; selected {realOptions.Selector.IsSelected}; coexistence {dryRun.CoexistenceStatus}; emergency stop {dryRun.EmergencyStopActive}.");
+        await output.WriteLineAsync("Session authorization: dry run does not authorize writes.");
+        await output.WriteLineAsync($"Direct gates: enabled {realOptions.DirectControlEnabled}; armed {realOptions.DirectControlArmed}; selected {realOptions.Selector.IsSelected}; interlock {dryRun.InterlockAllowsOutput}; coexistence {dryRun.CoexistenceStatus}; emergency stop {dryRun.EmergencyStopActive}.");
         if (dryRun.Issues.Count == 0)
         {
             await output.WriteLineAsync("Dry-run blockers: none.");
@@ -522,7 +525,8 @@ public static class SimagicResearchCli
         var openCheck = await new PHprHidOpenCheckRunner().RunAsync(
             realOptions.Selector,
             realOptions.CandidateHasOpenableHidPath,
-            realOptions.CandidateIsRawInputOnly);
+            realOptions.CandidateIsRawInputOnly,
+            allowHardwareAccess: true);
         realOptions = realOptions with
         {
             OpenCheckAttempted = openCheck.Attempted,
@@ -534,7 +538,9 @@ public static class SimagicResearchCli
         var dryRun = PHprDirectOutputDryRunValidator.Validate(
             realOptions,
             coexistence.Status,
-            emergencyStopActive: false);
+            CreateClearInterlockSnapshot(),
+            emergencyStopActive: false,
+            CreateUnauthorizedSnapshot("Open-check does not authorize writes."));
 
         await output.WriteLineAsync("P-HPR direct-output open-check");
         await output.WriteLineAsync("Safety: this opens and closes the selected HID writer path but sends no output report, no feature report, and prints no private HID path.");
@@ -546,8 +552,8 @@ public static class SimagicResearchCli
         await output.WriteLineAsync($"Report-shape validation: attempted {realOptions.ReportShapeValidationAttempted}; succeeded {realOptions.ReportShapeValidationSucceeded}; failed {realOptions.ReportShapeValidationFailed}; message {realOptions.ReportShapeValidationMessage ?? "none"}.");
         await output.WriteLineAsync($"Selected source: {realOptions.CandidateSourceMethod}; raw-input-only {realOptions.CandidateIsRawInputOnly}; openable HID path {realOptions.CandidateHasOpenableHidPath}; open-check attempted {realOptions.OpenCheckAttempted}; succeeded {realOptions.OpenCheckSucceeded}; failed {realOptions.OpenCheckFailed}; open error {realOptions.OpenCheckSanitizedErrorCategory ?? "none"}");
         await output.WriteLineAsync(dryRun.Summary);
-        await output.WriteLineAsync($"Approval phrase: {(realOptions.DirectControlApprovalConfirmed ? "present" : "missing")}");
-        await output.WriteLineAsync($"Direct gates: enabled {realOptions.DirectControlEnabled}; armed {realOptions.DirectControlArmed}; selected {realOptions.Selector.IsSelected}; coexistence {dryRun.CoexistenceStatus}; emergency stop {dryRun.EmergencyStopActive}.");
+        await output.WriteLineAsync("Session authorization: open-check does not authorize writes.");
+        await output.WriteLineAsync($"Direct gates: enabled {realOptions.DirectControlEnabled}; armed {realOptions.DirectControlArmed}; selected {realOptions.Selector.IsSelected}; interlock {dryRun.InterlockAllowsOutput}; coexistence {dryRun.CoexistenceStatus}; emergency stop {dryRun.EmergencyStopActive}.");
         if (dryRun.Issues.Count == 0)
         {
             await output.WriteLineAsync("Dry-run blockers after open-check: none.");
@@ -942,7 +948,6 @@ public static class SimagicResearchCli
         {
             DirectControlEnabled = options.DirectControlEnabled,
             DirectControlArmed = options.DirectControlEnabled && options.DirectControlArmed,
-            DirectControlApprovalConfirmed = PHprControlledWriteApproval.IsApproved(options.ApprovalPhrase),
             CandidateSourceMethod = selectedCandidate?.SourceMethod ?? PHprDirectOutputCandidateSourceMethod.Unknown,
             CandidateIsRawInputOnly = selectedCandidate?.IsRawInputOnly ?? false,
             CandidateHasOpenableHidPath = selectedCandidate?.HasOpenableHidPath ?? false,
@@ -954,6 +959,25 @@ public static class SimagicResearchCli
             ReportShapeValidationMessage = reportShape.Message,
             Selector = selector
         }).Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
+    }
+
+    private static OutputInterlockSnapshot CreateClearInterlockSnapshot()
+    {
+        return new OutputInterlockSnapshot(
+            IsLatched: false,
+            Reason: OutputInterlockReason.StartupSafeDefault,
+            Message: "CLI dry run uses a synthetic clear interlock snapshot.",
+            ChangedAtUtc: DateTimeOffset.UtcNow,
+            Generation: 0);
+    }
+
+    private static PHprWriteAuthorizationSnapshot CreateUnauthorizedSnapshot(string reason)
+    {
+        return new PHprWriteAuthorizationSnapshot(
+            IsAuthorized: false,
+            AuthorizedAtUtc: null,
+            Generation: 0,
+            Reason: reason);
     }
 
     private static bool TryParseControlledWriteTarget(string value, out ControlledPhprWriteTarget target)

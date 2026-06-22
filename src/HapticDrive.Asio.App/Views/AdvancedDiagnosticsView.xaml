@@ -182,12 +182,21 @@
                         <TextBlock Margin="0,4,6,8"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource AppMutedTextBrush}"
-                                   Text="Approval phrase" />
+                                   Text="Authorization phrase" />
                         <TextBox x:Name="RealPhprApprovalPhraseTextBox"
-                                 Width="360"
+                                 Width="320"
                                  Margin="0,0,8,8"
                                  LostFocus="RealPhprDirectControl_LostFocus" />
+                        <Button x:Name="AuthorizeRealPhprWritesButton"
+                                Width="210"
+                                Margin="0,0,8,8"
+                                Click="AuthorizeRealPhprWritesButton_Click"
+                                Content="Authorize Controlled Writes" />
                     </WrapPanel>
+                    <TextBlock x:Name="RealPhprAuthorizationStatusText"
+                               Margin="0,2,0,0"
+                               Foreground="{DynamicResource AppMutedTextBrush}"
+                               Text="Session authorization: unauthorized." />
                     <WrapPanel Margin="0,2,0,0"
                                Visibility="Collapsed">
                         <TextBlock Width="86"

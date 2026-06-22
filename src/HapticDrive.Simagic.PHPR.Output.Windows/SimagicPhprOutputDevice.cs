@@ -1,6 +1,7 @@
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+using HapticDrive.Asio.Core.Safety;
 using System.Runtime.CompilerServices;
 
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
@@ -18,8 +19,11 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
     private readonly object _gate = new();
     private readonly IPhprHidReportWriter _writer;
+    private readonly IOutputInterlock _outputInterlock;
+    private readonly IPHprWriteAuthorization _writeAuthorization;
     private readonly SemaphoreSlim _writeSerialization = new(1, 1);
     private readonly IPHprDirectStopClock _stopClock;
+    private readonly TimeProvider _timeProvider;
     private readonly SimHubF1EcRealReportEncoder _encoder = new();
     private readonly IPHprSafetyLimiter _limiter;
     private readonly List<ScheduledPulseStop> _pendingStops = [];
@@ -87,13 +91,19 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
     public SimagicPhprOutputDevice(
         IPhprHidReportWriter writer,
-        PHprRealOutputOptions? options = null,
+        PHprRealOutputOptions options,
+        IOutputInterlock outputInterlock,
+        IPHprWriteAuthorization writeAuthorization,
         IPHprSafetyLimiter? limiter = null,
         PHprSafetyContext? context = null,
-        IPHprDirectStopClock? stopClock = null)
+        IPHprDirectStopClock? stopClock = null,
+        TimeProvider? timeProvider = null)
     {
         _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+        _outputInterlock = outputInterlock ?? throw new ArgumentNullException(nameof(outputInterlock));
+        _writeAuthorization = writeAuthorization ?? throw new ArgumentNullException(nameof(writeAuthorization));
         _stopClock = stopClock ?? SystemPhprDirectStopClock.Instance;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _options = (options ?? PHprRealOutputOptions.Disabled).Normalize();
         _limiter = limiter ?? new PHprSafetyLimiter(DirectControlSafetyLimits);
         _baseContext = context ?? PHprSafetyContext.DefaultMock with
@@ -112,6 +122,10 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
     public string EncoderInstanceId { get; }
 
     public string StopMethodId { get; } = "SimagicPhprOutputDevice.ScheduleStop+StopAll";
+
+    internal OutputInterlockSnapshot OutputInterlockSnapshot => _outputInterlock.Current;
+
+    internal PHprWriteAuthorizationSnapshot WriteAuthorizationSnapshot => _writeAuthorization.Current;
 
     public void Configure(PHprRealOutputOptions options)
     {
@@ -177,7 +191,7 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
                 new PHprDirectControlArmingState(
                     _options.DirectControlEnabled,
                     _options.DirectControlArmed,
-                    _options.DirectControlArmed ? DateTimeOffset.UtcNow : null),
+                    _options.DirectControlArmed ? _timeProvider.GetUtcNow() : null),
                 BuildSnapshot(),
                 BuildConnectionDiagnostics(),
                 _reportWriteCount,
@@ -614,6 +628,11 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             return (PHprCommandStatus.RejectedInvalidCommand, "Real P-HPR direct control is disabled.");
         }
 
+        if (!options.DirectControlArmed)
+        {
+            return (PHprCommandStatus.RejectedInvalidCommand, "Real P-HPR direct control is not armed.");
+        }
+
         if (options.CandidateIsRawInputOnly || !options.CandidateHasOpenableHidPath)
         {
             return (PHprCommandStatus.RejectedInvalidCommand, "Selected P-HPR candidate does not provide an openable HID device-interface path.");
@@ -645,6 +664,20 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         bool requireDirectEnabled,
         CancellationToken cancellationToken)
     {
+        if (requireDirectEnabled)
+        {
+            var boundaryRejection = GetPhysicalWriteBoundaryRejection(options);
+            if (boundaryRejection is not null)
+            {
+                lock (_gate)
+                {
+                    ApplyOperationResultLocked(boundaryRejection, PHprHidOperationKind.Open);
+                }
+
+                return boundaryRejection;
+            }
+        }
+
         var selectorValidation = ValidateSelector(options, requireWriterSelectorMatch: true, _writer.Selector);
         if (selectorValidation is not null)
         {
@@ -658,10 +691,11 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
 
         if (requireDirectEnabled
             && (!options.DirectControlEnabled
+                || !options.DirectControlArmed
                 || !options.OpenCheckSucceeded))
         {
             var gateFailure = PHprHidWriteResult.Failure(
-                "Real P-HPR HID writer open requires direct control enabled and open-check passed for this session.",
+                "Real P-HPR HID writer open requires direct control enabled and armed, with open-check passed for this session.",
                 status: PHprHidWriteStatus.Failed);
             lock (_gate)
             {
@@ -738,17 +772,36 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
             return PHprHidWriteResult.Success(0, "No P-HPR HID reports were generated.");
         }
 
-        var openResult = await OpenWriterAsync(
-            options,
-            requireDirectEnabled: operationKind == PHprHidOperationKind.Write,
-            cancellationToken);
-        if (!openResult.Succeeded)
+        if (operationKind == PHprHidOperationKind.Write)
         {
-            return openResult;
+            var openResult = await OpenWriterAsync(
+                options,
+                requireDirectEnabled: true,
+                cancellationToken);
+            if (!openResult.Succeeded)
+            {
+                return openResult;
+            }
         }
 
         foreach (var report in reports)
         {
+            if (report.State == PHprHidReportState.Start)
+            {
+                var boundaryRejection = GetPhysicalWriteBoundaryRejection(options);
+                if (boundaryRejection is not null)
+                {
+                    lock (_gate)
+                    {
+                        RecordLastReportLocked(report);
+                        ApplyOperationResultLocked(boundaryRejection, operationKind);
+                        RecordPulseReportResultLocked(report, operationKind, boundaryRejection);
+                    }
+
+                    return boundaryRejection;
+                }
+            }
+
             var reportValidation = ValidateReport(report, options);
             if (reportValidation is not null)
             {
@@ -1048,6 +1101,62 @@ public sealed class SimagicPhprOutputDevice : IPHprOutputDevice
         }
 
         return null;
+    }
+
+    private PHprHidWriteResult? GetPhysicalWriteBoundaryRejection(PHprRealOutputOptions options)
+    {
+        if (!_outputInterlock.Current.AllowsOutput)
+        {
+            return PHprHidWriteResult.Failure(
+                "Real P-HPR direct control is blocked because the global output interlock is latched.",
+                status: PHprHidWriteStatus.Failed);
+        }
+
+        if (!options.DirectControlEnabled)
+        {
+            return PHprHidWriteResult.Failure(
+                "Real P-HPR direct control is disabled.",
+                status: PHprHidWriteStatus.Failed);
+        }
+
+        if (!options.DirectControlArmed)
+        {
+            return PHprHidWriteResult.Failure(
+                "Real P-HPR direct control is not armed.",
+                status: PHprHidWriteStatus.Failed);
+        }
+
+        if (!_writeAuthorization.Current.IsAuthorized)
+        {
+            return PHprHidWriteResult.Failure(
+                "Real P-HPR direct control requires session authorization before non-stop writes.",
+                status: PHprHidWriteStatus.Failed);
+        }
+
+        if (options.CandidateIsRawInputOnly || !options.CandidateHasOpenableHidPath)
+        {
+            return PHprHidWriteResult.Failure(
+                "Selected P-HPR candidate does not provide an openable HID device-interface path.",
+                status: PHprHidWriteStatus.InvalidReport);
+        }
+
+        if (!options.OpenCheckSucceeded)
+        {
+            return PHprHidWriteResult.Failure(
+                "Real P-HPR direct control requires a successful HID open-check for the selected candidate before pulsing.",
+                status: PHprHidWriteStatus.Failed);
+        }
+
+        if (!options.AllowsDirectPulseReportShape)
+        {
+            return PHprHidWriteResult.Failure(
+                options.ReportShapeValidationFailed
+                    ? $"Real P-HPR direct control requires a valid HID report shape before pulsing: {options.ReportShapeValidationMessage ?? "report-shape validation failed"}"
+                    : "Real P-HPR direct control requires selected HID output/feature report capability and successful report-shape validation before pulsing; open-check alone is not sufficient.",
+                status: PHprHidWriteStatus.InvalidReport);
+        }
+
+        return ValidateSelector(options, requireWriterSelectorMatch: false, writerSelector: null);
     }
 
     private static PHprHidWriteResult? ValidateReport(PHprHidReport report, PHprRealOutputOptions options)

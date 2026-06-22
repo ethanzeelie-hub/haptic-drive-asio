@@ -59,7 +59,6 @@ public sealed class StartupReadinessPlannerTests
         Assert.Equal(PHprHidReportTransport.FeatureReport, selection.Selector.Transport);
         Assert.False(selection.Options.DirectControlEnabled);
         Assert.False(selection.Options.DirectControlArmed);
-        Assert.False(selection.Options.DirectControlApprovalConfirmed);
         Assert.True(selection.Options.ReportShapeValidationSucceeded);
         Assert.Contains("no-output readiness checks", selection.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -71,7 +70,6 @@ public sealed class StartupReadinessPlannerTests
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
-            DirectControlApprovalConfirmed = true,
             Selector = new PHprHidDeviceSelector(
                 "private-device-path",
                 "Selected device",
@@ -88,7 +86,6 @@ public sealed class StartupReadinessPlannerTests
         Assert.False(selection.HasPreferredCandidate);
         Assert.False(selection.Options.DirectControlEnabled);
         Assert.False(selection.Options.DirectControlArmed);
-        Assert.False(selection.Options.DirectControlApprovalConfirmed);
         Assert.False(selection.Options.Selector.IsSelected);
         Assert.Equal(PHprHidDeviceSelector.None, selection.Selector);
     }

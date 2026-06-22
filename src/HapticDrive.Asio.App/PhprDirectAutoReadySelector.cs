@@ -34,7 +34,6 @@ internal static class PhprDirectAutoReadySelector
             {
                 DirectControlEnabled = false,
                 DirectControlArmed = false,
-                DirectControlApprovalConfirmed = false,
                 Selector = PHprHidDeviceSelector.None,
                 CandidateSourceMethod = PHprDirectOutputCandidateSourceMethod.Unknown,
                 CandidateIsRawInputOnly = false,
@@ -66,7 +65,6 @@ internal static class PhprDirectAutoReadySelector
         {
             DirectControlEnabled = enableWhenPreferredPresent,
             DirectControlArmed = enableWhenPreferredPresent,
-            DirectControlApprovalConfirmed = enableWhenPreferredPresent,
             Selector = selector,
             CandidateSourceMethod = preferred.SourceMethod,
             CandidateIsRawInputOnly = preferred.IsRawInputOnly,

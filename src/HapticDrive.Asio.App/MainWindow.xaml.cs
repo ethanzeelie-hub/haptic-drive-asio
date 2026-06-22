@@ -54,6 +54,7 @@ public partial class MainWindow : Window
     private readonly AsioReadinessDiagnostics _asioReadinessDiagnostics;
     private readonly AppSettingsStore _settingsStore = new();
     private readonly IOutputInterlock _outputInterlock = new OutputInterlock();
+    private readonly IPHprWriteAuthorization _phprWriteAuthorization = new PHprSessionWriteAuthorization();
     private readonly AudioTestBench _testBench = new();
     private readonly IInputDeviceDiscovery _inputDeviceDiscovery = new WindowsInputDeviceDiscovery();
     private readonly IWheelInputCandidateProvider _wheelInputCandidateProvider = new WheelInputCandidateProvider();
@@ -63,7 +64,7 @@ public partial class MainWindow : Window
     private readonly ShiftIntentProcessor _shiftIntentProcessor;
     private readonly MockPhprOutputDevice _mockPhprOutput = new();
     private readonly SafetyLimitedPhprOutputDevice _mockPhprSafetyOutput;
-    private readonly DeferredWindowsHidReportWriter _realPhprHidWriter = new();
+    private readonly DeferredWindowsHidReportWriter _realPhprHidWriter;
     private readonly SimagicPhprOutputDevice _realPhprOutput;
     private readonly IPHprDirectPulseService _phprDirectPulseService;
     private readonly IPHprDirectCommandDispatcher _phprDirectCommandDispatcher;
@@ -356,7 +357,15 @@ public partial class MainWindow : Window
             _drivingArmedStateService,
             appSettings.ShiftIntentOptions);
         _mockPhprSafetyOutput = new SafetyLimitedPhprOutputDevice(_mockPhprOutput);
-        _realPhprOutput = new SimagicPhprOutputDevice(_realPhprHidWriter, _realPhprOptions);
+        _realPhprHidWriter = new DeferredWindowsHidReportWriter(
+            selector => new WindowsHidReportWriter(selector),
+            _outputInterlock,
+            _phprWriteAuthorization);
+        _realPhprOutput = new SimagicPhprOutputDevice(
+            _realPhprHidWriter,
+            _realPhprOptions,
+            _outputInterlock,
+            _phprWriteAuthorization);
         _phprDirectPulseService = new PhprDeviceCardPulseService(_realPhprOutput);
         _phprDirectCommandDispatcher = new PHprDirectCommandDispatcher(_phprDirectPulseService, _realPhprOutput);
         var validationDirectory = GetLocalValidationResultsDirectory();
@@ -485,6 +494,7 @@ public partial class MainWindow : Window
         AdvancedDiagnosticsViewControl.OpenCheckRealPhprSelectionClicked += OpenCheckRealPhprSelectionButton_Click;
         AdvancedDiagnosticsViewControl.RealPhprCandidateSelectionChanged += RealPhprCandidateComboBox_SelectionChanged;
         AdvancedDiagnosticsViewControl.ApplyRealPhprSelectionClicked += ApplyRealPhprSelectionButton_Click;
+        AdvancedDiagnosticsViewControl.AuthorizeRealPhprWritesClicked += AuthorizeRealPhprWritesButton_Click;
         AdvancedDiagnosticsViewControl.RealPhprDirectControlLostFocus += RealPhprDirectControl_LostFocus;
         AdvancedDiagnosticsViewControl.TestRealPhprBrakePulseClicked += TestRealPhprBrakePulseButton_Click;
         AdvancedDiagnosticsViewControl.TestRealPhprThrottlePulseClicked += TestRealPhprThrottlePulseButton_Click;
@@ -1032,6 +1042,7 @@ public partial class MainWindow : Window
 
         _shutdownCleanupStarted = true;
         _outputInterlock.Trip(OutputInterlockReason.Shutdown, "Application shutdown requested.");
+        RevokePhprWriteAuthorization("Application shutdown requested.");
         SyncOutputInterlockState(_outputInterlock.Current);
         IsEnabled = false;
         FooterStatusText.Text = "Shutting down ASIO and listener resources...";
@@ -1174,6 +1185,7 @@ public partial class MainWindow : Window
             shutdownExceptions);
 
         _outputInterlock.Trip(OutputInterlockReason.Shutdown, "Application shutdown requested.");
+        RevokePhprWriteAuthorization("Application shutdown requested.");
         SyncOutputInterlockState(_outputInterlock.Current);
         await SyncGlobalPhprOutputInterlockAsync(_outputInterlock.Current);
 

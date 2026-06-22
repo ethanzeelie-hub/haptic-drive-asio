@@ -520,6 +520,19 @@ public partial class MainWindow : Window
         ConfigureRealPhprOutputFromControls("Real P-HPR manual selection applied for this session only.");
     }
 
+    private void AuthorizeRealPhprWritesButton_Click(object sender, RoutedEventArgs e)
+    {
+        var authorized = _phprWriteAuthorization.TryAuthorize(RealPhprApprovalPhraseTextBox.Text);
+        RealPhprApprovalPhraseTextBox.Text = string.Empty;
+        UpdatePhprWriteAuthorizationStatus();
+        UpdateRealPhprDirectControlStatus();
+        UpdatePhprPedalsStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = authorized
+            ? "Controlled real P-HPR writes authorized for this session."
+            : "Controlled real P-HPR write authorization failed.";
+    }
+
     private void DryRunRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfigureRealPhprOutputFromControls("Real P-HPR direct-output dry run prepared; no HID writer was opened."))
@@ -531,7 +544,9 @@ public partial class MainWindow : Window
         var dryRun = PHprDirectOutputDryRunValidator.Validate(
             _realPhprOptions,
             _phprSoftwareCoexistenceSnapshot.Status,
-            diagnostics.Output.IsEmergencyStopActive);
+            _outputInterlock.Current,
+            diagnostics.Output.IsEmergencyStopActive,
+            _phprWriteAuthorization.Current);
         RealPhprCandidatePickerStatusText.Text = dryRun.Issues.Count == 0
             ? $"{dryRun.Summary} Dry-run blockers: none. No HID writer was opened."
             : $"{dryRun.Summary} Dry-run blockers: {string.Join("; ", dryRun.Issues)} No HID writer was opened.";
@@ -553,7 +568,8 @@ public partial class MainWindow : Window
         var result = await _phprHidOpenCheckRunner.RunAsync(
             _realPhprOptions.Selector,
             _realPhprOptions.CandidateHasOpenableHidPath,
-            _realPhprOptions.CandidateIsRawInputOnly);
+            _realPhprOptions.CandidateIsRawInputOnly,
+            allowHardwareAccess: true);
         ApplyRealPhprOpenCheckResult(result);
         UpdateRealPhprDirectControlStatus();
         UpdatePhprPedalsStatus();
@@ -580,6 +596,7 @@ public partial class MainWindow : Window
     {
         ConfigurePhprDirectRuntime();
         await _phprDirectRuntime.EmergencyStopAsync("advanced direct-control emergency stop button");
+        RevokePhprWriteAuthorization("Real P-HPR emergency stop requested.");
         UpdateRealPhprDirectControlStatus();
         UpdatePhprPedalsStatus();
         UpdatePaddleGearBenchStatus();

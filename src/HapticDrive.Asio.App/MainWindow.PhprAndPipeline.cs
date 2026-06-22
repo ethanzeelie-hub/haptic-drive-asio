@@ -205,6 +205,7 @@ public partial class MainWindow : Window
 
     private bool ConfigureRealPhprOutputFromControls(string footerMessage, bool saveSafeSettings = true)
     {
+        var previousOptions = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
         if (!TryBuildRealPhprOptionsFromControls(out var options, out var message)
             || !TryBuildRealRoadVibrationOptionsFromControls(out var roadOptions, out message)
             || !TryBuildRealSlipLockOptionsFromControls(out var slipLockOptions, out message))
@@ -218,6 +219,11 @@ public partial class MainWindow : Window
         }
 
         _realPhprOptions = options;
+        if (HasRealPhprAuthorizationInvalidation(previousOptions, _realPhprOptions))
+        {
+            RevokePhprWriteAuthorization("Real P-HPR direct-control selection changed.");
+        }
+
         _realRoadVibrationOptions = roadOptions;
         _realSlipLockOptions = slipLockOptions;
         _realPhprHidWriter.Configure(options.Selector);
@@ -237,6 +243,37 @@ public partial class MainWindow : Window
         UpdateDiagnosticsStatus();
         FooterStatusText.Text = footerMessage;
         return true;
+    }
+
+    private void RevokePhprWriteAuthorization(string reason)
+    {
+        _phprWriteAuthorization.Revoke(reason);
+        UpdatePhprWriteAuthorizationStatus();
+    }
+
+    private void UpdatePhprWriteAuthorizationStatus()
+    {
+        var authorization = _phprWriteAuthorization.Current;
+        RealPhprAuthorizationStatusText.Text = authorization.IsAuthorized
+            ? $"Session authorization: authorized at {authorization.AuthorizedAtUtc:O}."
+            : $"Session authorization: unauthorized. {authorization.Reason}.";
+    }
+
+    private bool HasRealPhprAuthorizationInvalidation(PHprRealOutputOptions previous, PHprRealOutputOptions current)
+    {
+        var left = previous.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits).Selector.Normalize();
+        var right = current.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits).Selector.Normalize();
+        return !SelectorsOperationallyMatch(left, right)
+            || previous.DirectControlEnabled != current.DirectControlEnabled
+            || previous.DirectControlArmed != current.DirectControlArmed;
+    }
+
+    private static bool SelectorsOperationallyMatch(PHprHidDeviceSelector left, PHprHidDeviceSelector right)
+    {
+        return string.Equals(left.DevicePath, right.DevicePath, StringComparison.Ordinal)
+            && left.ReportId == right.ReportId
+            && left.ReportLength == right.ReportLength
+            && left.Transport == right.Transport;
     }
 
     private void ConfigurePhprDirectRuntime()
@@ -746,21 +783,17 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RunAutomaticRealPhprReadinessChecksAsync(PhprDirectAutoReadySelection selection)
+    private Task RunAutomaticRealPhprReadinessChecksAsync(PhprDirectAutoReadySelection selection)
     {
-        var result = await _phprHidOpenCheckRunner.RunAsync(
-            selection.Selector,
-            selection.Options.CandidateHasOpenableHidPath,
-            selection.Options.CandidateIsRawInputOnly);
-        ApplyRealPhprOpenCheckResult(result);
-
-        var diagnostics = _realPhprOutput.GetDiagnostics();
         var dryRun = PHprDirectOutputDryRunValidator.Validate(
             _realPhprOptions,
             _phprSoftwareCoexistenceSnapshot.Status,
-            diagnostics.Output.IsEmergencyStopActive);
+            _outputInterlock.Current,
+            _realPhprOutput.GetDiagnostics().Output.IsEmergencyStopActive,
+            _phprWriteAuthorization.Current);
         RealPhprCandidatePickerStatusText.Text =
-            $"{selection.Message} {result.Message} Dry-run can pulse {dryRun.CanPulse}; blockers {(dryRun.Issues.Count == 0 ? "none" : string.Join("; ", dryRun.Issues))}. No output report or feature report was sent.";
+            $"{selection.Message} Automatic open-check was skipped because open-check is manual hardware access. Dry-run can pulse {dryRun.CanPulse}; blockers {(dryRun.Issues.Count == 0 ? "none" : string.Join("; ", dryRun.Issues))}. No output report or feature report was sent.";
+        return Task.CompletedTask;
     }
 
     private void ApplySelectedRealPhprCandidateToControls()
@@ -1146,6 +1179,7 @@ public partial class MainWindow : Window
         RealPhprReportTransportComboBox.ItemsSource = _realPhprReportTransportOptions;
         RealPhprReportTransportComboBox.SelectedItem = values.ReportTransport;
         RealPhprApprovalPhraseTextBox.Text = string.Empty;
+        UpdatePhprWriteAuthorizationStatus();
         RealPhprCandidatePickerStatusText.Text = "Direct-output candidates have not been refreshed. Private HID paths are kept in memory only after refresh.";
         RealPhprBrakeEnabledCheckBox.IsChecked = values.BrakeGearPulse.IsEnabled;
         RealPhprBrakeStrengthTextBox.Text = values.BrakeGearPulse.StrengthText;
@@ -1274,10 +1308,14 @@ public partial class MainWindow : Window
         {
             DirectControlEnabled = mode == PhprPedalsMode.Direct,
             DirectControlArmed = mode == PhprPedalsMode.Direct,
-            DirectControlApprovalConfirmed = mode == PhprPedalsMode.Direct,
             BrakeGearPulse = brake,
             ThrottleGearPulse = throttle
         };
+        if (mode != PhprPedalsMode.Direct)
+        {
+            RevokePhprWriteAuthorization("Switched away from Direct P-HPR mode.");
+        }
+
         _realPhprOutput.Configure(_realPhprOptions);
         _realPhprGearPulseRouter.Configure(_realPhprOptions);
 
@@ -1425,9 +1463,13 @@ public partial class MainWindow : Window
         _realPhprOptions = _realPhprOptions.Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits) with
         {
             DirectControlEnabled = mode == PhprPedalsMode.Direct,
-            DirectControlArmed = mode == PhprPedalsMode.Direct,
-            DirectControlApprovalConfirmed = mode == PhprPedalsMode.Direct
+            DirectControlArmed = mode == PhprPedalsMode.Direct
         };
+        if (mode != PhprPedalsMode.Direct)
+        {
+            RevokePhprWriteAuthorization("Switched away from Direct P-HPR mode.");
+        }
+
         _realPhprOutput.Configure(_realPhprOptions);
         _realPhprGearPulseRouter.Configure(_realPhprOptions);
 
@@ -1568,6 +1610,12 @@ public partial class MainWindow : Window
             return false;
         }
 
+        if (!_realPhprOptions.DirectControlArmed)
+        {
+            message = "direct control is not armed";
+            return false;
+        }
+
         if (!_realPhprOptions.Selector.IsSelected)
         {
             message = "no P-HPR device/interface/report is selected";
@@ -1600,9 +1648,21 @@ public partial class MainWindow : Window
             return false;
         }
 
+        if (!_outputInterlock.Current.AllowsOutput)
+        {
+            message = "global output interlock is latched";
+            return false;
+        }
+
         if (diagnostics.Output.IsEmergencyStopActive)
         {
             message = "emergency stop is active";
+            return false;
+        }
+
+        if (!_phprWriteAuthorization.Current.IsAuthorized)
+        {
+            message = "session authorization is required";
             return false;
         }
 
@@ -1657,7 +1717,7 @@ public partial class MainWindow : Window
             _ => "P-HPR pedal mode unavailable."
         };
         PhprPedalsDeviceStatusText.Text =
-            $"Mock output {(mockSnapshot.IsEmergencyStopActive ? "stopped" : "ready")}; direct connection {realDiagnostics.Connection.State}; device {(realDiagnostics.Options.Selector.IsSelected ? "selected" : "not selected")}; direct checks {(realDiagnostics.Options.OpenCheckSucceeded && realDiagnostics.Options.ReportShapeValidationSucceeded ? "ready" : "still blocked")}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realDiagnostics.Output.IsEmergencyStopActive)}.";
+            $"Mock output {(mockSnapshot.IsEmergencyStopActive ? "stopped" : "ready")}; direct connection {realDiagnostics.Connection.State}; device {(realDiagnostics.Options.Selector.IsSelected ? "selected" : "not selected")}; direct checks {(realDiagnostics.Options.OpenCheckSucceeded && realDiagnostics.Options.ReportShapeValidationSucceeded ? "ready" : "still blocked")}; authorization {_phprWriteAuthorization.Current.IsAuthorized}; interlock {FormatOnOff(_outputInterlock.Current.AllowsOutput)}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realDiagnostics.Output.IsEmergencyStopActive)}.";
         PhprPedalsLastResultText.Text = _lastPhprPedalsPulseMessage;
         UpdateDashboardStatus();
     }

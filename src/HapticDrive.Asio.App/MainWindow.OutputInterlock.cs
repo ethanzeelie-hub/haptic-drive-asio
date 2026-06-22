@@ -144,6 +144,7 @@ public partial class MainWindow
     {
         if (snapshot.IsLatched)
         {
+            RevokePhprWriteAuthorization($"Global output interlock latched: {snapshot.Reason}.");
             await _mockGearPulseRouter.EmergencyStopAsync();
             await _mockPedalEffectsRouter.EmergencyStopAsync();
             await _phprDirectRuntime.EmergencyStopAsync(snapshot.Message);

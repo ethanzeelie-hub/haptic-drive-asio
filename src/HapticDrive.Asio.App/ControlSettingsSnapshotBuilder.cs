@@ -575,7 +575,6 @@ internal static class ControlSettingsSnapshotBuilder
         {
             DirectControlEnabled = directEnabled,
             DirectControlArmed = directArmed,
-            DirectControlApprovalConfirmed = directEnabled,
             CandidateSourceMethod = candidateSourceMethod,
             CandidateIsRawInputOnly = candidateIsRawInputOnly,
             CandidateHasOpenableHidPath = candidateHasOpenableHidPath,

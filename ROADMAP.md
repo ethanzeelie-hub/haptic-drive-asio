@@ -128,6 +128,9 @@
 
 ## Current Hardening Program
 
+- High remediation program active:
+  - Remediation 1 complete: real P-HPR non-stop writes now require session-only authorization at the physical write boundary, the old persisted-style `DirectControlApprovalConfirmed` option flag is gone, and stop / stop-all / emergency-stop remain permitted when non-stop writes are blocked.
+  - Next remediation priority: Remediation 2 from the audited 12-stage plan.
 - Stage 26A complete: global output safety interlock now owns emergency stop/mute latching across BST-1 audio, manual test rendering, and P-HPR routing/runtime surfaces.
 - Stage 26B complete: telemetry now carries monotonic receive timestamps, F1 25 state resets on source/session/player identity changes, older same-session frames are ignored, per-signal freshness is centralized, and stale driving telemetry can latch the global output interlock.
 - Stage 26C complete: live UDP telemetry now flows through one bounded ingress worker with dedicated haptic/forwarding/recording channels, loopback remains the default bind, LAN telemetry is explicit opt-in, and diagnostics now surface ignored remotes, oversized datagrams, and ingress drop counts.

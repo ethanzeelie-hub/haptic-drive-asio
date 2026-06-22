@@ -56,6 +56,8 @@ public partial class MainWindow
     private TextBox RealPhprReportLengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprReportLengthTextBox));
     private ComboBox RealPhprReportTransportComboBox => AdvancedDiagnosticsViewControl.GetRequiredControl<ComboBox>(nameof(RealPhprReportTransportComboBox));
     private TextBox RealPhprApprovalPhraseTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprApprovalPhraseTextBox));
+    private Button AuthorizeRealPhprWritesButton => AdvancedDiagnosticsViewControl.GetRequiredControl<Button>(nameof(AuthorizeRealPhprWritesButton));
+    private TextBlock RealPhprAuthorizationStatusText => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBlock>(nameof(RealPhprAuthorizationStatusText));
     private CheckBox RealPhprBrakeEnabledCheckBox => AdvancedDiagnosticsViewControl.GetRequiredControl<CheckBox>(nameof(RealPhprBrakeEnabledCheckBox));
     private TextBox RealPhprBrakeStrengthTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprBrakeStrengthTextBox));
     private TextBox RealPhprBrakeFrequencyTextBox => AdvancedDiagnosticsViewControl.GetRequiredControl<TextBox>(nameof(RealPhprBrakeFrequencyTextBox));

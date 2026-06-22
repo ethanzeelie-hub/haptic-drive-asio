@@ -115,6 +115,9 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "hapticdrive.asio.core": {
+        "type": "Project"
+      },
       "hapticdrive.input.abstractions": {
         "type": "Project"
       },
@@ -133,6 +136,7 @@
       "hapticdrive.simagic.phpr.output.windows": {
         "type": "Project",
         "dependencies": {
+          "HapticDrive.Asio.Core": "[1.0.0, )",
           "HapticDrive.Input.Abstractions": "[1.0.0, )",
           "HapticDrive.Simagic.PHPR.Abstractions": "[1.0.0, )"
         }
@@ -140,6 +144,7 @@
       "hapticdrive.simagic.phpr.research": {
         "type": "Project",
         "dependencies": {
+          "HapticDrive.Asio.Core": "[1.0.0, )",
           "HapticDrive.Input.Abstractions": "[1.0.0, )",
           "HapticDrive.Input.Windows": "[1.0.0, )",
           "HapticDrive.Simagic.PHPR.Abstractions": "[1.0.0, )",

@@ -2,6 +2,9 @@
   "version": 2,
   "dependencies": {
     "net8.0": {
+      "hapticdrive.asio.core": {
+        "type": "Project"
+      },
       "hapticdrive.input.abstractions": {
         "type": "Project"
       },
@@ -20,6 +23,7 @@
       "hapticdrive.simagic.phpr.output.windows": {
         "type": "Project",
         "dependencies": {
+          "HapticDrive.Asio.Core": "[1.0.0, )",
           "HapticDrive.Input.Abstractions": "[1.0.0, )",
           "HapticDrive.Simagic.PHPR.Abstractions": "[1.0.0, )"
         }

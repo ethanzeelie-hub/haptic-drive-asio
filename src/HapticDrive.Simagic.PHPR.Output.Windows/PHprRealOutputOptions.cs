@@ -18,8 +18,6 @@ public sealed record PHprRealOutputOptions
 
     public bool DirectControlArmed { get; init; }
 
-    public bool DirectControlApprovalConfirmed { get; init; }
-
     public PHprDirectOutputCandidateSourceMethod CandidateSourceMethod { get; init; } = PHprDirectOutputCandidateSourceMethod.Unknown;
 
     public bool CandidateIsRawInputOnly { get; init; }

@@ -1470,9 +1470,11 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         if (!PaddleGearBenchDirectGate.TryGetReady(
                 _environment.Options,
                 _environment.CoexistenceStatus,
+                _output.OutputInterlockSnapshot,
                 diagnostics.Output,
                 _environment.RoadVibrationEnabled,
                 _environment.SlipLockEnabled,
+                _output.WriteAuthorizationSnapshot,
                 out blockedReason))
         {
             return false;
@@ -1507,9 +1509,11 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
         if (!PaddleGearBenchDirectGate.TryGetReady(
                 _environment.Options,
                 _environment.CoexistenceStatus,
+                _output.OutputInterlockSnapshot,
                 diagnostics.Output,
                 _environment.RoadVibrationEnabled,
                 _environment.SlipLockEnabled,
+                _output.WriteAuthorizationSnapshot,
                 out blockedReason))
         {
             return false;
@@ -1726,9 +1730,11 @@ internal sealed class PHprDirectRuntimeCoordinator : IPHprDirectRuntime
             DirectReady = PaddleGearBenchDirectGate.TryGetReady(
                 _environment.Options,
                 _environment.CoexistenceStatus,
+                _output.OutputInterlockSnapshot,
                 diagnostics.Output,
                 _environment.RoadVibrationEnabled,
                 _environment.SlipLockEnabled,
+                _output.WriteAuthorizationSnapshot,
                 out _),
             WriterInstanceId = proof.BenchWriterInstanceId,
             EncoderInstanceId = proof.BenchEncoderInstanceId,

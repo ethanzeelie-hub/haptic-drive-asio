@@ -67,6 +67,11 @@ public sealed class PHprDirectGearPulseRouter
             return Ignored("Real direct gear pulse routing is disabled.", shiftIntentEvent);
         }
 
+        if (!_options.DirectControlArmed)
+        {
+            return Ignored("Real direct gear pulse routing requires direct control to be armed.", shiftIntentEvent);
+        }
+
         if (_options.CandidateIsRawInputOnly || !_options.CandidateHasOpenableHidPath)
         {
             return Ignored("Real direct gear pulse routing requires an openable HID device-interface candidate, not Raw Input metadata.", shiftIntentEvent);

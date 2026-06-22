@@ -1,5 +1,44 @@
 # Development Log
 
+## Remediation 1 - Enforce Session-Only P-HPR Write Authorization
+
+Date: 2026-06-22
+
+Status: Complete.
+
+Goal: Remove persisted/direct-option approval state and enforce the exact controlled-write approval phrase through session-only runtime authorization at the real P-HPR physical write boundary.
+
+Notes:
+
+- Added `PHprWriteAuthorizationSnapshot`, `IPHprWriteAuthorization`, and `PHprSessionWriteAuthorization` in `HapticDrive.Simagic.PHPR.Abstractions`.
+- Removed `DirectControlApprovalConfirmed` from `PHprRealOutputOptions` and removed all reads/writes/assertions of that persisted-style flag.
+- Tightened the real write boundary in `SimagicPhprOutputDevice` so non-stop writes now require:
+  - direct control enabled,
+  - direct control armed,
+  - clear global output interlock,
+  - session authorization true,
+  - clear coexistence,
+  - valid selector/open-check/report-shape gates.
+- Kept stop, stop-all, and emergency-stop paths permitted even when non-stop writes are unauthorized or the interlock is latched.
+- Updated `DeferredWindowsHidReportWriter`, `PHprHidOpenCheckRunner`, `PHprDirectOutputDryRunValidator`, `PaddleGearBenchDirectGate`, `PHprDirectGearPulseRouter`, the WPF direct-control workflow, and the research harness/CLI to use the new session-only authorization model.
+- Added focused `PHprSessionWriteAuthorizationTests` coverage and migrated existing app/research/real-output tests to the new gate contract.
+- Updated affected `packages.lock.json` files after adding the required `HapticDrive.Asio.Core` project references used by the new safety boundary.
+
+Verification:
+
+- `dotnet restore HapticDrive.Asio.sln --locked-mode` passed.
+- `dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `dotnet test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `dotnet list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- This stage stayed limited to the audited Stage 1 safety boundary work.
+- The approval phrase is now checked only through session-only runtime authorization and is not persisted in settings, profiles, options, diagnostics, or exports.
+- Automated tests continue to use fake HID writers; no real HID write was executed during validation.
+
 ## Stage 00 - Repo Setup
 
 Date: 2026-06-01

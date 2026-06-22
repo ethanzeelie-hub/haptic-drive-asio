@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
@@ -11,11 +12,13 @@ public sealed record PHprDirectOutputDryRunResult(
     string? ReportShapeValidationMessage,
     string? ExpectedFirstBytes,
     PHprSoftwareConflictStatus CoexistenceStatus,
+    bool InterlockAllowsOutput,
     bool EmergencyStopActive,
+    PHprWriteAuthorizationSnapshot Authorization,
     IReadOnlyList<string> Issues)
 {
     public string Summary =>
-        $"Direct-output dry run: selected {Selector.IsSelected}; transport {Selector.Transport}; report ID {FormatReportId(Selector.ReportId)}; report length {Selector.ReportLength:N0} bytes; output report known {OutputReportCapabilityKnown}; feature report known {FeatureReportCapabilityKnown}; expected first bytes {ExpectedFirstBytes ?? "unavailable"}; report-shape validated {ReportShapeValidationSucceeded}; can pulse {CanPulse}; coexistence {CoexistenceStatus}; emergency stop {EmergencyStopActive}; issues {Issues.Count:N0}.";
+        $"Direct-output dry run: selected {Selector.IsSelected}; transport {Selector.Transport}; report ID {FormatReportId(Selector.ReportId)}; report length {Selector.ReportLength:N0} bytes; output report known {OutputReportCapabilityKnown}; feature report known {FeatureReportCapabilityKnown}; expected first bytes {ExpectedFirstBytes ?? "unavailable"}; report-shape validated {ReportShapeValidationSucceeded}; can pulse {CanPulse}; coexistence {CoexistenceStatus}; interlock {InterlockAllowsOutput}; emergency stop {EmergencyStopActive}; authorized {Authorization.IsAuthorized}; issues {Issues.Count:N0}.";
 
     private static string FormatReportId(byte? reportId)
     {
@@ -28,7 +31,9 @@ public static class PHprDirectOutputDryRunValidator
     public static PHprDirectOutputDryRunResult Validate(
         PHprRealOutputOptions options,
         PHprSoftwareConflictStatus coexistenceStatus,
-        bool emergencyStopActive)
+        OutputInterlockSnapshot interlockSnapshot,
+        bool emergencyStopActive,
+        PHprWriteAuthorizationSnapshot authorization)
     {
         var normalized = (options ?? PHprRealOutputOptions.Disabled).Normalize(SimagicPhprOutputDevice.DirectControlSafetyLimits);
         var selector = normalized.Selector;
@@ -71,6 +76,16 @@ public static class PHprDirectOutputDryRunValidator
             issues.Add("Direct control is disabled.");
         }
 
+        if (!normalized.DirectControlArmed)
+        {
+            issues.Add("Direct control is not armed.");
+        }
+
+        if (!interlockSnapshot.AllowsOutput)
+        {
+            issues.Add("Global output interlock is latched.");
+        }
+
         if (coexistenceStatus != PHprSoftwareConflictStatus.Clear)
         {
             issues.Add($"SimPro/SimHub coexistence is {coexistenceStatus}; Clear is required.");
@@ -79,6 +94,11 @@ public static class PHprDirectOutputDryRunValidator
         if (emergencyStopActive)
         {
             issues.Add("Real P-HPR emergency stop is active.");
+        }
+
+        if (!authorization.IsAuthorized)
+        {
+            issues.Add($"Session authorization is required before non-stop controlled writes: {authorization.Reason}.");
         }
 
         return new PHprDirectOutputDryRunResult(
@@ -90,7 +110,9 @@ public static class PHprDirectOutputDryRunValidator
             normalized.ReportShapeValidationMessage,
             selector.IsSelected ? PHprHidReportShapeValidationResult.ExpectedF1EcStartFirstBytes : null,
             coexistenceStatus,
+            interlockSnapshot.AllowsOutput,
             emergencyStopActive,
+            authorization,
             issues);
     }
 }

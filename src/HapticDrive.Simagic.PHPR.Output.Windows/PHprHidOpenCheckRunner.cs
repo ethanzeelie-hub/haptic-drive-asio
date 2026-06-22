@@ -1,15 +1,19 @@
+using HapticDrive.Asio.Core.Safety;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
+
 namespace HapticDrive.Simagic.PHPR.Output.Windows;
 
 public sealed class PHprHidOpenCheckRunner(
     Func<PHprHidDeviceSelector, IPhprHidReportWriter>? writerFactory = null)
 {
     private readonly Func<PHprHidDeviceSelector, IPhprHidReportWriter> _writerFactory =
-        writerFactory ?? (selector => new WindowsHidReportWriter(allowRealDeviceAccess: true, selector));
+        writerFactory ?? (selector => new WindowsHidReportWriter(selector));
 
     public async Task<PHprHidOpenCheckResult> RunAsync(
         PHprHidDeviceSelector selector,
         bool candidateHasOpenableHidPath,
         bool candidateIsRawInputOnly,
+        bool allowHardwareAccess,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -45,6 +49,14 @@ public sealed class PHprHidOpenCheckRunner(
                 "Selected candidate path is not an absolute Windows HID device-interface path.",
                 PHprHidWriteStatus.InvalidReport,
                 PHprHidPathSafety.InvalidDevicePathCategory);
+        }
+
+        if (!allowHardwareAccess)
+        {
+            return PHprHidOpenCheckResult.Failure(
+                "P-HPR HID open-check is blocked until manual hardware access is explicitly acknowledged for this session.",
+                PHprHidWriteStatus.Failed,
+                "ManualAcknowledgementRequired");
         }
 
         var writer = _writerFactory(normalized);

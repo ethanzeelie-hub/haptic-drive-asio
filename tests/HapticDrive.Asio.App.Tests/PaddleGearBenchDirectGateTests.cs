@@ -1,5 +1,6 @@
 using System.IO;
 using HapticDrive.Asio.App;
+using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Actuation.PHpr;
 using HapticDrive.Input.Abstractions.Driving;
 using HapticDrive.Input.Abstractions.Shift;
@@ -18,9 +19,11 @@ public sealed class PaddleGearBenchDirectGateTests
         var ready = PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions(),
             PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
             OutputSnapshot(emergencyStop: false),
             roadVibrationEnabled: false,
             slipLockEnabled: false,
+            AuthorizationSnapshot(),
             out var message);
 
         Assert.True(ready, message);
@@ -38,9 +41,11 @@ public sealed class PaddleGearBenchDirectGateTests
         var ready = PaddleGearBenchDirectGate.TryGetReady(
             options,
             PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
             OutputSnapshot(emergencyStop: false),
             roadVibrationEnabled: false,
             slipLockEnabled: false,
+            AuthorizationSnapshot(),
             out var message);
 
         Assert.False(ready);
@@ -58,9 +63,11 @@ public sealed class PaddleGearBenchDirectGateTests
         var ready = PaddleGearBenchDirectGate.TryGetReady(
             options,
             PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
             OutputSnapshot(emergencyStop: false),
             roadVibrationEnabled: false,
             slipLockEnabled: false,
+            AuthorizationSnapshot(),
             out var message);
 
         Assert.False(ready);
@@ -68,22 +75,36 @@ public sealed class PaddleGearBenchDirectGateTests
     }
 
     [Fact]
-    public void DirectGate_DoesNotRequireArmOrApprovalPhrase()
+    public void DirectGate_RequiresArmAndSessionAuthorization()
     {
-        var ready = PaddleGearBenchDirectGate.TryGetReady(
+        var armBlocked = PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions() with
             {
-                DirectControlArmed = false,
-                DirectControlApprovalConfirmed = false
+                DirectControlArmed = false
             },
             PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
             OutputSnapshot(emergencyStop: false),
             roadVibrationEnabled: false,
             slipLockEnabled: false,
-            out var message);
+            AuthorizationSnapshot(),
+            out var armMessage);
 
-        Assert.True(ready, message);
-        Assert.Equal("direct bench gear pulse ready", message);
+        Assert.False(armBlocked);
+        Assert.Contains("not armed", armMessage, StringComparison.OrdinalIgnoreCase);
+
+        var authorizationBlocked = PaddleGearBenchDirectGate.TryGetReady(
+            ReadyOptions(),
+            PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
+            OutputSnapshot(emergencyStop: false),
+            roadVibrationEnabled: false,
+            slipLockEnabled: false,
+            AuthorizationSnapshot(isAuthorized: false),
+            out var authorizationMessage);
+
+        Assert.False(authorizationBlocked);
+        Assert.Contains("authorization", authorizationMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -92,27 +113,33 @@ public sealed class PaddleGearBenchDirectGateTests
         Assert.False(PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions(),
             PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
             OutputSnapshot(emergencyStop: true),
             roadVibrationEnabled: false,
             slipLockEnabled: false,
+            AuthorizationSnapshot(),
             out var emergencyMessage));
         Assert.Contains("emergency stop", emergencyMessage, StringComparison.OrdinalIgnoreCase);
 
         Assert.True(PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions(),
             PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
             OutputSnapshot(emergencyStop: false),
             roadVibrationEnabled: true,
             slipLockEnabled: false,
+            AuthorizationSnapshot(),
             out var roadMessage));
         Assert.Equal("direct bench gear pulse ready", roadMessage);
 
         Assert.False(PaddleGearBenchDirectGate.TryGetReady(
             ReadyOptions(),
             PHprSoftwareConflictStatus.Clear,
+            InterlockSnapshot(),
             OutputSnapshot(emergencyStop: false),
             roadVibrationEnabled: false,
             slipLockEnabled: true,
+            AuthorizationSnapshot(),
             out var slipMessage));
         Assert.Contains("slip/lock", slipMessage, StringComparison.OrdinalIgnoreCase);
     }
@@ -150,12 +177,11 @@ public sealed class PaddleGearBenchDirectGateTests
         Assert.Equal(SimHubF1EcRealReportEncoder.PayloadLengthBytes, selected.Selector.ReportLength);
         Assert.True(selected.Options.DirectControlEnabled);
         Assert.True(selected.Options.DirectControlArmed);
-        Assert.True(selected.Options.DirectControlApprovalConfirmed);
         Assert.True(selected.Options.ReportShapeValidationSucceeded);
     }
 
     [Fact]
-    public void AutoReadyDryRunCanPassAfterFakeOpenCheckWithoutApprovalPhrase()
+    public void AutoReadyDryRunRequiresSessionAuthorization()
     {
         var selected = PhprDirectAutoReadySelector.Select(
             [Candidate("preferred", vendorId: 0x3670, productId: 0x0905, outputLength: null, featureLength: 64, featureIds: [PHprDirectOutputCandidate.F1EcFeatureReportId])],
@@ -163,8 +189,6 @@ public sealed class PaddleGearBenchDirectGateTests
             enableWhenPreferredPresent: true);
         var options = selected.Options with
         {
-            DirectControlArmed = false,
-            DirectControlApprovalConfirmed = false,
             OpenCheckAttempted = true,
             OpenCheckSucceeded = true,
             OpenCheckFailed = false
@@ -173,10 +197,12 @@ public sealed class PaddleGearBenchDirectGateTests
         var dryRun = PHprDirectOutputDryRunValidator.Validate(
             options,
             PHprSoftwareConflictStatus.Clear,
-            emergencyStopActive: false);
+            InterlockSnapshot(),
+            emergencyStopActive: false,
+            authorization: AuthorizationSnapshot(isAuthorized: false));
 
-        Assert.True(dryRun.CanPulse, string.Join("; ", dryRun.Issues));
-        Assert.Empty(dryRun.Issues);
+        Assert.False(dryRun.CanPulse);
+        Assert.Contains(dryRun.Issues, issue => issue.Contains("authorization", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -222,7 +248,6 @@ public sealed class PaddleGearBenchDirectGateTests
         {
             DirectControlEnabled = true,
             DirectControlArmed = true,
-            DirectControlApprovalConfirmed = true,
             CandidateIsRawInputOnly = false,
             CandidateHasOpenableHidPath = true,
             CandidateFeatureReportCapabilityKnown = true,
@@ -233,6 +258,25 @@ public sealed class PaddleGearBenchDirectGateTests
             OpenCheckSucceeded = true,
             Selector = ReadySelector()
         };
+    }
+
+    private static OutputInterlockSnapshot InterlockSnapshot(bool allowsOutput = true)
+    {
+        return new OutputInterlockSnapshot(
+            IsLatched: !allowsOutput,
+            Reason: allowsOutput ? OutputInterlockReason.ConfigurationInvalid : OutputInterlockReason.StartupSafeDefault,
+            Message: allowsOutput ? "clear" : "latched",
+            ChangedAtUtc: DateTimeOffset.UtcNow,
+            Generation: allowsOutput ? 1 : 0);
+    }
+
+    private static PHprWriteAuthorizationSnapshot AuthorizationSnapshot(bool isAuthorized = true)
+    {
+        return new PHprWriteAuthorizationSnapshot(
+            IsAuthorized: isAuthorized,
+            AuthorizedAtUtc: isAuthorized ? DateTimeOffset.UtcNow : null,
+            Generation: isAuthorized ? 1 : 0,
+            Reason: isAuthorized ? "Authorized for this session" : "Not authorized");
     }
 
     private static PHprHidDeviceSelector ReadySelector()
