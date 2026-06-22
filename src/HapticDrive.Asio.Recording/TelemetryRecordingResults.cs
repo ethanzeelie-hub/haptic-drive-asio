@@ -182,4 +182,6 @@ public sealed record TelemetryReplaySnapshot(
     string StatusMessage,
     TimeSpan TotalReplayDrift = default,
     TimeSpan MaxLatePacket = default,
-    long SkippedSleepCount = 0);
+    long SkippedSleepCount = 0,
+    long SubscriberExceptionCount = 0,
+    string? LastSubscriberErrorMessage = null);

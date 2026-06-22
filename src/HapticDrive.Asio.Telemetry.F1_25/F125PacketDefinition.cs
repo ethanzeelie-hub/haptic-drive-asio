@@ -1,3 +1,5 @@
+using HapticDrive.Asio.Core.Games;
+
 namespace HapticDrive.Asio.Telemetry.F1_25;
 
 public sealed record F125PacketDefinition(
@@ -6,4 +8,7 @@ public sealed record F125PacketDefinition(
     string Name,
     int Size,
     byte Version,
-    bool IsV1RequiredPacket);
+    bool IsV1RequiredPacket)
+{
+    public TelemetryPacketKind TelemetryKind => new(Id, Name);
+}

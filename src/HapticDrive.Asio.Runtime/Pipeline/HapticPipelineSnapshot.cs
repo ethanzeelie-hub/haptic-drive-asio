@@ -53,6 +53,8 @@ public sealed record HapticPipelineSnapshot(
 
     public VehicleSignalFreshness LapFreshness { get; init; } = new(false, false, false, false, false, null, null);
 
+    public VehicleSignalFreshness ParticipantFreshness { get; init; } = new(false, false, false, false, false, null, null);
+
     public VehicleSignalFreshness CarStatusFreshness { get; init; } = new(false, false, false, false, false, null, null);
 
     public VehicleSignalFreshness DamageFreshness { get; init; } = new(false, false, false, false, false, null, null);

@@ -6,6 +6,7 @@ public static class HapticFrameSignalNames
     public const string Motion = "motion";
     public const string Session = "session";
     public const string Lap = "lap";
+    public const string Participant = "participant";
     public const string CarStatus = "car-status";
     public const string Damage = "damage";
     public const string MotionEx = "motion-ex";

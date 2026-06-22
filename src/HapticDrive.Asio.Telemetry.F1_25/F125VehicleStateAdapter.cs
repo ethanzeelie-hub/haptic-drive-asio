@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Core.Games;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
 
@@ -5,9 +6,18 @@ namespace HapticDrive.Asio.Telemetry.F1_25;
 
 public sealed class F125VehicleStateAdapter
 {
+    private static readonly GameIntegrationId IntegrationId = new("f1-25");
+
     private readonly object _gate = new();
+    private readonly TimeProvider _timeProvider;
     private VehicleState _current = VehicleState.Empty;
-    private string? _sourceIdentity;
+    private TelemetrySourceIdentity? _sourceIdentity;
+    private long _sourceGeneration;
+
+    public F125VehicleStateAdapter(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public VehicleState Current
     {
@@ -26,6 +36,7 @@ public sealed class F125VehicleStateAdapter
         {
             _current = VehicleState.Empty;
             _sourceIdentity = null;
+            _sourceGeneration = 0;
         }
     }
 
@@ -58,8 +69,9 @@ public sealed class F125VehicleStateAdapter
                     resetReason);
             }
 
-            var stamp = CreateStamp(telemetryPacket, packet.Header, packet.Definition);
-            var frame = CreateFrame(packet.Header, packet.Definition);
+            var sourceIdentity = _sourceIdentity ?? CreateSourceIdentity(telemetryPacket, packet.Header, _sourceGeneration);
+            var stamp = CreateStamp(telemetryPacket, packet.Header, packet.Definition, sourceIdentity);
+            var frame = CreateFrame(packet.Header, packet.Definition, sourceIdentity);
             var updatedSignals = VehicleStateUpdatedSignals.None;
 
             switch (packet.Body)
@@ -196,9 +208,13 @@ public sealed class F125VehicleStateAdapter
         return Apply(CreateSyntheticTelemetryPacket(), packet);
     }
 
-    private static VehicleStateStamp CreateStamp(UdpTelemetryPacket telemetryPacket, F125PacketHeader header, F125PacketDefinition definition)
+    private static VehicleStateStamp CreateStamp(
+        UdpTelemetryPacket telemetryPacket,
+        F125PacketHeader header,
+        F125PacketDefinition definition,
+        TelemetrySourceIdentity sourceIdentity)
     {
-        return new(
+        return new VehicleStateStamp(
             definition.Name,
             header.SessionUid,
             header.SessionTime,
@@ -206,18 +222,28 @@ public sealed class F125VehicleStateAdapter
             header.OverallFrameIdentifier,
             header.PlayerCarIndex,
             telemetryPacket.ReceivedAtUtc,
-            telemetryPacket.ReceivedAtTimestamp);
+            telemetryPacket.ReceivedAtTimestamp)
+        {
+            PacketKind = definition.TelemetryKind,
+            SourceIdentity = sourceIdentity
+        };
     }
 
-    private static VehicleStateFrame CreateFrame(F125PacketHeader header, F125PacketDefinition definition)
+    private static VehicleStateFrame CreateFrame(
+        F125PacketHeader header,
+        F125PacketDefinition definition,
+        TelemetrySourceIdentity sourceIdentity)
     {
-        return new(
+        return new VehicleStateFrame(
             header.SessionUid,
             header.SessionTime,
             header.FrameIdentifier,
             header.OverallFrameIdentifier,
             header.PlayerCarIndex,
-            definition.Name);
+            definition.Name)
+        {
+            SourceIdentity = sourceIdentity
+        };
     }
 
     private static bool TryGetPlayerData<T>(IReadOnlyList<T> values, byte playerCarIndex, out T value)
@@ -241,27 +267,27 @@ public sealed class F125VehicleStateAdapter
 
     private VehicleStateResetReason ResetStateIfRequired(UdpTelemetryPacket telemetryPacket, F125PacketHeader header)
     {
-        var sourceIdentity = $"F1 25|{telemetryPacket.RemoteEndPoint.Address}";
+        var nextIdentity = CreateSourceIdentity(telemetryPacket, header, _sourceGeneration);
 
-        if (_sourceIdentity is not null && !string.Equals(_sourceIdentity, sourceIdentity, StringComparison.Ordinal))
+        if (_sourceIdentity is not null && !_sourceIdentity.RemoteEndPoint.Equals(nextIdentity.RemoteEndPoint))
         {
-            ResetLocked(sourceIdentity);
+            ResetLocked(CreateSourceIdentity(telemetryPacket, header, ++_sourceGeneration));
             return VehicleStateResetReason.SourceChanged;
         }
 
-        if (_current.Frame.SessionUid is { } currentSessionUid && currentSessionUid != header.SessionUid)
+        if (_sourceIdentity is not null && _sourceIdentity.SessionUid != header.SessionUid)
         {
-            ResetLocked(sourceIdentity);
+            ResetLocked(CreateSourceIdentity(telemetryPacket, header, ++_sourceGeneration));
             return VehicleStateResetReason.SessionUidChanged;
         }
 
-        if (_current.Frame.PlayerCarIndex is { } currentPlayerCarIndex && currentPlayerCarIndex != header.PlayerCarIndex)
+        if (_sourceIdentity is not null && _sourceIdentity.PlayerCarIndex != header.PlayerCarIndex)
         {
-            ResetLocked(sourceIdentity);
+            ResetLocked(CreateSourceIdentity(telemetryPacket, header, ++_sourceGeneration));
             return VehicleStateResetReason.PlayerCarChanged;
         }
 
-        _sourceIdentity = sourceIdentity;
+        _sourceIdentity = nextIdentity;
         return VehicleStateResetReason.None;
     }
 
@@ -272,20 +298,33 @@ public sealed class F125VehicleStateAdapter
             && header.OverallFrameIdentifier < currentFrame;
     }
 
-    private void ResetLocked(string sourceIdentity)
+    private void ResetLocked(TelemetrySourceIdentity sourceIdentity)
     {
         _current = VehicleState.Empty;
         _sourceIdentity = sourceIdentity;
     }
 
-    private static UdpTelemetryPacket CreateSyntheticTelemetryPacket()
+    private static TelemetrySourceIdentity CreateSourceIdentity(
+        UdpTelemetryPacket telemetryPacket,
+        F125PacketHeader header,
+        long generation)
+    {
+        return TelemetrySourceIdentity.Create(
+            IntegrationId,
+            telemetryPacket.RemoteEndPoint,
+            header.SessionUid,
+            header.PlayerCarIndex,
+            generation);
+    }
+
+    private UdpTelemetryPacket CreateSyntheticTelemetryPacket()
     {
         return new UdpTelemetryPacket(
             0,
             [],
             new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 20778),
-            DateTimeOffset.UtcNow,
-            TimeProvider.System.GetTimestamp());
+            _timeProvider.GetUtcNow(),
+            _timeProvider.GetTimestamp());
     }
 
     private static VehicleMotionState MapMotion(F125CarMotionData data)
@@ -318,7 +357,9 @@ public sealed class F125VehicleStateAdapter
             data.GamePaused,
             data.SafetyCarStatus,
             data.NetworkGame,
-            data.GameMode);
+            data.GameMode,
+            data.IsSpectating,
+            data.SpectatorCarIndex);
     }
 
     private static VehicleLapState MapLap(F125LapData data)

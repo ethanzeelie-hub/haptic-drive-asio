@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Games;
+using HapticDrive.Asio.Core.Telemetry;
 
 namespace HapticDrive.Asio.Core.Haptics;
 
@@ -9,4 +10,7 @@ public sealed record HapticFrameIdentity(
     uint? OverallFrameIdentifier,
     byte? PlayerCarIndex,
     DateTimeOffset CreatedAtUtc,
-    long CreatedAtTimestamp);
+    long CreatedAtTimestamp)
+{
+    public TelemetrySourceIdentity? SourceIdentity { get; init; }
+}

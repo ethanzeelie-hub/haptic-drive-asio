@@ -13,4 +13,5 @@ public sealed record UdpTelemetryReceiverSnapshot(
     TimeSpan? TimeSinceLastPacket,
     bool HasNoPacketWarning,
     long ErrorCount,
-    string? LastErrorMessage);
+    string? LastErrorMessage,
+    long SubscriberExceptionCount = 0);

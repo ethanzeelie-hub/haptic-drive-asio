@@ -8,14 +8,19 @@ public sealed class DrivingArmedStateService : IDrivingArmedStateProvider
 {
     private readonly object _gate = new();
     private readonly DrivingArmedStateServiceOptions _options;
+    private readonly TimeProvider _timeProvider;
     private DrivingArmedState _current = DrivingArmedState.Default;
     private DrivingArmedSuppressionReason _lastSuppressionReason = DrivingArmedSuppressionReason.NoTelemetry;
-    private DateTimeOffset _lastEvaluatedAtUtc = DateTimeOffset.UtcNow;
+    private DateTimeOffset _lastEvaluatedAtUtc;
     private TimeSpan? _lastTelemetryAge;
 
-    public DrivingArmedStateService(DrivingArmedStateServiceOptions? options = null)
+    public DrivingArmedStateService(
+        DrivingArmedStateServiceOptions? options = null,
+        TimeProvider? timeProvider = null)
     {
         _options = (options ?? DrivingArmedStateServiceOptions.Default).Normalize();
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _lastEvaluatedAtUtc = _timeProvider.GetUtcNow();
     }
 
     public event EventHandler<DrivingArmedState>? DrivingArmedChanged;
@@ -55,7 +60,7 @@ public sealed class DrivingArmedStateService : IDrivingArmedStateProvider
         ArgumentNullException.ThrowIfNull(vehicleState);
         ArgumentNullException.ThrowIfNull(context);
 
-        var now = nowUtc ?? DateTimeOffset.UtcNow;
+        var now = nowUtc ?? _timeProvider.GetUtcNow();
         var telemetryAge = context.TelemetryAge ?? CalculateAge(context.LastVehicleStateUpdateAtUtc, now);
         var result = Evaluate(frame, vehicleState, context, telemetryAge, now);
         SetCurrent(result.State, result.SuppressionReason, telemetryAge, now);
@@ -121,23 +126,35 @@ public sealed class DrivingArmedStateService : IDrivingArmedStateProvider
             }
         }
 
-        if (_options.MenuSafeModeEnabled)
+        if (!HasFreshRequiredDrivingContext(frame))
         {
-            if (frame.Context.IsPaused)
-            {
-                var suppressionReason = vehicleState.CarStatus?.Value.NetworkPaused is > 0
-                    ? DrivingArmedSuppressionReason.NetworkPaused
-                    : DrivingArmedSuppressionReason.Paused;
-                var message = suppressionReason == DrivingArmedSuppressionReason.NetworkPaused
-                    ? "Game is network paused."
-                    : "Game is paused.";
-                return NotArmed(message, suppressionReason, telemetryAge, nowUtc);
-            }
+            return NotArmed(
+                "Required session, lap, participant, or player identity context is missing or stale.",
+                DrivingArmedSuppressionReason.NoTelemetry,
+                telemetryAge,
+                nowUtc);
+        }
 
-            if (!frame.Context.IsPlayerControlled || frame.Context.DrivingPhase is DrivingPhase.Garage or DrivingPhase.Spectating)
-            {
-                return NotArmed("Player appears to be in garage, menu, or an inactive driver state.", DrivingArmedSuppressionReason.GarageMenuOrResultState, telemetryAge, nowUtc);
-            }
+        if (frame.Context.IsPaused)
+        {
+            var suppressionReason = vehicleState.CarStatus?.Value.NetworkPaused is > 0
+                ? DrivingArmedSuppressionReason.NetworkPaused
+                : DrivingArmedSuppressionReason.Paused;
+            var message = suppressionReason == DrivingArmedSuppressionReason.NetworkPaused
+                ? "Game is network paused."
+                : "Game is paused.";
+            return NotArmed(message, suppressionReason, telemetryAge, nowUtc);
+        }
+
+        if (!frame.Context.IsPlayerControlled
+            || !frame.Context.AllowsDrivingOutput
+            || frame.Context.DrivingPhase is DrivingPhase.Garage or DrivingPhase.Spectating or DrivingPhase.Unknown)
+        {
+            return NotArmed(
+                "Player appears to be in garage, menu, spectating, or an inactive driving state.",
+                DrivingArmedSuppressionReason.GarageMenuOrResultState,
+                telemetryAge,
+                nowUtc);
         }
 
         var throttle = frame.Signals.Throttle;
@@ -160,8 +177,18 @@ public sealed class DrivingArmedStateService : IDrivingArmedStateProvider
 
         var reason = _options.MenuSafeModeEnabled
             ? "Active driving telemetry is fresh."
-            : "Menu safe mode is disabled; armed from recent telemetry only.";
+            : "Active driving telemetry is fresh.";
         return Armed(reason, telemetryAge, nowUtc);
+    }
+
+    private static bool HasFreshRequiredDrivingContext(HapticFrame frame)
+    {
+        return frame.Identity.SessionUid is not null
+            && frame.Identity.PlayerCarIndex is not null
+            && TryIsFresh(frame, HapticFrameSignalNames.Session)
+            && TryIsFresh(frame, HapticFrameSignalNames.Lap)
+            && TryIsFresh(frame, HapticFrameSignalNames.Participant)
+            && TryIsFresh(frame, HapticFrameSignalNames.CarStatus);
     }
 
     private void SetCurrent(

@@ -1,4 +1,6 @@
+using System.Net;
 using HapticDrive.Asio.Core.Haptics;
+using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Telemetry.F1_25;
@@ -49,12 +51,91 @@ public sealed class F125VehicleStateNormalizerTests
         Assert.False(frame.Context.AllowsDrivingOutput);
     }
 
-    private static VehicleState CreateState(byte surfaceTypeId, DateTimeOffset receivedAt, long receivedTimestamp)
+    [Fact]
+    public void Normalizer_MissingLapDataIsNotPlayerControlled()
     {
-        var stamp = new VehicleStateStamp("Car Telemetry", 42, 5f, 10, 10, 0, receivedAt, receivedTimestamp);
+        var normalizer = new F125VehicleStateNormalizer();
+        var state = CreateState(surfaceTypeId: 0, receivedAt: BaseTime, receivedTimestamp: 10) with
+        {
+            Lap = null
+        };
+
+        var frame = normalizer.Normalize(state, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.False(frame.Context.IsPlayerControlled);
+        Assert.False(frame.Context.AllowsDrivingOutput);
+        Assert.Equal(DrivingPhase.Unknown, frame.Context.DrivingPhase);
+    }
+
+    [Fact]
+    public void Normalizer_StaleLapDataIsNotPlayerControlled()
+    {
+        var normalizer = new F125VehicleStateNormalizer();
+        var state = CreateState(surfaceTypeId: 0, receivedAt: BaseTime, receivedTimestamp: 10) with
+        {
+            Lap = new VehicleStateSample<VehicleLapState>(
+                CreateLapState(),
+                CreateStamp("Lap Data", BaseTime.AddSeconds(-2), 0))
+        };
+
+        var frame = normalizer.Normalize(state, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.False(frame.Context.IsPlayerControlled);
+        Assert.False(frame.Context.AllowsDrivingOutput);
+    }
+
+    [Fact]
+    public void Normalizer_ActiveDrivingRequiresFreshSessionLapParticipantTelemetry()
+    {
+        var normalizer = new F125VehicleStateNormalizer();
+        var state = CreateState(surfaceTypeId: 0, receivedAt: BaseTime, receivedTimestamp: 10) with
+        {
+            Participant = new VehicleStateSample<VehicleParticipantState>(
+                CreateParticipantState(),
+                CreateStamp("Participants", BaseTime.AddSeconds(-3), 0))
+        };
+
+        var frame = normalizer.Normalize(state, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.False(frame.Context.IsPlayerControlled);
+        Assert.False(frame.Context.AllowsDrivingOutput);
+        Assert.False(frame.Freshness[HapticFrameSignalNames.Participant].IsFresh);
+    }
+
+    [Fact]
+    public void Normalizer_ZeroSpeedAllowedOnlyWhenActiveDrivingContextFresh()
+    {
+        var normalizer = new F125VehicleStateNormalizer();
+        var freshState = CreateState(surfaceTypeId: 0, receivedAt: BaseTime, receivedTimestamp: 10, speedKph: 0);
+        var staleParticipantState = freshState with
+        {
+            Participant = new VehicleStateSample<VehicleParticipantState>(
+                CreateParticipantState(),
+                CreateStamp("Participants", BaseTime.AddSeconds(-3), 0))
+        };
+
+        var freshFrame = normalizer.Normalize(freshState, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+        var staleFrame = normalizer.Normalize(staleParticipantState, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.True(freshFrame.Context.AllowsDrivingOutput);
+        Assert.False(staleFrame.Context.AllowsDrivingOutput);
+    }
+
+    private static VehicleState CreateState(byte surfaceTypeId, DateTimeOffset receivedAt, long receivedTimestamp, ushort speedKph = 120)
+    {
+        var sourceIdentity = TelemetrySourceIdentity.Create(
+            new HapticDrive.Asio.Core.Games.GameIntegrationId("f1-25"),
+            new IPEndPoint(IPAddress.Loopback, 20_778),
+            42,
+            0,
+            0);
+        var stamp = CreateStamp("Car Telemetry", receivedAt, receivedTimestamp, sourceIdentity);
         return VehicleState.Empty with
         {
-            Frame = new VehicleStateFrame(42, 5f, 10, 10, 0, "Car Telemetry"),
+            Frame = new VehicleStateFrame(42, 5f, 10, 10, 0, "Car Telemetry")
+            {
+                SourceIdentity = sourceIdentity
+            },
             Session = new VehicleStateSample<VehicleSessionState>(
                 new VehicleSessionState(
                     Weather: 0,
@@ -70,22 +151,14 @@ public sealed class F125VehicleStateNormalizerTests
                     GameMode: 0),
                 stamp),
             Lap = new VehicleStateSample<VehicleLapState>(
-                new VehicleLapState(
-                    LastLapTimeInMs: 0,
-                    CurrentLapTimeInMs: 0,
-                    LapDistanceMeters: 0,
-                    TotalDistanceMeters: 0,
-                    CarPosition: 0,
-                    CurrentLapNumber: 0,
-                    PitStatus: 0,
-                    Sector: 0,
-                    DriverStatus: 1,
-                    ResultStatus: 2,
-                    CurrentLapInvalid: 0),
-                stamp),
+                CreateLapState(),
+                CreateStamp("Lap Data", receivedAt, receivedTimestamp, sourceIdentity)),
+            Participant = new VehicleStateSample<VehicleParticipantState>(
+                CreateParticipantState(),
+                CreateStamp("Participants", receivedAt, receivedTimestamp, sourceIdentity)),
             Telemetry = new VehicleStateSample<VehicleTelemetryState>(
                 new VehicleTelemetryState(
-                    SpeedKph: 120,
+                    SpeedKph: speedKph,
                     Throttle: 0.7f,
                     Steer: 0.2f,
                     Brake: 0.1f,
@@ -132,5 +205,54 @@ public sealed class F125VehicleStateNormalizerTests
                     NetworkPaused: 0),
                 stamp)
         };
+    }
+
+    private static VehicleStateStamp CreateStamp(
+        string source,
+        DateTimeOffset receivedAt,
+        long receivedTimestamp,
+        TelemetrySourceIdentity? sourceIdentity = null)
+    {
+        sourceIdentity ??= TelemetrySourceIdentity.Create(
+            new HapticDrive.Asio.Core.Games.GameIntegrationId("f1-25"),
+            new IPEndPoint(IPAddress.Loopback, 20_778),
+            42,
+            0,
+            0);
+
+        return new VehicleStateStamp(source, 42, 5f, 10, 10, 0, receivedAt, receivedTimestamp)
+        {
+            SourceIdentity = sourceIdentity,
+            PacketKind = new HapticDrive.Asio.Core.Games.TelemetryPacketKind(0, source)
+        };
+    }
+
+    private static VehicleLapState CreateLapState()
+    {
+        return new VehicleLapState(
+            LastLapTimeInMs: 0,
+            CurrentLapTimeInMs: 0,
+            LapDistanceMeters: 100f,
+            TotalDistanceMeters: 100f,
+            CarPosition: 0,
+            CurrentLapNumber: 1,
+            PitStatus: 0,
+            Sector: 0,
+            DriverStatus: 1,
+            ResultStatus: 2,
+            CurrentLapInvalid: 0);
+    }
+
+    private static VehicleParticipantState CreateParticipantState()
+    {
+        return new VehicleParticipantState(
+            AiControlled: 0,
+            DriverId: 0,
+            TeamId: 0,
+            RaceNumber: 1,
+            Name: "Player",
+            YourTelemetry: 1,
+            TechLevel: 0,
+            Platform: 0);
     }
 }

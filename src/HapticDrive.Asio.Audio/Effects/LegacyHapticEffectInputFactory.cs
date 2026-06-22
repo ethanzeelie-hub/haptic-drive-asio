@@ -16,6 +16,7 @@ internal static class LegacyHapticEffectInputFactory
             [HapticFrameSignalNames.Motion] = Present(vehicleState.Motion is not null),
             [HapticFrameSignalNames.Session] = Present(vehicleState.Session is not null),
             [HapticFrameSignalNames.Lap] = Present(vehicleState.Lap is not null),
+            [HapticFrameSignalNames.Participant] = Present(vehicleState.Participant is not null),
             [HapticFrameSignalNames.CarStatus] = Present(vehicleState.CarStatus is not null),
             [HapticFrameSignalNames.Damage] = Present(vehicleState.Damage is not null),
             [HapticFrameSignalNames.MotionEx] = Present(vehicleState.MotionEx is not null),
@@ -30,7 +31,10 @@ internal static class LegacyHapticEffectInputFactory
                 vehicleState.Frame.OverallFrameIdentifier,
                 vehicleState.Frame.PlayerCarIndex,
                 DateTimeOffset.UtcNow,
-                0),
+                0)
+            {
+                SourceIdentity = vehicleState.Frame.SourceIdentity
+            },
             new HapticTelemetrySignals(
                 SpeedMetersPerSecond: vehicleState.Telemetry is null ? null : vehicleState.Telemetry.Value.SpeedKph / 3.6f,
                 Throttle: vehicleState.Telemetry?.Value.Throttle,

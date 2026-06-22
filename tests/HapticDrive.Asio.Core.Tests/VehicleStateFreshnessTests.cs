@@ -1,3 +1,6 @@
+using System.Net;
+using HapticDrive.Asio.Core.Games;
+using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Core.Vehicle.Freshness;
 
@@ -90,13 +93,35 @@ public sealed class VehicleStateFreshnessTests
         Assert.True(freshness.Age > TelemetryFreshnessPolicy.Default.MaxTelemetryAge);
     }
 
+    [Fact]
+    public void SourceGenerationMismatchIsNotFresh()
+    {
+        var nowTimestamp = TimeProvider.System.GetTimestamp();
+        var currentSource = CreateSourceIdentity(generation: 2);
+        var staleSource = CreateSourceIdentity(generation: 1);
+        var state = CreateState(
+            frameSessionUid: 10,
+            currentOverallFrame: 10,
+            telemetryStamp: CreateStamp("Car Telemetry", 10, 10, BaseTime.AddMilliseconds(-10), nowTimestamp, staleSource),
+            frameSourceIdentity: currentSource);
+
+        var freshness = VehicleStateFreshness.EvaluateTelemetry(state, BaseTime, nowTimestamp, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.False(freshness.IsFresh);
+        Assert.False(freshness.IsSameSourceGeneration);
+    }
+
     private static VehicleState CreateState(
         ulong frameSessionUid,
         uint currentOverallFrame,
         VehicleStateStamp? telemetryStamp = null,
+        TelemetrySourceIdentity? frameSourceIdentity = null,
         VehicleStateStamp? sessionStamp = null)
     {
-        var frame = new VehicleStateFrame(frameSessionUid, 10f, currentOverallFrame, currentOverallFrame, 0, "Frame");
+        var frame = new VehicleStateFrame(frameSessionUid, 10f, currentOverallFrame, currentOverallFrame, 0, "Frame")
+        {
+            SourceIdentity = frameSourceIdentity
+        };
         return VehicleState.Empty with
         {
             Frame = frame,
@@ -118,7 +143,8 @@ public sealed class VehicleStateFreshnessTests
         ulong sessionUid,
         uint overallFrameIdentifier,
         DateTimeOffset receivedAtUtc,
-        long receivedAtTimestamp)
+        long receivedAtTimestamp,
+        TelemetrySourceIdentity? sourceIdentity = null)
     {
         return new VehicleStateStamp(
             source,
@@ -128,7 +154,20 @@ public sealed class VehicleStateFreshnessTests
             overallFrameIdentifier,
             0,
             receivedAtUtc,
-            receivedAtTimestamp);
+            receivedAtTimestamp)
+        {
+            SourceIdentity = sourceIdentity
+        };
+    }
+
+    private static TelemetrySourceIdentity CreateSourceIdentity(long generation)
+    {
+        return TelemetrySourceIdentity.Create(
+            new GameIntegrationId("f1-25"),
+            new IPEndPoint(IPAddress.Loopback, 20_778),
+            10,
+            0,
+            generation);
     }
 
     private static VehicleTelemetryState CreateTelemetryState()

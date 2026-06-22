@@ -188,6 +188,12 @@ public sealed class F125VehicleStateAdapterTests
     }
 
     [Fact]
+    public void Adapter_ResetsOnSessionUidChange()
+    {
+        SessionUidChangeResetsOldSamples();
+    }
+
+    [Fact]
     public void SourceIpChangeResetsOldSamples()
     {
         var adapter = new F125VehicleStateAdapter();
@@ -229,6 +235,12 @@ public sealed class F125VehicleStateAdapterTests
     }
 
     [Fact]
+    public void Adapter_ResetsOnPlayerCarIndexChange()
+    {
+        PlayerCarChangeResetsOldSamples();
+    }
+
+    [Fact]
     public void OlderOverallFrameIsIgnored()
     {
         var adapter = new F125VehicleStateAdapter();
@@ -247,6 +259,12 @@ public sealed class F125VehicleStateAdapterTests
         Assert.Equal((uint)10, older.State.Frame.OverallFrameIdentifier);
         Assert.NotNull(older.State.Telemetry);
         Assert.Null(older.State.Session);
+    }
+
+    [Fact]
+    public void Adapter_IgnoresOlderSameSessionFrame()
+    {
+        OlderOverallFrameIsIgnored();
     }
 
     [Fact]
@@ -280,6 +298,23 @@ public sealed class F125VehicleStateAdapterTests
         Encoding.ASCII.GetBytes("COLL").CopyTo(eventPacket, HeaderOffset);
         var @event = ApplyDatagram(adapter, eventPacket);
         Assert.Equal(VehicleStateUpdatedSignals.Event, @event.UpdatedSignals);
+    }
+
+    [Fact]
+    public void Adapter_NormalizesIpv4MappedRemoteAddress()
+    {
+        var adapter = new F125VehicleStateAdapter();
+        var packet = CreateDatagram(F125PacketKind.CarTelemetry, playerCarIndex: 0);
+
+        var update = ApplyDatagram(
+            adapter,
+            packet,
+            IPAddress.Parse("::ffff:127.0.0.1"),
+            DateTimeOffset.UtcNow,
+            TimeProvider.System.GetTimestamp());
+
+        Assert.True(update.WasApplied, update.Message);
+        Assert.Equal(IPAddress.Loopback, update.State.Frame.SourceIdentity!.RemoteEndPoint.Address);
     }
 
     private const int HeaderOffset = F125PacketDefinitions.HeaderSize;

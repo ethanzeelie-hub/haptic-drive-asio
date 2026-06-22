@@ -35,7 +35,10 @@ public sealed class F125GameTelemetryAdapter : IGameTelemetryAdapter
             Map(parseResult.Status),
             parseResult.Header?.PacketId,
             parseResult.Message,
-            Map(vehicleStateUpdate));
+            Map(vehicleStateUpdate))
+        {
+            PacketKind = parseResult.Definition?.TelemetryKind
+        };
     }
 
     private static TelemetryPacketParseStatus Map(F125PacketParseStatus status)

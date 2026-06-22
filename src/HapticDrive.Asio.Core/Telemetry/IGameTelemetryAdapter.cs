@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Core.Games;
 using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Core.Telemetry;
@@ -17,7 +18,10 @@ public interface IGameTelemetryAdapter
 
 public sealed record TelemetryPacketDescriptor(
     byte PacketId,
-    string Name);
+    string Name)
+{
+    public TelemetryPacketKind Kind { get; init; } = new(PacketId, Name);
+}
 
 public enum TelemetryPacketParseStatus
 {
@@ -66,4 +70,7 @@ public sealed record TelemetryPacketProcessResult(
     TelemetryPacketParseStatus ParseStatus,
     byte? PacketId,
     string PacketMessage,
-    TelemetryVehicleStateUpdateResult VehicleStateUpdate);
+    TelemetryVehicleStateUpdateResult VehicleStateUpdate)
+{
+    public TelemetryPacketKind? PacketKind { get; init; }
+}

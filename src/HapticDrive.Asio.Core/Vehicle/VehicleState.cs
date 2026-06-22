@@ -1,3 +1,6 @@
+using HapticDrive.Asio.Core.Games;
+using HapticDrive.Asio.Core.Telemetry;
+
 namespace HapticDrive.Asio.Core.Vehicle;
 
 public sealed record VehicleState(
@@ -34,6 +37,8 @@ public sealed record VehicleStateFrame(
     string? Source)
 {
     public static VehicleStateFrame Empty { get; } = new(null, null, null, null, null, null);
+
+    public TelemetrySourceIdentity? SourceIdentity { get; init; }
 }
 
 public sealed record VehicleStateStamp(
@@ -44,7 +49,12 @@ public sealed record VehicleStateStamp(
     uint OverallFrameIdentifier,
     byte PlayerCarIndex,
     DateTimeOffset ReceivedAtUtc = default,
-    long ReceivedAtTimestamp = 0);
+    long ReceivedAtTimestamp = 0)
+{
+    public TelemetryPacketKind PacketKind { get; init; } = new(255, Source);
+
+    public TelemetrySourceIdentity? SourceIdentity { get; init; }
+}
 
 public sealed record VehicleStateSample<T>(T Value, VehicleStateStamp Stamp);
 
@@ -116,7 +126,9 @@ public sealed record VehicleSessionState(
     byte GamePaused,
     byte SafetyCarStatus,
     byte NetworkGame,
-    byte GameMode);
+    byte GameMode,
+    byte IsSpectating = 0,
+    byte SpectatorCarIndex = 255);
 
 public sealed record VehicleLapState(
     uint LastLapTimeInMs,

@@ -42,6 +42,16 @@ public static class VehicleStateFreshness
         return Evaluate(state, state.Lap, nowUtc, nowTimestamp, timeProvider, policy.MaxLapAge, policy.MaxFrameLag);
     }
 
+    public static VehicleSignalFreshness EvaluateParticipant(
+        VehicleState state,
+        DateTimeOffset nowUtc,
+        long nowTimestamp,
+        TimeProvider timeProvider,
+        TelemetryFreshnessPolicy policy)
+    {
+        return Evaluate(state, state.Participant, nowUtc, nowTimestamp, timeProvider, policy.MaxSessionAge, policy.MaxFrameLag);
+    }
+
     public static VehicleSignalFreshness EvaluateCarStatus(
         VehicleState state,
         DateTimeOffset nowUtc,
@@ -98,6 +108,9 @@ public static class VehicleStateFreshness
 
         var sameSession = state.Frame.SessionUid is null
             || sample.Stamp.SessionUid == state.Frame.SessionUid.Value;
+        var sameSourceGeneration = state.Frame.SourceIdentity is null
+            || sample.Stamp.SourceIdentity is null
+            || sample.Stamp.SourceIdentity.Generation == state.Frame.SourceIdentity.Generation;
         var notFutureFrame = state.Frame.OverallFrameIdentifier is null
             || sample.Stamp.OverallFrameIdentifier <= state.Frame.OverallFrameIdentifier.Value;
         uint? frameLag = null;
@@ -132,6 +145,9 @@ public static class VehicleStateFreshness
             IsWithinFrameLag: withinFrameLag,
             IsWithinAge: withinAge,
             Age: age,
-            FrameLag: frameLag);
+            FrameLag: frameLag)
+        {
+            IsSameSourceGeneration = sameSourceGeneration
+        };
     }
 }

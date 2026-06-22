@@ -154,6 +154,29 @@ public sealed class UdpTelemetryReceiverTests
         Assert.Equal(1, snapshot.OversizedDatagramCount);
     }
 
+    [Fact]
+    public async Task Receiver_IsolatesSubscriberExceptionsAndContinuesFanout()
+    {
+        await using var receiver = new UdpTelemetryReceiver(new UdpTelemetryReceiverOptions(Port: 0));
+        var receivedPacket = new TaskCompletionSource<UdpTelemetryPacket>(TaskCreationOptions.RunContinuationsAsynchronously);
+        receiver.PacketReceived += (_, _) => throw new InvalidOperationException("subscriber failed");
+        receiver.PacketReceived += (_, args) => receivedPacket.TrySetResult(args.Packet);
+
+        await receiver.StartAsync();
+        var boundPort = receiver.GetSnapshot().BoundPort;
+
+        using var sender = new UdpClient();
+        var payload = new byte[] { 0x09, 0x08, 0x07 };
+        await sender.SendAsync(payload, payload.Length, new IPEndPoint(IPAddress.Loopback, boundPort));
+
+        var packet = await WaitForAsync(receivedPacket.Task, TimeSpan.FromSeconds(3));
+        var snapshot = receiver.GetSnapshot();
+
+        Assert.Equal(payload, packet.Payload);
+        Assert.Equal(1, snapshot.SubscriberExceptionCount);
+        Assert.Contains("subscriber failed", snapshot.LastErrorMessage, StringComparison.Ordinal);
+    }
+
     private static async Task<T> WaitForAsync<T>(Task<T> task, TimeSpan timeout)
     {
         var completed = await Task.WhenAny(task, Task.Delay(timeout));

@@ -22,9 +22,10 @@ public sealed class HapticPipelinePhprReplayValidationTests
         await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
-            CreateLapDatagram(frame: 2),
-            CreateCarStatusDatagram(frame: 3),
-            CreateCarTelemetryDatagram(frame: 4, speedKph: 120, throttle: 0.4f, brake: 0f, surfaceType: 1));
+            CreateParticipantsDatagram(frame: 2),
+            CreateLapDatagram(frame: 3),
+            CreateCarStatusDatagram(frame: 4),
+            CreateCarTelemetryDatagram(frame: 5, speedKph: 120, throttle: 0.4f, brake: 0f, surfaceType: 1));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
         var replayResult = await coordinator.ReplayAsync(recording, TelemetryReplayOptions.Fast);
@@ -51,7 +52,7 @@ public sealed class HapticPipelinePhprReplayValidationTests
         Assert.True(replayResult.Succeeded, replayResult.Message);
         Assert.True(renderResult.Succeeded, renderResult.Message);
         Assert.Equal(HapticPipelineInputSource.Replay, snapshot.InputSource);
-        Assert.Equal(4, snapshot.Replay.PacketsReplayed);
+        Assert.Equal(5, snapshot.Replay.PacketsReplayed);
         Assert.True(drivingState.IsArmed, drivingState.Reason);
         Assert.True(routeResult.WasRouted, routeResult.Message);
         var command = Assert.Single(inner.CommandHistory);
@@ -66,10 +67,11 @@ public sealed class HapticPipelinePhprReplayValidationTests
         await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
-            CreateLapDatagram(frame: 2),
-            CreateCarStatusDatagram(frame: 3),
-            CreateCarTelemetryDatagram(frame: 4, speedKph: 120, throttle: 0.8f, brake: 0.8f, surfaceType: 0),
-            CreateMotionExDatagram(frame: 5, wheelSpeed: 1f, wheelSlipRatio: 0.42f, wheelSlipAngle: 0.12f));
+            CreateParticipantsDatagram(frame: 2),
+            CreateLapDatagram(frame: 3),
+            CreateCarStatusDatagram(frame: 4),
+            CreateCarTelemetryDatagram(frame: 5, speedKph: 120, throttle: 0.8f, brake: 0.8f, surfaceType: 0),
+            CreateMotionExDatagram(frame: 6, wheelSpeed: 1f, wheelSlipRatio: 0.42f, wheelSlipAngle: 0.12f));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
         var replayResult = await coordinator.ReplayAsync(recording, TelemetryReplayOptions.Fast);
@@ -86,7 +88,7 @@ public sealed class HapticPipelinePhprReplayValidationTests
 
         Assert.True(replayResult.Succeeded, replayResult.Message);
         Assert.Equal(HapticPipelineInputSource.Replay, snapshot.InputSource);
-        Assert.Equal(5, snapshot.Replay.PacketsReplayed);
+        Assert.Equal(6, snapshot.Replay.PacketsReplayed);
         Assert.True(routeResult.WasRouted, routeResult.Message);
         Assert.Contains(inner.CommandHistory, command => command.Source == PHprCommandSource.WheelSlip && command.TargetModule == PHprModuleId.Throttle);
         Assert.Contains(inner.CommandHistory, command => command.Source == PHprCommandSource.WheelLock && command.TargetModule == PHprModuleId.Brake);
@@ -99,9 +101,10 @@ public sealed class HapticPipelinePhprReplayValidationTests
         await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
-            CreateLapDatagram(frame: 2),
-            CreateCarStatusDatagram(frame: 3),
-            CreateCarTelemetryDatagram(frame: 4, speedKph: 130, throttle: 0.5f, brake: 0f, surfaceType: 1));
+            CreateParticipantsDatagram(frame: 2),
+            CreateLapDatagram(frame: 3),
+            CreateCarStatusDatagram(frame: 4),
+            CreateCarTelemetryDatagram(frame: 5, speedKph: 130, throttle: 0.5f, brake: 0f, surfaceType: 1));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
         Assert.True((await coordinator.ReplayAsync(recording, TelemetryReplayOptions.Fast)).Succeeded);
@@ -139,9 +142,10 @@ public sealed class HapticPipelinePhprReplayValidationTests
         await using var coordinator = RuntimeTestPipelineFactory.Create(options: HapticPipelineOptions.ManualRendering);
         var recording = CreateRecording(
             CreateSessionDatagram(frame: 1),
-            CreateLapDatagram(frame: 2),
-            CreateCarStatusDatagram(frame: 3),
-            CreateCarTelemetryDatagram(frame: 4, speedKph: 120, throttle: 0.4f, brake: 0f, surfaceType: 1));
+            CreateParticipantsDatagram(frame: 2),
+            CreateLapDatagram(frame: 3),
+            CreateCarStatusDatagram(frame: 4),
+            CreateCarTelemetryDatagram(frame: 5, speedKph: 120, throttle: 0.4f, brake: 0f, surfaceType: 1));
 
         Assert.True((await coordinator.StartAsync()).Succeeded);
         Assert.True((await coordinator.ReplayAsync(recording, TelemetryReplayOptions.Fast)).Succeeded);
@@ -240,6 +244,15 @@ public sealed class HapticPipelinePhprReplayValidationTests
         var datagram = CreateDatagram(F125PacketKind.LapData, frame);
         datagram[HeaderOffset + 44] = driverStatus;
         datagram[HeaderOffset + 45] = resultStatus;
+        return datagram;
+    }
+
+    private static byte[] CreateParticipantsDatagram(uint frame)
+    {
+        var datagram = CreateDatagram(F125PacketKind.Participants, frame);
+        datagram[HeaderOffset] = 1;
+        datagram[HeaderOffset + 1] = 0;
+        datagram[HeaderOffset + 40] = 1;
         return datagram;
     }
 

@@ -426,6 +426,8 @@ public sealed class HapticPipelineCoordinatorTests
         Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
             CreatePacket(CreateSessionDatagram(frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
         Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
+            CreatePacket(CreateParticipantsDatagram(frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
+        Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
             CreatePacket(CreateLapDataDatagram(driverStatus: 4, resultStatus: 2, frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
         Assert.Equal(TelemetryPacketParseStatus.Success, (await coordinator.OfferLiveTelemetryPacketAsync(
             CreatePacket(CreateCarStatusDatagram(networkPaused: 0, frameIdentifier: 10, overallFrameIdentifier: 10)))).ParseStatus);
@@ -449,6 +451,26 @@ public sealed class HapticPipelineCoordinatorTests
             CreateDrivingArmedContext(staleSnapshot));
         Assert.False(staleState.IsArmed);
         Assert.Equal(DrivingArmedSuppressionReason.StaleTelemetry, drivingArmed.GetSnapshot().LastSuppressionReason);
+    }
+
+    [Fact]
+    public async Task TelemetrySubscriberException_IsolatedAndRecorded()
+    {
+        var replay = new TelemetryReplayService();
+        var callbacks = 0;
+        var recording = new TelemetryRecording(
+            TelemetryRecordingMetadata.CreateDefault(DateTimeOffset.UtcNow),
+            [new TelemetryRecordedPacket(1, TimeSpan.Zero, [0x01])]);
+        replay.PacketReplayed += (_, _) => throw new InvalidOperationException("subscriber boom");
+        replay.PacketReplayed += (_, _) => callbacks++;
+
+        var result = await replay.ReplayAsync(recording, TelemetryReplayOptions.Fast);
+        var snapshot = replay.GetSnapshot();
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(1, callbacks);
+        Assert.Equal(1, snapshot.SubscriberExceptionCount);
+        Assert.Equal("subscriber boom", snapshot.LastSubscriberErrorMessage);
     }
 
     [Fact]
@@ -550,6 +572,20 @@ public sealed class HapticPipelineCoordinatorTests
         WriteHeader(datagram, definition.Id, playerCarIndex: 0, sessionUid, frameIdentifier, overallFrameIdentifier);
         datagram[HeaderOffset + 44] = driverStatus;
         datagram[HeaderOffset + 45] = resultStatus;
+        return datagram;
+    }
+
+    private static byte[] CreateParticipantsDatagram(
+        ulong sessionUid = 123456789,
+        uint frameIdentifier = 42,
+        uint overallFrameIdentifier = 84)
+    {
+        var definition = F125PacketDefinitions.All.Single(item => item.Kind == F125PacketKind.Participants);
+        var datagram = new byte[definition.Size];
+        WriteHeader(datagram, definition.Id, playerCarIndex: 0, sessionUid, frameIdentifier, overallFrameIdentifier);
+        datagram[HeaderOffset] = 1;
+        datagram[HeaderOffset + 1] = 0;
+        datagram[HeaderOffset + 40] = 1;
         return datagram;
     }
 

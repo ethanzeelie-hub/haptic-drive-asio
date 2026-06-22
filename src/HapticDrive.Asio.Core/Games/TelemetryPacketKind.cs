@@ -1,6 +1,6 @@
 namespace HapticDrive.Asio.Core.Games;
 
-public sealed record TelemetryPacketKind(string Value)
+public readonly record struct TelemetryPacketKind(byte Id, string Name)
 {
-    public override string ToString() => Value;
+    public override string ToString() => Name;
 }

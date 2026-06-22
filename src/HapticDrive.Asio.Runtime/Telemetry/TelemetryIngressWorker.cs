@@ -27,6 +27,7 @@ public sealed class TelemetryIngressWorker : IAsyncDisposable
 {
     private readonly object _gate = new();
     private readonly TelemetryIngressWorkerOptions _options;
+    private readonly TimeProvider _timeProvider;
     private readonly Func<UdpTelemetryPacket, HapticPipelinePacketResult> _processHapticPacket;
     private readonly Func<bool> _isRecordingEnabled;
     private readonly Func<UdpTelemetryPacket, TelemetryRecordingOperationResult> _recordPacket;
@@ -58,7 +59,8 @@ public sealed class TelemetryIngressWorker : IAsyncDisposable
         Action<string> markRecordingIncomplete,
         Func<bool> isForwardingEnabled,
         Func<UdpTelemetryPacket, CancellationToken, ValueTask> forwardPacketAsync,
-        TelemetryIngressWorkerOptions? options = null)
+        TelemetryIngressWorkerOptions? options = null,
+        TimeProvider? timeProvider = null)
     {
         _processHapticPacket = processHapticPacket ?? throw new ArgumentNullException(nameof(processHapticPacket));
         _isRecordingEnabled = isRecordingEnabled ?? throw new ArgumentNullException(nameof(isRecordingEnabled));
@@ -67,6 +69,7 @@ public sealed class TelemetryIngressWorker : IAsyncDisposable
         _isForwardingEnabled = isForwardingEnabled ?? throw new ArgumentNullException(nameof(isForwardingEnabled));
         _forwardPacketAsync = forwardPacketAsync ?? throw new ArgumentNullException(nameof(forwardPacketAsync));
         _options = options ?? TelemetryIngressWorkerOptions.Default;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _hapticChannel = CreateDropOldestChannel(_options.HapticChannelCapacity);
         _recordingChannel = Channel.CreateBounded<UdpTelemetryPacket>(
             new BoundedChannelOptions(_options.RecordingChannelCapacity)
@@ -305,7 +308,7 @@ public sealed class TelemetryIngressWorker : IAsyncDisposable
     {
         lock (_gate)
         {
-            _lastErrorMessage = message;
+            _lastErrorMessage = $"{_timeProvider.GetUtcNow():O} {message}";
         }
     }
 

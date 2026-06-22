@@ -98,6 +98,59 @@ Self-review:
 - Automated validation used Null output, mock/fake P-HPR paths, and fake direct-runtime surfaces only; no real HID write or controlled-write execution was run.
 - The remaining remediation program is still active; Remediation 3 should be handled as the next audited stage.
 
+## Remediation 3 - Make Telemetry Identity and Driving Context Fail Closed
+
+Date: 2026-06-22
+
+Status: Complete.
+
+Goal: Make telemetry source identity, packet-kind stamping, canonical driving context, and cached `DrivingArmed` evaluation fail closed so missing or stale context cannot silently become active-driving output state.
+
+Notes:
+
+- Added structured `TelemetrySourceIdentity` and threaded it through `VehicleStateFrame`, `VehicleStateStamp`, and `HapticFrameIdentity` without replacing the current runtime architecture.
+- Hardened typed packet-kind metadata:
+  - `TelemetryPacketKind` is now a typed `Id` plus `Name` value,
+  - `TelemetryPacketDescriptor` exposes a typed kind,
+  - `TelemetryPacketProcessResult` now carries the typed packet kind when parsing succeeds far enough to know it,
+  - `F125PacketDefinition` exposes the typed kind and the F1 25 adapter stamps it onto samples.
+- Hardened `F125VehicleStateAdapter` so it:
+  - normalizes IPv4-mapped IPv6 endpoints,
+  - tracks structured source identity instead of a string-only remote key,
+  - carries source generation across source/session/player resets,
+  - stamps structured identity onto `VehicleState` samples and frames,
+  - uses injected `TimeProvider` for synthetic/test packet paths.
+- Extended freshness handling:
+  - added participant freshness evaluation,
+  - added source-generation freshness checks,
+  - surfaced participant freshness through canonical `HapticFrame` snapshots and runtime diagnostics.
+- Hardened `F125VehicleStateNormalizer` fail-closed semantics:
+  - missing or stale lap data no longer defaults to player-controlled,
+  - participant/session/lap/car-status/telemetry freshness is required before canonical active-driving output is allowed,
+  - spectating is recognized from verified F1 25 session data,
+  - unknown session/player context now yields `DrivingPhase.Unknown` instead of a permissive active state.
+- Hardened cached `DrivingArmed` evaluation so fresh session/lap/participant/car-status context is required before the gate may arm, while zero-speed active-driving remains allowed only when the broader active-driving context is proven fresh.
+- Hardened telemetry event fanout:
+  - `UdpTelemetryReceiver` now isolates subscriber exceptions, records them, and keeps remaining subscribers running,
+  - `TelemetryReplayService` now does the same for replay subscribers,
+  - the receiver no longer makes an extra payload copy on live packet receipt.
+- Added or rewrote Stage 3 coverage across F1 25 normalization, adapter reset/identity behavior, freshness/source-generation checks, cached `DrivingArmed` fail-closed behavior, replay subscriber isolation, and UDP receiver subscriber isolation.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Telemetry.F1_25.Tests/HapticDrive.Asio.Telemetry.F1_25.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Actuation.Tests/HapticDrive.Actuation.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Runtime.Tests/HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Core.Tests/HapticDrive.Asio.Core.Tests.csproj -c Release --no-build` passed.
+
+Self-review:
+
+- This stage stayed inside the audited Stage 3 boundary: it hardened identity, freshness, and fail-closed driving semantics without jumping ahead into the broader Stage 4 canonical-frame migration.
+- The typed packet-kind/source-identity additions are intentionally incremental so Stage 4 can finish the canonical frame surface without redoing the Stage 3 safety semantics.
+- Automated validation remained hardware-absent: no real HID writer was instantiated and no real P-HPR write path was executed.
+
 ## Stage 00 - Repo Setup
 
 Date: 2026-06-01

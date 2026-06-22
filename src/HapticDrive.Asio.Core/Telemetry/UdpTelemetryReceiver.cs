@@ -17,6 +17,7 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
     private long _oversizedDatagramCount;
     private long _errorCount;
     private long _sequenceNumber;
+    private long _subscriberExceptionCount;
     private string? _lastErrorMessage;
     private int _boundPort;
 
@@ -68,7 +69,8 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
                 ? timeSinceStart >= noPacketThreshold
                 : timeSinceLastPacket >= noPacketThreshold),
             Interlocked.Read(ref _errorCount),
-            lastErrorMessage);
+            lastErrorMessage,
+            Interlocked.Read(ref _subscriberExceptionCount));
     }
 
     public ValueTask StartAsync(CancellationToken cancellationToken = default)
@@ -95,6 +97,7 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
             Interlocked.Exchange(ref _oversizedDatagramCount, 0);
             Interlocked.Exchange(ref _errorCount, 0);
             Interlocked.Exchange(ref _sequenceNumber, 0);
+            Interlocked.Exchange(ref _subscriberExceptionCount, 0);
             _receiveTask = Task.Run(() => ReceiveLoopAsync(udpClient, stopCts.Token), CancellationToken.None);
         }
 
@@ -187,15 +190,13 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
                 var sequenceNumber = Interlocked.Increment(ref _sequenceNumber);
                 Interlocked.Increment(ref _packetCount);
 
-                PacketReceived?.Invoke(
-                    this,
-                    new UdpTelemetryPacketReceivedEventArgs(
-                        new UdpTelemetryPacket(
-                            sequenceNumber,
-                            result.Buffer.ToArray(),
-                            result.RemoteEndPoint,
-                            receivedAtUtc,
-                            receivedAtTimestamp)));
+                PublishPacketReceived(
+                    new UdpTelemetryPacket(
+                        sequenceNumber,
+                        result.Buffer,
+                        result.RemoteEndPoint,
+                        receivedAtUtc,
+                        receivedAtTimestamp));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -222,6 +223,34 @@ public sealed class UdpTelemetryReceiver : IUdpTelemetryReceiver
                 }
 
                 Interlocked.Increment(ref _errorCount);
+            }
+        }
+    }
+
+    private void PublishPacketReceived(UdpTelemetryPacket packet)
+    {
+        var subscribers = PacketReceived;
+        if (subscribers is null)
+        {
+            return;
+        }
+
+        var args = new UdpTelemetryPacketReceivedEventArgs(packet);
+        foreach (EventHandler<UdpTelemetryPacketReceivedEventArgs> subscriber in subscribers.GetInvocationList())
+        {
+            try
+            {
+                subscriber(this, args);
+            }
+            catch (Exception ex)
+            {
+                lock (_gate)
+                {
+                    _lastErrorMessage = $"Telemetry subscriber failed: {ex.Message}";
+                }
+
+                Interlocked.Increment(ref _errorCount);
+                Interlocked.Increment(ref _subscriberExceptionCount);
             }
         }
     }

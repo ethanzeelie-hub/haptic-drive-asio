@@ -878,6 +878,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         var motionFreshness = VehicleStateFreshness.EvaluateMotion(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
         var sessionFreshness = VehicleStateFreshness.EvaluateSession(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
         var lapFreshness = VehicleStateFreshness.EvaluateLap(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
+        var participantFreshness = VehicleStateFreshness.EvaluateParticipant(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
         var carStatusFreshness = VehicleStateFreshness.EvaluateCarStatus(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
         var damageFreshness = VehicleStateFreshness.EvaluateDamage(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
         var motionExFreshness = VehicleStateFreshness.EvaluateMotionEx(vehicleState, nowUtc, nowTimestamp, TimeProvider.System, freshnessPolicy);
@@ -918,6 +919,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             MotionFreshness = motionFreshness,
             SessionFreshness = sessionFreshness,
             LapFreshness = lapFreshness,
+            ParticipantFreshness = participantFreshness,
             CarStatusFreshness = carStatusFreshness,
             DamageFreshness = damageFreshness,
             MotionExFreshness = motionExFreshness,

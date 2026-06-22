@@ -61,6 +61,8 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
     private long _totalReplayDriftTicks;
     private long _maxLatePacketTicks;
     private long _skippedSleepCount;
+    private long _subscriberExceptionCount;
+    private string? _lastSubscriberErrorMessage;
 
     public TelemetryReplayService(
         TimeProvider? timeProvider = null,
@@ -90,7 +92,9 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                 _statusMessage,
                 TimeSpan.FromTicks(Interlocked.Read(ref _totalReplayDriftTicks)),
                 TimeSpan.FromTicks(Interlocked.Read(ref _maxLatePacketTicks)),
-                Interlocked.Read(ref _skippedSleepCount));
+                Interlocked.Read(ref _skippedSleepCount),
+                Interlocked.Read(ref _subscriberExceptionCount),
+                _lastSubscriberErrorMessage);
         }
     }
 
@@ -162,6 +166,8 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             Interlocked.Exchange(ref _totalReplayDriftTicks, 0);
             Interlocked.Exchange(ref _maxLatePacketTicks, 0);
             Interlocked.Exchange(ref _skippedSleepCount, 0);
+            Interlocked.Exchange(ref _subscriberExceptionCount, 0);
+            _lastSubscriberErrorMessage = null;
         }
 
         TelemetryReplayResult result;
@@ -216,9 +222,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                     replayedAtUtc,
                     replayedAtTimestamp);
 
-                PacketReplayed?.Invoke(
-                    this,
-                    new TelemetryReplayPacketEventArgs(replayedPacket, recordedPacket));
+                PublishPacketReplayed(replayedPacket, recordedPacket);
                 Interlocked.Increment(ref _packetsReplayed);
             }
 
@@ -314,6 +318,33 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             if (Interlocked.CompareExchange(ref _maxLatePacketTicks, latePacketTicks, current) == current)
             {
                 return;
+            }
+        }
+    }
+
+    private void PublishPacketReplayed(UdpTelemetryPacket packet, TelemetryRecordedPacket recordedPacket)
+    {
+        var subscribers = PacketReplayed;
+        if (subscribers is null)
+        {
+            return;
+        }
+
+        var args = new TelemetryReplayPacketEventArgs(packet, recordedPacket);
+        foreach (EventHandler<TelemetryReplayPacketEventArgs> subscriber in subscribers.GetInvocationList())
+        {
+            try
+            {
+                subscriber(this, args);
+            }
+            catch (Exception ex)
+            {
+                lock (_gate)
+                {
+                    _lastSubscriberErrorMessage = ex.Message;
+                }
+
+                Interlocked.Increment(ref _subscriberExceptionCount);
             }
         }
     }

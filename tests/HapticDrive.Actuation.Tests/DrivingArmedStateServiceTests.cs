@@ -1,4 +1,7 @@
+using System.Net;
 using HapticDrive.Actuation.Driving;
+using HapticDrive.Asio.Core.Games;
+using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Actuation.Tests;
@@ -27,6 +30,19 @@ public sealed class DrivingArmedStateServiceTests
 
         Assert.True(state.IsArmed);
         Assert.Equal(DrivingArmedSuppressionReason.None, service.GetSnapshot().LastSuppressionReason);
+    }
+
+    [Fact]
+    public void DrivingArmed_MissingRequiredContextFailsClosed()
+    {
+        var service = new DrivingArmedStateService();
+
+        var state = service.UpdateFromVehicleState(
+            CreateVehicleState() with { Participant = null },
+            FreshContext());
+
+        Assert.False(state.IsArmed);
+        Assert.Equal(DrivingArmedSuppressionReason.NoTelemetry, service.GetSnapshot().LastSuppressionReason);
     }
 
     [Fact]
@@ -150,11 +166,11 @@ public sealed class DrivingArmedStateServiceTests
         });
 
         var state = service.UpdateFromVehicleState(
-            CreateVehicleState(gamePaused: 1, driverStatus: 0, resultStatus: 0),
+            CreateVehicleState(),
             FreshContext());
 
         Assert.True(state.IsArmed);
-        Assert.Contains("disabled", state.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("fresh", state.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -206,16 +222,28 @@ public sealed class DrivingArmedStateServiceTests
         byte driverStatus = 4,
         byte resultStatus = 2)
     {
+        var sourceIdentity = TelemetrySourceIdentity.Create(
+            new GameIntegrationId("f1-25"),
+            new IPEndPoint(IPAddress.Loopback, 20_778),
+            123,
+            0,
+            0);
         var stamp = new VehicleStateStamp(
             "test",
             123,
             10f,
             42,
             84,
-            0);
+            0)
+        {
+            SourceIdentity = sourceIdentity
+        };
 
         return new VehicleState(
-            new VehicleStateFrame(123, 10f, 42, 84, 0, "test"),
+            new VehicleStateFrame(123, 10f, 42, 84, 0, "test")
+            {
+                SourceIdentity = sourceIdentity
+            },
             Motion: null,
             Session: new VehicleStateSample<VehicleSessionState>(
                 new VehicleSessionState(
@@ -245,7 +273,17 @@ public sealed class DrivingArmedStateServiceTests
                     ResultStatus: resultStatus,
                     CurrentLapInvalid: 0),
                 stamp),
-            Participant: null,
+            Participant: new VehicleStateSample<VehicleParticipantState>(
+                new VehicleParticipantState(
+                    AiControlled: 0,
+                    DriverId: 0,
+                    TeamId: 0,
+                    RaceNumber: 1,
+                    Name: "Player",
+                    YourTelemetry: 1,
+                    TechLevel: 0,
+                    Platform: 0),
+                stamp),
             Telemetry: new VehicleStateSample<VehicleTelemetryState>(
                 new VehicleTelemetryState(
                     SpeedKph: speedKph,

@@ -9,5 +9,7 @@ public sealed record VehicleSignalFreshness(
     TimeSpan? Age,
     uint? FrameLag)
 {
-    public bool IsFresh => IsPresent && IsSameSession && IsNotFutureFrame && IsWithinFrameLag && IsWithinAge;
+    public bool IsSameSourceGeneration { get; init; } = true;
+
+    public bool IsFresh => IsPresent && IsSameSession && IsNotFutureFrame && IsWithinFrameLag && IsWithinAge && IsSameSourceGeneration;
 }
