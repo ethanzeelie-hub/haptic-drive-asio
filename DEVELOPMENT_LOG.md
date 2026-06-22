@@ -39,6 +39,65 @@ Self-review:
 - The approval phrase is now checked only through session-only runtime authorization and is not persisted in settings, profiles, options, diagnostics, or exports.
 - Automated tests continue to use fake HID writers; no real HID write was executed during validation.
 
+## Remediation 2 - Make Output Interlock Authoritative and Observer-Safe
+
+Date: 2026-06-22
+
+Status: Complete.
+
+Goal: Make the global output interlock the authoritative safety state across audio output, manual audio tests, mock P-HPR routing, continuous P-HPR routing, direct P-HPR runtime, and reset readiness.
+
+Notes:
+
+- Made `OutputInterlock.Changed` observer-safe:
+  - snapshot state is updated before observers are invoked,
+  - each subscriber is invoked independently,
+  - subscriber exceptions are caught,
+  - observer failure count is exposed through `ObserverFailureCount`.
+- Added `IOutputSafetyParticipant` and `OutputSafetyParticipantSnapshot` as the shared safety participant contract.
+- Added `OutputInterlockSupervisor` with:
+  - capacity-one `DropOldest` channel processing,
+  - 500 ms per-participant silence timeout,
+  - failure recording without blocking later participants,
+  - reset-readiness checks across all participants,
+  - reset guard registration on the concrete interlock so unsafe participants block reset below the UI layer,
+  - bounded async disposal and event unsubscription.
+- Added safety participants for:
+  - current haptic audio output and manual ASIO hardware test ownership,
+  - `AudioTestBench`,
+  - mock P-HPR gear/pedal output,
+  - continuous real P-HPR road/slip/lock routing silent state,
+  - direct P-HPR runtime authorization revocation and emergency-stop handling.
+- Wired the supervisor into `MainWindow` composition and routed reset-blocker presentation through `ApplicationSafetyController`, leaving UI as reporter rather than safety authority.
+- Kept real P-HPR non-stop writes behind Stage 1 session authorization and interlock gates; stop-only/emergency-stop paths remain available for safety recovery.
+
+Tests:
+
+- Added `OutputInterlockObserverSafetyTests`.
+- Added `OutputInterlockSupervisorTests`.
+- Added participant coverage for audio output, manual test bench, mock P-HPR, continuous P-HPR, direct P-HPR authorization revocation, app reset blocker behavior, and UI bypass guardrails.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Core.Tests/HapticDrive.Asio.Core.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Runtime.Tests/HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.Audio.Tests/HapticDrive.Asio.Audio.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Actuation.Tests/HapticDrive.Actuation.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Simagic.PHPR.Tests/HapticDrive.Simagic.PHPR.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test tests/HapticDrive.Asio.App.Tests/HapticDrive.Asio.App.Tests.csproj -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- This stage stayed within the audited Stage 2 interlock/supervisor scope and did not introduce new output architecture.
+- Automated validation used Null output, mock/fake P-HPR paths, and fake direct-runtime surfaces only; no real HID write or controlled-write execution was run.
+- The remaining remediation program is still active; Remediation 3 should be handled as the next audited stage.
+
 ## Stage 00 - Repo Setup
 
 Date: 2026-06-01

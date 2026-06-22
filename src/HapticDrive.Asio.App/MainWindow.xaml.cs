@@ -17,6 +17,7 @@ using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime;
 using HapticDrive.Asio.Runtime.Pipeline;
+using HapticDrive.Asio.Runtime.Safety;
 using HapticDrive.Asio.Runtime.Telemetry;
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Actuation.PHpr;
@@ -88,6 +89,7 @@ public partial class MainWindow : Window
     private readonly HapticProfileStore _profileStore = new();
     private readonly PhprEffectProfileStore _phprProfileStore = new();
     private readonly RuntimeLifecycleCoordinator _runtimeLifecycleCoordinator = new();
+    private readonly OutputInterlockSupervisor _outputInterlockSupervisor;
     private readonly EffectSettingsListViewModel _effectSettingsViewModel = new();
     private readonly SafetyStateViewModel _safetyStateViewModel = new();
     private readonly TelemetryStatusViewModel _telemetryStatusViewModel = new();
@@ -398,6 +400,18 @@ public partial class MainWindow : Window
         ApplyPersistedPhprPedalsPreferenceToRuntime(saveSafeSettings: false, updateUi: false);
         LoadPersistedAudioProfile();
         _hapticPipeline = CreatePipelineForSelectedOutput();
+        _outputInterlockSupervisor = new OutputInterlockSupervisor(
+            _outputInterlock,
+            [
+                new AudioOutputSafetyParticipant(() => _hapticPipeline),
+                new ManualAudioTestBenchSafetyParticipant(_testBench),
+                new MockPhprOutputSafetyParticipant(_mockGearPulseRouter, _mockPedalEffectsRouter),
+                new ContinuousPhprOutputSafetyParticipant(
+                    _realPhprContinuousEffectsRuntime,
+                    _realRoadVibrationRouter,
+                    _realSlipLockRouter),
+                new DirectPhprOutputSafetyParticipant(_phprDirectRuntime, _phprWriteAuthorization)
+            ]);
         _telemetryReceiver = CreateTelemetryReceiver();
         _telemetryIngressWorker = CreateTelemetryIngressWorker(_hapticPipeline);
         SyncOutputInterlockState(_outputInterlock.Current);
@@ -1120,6 +1134,14 @@ public partial class MainWindow : Window
         try
         {
             await _telemetryReceiver.DisposeAsync().ConfigureAwait(true);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await _outputInterlockSupervisor.DisposeAsync().ConfigureAwait(true);
         }
         catch
         {

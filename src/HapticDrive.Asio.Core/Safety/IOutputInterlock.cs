@@ -6,6 +6,8 @@ public interface IOutputInterlock
 
     bool AllowsOutput { get; }
 
+    long ObserverFailureCount { get; }
+
     void Trip(OutputInterlockReason reason, string message);
 
     bool Reset(string message);

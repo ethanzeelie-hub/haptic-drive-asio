@@ -65,6 +65,13 @@ public partial class MainWindow
             return "Output interlock is already reset.";
         }
 
+        if (_applicationSafetyController.TryBuildResetBlockedMessage(
+            _outputInterlockSupervisor,
+            out var resetBlockedMessage))
+        {
+            return resetBlockedMessage;
+        }
+
         if (!_outputInterlock.Reset("Output interlock reset from the main window after readiness checks passed."))
         {
             return "Output interlock reset was ignored because the latch state did not change.";
