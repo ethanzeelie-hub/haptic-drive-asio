@@ -1,5 +1,7 @@
 [CmdletBinding()]
 param(
+    [ValidateSet("Debug", "Release")]
+    [string]$Configuration = "Debug",
     [switch]$NoBuild,
     [switch]$CheckOnly
 )
@@ -10,7 +12,7 @@ $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dotnetRoot = Join-Path $repoRoot ".dotnet"
 $dotnet = Join-Path $dotnetRoot "dotnet.exe"
 $solution = Join-Path $repoRoot "HapticDrive.Asio.sln"
-$appExe = Join-Path $repoRoot "src\HapticDrive.Asio.App\bin\Debug\net8.0-windows\HapticDrive.Asio.App.exe"
+$appExe = Join-Path $repoRoot "src\HapticDrive.Asio.App\bin\$Configuration\net8.0-windows\HapticDrive.Asio.App.exe"
 
 if (-not (Test-Path $dotnet)) {
     Write-Host "Local .NET SDK was not found at $dotnet"
@@ -31,7 +33,7 @@ if (-not $desktopRuntime) {
 }
 
 if (-not $NoBuild) {
-    & $dotnet build $solution --no-restore
+    & $dotnet build $solution -c $Configuration --no-restore
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }

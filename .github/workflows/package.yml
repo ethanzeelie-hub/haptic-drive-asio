@@ -54,7 +54,7 @@ jobs:
           New-Item -ItemType Junction -Path '.dotnet' -Target $dotnetRoot | Out-Null
 
       - name: Launch preflight
-        run: .\Run-HapticDrive.cmd -NoBuild -CheckOnly
+        run: .\Run-HapticDrive.cmd -Configuration Release -NoBuild -CheckOnly
 
       - name: Publish package
         run: .\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64
