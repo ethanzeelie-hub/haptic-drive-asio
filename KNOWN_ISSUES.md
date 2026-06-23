@@ -5,7 +5,7 @@ This file tracks active issues only. Historical stage-by-stage issue notes are a
 ## True blockers
 
 - Public redistribution remains blocked until the owner selects and approves license terms. Packaging and release artifacts are readying the repo for release, but they do not grant redistribution rights.
-- The audited high-remediation program is still in progress. Remediation 1 through Remediation 9 are complete, but later remediation stages still need to land before the direct P-HPR path can be considered fully remediated end-to-end.
+- The audited high-remediation program is still in progress. Remediation 1 through Remediation 10 are complete, but later remediation stages still need to land before the direct P-HPR path can be considered fully remediated end-to-end.
 
 ## Hardware-later tuning and validation
 

@@ -31,8 +31,10 @@ This checklist is the final manual smoke pass for the software architecture and 
 
 ## Packaging
 
-- [ ] Run `Prepare-ReleaseArtifact.ps1`.
-- [ ] Confirm the release zip, checksum, manifests, and documentation payload are created.
+- [ ] Run `Prepare-ReleaseArtifact.ps1 -Configuration Release`.
+- [ ] Confirm the release zip, checksum, manifests, and documentation payload are created from the Release artifact.
+- [ ] Run `Test-ReleaseArtifact.ps1 -Configuration Release -Runtime win-x64`.
+- [ ] Confirm the release manifest records commit hash, configuration, runtime identifier, and package SHA-256.
 - [ ] Confirm the default public artifact excludes portable PDBs.
 
 ## Final non-claims

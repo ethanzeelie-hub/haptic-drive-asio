@@ -1,5 +1,65 @@
 # Development Log
 
+## Remediation 10 - Make Launch And Packaging Validation Release-Accurate
+
+Date: 2026-06-24
+
+Status: Complete.
+
+Goal: Ensure launch preflight, packaging, CI, and release smoke validation always check the exact Release artifact that was built and packaged.
+
+Notes:
+
+- Updated the launch wrapper path in `Run-HapticDrive.ps1` so:
+  - `Configuration` defaults to `Release`,
+  - the build path and executable path both resolve from the selected configuration,
+  - `-NoBuild -CheckOnly` validates the selected configuration explicitly,
+  - missing-executable errors now report both the selected configuration and the exact expected path.
+- Kept the command wrappers argument-transparent while tightening consistency:
+  - `Run-HapticDrive.cmd`,
+  - `Prepare-ReleaseArtifact.cmd`,
+  - `Publish-HapticDrive.cmd`,
+  - `Test-ReleaseArtifact.cmd`
+  now use `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ... %*` and preserve forwarded quoted arguments.
+- Tightened the release-script chain so downstream validation is explicitly configuration-aware:
+  - `Prepare-ReleaseArtifact.ps1` now passes `-Configuration $Configuration` into launch preflight and release smoke validation,
+  - `Test-ReleaseArtifact.ps1` now takes `-Configuration` and validates that the release manifest records the expected configuration and runtime identifier,
+  - smoke validation now proves the exact packaged executable `HapticDrive.Asio.App.exe` exists in the extracted artifact payload.
+- Extended release metadata in `Publish-HapticDrive.ps1`:
+  - manifest now includes `RuntimeIdentifier`, `CommitHash`, and `PackageSha256`,
+  - package manifest now includes `RuntimeIdentifier` and `CommitHash`,
+  - release summary continues to report a single zip-size line and now reflects the Release package hash path consistently.
+- Confirmed the package workflow validates the packaged Release artifact explicitly by passing `-Configuration Release` to `Test-ReleaseArtifact.ps1`.
+- Updated release-governance/source-check coverage in `PackagingGovernanceTests` for:
+  - Release as the default run-script configuration,
+  - configuration-aware check-only path selection,
+  - CMD wrapper argument forwarding,
+  - Release preflight usage from prepare/package flows,
+  - Release-only smoke validation,
+  - release manifest commit/configuration/RID/package-hash coverage,
+  - no duplicate zip-size output.
+- Updated the operator-facing release docs:
+  - `README.md` verification now uses `Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly`,
+  - `RELEASE_CHECKLIST.md` now calls out Release-only build/test/preflight and manifest metadata expectations,
+  - `PRODUCTION_READINESS_CHECKLIST.md` now requires Release-config packaging/smoke validation plus manifest confirmation.
+- Validation at this checkpoint:
+  - `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly`
+  - `.\Run-HapticDrive.ps1 -Configuration Debug -NoBuild -CheckOnly`
+  - `.\Prepare-ReleaseArtifact.ps1`
+  - `.\Test-ReleaseArtifact.ps1 -Configuration Release -Runtime win-x64`
+  - `dotnet restore HapticDrive.Asio.sln --locked-mode`
+  - `dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror`
+  - `dotnet test HapticDrive.Asio.sln -c Release --no-build`
+  - `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore`
+  - `dotnet list HapticDrive.Asio.sln package --vulnerable --include-transitive`
+  - `Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly`
+  - All Stage 10 validation commands above passed, and the final standard validation pass on `master` completed successfully without staging generated artifacts.
+
+Self-review:
+
+- This stage stays within launch/package/release-governance scope and does not introduce runtime or hardware behavior changes.
+- The packaging flow still remains hardware-absent safe: all validation paths stay on build/test/preflight/package-smoke checks and do not require ASIO hardware or any real P-HPR device access.
+
 ## Remediation 9 - Add Structured Diagnostics And Privacy Controls
 
 Date: 2026-06-24

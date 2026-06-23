@@ -1,5 +1,7 @@
 [CmdletBinding()]
 param(
+    [ValidateSet("Debug", "Release")]
+    [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$OutputRoot = "artifacts",
     [string]$PackageName = "HapticDrive.Asio",
@@ -103,6 +105,14 @@ if ($manifest.Runtime -ne $Runtime) {
     throw "Release manifest runtime '$($manifest.Runtime)' did not match expected '$Runtime'"
 }
 
+if ($manifest.Configuration -ne $Configuration) {
+    throw "Release manifest configuration '$($manifest.Configuration)' did not match expected '$Configuration'"
+}
+
+if ($manifest.RuntimeIdentifier -ne $Runtime) {
+    throw "Release manifest runtime identifier '$($manifest.RuntimeIdentifier)' did not match expected '$Runtime'"
+}
+
 $zipHash = Get-FileHash -LiteralPath $zipPath -Algorithm SHA256
 $checksumLine = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
 $expectedChecksumLine = "$($zipHash.Hash) *$([System.IO.Path]::GetFileName($zipPath))"
@@ -113,6 +123,10 @@ if ($checksumLine -ne $expectedChecksumLine) {
 
 if ($manifest.ZipSha256 -ne $zipHash.Hash) {
     throw "Release manifest zip SHA256 did not match the actual zip hash"
+}
+
+if ($manifest.PackageSha256 -ne $zipHash.Hash) {
+    throw "Release manifest package SHA256 did not match the actual zip hash"
 }
 
 if ($manifest.ZipFileName -ne [System.IO.Path]::GetFileName($zipPath)) {
@@ -140,6 +154,10 @@ foreach ($documentationFile in $requiredDocumentationFiles) {
     if ($packageFiles -notcontains $documentationFile) {
         throw "Package manifest is missing expected documentation file $documentationFile"
     }
+}
+
+if ($packageFiles -notcontains "HapticDrive.Asio.App.exe") {
+    throw "Package manifest is missing the exact packaged executable HapticDrive.Asio.App.exe"
 }
 
 $packagedPdbs = $packageFiles | Where-Object { $_ -like "*.pdb" }
@@ -171,6 +189,11 @@ if (Test-Path $extractDirectory) {
 New-Item -ItemType Directory -Path $extractDirectory -Force | Out-Null
 Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDirectory -Force
 Assert-RequiredFilesPresent -DirectoryPath $extractDirectory -Label "Extracted release zip"
+
+$packagedExecutable = Join-Path $extractDirectory "HapticDrive.Asio.App.exe"
+if (-not (Test-Path $packagedExecutable)) {
+    throw "Extracted release zip did not contain the exact packaged executable at $packagedExecutable"
+}
 
 foreach ($documentationFile in $requiredDocumentationFiles) {
     $documentationPath = Join-Path $extractDirectory $documentationFile

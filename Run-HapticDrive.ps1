@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Debug",
+    [string]$Configuration = "Release",
     [switch]$NoBuild,
     [switch]$CheckOnly
 )
@@ -40,8 +40,9 @@ if (-not $NoBuild) {
 }
 
 if (-not (Test-Path $appExe)) {
-    Write-Host "The app executable was not found at $appExe"
-    Write-Host "Run this script without -NoBuild once, or build the solution first."
+    Write-Host "The Haptic Drive ASIO executable for configuration '$Configuration' was not found."
+    Write-Host "Expected path: $appExe"
+    Write-Host "Run this script without -NoBuild once for configuration '$Configuration', or build the solution first."
     exit 1
 }
 

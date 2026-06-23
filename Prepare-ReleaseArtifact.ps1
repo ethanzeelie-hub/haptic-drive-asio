@@ -72,7 +72,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& $runScript -NoBuild -CheckOnly
+& $runScript -Configuration $Configuration -NoBuild -CheckOnly
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
@@ -82,7 +82,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& $smokeScript -Runtime $Runtime -OutputRoot $resolvedOutputRoot -PackageName $PackageName
+& $smokeScript -Configuration $Configuration -Runtime $Runtime -OutputRoot $resolvedOutputRoot -PackageName $PackageName
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

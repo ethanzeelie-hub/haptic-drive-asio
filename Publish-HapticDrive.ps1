@@ -190,6 +190,7 @@ if (-not $NoZip) {
         SchemaVersion = 1
         PackageName = $PackageName
         Runtime = $Runtime
+        RuntimeIdentifier = $Runtime
         Configuration = $Configuration
         GeneratedUtc = [DateTimeOffset]::UtcNow.ToString("O")
         IncludesPortablePdbs = $false
@@ -204,6 +205,7 @@ if (-not $NoZip) {
         SchemaVersion = 2
         PackageName = $PackageName
         Runtime = $Runtime
+        RuntimeIdentifier = $Runtime
         Configuration = $Configuration
         GeneratedUtc = [DateTimeOffset]::UtcNow.ToString("O")
         PublishFileCount = (Get-ChildItem -LiteralPath $publishDirectory -File).Count
@@ -212,6 +214,7 @@ if (-not $NoZip) {
         ZipFileName = [System.IO.Path]::GetFileName($zipPath)
         ZipSizeBytes = (Get-Item -LiteralPath $zipPath).Length
         ZipSha256 = $zipHash.Hash
+        PackageSha256 = $zipHash.Hash
         ChecksumFileName = [System.IO.Path]::GetFileName($checksumPath)
         ManifestFileName = [System.IO.Path]::GetFileName($manifestPath)
         SummaryFileName = [System.IO.Path]::GetFileName($summaryPath)
@@ -237,12 +240,18 @@ if (-not $NoZip) {
         }
     }
 
+    $manifest.CommitHash = $commitHash
+    $packageManifest.CommitHash = $commitHash
+    $packageManifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $packageManifestPath
+    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath
+
     $summaryLines =
     @(
         "# Release Summary"
         ""
         "- Package: $PackageName"
         "- Runtime: $Runtime"
+        "- RID: $Runtime"
         "- Configuration: $Configuration"
         "- Generated (UTC): $($manifest.GeneratedUtc)"
         "- Commit: $commitHash"
@@ -258,7 +267,7 @@ if (-not $NoZip) {
         "- Publish file count: $($manifest.PublishFileCount)"
         "- Packaged file count: $($manifest.PackageFileCount)"
         "- Zip size (bytes): $($manifest.ZipSizeBytes)"
-        "- Zip SHA-256: $($manifest.ZipSha256)"
+        "- Zip SHA-256: $($manifest.PackageSha256)"
         "- Portable PDBs included: $($manifest.IncludesPortablePdbs)"
         ""
         "## Required app payload"

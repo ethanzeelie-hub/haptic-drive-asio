@@ -6,14 +6,14 @@ Use this checklist before treating a local package as release-ready.
 
 - The solution restores in locked mode.
 - High and critical package vulnerabilities are absent.
-- Release build, tests, format verification, and launch preflight all pass.
+- Release build, Release test, format verification, vulnerable-package audit, and Release launch preflight all pass.
 - `LICENSE.md` still accurately states redistribution status.
 - `THIRD_PARTY_NOTICES.md` is current for shipped dependencies.
 
 ## Artifact checks
 
 - `.\Publish-HapticDrive.ps1 -Configuration Release -Runtime win-x64` succeeds.
-- `.\Test-ReleaseArtifact.ps1 -Runtime win-x64` succeeds.
+- `.\Test-ReleaseArtifact.ps1 -Configuration Release -Runtime win-x64` succeeds.
 - The default zip includes:
   - app binaries,
   - `README.md`,
@@ -23,6 +23,7 @@ Use this checklist before treating a local package as release-ready.
   - `THIRD_PARTY_NOTICES.md`.
 - The default zip excludes portable PDBs.
 - The release manifest and package manifest contain no absolute workspace paths.
+- The release manifest includes commit hash, configuration, runtime identifier, and package SHA-256.
 - SHA-256 checksum file matches the produced zip.
 
 ## Policy checks

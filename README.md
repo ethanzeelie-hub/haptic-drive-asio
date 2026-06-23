@@ -69,7 +69,7 @@ $dotnet = if (Test-Path ".\.dotnet\dotnet.exe") { ".\.dotnet\dotnet.exe" } else 
 & $dotnet build HapticDrive.Asio.sln -c Release --no-restore
 & $dotnet test HapticDrive.Asio.sln -c Release --no-build
 & $dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore
-.\Run-HapticDrive.ps1 -NoBuild -CheckOnly
+.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly
 ```
 
 ## Release and licensing status
