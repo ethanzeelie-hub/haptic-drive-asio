@@ -32,19 +32,16 @@ public sealed class SafetyContextSnapshotBuilderGuardrailTests
     }
 
     [Fact]
-    public void MainWindowSource_UsesSafetyContextBuilderButKeepsExecutionAndMutationOwnership()
+    public void RuntimeSession_UsesSafetyContextBuilderWithoutBuilderOwningStopsOrMutation()
     {
-        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
+        var runtimeSource = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
-        Assert.Contains("SafetyContextSnapshotBuilder.BuildMockRuntimeSnapshot(", source, StringComparison.Ordinal);
-        Assert.Contains("SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(", source, StringComparison.Ordinal);
-        Assert.Contains("SafetyContextSnapshotBuilder.BuildManualRealSnapshot(", source, StringComparison.Ordinal);
-        Assert.Contains("SafetyContextSnapshotBuilder.BuildBenchMockSnapshot(", source, StringComparison.Ordinal);
-        Assert.Contains("SafetyContextSnapshotBuilder.BuildBenchDirectSnapshot(", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.EmergencyStopAsync(", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.StopAllAsync(", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.InitializeStartupCleanupAsync();", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("return new PHprSafetyContext(", source, StringComparison.Ordinal);
+        Assert.Contains("SafetyContextSnapshotBuilder.BuildMockRuntimeSnapshot(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("SafetyContextSnapshotBuilder.BuildRealRuntimeSnapshot(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("SafetyContextSnapshotBuilder.BuildManualRealSnapshot(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("SafetyContextSnapshotBuilder.BuildBenchMockSnapshot(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("SafetyContextSnapshotBuilder.BuildBenchDirectSnapshot(", runtimeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("return new PHprSafetyContext(", runtimeSource, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

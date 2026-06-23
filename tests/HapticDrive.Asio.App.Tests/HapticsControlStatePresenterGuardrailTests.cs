@@ -33,24 +33,18 @@ public sealed class HapticsControlStatePresenterGuardrailTests
     }
 
     [Fact]
-    public void MainWindowSource_UsesPresenterButKeepsExecutionInline()
+    public void RuntimeSession_UsesPresenterWithoutGivingPresenterRuntimeOwnership()
     {
-        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
+        var runtimeSource = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
-        Assert.Contains("HapticsControlStatePresenter.Build(new HapticsControlStateSnapshot(", source, StringComparison.Ordinal);
-        Assert.Contains("? await _hapticPipeline.StopAsync()", source, StringComparison.Ordinal);
-        Assert.Contains(": await _hapticPipeline.StartAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("_outputInterlock.Trip(", source, StringComparison.Ordinal);
-        Assert.Contains("var pipelineMuteResult = await _hapticPipeline.SetEmergencyMuteAsync(_emergencyMuted);", source, StringComparison.Ordinal);
-        Assert.Contains("_testBench.EmergencyMute = _emergencyMuted;", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.EmergencyStopAsync(", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.StopAllAsync(", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.InitializeStartupCleanupAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("StartStopButton.Content = _hapticsStarted ? \"Stop Haptics\" : \"Start Haptics\";", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("EmergencyMuteButton.Content = _emergencyMuted ? \"Clear Mute\" : \"Emergency Mute\";", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("HapticsStateText.Text = \"Emergency muted\";", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("HapticsStateText.Text = \"Telemetry stale mute\";", source, StringComparison.Ordinal);
+        Assert.Contains("HapticsControlStatePresenter.Build(new HapticsControlStateSnapshot(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("? await _hapticPipeline.StopAsync()", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains(": await _hapticPipeline.StartAsync();", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("var pipelineMuteResult = await _hapticPipeline.SetEmergencyMuteAsync(_emergencyMuted);", runtimeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartStopButton.Content = _hapticsStarted ? \"Stop Haptics\" : \"Start Haptics\";", runtimeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("EmergencyMuteButton.Content = _emergencyMuted ? \"Clear Mute\" : \"Emergency Mute\";", runtimeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("HapticsStateText.Text = \"Emergency muted\";", runtimeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("HapticsStateText.Text = \"Telemetry stale mute\";", runtimeSource, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

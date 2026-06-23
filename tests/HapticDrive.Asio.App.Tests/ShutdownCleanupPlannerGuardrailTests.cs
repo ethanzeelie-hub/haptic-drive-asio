@@ -29,16 +29,19 @@ public sealed class ShutdownCleanupPlannerGuardrailTests
     }
 
     [Fact]
-    public void MainWindowSource_UsesShutdownPlannerButKeepsActualCleanupExecutionInline()
+    public void RuntimeSession_UsesShutdownPlannerWithoutPlannerExecutingCleanup()
     {
-        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
+        var runtimeSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppRuntimeSession.cs");
 
-        Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", source, StringComparison.Ordinal);
-        Assert.Contains("switch (step.Kind)", source, StringComparison.Ordinal);
-        Assert.Contains("await _realPhprContinuousEffectsRuntime", source, StringComparison.Ordinal);
-        Assert.Contains("_hapticPipeline.StopManualAsioHardwareTest(", source, StringComparison.Ordinal);
-        Assert.Contains("await _realPhprOutput.DisposeAsync()", source, StringComparison.Ordinal);
-        Assert.Contains("await _hapticPipeline.DisposeAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("switch (step.Kind)", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _realPhprContinuousEffectsRuntime", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_hapticPipeline.StopManualAsioHardwareTest(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _realPhprOutput.DisposeAsync()", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _hapticPipeline.DisposeAsync()", runtimeSource, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

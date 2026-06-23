@@ -1,5 +1,51 @@
 # Development Log
 
+## Remediation 11 - Replace Debt-Preserving Guardrails With Semantic Coverage
+
+Date: 2026-06-24
+
+Status: Complete.
+
+Goal: Replace brittle guardrails that preserved old ownership or unsafe assumptions with semantic coverage for the desired architecture, safety boundaries, render-path discipline, and canonical-frame behavior.
+
+Notes:
+
+- Replaced the remaining debt-preserving app guardrails that explicitly protected inline stop/emergency/runtime ownership:
+  - removed `StopEmergencyOwnershipGuardrailTests`,
+  - rewrote the remaining presenter/builder/planner guardrails so they now prove pure-helper boundaries plus runtime-session usage without asserting that heavy execution must stay inline.
+- Added Stage 11 app architecture coverage in `tests/HapticDrive.Asio.App.Tests/ArchitectureGuardrailTests.cs` so the suite now proves:
+  - `MainWindow` remains a thin shell that forwards to `AppRuntimeSession`,
+  - app controllers can be composed without constructing a WPF window,
+  - controllers do not reach into view controls by name or WPF control types,
+  - the extracted effect settings view keeps command binding through view-model command exposure.
+- Extended audio guardrails:
+  - `RenderPathGuardrailTests` now also blocks disk, network, and UI APIs from the steady-state render/native-callback path,
+  - `EffectDescriptorRuntimeGuardrailTests` now proves built-in descriptors create real runtimes, the engine updates from canonical `HapticRenderFrame`, and unknown effect keys remain preserved in profile storage without becoming render-time requirements.
+- Added actuation architecture guardrails in `tests/HapticDrive.Actuation.Tests/ActuationArchitectureGuardrailTests.cs` to prove canonical-frame plus `ActuationDrivingContext` consumption, separation from audio/vehicle-state ownership, and safety-participant silencing without app/runtime shell ownership.
+- Added direct P-HPR safety architecture guardrails in `tests/HapticDrive.Simagic.PHPR.Tests/PHprSafetyArchitectureGuardrailTests.cs` to prove:
+  - non-stop real writes still require session authorization at the physical boundary,
+  - the global interlock still blocks non-stop writes there,
+  - stop/emergency-stop cleanup remains allowed while unauthorized or latched,
+  - serialized authorization snapshots do not leak the approval phrase.
+- Updated stage-tracking docs:
+  - `ROADMAP.md` now marks Remediation 11 complete and points the next hardening priority at the final documentation/readiness reconciliation stage,
+  - `KNOWN_ISSUES.md` now reflects Remediation 1 through Remediation 11 complete with only the final remediation stage remaining in the audited program.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed a second time.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- The stage stays within the plan’s Stage 11 remit: it replaces misleading guardrails and strengthens semantic coverage without changing the production runtime architecture.
+- Critical safety proof still comes from behavior tests, not only source inspection: the new shell/render/actuation/source guardrails complement the existing physical-boundary, replay, ingress, and interlock behavior suites instead of replacing them.
+
 ## Remediation 10 - Make Launch And Packaging Validation Release-Accurate
 
 Date: 2026-06-24

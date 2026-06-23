@@ -66,10 +66,43 @@ public sealed class RenderPathGuardrailTests
         AssertNoStringFormatting(nullSubmitPath);
     }
 
+    [Fact]
+    public void RenderPath_DoesNotCallDiskNetworkOrUiApis()
+    {
+        var coordinatorRenderPath = ReadSlice(
+            "src/HapticDrive.Asio.Runtime/Pipeline/HapticPipelineCoordinator.cs",
+            "    private AudioOutputRenderCallbackResult RenderOutputBuffer(",
+            "    private async ValueTask RenderManualAsioHardwarePulseAsync(");
+        var engineRenderPath = ReadSlice(
+            "src/HapticDrive.Asio.Audio/Effects/HapticEffectEngine.cs",
+            "    internal int RenderInto(",
+            "    private HapticEffectGraph BuildGraph(");
+        var streamingRenderPath = ReadSlice(
+            "src/HapticDrive.Asio.Audio/Devices/AudioOutputDeviceBase.cs",
+            "    private void RunStreamingLoop(",
+            "    private void RecordRenderCallback(");
+
+        AssertNoSideEffectApis(coordinatorRenderPath);
+        AssertNoSideEffectApis(engineRenderPath);
+        AssertNoSideEffectApis(streamingRenderPath);
+    }
+
     private static void AssertNoStringFormatting(string source)
     {
         Assert.False(source.Contains("$\"", StringComparison.Ordinal));
         Assert.False(source.Contains("string.Format(", StringComparison.Ordinal));
+    }
+
+    private static void AssertNoSideEffectApis(string source)
+    {
+        Assert.False(source.Contains("lock (", StringComparison.Ordinal));
+        Assert.False(source.Contains("File.", StringComparison.Ordinal));
+        Assert.False(source.Contains("Directory.", StringComparison.Ordinal));
+        Assert.False(source.Contains("Socket", StringComparison.Ordinal));
+        Assert.False(source.Contains("Http", StringComparison.Ordinal));
+        Assert.False(source.Contains("Dispatcher", StringComparison.Ordinal));
+        Assert.False(source.Contains("System.Windows", StringComparison.Ordinal));
+        Assert.False(source.Contains("MessageBox", StringComparison.Ordinal));
     }
 
     private static string ReadSlice(string relativePath, string startMarker, string endMarker)
