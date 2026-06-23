@@ -7,6 +7,8 @@ public sealed record HapticFrameIdentity(
     GameIntegrationId GameId,
     string Source,
     ulong? SessionUid,
+    float? SessionTime,
+    uint? FrameIdentifier,
     uint? OverallFrameIdentifier,
     byte? PlayerCarIndex,
     DateTimeOffset CreatedAtUtc,

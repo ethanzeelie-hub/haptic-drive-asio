@@ -1,4 +1,6 @@
 using HapticDrive.Actuation.Shift;
+using HapticDrive.Asio.Core.Games;
+using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Driving;
 using HapticDrive.Input.Abstractions.Paddles;
@@ -102,6 +104,26 @@ public sealed class ShiftIntentProcessorTests
         Assert.Equal(1, diagnostics.AcceptedShiftIntentCount);
         Assert.Single(sink.GetAcceptedEvents());
         Assert.Equal(0, diagnostics.PendingConfirmationCount);
+    }
+
+    [Fact]
+    public void UpdateTelemetry_UsesCanonicalHapticFrameSnapshot()
+    {
+        var provider = new FakeDrivingArmedProvider(DrivingArmedState.Armed("active"));
+        var processor = new ShiftIntentProcessor(provider);
+        processor.UpdateTelemetry(
+            CreateTelemetryFrame(gear: 5, speedKph: 198, rpm: 11_200, sessionTime: 8.5f, frameIdentifier: 42),
+            lastVehicleStateUpdateAtUtc: new DateTimeOffset(2026, 6, 23, 12, 0, 0, TimeSpan.Zero),
+            telemetryAge: TimeSpan.FromMilliseconds(25));
+
+        var result = processor.HandlePaddleInput(CreatePaddleEvent(PaddleSide.Right));
+
+        Assert.True(result.WasAccepted);
+        Assert.Equal(5, result.ShiftIntentEvent?.LastTelemetryGear);
+        Assert.Equal(198, result.ShiftIntentEvent?.LastKnownSpeedKph);
+        Assert.Equal(11_200, result.ShiftIntentEvent?.LastKnownRpm);
+        Assert.Equal(8.5f, result.ShiftIntentEvent?.LastKnownSessionTime);
+        Assert.Equal(42u, result.ShiftIntentEvent?.LastKnownFrameIdentifier);
     }
 
     [Fact]
@@ -235,6 +257,61 @@ public sealed class ShiftIntentProcessorTests
                 new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero).AddMilliseconds(sequenceNumber),
                 10_000 + sequenceNumber),
             sequenceNumber);
+    }
+
+    private static HapticFrame CreateTelemetryFrame(
+        int gear,
+        int speedKph,
+        int rpm,
+        float sessionTime,
+        uint frameIdentifier)
+    {
+        return new HapticFrame(
+            new HapticFrameIdentity(
+                new GameIntegrationId("f1-25"),
+                "test",
+                SessionUid: 42,
+                SessionTime: sessionTime,
+                FrameIdentifier: frameIdentifier,
+                OverallFrameIdentifier: frameIdentifier,
+                PlayerCarIndex: 0,
+                CreatedAtUtc: new DateTimeOffset(2026, 6, 23, 12, 0, 0, TimeSpan.Zero),
+                CreatedAtTimestamp: 42),
+            new HapticTelemetrySignals(
+                SpeedMetersPerSecond: speedKph / 3.6f,
+                Throttle: 0.6f,
+                Brake: 0f,
+                Steer: 0f,
+                Gear: gear,
+                SuggestedGear: gear,
+                EngineRpm: rpm,
+                IdleRpm: 3_000,
+                MaxRpm: 12_000,
+                MaxGears: 8,
+                TractionControlActive: false,
+                AntiLockBrakesActive: false,
+                SurfaceTypeIds: null,
+                SurfaceKinds: null,
+                TyreSlip: null,
+                TyreSlipAngle: null,
+                WheelSpeedMetersPerSecond: null,
+                SuspensionVelocity: null,
+                SuspensionAcceleration: null,
+                WheelVerticalForce: null,
+                BrakeTemperatureCelsius: null,
+                VerticalG: null,
+                Event: null),
+            new HapticDrivingContext(DrivingPhase.Driving, PitState.None, false, true, true),
+            new HapticFrameSignalStamps(
+                Telemetry: null,
+                Motion: null,
+                Session: null,
+                Lap: null,
+                Participant: null,
+                CarStatus: null,
+                Damage: null,
+                MotionEx: null,
+                Event: null));
     }
 
     private sealed class FakeDrivingArmedProvider : IDrivingArmedStateProvider

@@ -194,7 +194,6 @@ public partial class MainWindow
         UpdateActuationTelemetryCaches(pipelineSnapshot);
         return new PHprContinuousEffectsRuntimeInput(
             pipelineSnapshot.HapticFrame,
-            pipelineSnapshot.VehicleState,
             _lastActuationDrivingContext,
             IsRealPhprPedalRoutingReady(pipelineSnapshot),
             BuildRealRoadVibrationSafetyContext(
@@ -296,7 +295,7 @@ public partial class MainWindow
 
         _shiftIntentProcessor.UpdateTelemetry(
             snapshot.HapticFrame,
-            snapshot.VehicleState,
+            snapshot.HapticFrame is null ? snapshot.VehicleState : null,
             snapshot.LastVehicleStateUpdateAtUtc,
             telemetryAge);
 
@@ -314,7 +313,6 @@ public partial class MainWindow
 
         var drivingState = _drivingArmedStateService.UpdateFromHapticFrame(
             snapshot.HapticFrame,
-            snapshot.VehicleState,
             BuildDrivingArmedEvaluationContext(snapshot, telemetryAge),
             nowUtc);
         _lastDrivingArmedState = drivingState;

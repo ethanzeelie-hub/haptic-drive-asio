@@ -1,5 +1,5 @@
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -177,21 +177,21 @@ public sealed class PHprSlipLockRouter
     }
 
     public async ValueTask<PHprSlipLockRoutingResult> RouteAsync(
-        VehicleState? vehicleState,
+        HapticFrame? frame,
         ActuationDrivingContext? drivingContext,
         PHprSafetyContext? safetyContext = null,
         DateTimeOffset? nowUtc = null,
         CancellationToken cancellationToken = default)
     {
         return await RouteAsync(
-            vehicleState,
+            frame,
             BuildContext(safetyContext, drivingContext),
             nowUtc,
             cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<PHprSlipLockRoutingResult> RouteAsync(
-        VehicleState? vehicleState,
+        HapticFrame? frame,
         PHprSafetyContext? safetyContext = null,
         DateTimeOffset? nowUtc = null,
         CancellationToken cancellationToken = default)
@@ -219,16 +219,16 @@ public sealed class PHprSlipLockRouter
                 now);
         }
 
-        if (vehicleState is null)
+        if (frame is null)
         {
             await StopOwnedModulesAsync(
-                "P-HPR slip/lock stopped because no VehicleState was supplied.",
+                "P-HPR slip/lock stopped because no canonical HapticFrame was supplied.",
                 now,
                 countAsWatchdog: false,
                 cancellationToken).ConfigureAwait(false);
             return StoreIgnored(
-                PHprSlipLockRoutingStatus.IgnoredMissingVehicleState,
-                "No VehicleState was supplied; no P-HPR slip/lock command was sent.",
+                PHprSlipLockRoutingStatus.IgnoredMissingHapticFrame,
+                "No canonical HapticFrame was supplied; no P-HPR slip/lock command was sent.",
                 now);
         }
 
@@ -316,7 +316,8 @@ public sealed class PHprSlipLockRouter
                     now);
             }
 
-            var candidates = EvaluateEffects(vehicleState, options);
+            var freshness = HapticFrameFreshnessEvaluator.Evaluate(frame, TimeProvider.System, CreateFrameFreshnessPolicy());
+            var candidates = EvaluateEffects(frame, freshness, options);
             StoreEvaluation(candidates);
 
             if (candidates.All(candidate => !candidate.IsActive))
@@ -446,12 +447,14 @@ public sealed class PHprSlipLockRouter
     }
 
     private IReadOnlyList<EffectCandidate> EvaluateEffects(
-        VehicleState vehicleState,
+        HapticFrame frame,
+        HapticFrameFreshnessSnapshot freshness,
         PHprSlipLockRouterOptions options)
     {
         var evaluation = _slipLockEvaluator.Evaluate(
-            SlipLockEvaluationInput.FromVehicleState(
-                vehicleState,
+            SlipLockEvaluationInput.FromHapticFrame(
+                frame,
+                freshness,
                 _slipLockEvaluator.Options,
                 options.WheelSlip.IsEnabled,
                 options.WheelLock.IsEnabled));
@@ -1006,6 +1009,18 @@ public sealed class PHprSlipLockRouter
             MotionExFresh: evaluation.MotionExFresh,
             TractionControlActive: evaluation.TractionControlActive,
             AntiLockBrakesActive: evaluation.AntiLockBrakesActive);
+    }
+
+    private TelemetryFreshnessPolicy CreateFrameFreshnessPolicy()
+    {
+        var maximumFrameLag = _slipLockEvaluator.Options.MaximumTelemetryFrameLag;
+        return new TelemetryFreshnessPolicy(
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            maximumFrameLag);
     }
 
     private static bool IsCommandRateSuppression(PHprCommandResult result)

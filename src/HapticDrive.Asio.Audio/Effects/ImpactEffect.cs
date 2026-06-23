@@ -1,5 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
-using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Haptics;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -50,7 +50,7 @@ public sealed class ImpactEffect : IHapticEffectSource, IConfigurableHapticEffec
 
     public void Update(HapticEffectInput input)
     {
-        if (!Options.IsEnabled || HapticFrameEffectGuards.ShouldMuteForDrivingState(input.Frame))
+        if (!Options.IsEnabled || HapticFrameEffectGuards.ShouldMuteForDrivingState(input))
         {
             Snapshot = CreateSnapshot(_pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
             return;
@@ -85,11 +85,6 @@ public sealed class ImpactEffect : IHapticEffectSource, IConfigurableHapticEffec
 
         _lastMetrics = metrics;
         Snapshot = CreateSnapshot(_pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
-    }
-
-    public void Update(VehicleState vehicleState)
-    {
-        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public void UpdateOptions(ImpactEffectOptions options)
@@ -175,10 +170,10 @@ public sealed class ImpactEffect : IHapticEffectSource, IConfigurableHapticEffec
     private static ImpactMetrics ReadMetrics(HapticEffectInput input, ImpactEffectOptions options)
     {
         float? verticalG = null;
-        if (HapticFrameEffectGuards.IsMotionFresh(input.Frame))
+        if (HapticFrameEffectGuards.IsMotionFresh(input))
         {
-            var value = input.VehicleState.Motion!.Value.GForceVertical;
-            if (float.IsFinite(value) && Math.Abs(value) <= 20f)
+            var value = input.Frame.Signals.VerticalG;
+            if (value is not null && float.IsFinite(value.Value) && Math.Abs(value.Value) <= 20f)
             {
                 verticalG = value;
             }
@@ -186,19 +181,18 @@ public sealed class ImpactEffect : IHapticEffectSource, IConfigurableHapticEffec
 
         float? wheelVerticalForce = null;
         float? suspensionAcceleration = null;
-        if (HapticFrameEffectGuards.IsMotionExFresh(input.Frame))
+        if (HapticFrameEffectGuards.IsMotionExFresh(input))
         {
-            var motionEx = input.VehicleState.MotionEx!.Value;
-            var force = VehicleStateEffectGuards.CalculateWheelMaximum(
-                motionEx.WheelVertForce,
+            var force = MaximumWheelValue(
+                input.Frame.Signals.WheelVerticalForce,
                 value => value >= 0f && value <= 200_000f ? value : null);
             if (force > 0f)
             {
                 wheelVerticalForce = force;
             }
 
-            var acceleration = VehicleStateEffectGuards.CalculateWheelMaximum(
-                motionEx.SuspensionAcceleration,
+            var acceleration = MaximumWheelValue(
+                input.Frame.Signals.SuspensionAcceleration,
                 value => float.IsFinite(value) && Math.Abs(value) <= 2_000f ? Math.Abs(value) : null);
             if (acceleration > 0f)
             {
@@ -207,11 +201,13 @@ public sealed class ImpactEffect : IHapticEffectSource, IConfigurableHapticEffec
         }
 
         uint? collisionFrame = null;
-        if (HapticFrameEffectGuards.IsLastEventFresh(input.Frame)
-            && input.VehicleState.LastEvent!.Value.EventCode == "COLL"
-            && input.VehicleState.LastEvent.Value.InvolvesPlayer)
+        if (HapticFrameEffectGuards.IsLastEventFresh(input)
+            && input.Frame.Signals.Event?.Kind == HapticEventKind.Collision
+            && input.Frame.Signals.Event.InvolvesPlayer)
         {
-            collisionFrame = input.VehicleState.LastEvent.Stamp.OverallFrameIdentifier;
+            collisionFrame = input.Frame.SignalStamps.Event?.OverallFrameIdentifier
+                ?? input.Frame.Identity.OverallFrameIdentifier
+                ?? input.Frame.Identity.FrameIdentifier;
         }
 
         return new ImpactMetrics(
@@ -219,8 +215,32 @@ public sealed class ImpactEffect : IHapticEffectSource, IConfigurableHapticEffec
             wheelVerticalForce,
             suspensionAcceleration,
             collisionFrame,
-            input.VehicleState.Frame.OverallFrameIdentifier,
-            input.VehicleState.Frame.SessionTime);
+            input.Frame.Identity.OverallFrameIdentifier ?? input.Frame.Identity.FrameIdentifier,
+            input.Frame.Identity.SessionTime);
+    }
+
+    private static float MaximumWheelValue(
+        HapticWheelSignals<float>? values,
+        Func<float, float?> selector)
+    {
+        if (values is null)
+        {
+            return 0f;
+        }
+
+        var maximum = 0f;
+        foreach (var candidate in new[] { values.RearLeft, values.RearRight, values.FrontLeft, values.FrontRight })
+        {
+            var selected = selector(candidate);
+            if (selected is null)
+            {
+                continue;
+            }
+
+            maximum = Math.Max(maximum, selected.Value);
+        }
+
+        return maximum;
     }
 
     private static float CalculateIntensity(

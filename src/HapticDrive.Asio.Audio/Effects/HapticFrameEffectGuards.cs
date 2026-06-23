@@ -1,47 +1,36 @@
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Core.Vehicle.Freshness;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
 internal static class HapticFrameEffectGuards
 {
-    public static bool ShouldMuteForDrivingState(HapticFrame frame)
+    public static bool ShouldMuteForDrivingState(HapticEffectInput input)
     {
-        return frame.Context.IsPaused || !frame.Context.IsPlayerControlled || !frame.Context.AllowsDrivingOutput;
+        return input.Frame.Context.IsPaused || !input.Frame.Context.IsPlayerControlled || !input.Frame.Context.AllowsDrivingOutput;
     }
 
-    public static bool IsTelemetryFresh(HapticFrame frame)
+    public static bool IsTelemetryFresh(HapticEffectInput input)
     {
-        return TryGetFreshness(frame, HapticFrameSignalNames.Telemetry).IsFresh;
+        return input.Freshness.Telemetry.IsFresh;
     }
 
-    public static bool IsMotionFresh(HapticFrame frame)
+    public static bool IsMotionFresh(HapticEffectInput input)
     {
-        return TryGetFreshness(frame, HapticFrameSignalNames.Motion).IsFresh;
+        return input.Freshness.Motion.IsFresh;
     }
 
-    public static bool IsMotionExFresh(HapticFrame frame)
+    public static bool IsMotionExFresh(HapticEffectInput input)
     {
-        return TryGetFreshness(frame, HapticFrameSignalNames.MotionEx).IsFresh;
+        return input.Freshness.MotionEx.IsFresh;
     }
 
-    public static bool IsLastEventFresh(HapticFrame frame)
+    public static bool IsLastEventFresh(HapticEffectInput input)
     {
-        return TryGetFreshness(frame, HapticFrameSignalNames.Event).IsFresh;
+        return input.Freshness.Event.IsFresh;
     }
 
-    public static bool IsCarStatusFresh(HapticFrame frame)
+    public static bool IsCarStatusFresh(HapticEffectInput input)
     {
-        return TryGetFreshness(frame, HapticFrameSignalNames.CarStatus).IsFresh;
-    }
-
-    private static VehicleSignalFreshness TryGetFreshness(HapticFrame frame, string key)
-    {
-        if (frame.Freshness.TryGetValue(key, out var freshness))
-        {
-            return freshness;
-        }
-
-        return new VehicleSignalFreshness(false, false, false, false, false, null, null);
+        return input.Freshness.CarStatus.IsFresh;
     }
 }

@@ -162,15 +162,15 @@ public sealed class ShiftIntentProcessor : IShiftIntentSource
 
     public void UpdateTelemetry(
         HapticFrame? frame,
-        VehicleState vehicleState,
+        VehicleState? vehicleState = null,
         DateTimeOffset? lastVehicleStateUpdateAtUtc = null,
         TimeSpan? telemetryAge = null)
     {
-        ArgumentNullException.ThrowIfNull(vehicleState);
-
-        var telemetry = frame is null
-            ? ShiftIntentTelemetrySnapshot.FromVehicleState(vehicleState, lastVehicleStateUpdateAtUtc, telemetryAge)
-            : ShiftIntentTelemetrySnapshot.FromHapticFrame(frame, vehicleState, lastVehicleStateUpdateAtUtc, telemetryAge);
+        var telemetry = frame is not null
+            ? ShiftIntentTelemetrySnapshot.FromHapticFrame(frame, lastVehicleStateUpdateAtUtc, telemetryAge)
+            : vehicleState is not null
+                ? ShiftIntentTelemetrySnapshot.FromVehicleState(vehicleState, lastVehicleStateUpdateAtUtc, telemetryAge)
+                : ShiftIntentTelemetrySnapshot.None;
         lock (_gate)
         {
             _lastTelemetry = telemetry;

@@ -42,19 +42,13 @@ public sealed class SlipEffect : IHapticEffectSource, IConfigurableHapticEffectS
     {
         _evaluation = Evaluate(
             _slipLockEvaluator.Evaluate(
-                SlipLockEvaluationInput.FromHapticFrame(
-                    input.Frame,
-                    input.VehicleState,
+                SlipLockEvaluationInput.FromHapticRenderFrame(
+                    input.RenderFrame,
                     _slipLockEvaluator.Options,
                     Options.WheelSlipEnabled,
                     Options.WheelLockEnabled)),
             Options);
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
-    }
-
-    public void Update(HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState)
-    {
-        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public void UpdateOptions(SlipEffectOptions options)

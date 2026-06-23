@@ -1,5 +1,5 @@
-using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Asio.Core.Haptics;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -126,21 +126,21 @@ public sealed class PHprRoadVibrationRouter
     }
 
     public ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
-        VehicleState? vehicleState,
+        HapticFrame? frame,
         ActuationDrivingContext? drivingContext,
         PHprSafetyContext? safetyContext = null,
         DateTimeOffset? nowUtc = null,
         CancellationToken cancellationToken = default)
     {
         return RouteAsync(
-            vehicleState,
+            frame,
             BuildContext(safetyContext, drivingContext),
             nowUtc,
             cancellationToken);
     }
 
     public async ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
-        VehicleState? vehicleState,
+        HapticFrame? frame,
         PHprSafetyContext? safetyContext = null,
         DateTimeOffset? nowUtc = null,
         CancellationToken cancellationToken = default)
@@ -168,19 +168,20 @@ public sealed class PHprRoadVibrationRouter
                 now);
         }
 
-        if (vehicleState is null)
+        if (frame is null)
         {
             StoreRouteAttempt(now);
             return StoreIgnored(
-                PHprRoadVibrationRoutingStatus.IgnoredMissingVehicleState,
-                "No VehicleState was supplied; no P-HPR road-vibration command was sent.",
+                PHprRoadVibrationRoutingStatus.IgnoredMissingHapticFrame,
+                "No canonical HapticFrame was supplied; no P-HPR road-vibration command was sent.",
                 now);
         }
 
         try
         {
+            var freshness = HapticFrameFreshnessEvaluator.Evaluate(frame, TimeProvider.System, CreateFrameFreshnessPolicy());
             var signal = _evaluator.Evaluate(
-                vehicleState,
+                new HapticRenderFrame(frame, freshness),
                 BuildEvaluationContext(safetyContext, now));
             return await RouteAsync(signal, safetyContext, now, cancellationToken).ConfigureAwait(false);
         }
@@ -229,7 +230,7 @@ public sealed class PHprRoadVibrationRouter
         if (signal is null)
         {
             return StoreIgnored(
-                PHprRoadVibrationRoutingStatus.IgnoredMissingVehicleState,
+                PHprRoadVibrationRoutingStatus.IgnoredMissingHapticFrame,
                 "No RoadTextureSignal was supplied; no P-HPR road-vibration command was sent.",
                 now);
         }
@@ -722,6 +723,18 @@ public sealed class PHprRoadVibrationRouter
             signal.PHprFrequencyHz,
             normalized.MinimumFrequencyHz,
             normalized.FrequencyHz);
+    }
+
+    private TelemetryFreshnessPolicy CreateFrameFreshnessPolicy()
+    {
+        var maximumFrameLag = _evaluator.Options.MaximumTelemetryFrameLag;
+        return new TelemetryFreshnessPolicy(
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            maximumFrameLag);
     }
 
     private sealed record RoutePlan(PHprModuleId TargetModule, PHprRoadVibrationPedalSettings Settings);

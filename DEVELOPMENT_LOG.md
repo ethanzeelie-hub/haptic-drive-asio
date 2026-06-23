@@ -1,5 +1,56 @@
 # Development Log
 
+## Remediation 4 - Complete Canonical HapticFrame Boundary
+
+Date: 2026-06-23
+
+Status: Complete.
+
+Goal: Make `HapticFrame` the canonical live-path contract so audio effects and P-HPR actuation no longer depend on raw `VehicleState` on the active path.
+
+Notes:
+
+- Added the Stage 4 canonical haptics types:
+  - `HapticSignalKind`
+  - `HapticSignalStamp`
+  - `HapticFrameSignalStamps`
+  - `HapticFrameFreshnessSnapshot`
+  - `HapticFrameFreshnessEvaluator`
+  - `HapticRenderFrame`
+  - `HapticEventKind`
+  - `HapticEventSignals`
+- Extended `HapticFrameIdentity` and `HapticTelemetrySignals` so the canonical frame now carries the live-path fields effects and actuation need, including max gears, TC/ABS state, wheel slip angle/speed, suspension acceleration, wheel vertical force, vertical G, and event mapping.
+- Replaced the old string-keyed freshness dictionary with typed `HapticFrameSignalStamps` and updated the F1 25 normalizer to emit typed stamps without allocating a string-keyed freshness map.
+- Migrated the audio live path to canonical inputs:
+  - effects now consume `HapticRenderFrame` / `HapticFrame` inputs,
+  - legacy `VehicleState` compatibility is isolated in dedicated helper factories,
+  - the old `VehicleStateEffectGuards` live-path helper was removed.
+- Migrated the actuation live path to canonical inputs:
+  - cached `DrivingArmed` evaluation now works directly from `HapticFrame`,
+  - shift intent and continuous/mock P-HPR runtime routing now use canonical frame data plus driving context rather than raw live `VehicleState`.
+- Added Stage 4 guardrail coverage for:
+  - typed freshness evaluation,
+  - canonical field/event mapping and wheel order,
+  - audio effects not consuming `VehicleState` on the live path,
+  - actuation routers not consuming `VehicleState` on the live path,
+  - canonical-frame road/slip-lock evaluation,
+  - runtime fixture coverage that preserves one canonical F1 frame boundary across related packet kinds.
+
+Verification:
+
+- `dotnet restore HapticDrive.Asio.sln --locked-mode` passed.
+- `dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `dotnet test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `dotnet list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- This stage stayed within the audited Stage 4 boundary: it completed the canonical `HapticFrame` seam and removed active-path `VehicleState` leakage without inventing a new runtime architecture.
+- The runtime tests now model one logical F1 telemetry frame across the related packet kinds, which matches the typed freshness contract instead of bypassing it.
+- Automated validation remained hardware-absent: `NullAudioOutputDevice`, fake/mock actuation surfaces, and no real HID write path were used.
+
 ## Remediation 1 - Enforce Session-Only P-HPR Write Authorization
 
 Date: 2026-06-22

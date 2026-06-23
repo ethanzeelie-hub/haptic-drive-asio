@@ -1,5 +1,6 @@
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Haptics;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -122,9 +123,9 @@ public sealed class HapticEffectEngine
         }
     }
 
-    public void Update(HapticDrive.Asio.Core.Vehicle.VehicleState vehicleState)
+    public void Update(HapticRenderFrame frame)
     {
-        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
+        Update(new HapticEffectInput(frame));
     }
 
     public HapticEffectEngineSnapshot GetSnapshot()

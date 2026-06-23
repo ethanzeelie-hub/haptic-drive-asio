@@ -1,6 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -55,7 +54,7 @@ public sealed class RoadTextureEffect : IHapticEffectSource, IConfigurableHaptic
     public void Update(HapticEffectInput input)
     {
         _signal = _evaluator.Evaluate(
-            input.VehicleState,
+            input.RenderFrame,
             new RoadTextureEvaluationContext(
                 DateTimeOffset.UtcNow,
                 HapticsRunning: true,
@@ -64,11 +63,6 @@ public sealed class RoadTextureEffect : IHapticEffectSource, IConfigurableHaptic
                 TelemetryStale: false,
                 _lastGearPulseAtUtc));
         Snapshot = CreateSnapshot(_signal, peakLevel: 0f, rmsLevel: 0f);
-    }
-
-    public void Update(VehicleState vehicleState)
-    {
-        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public void UpdateOptions(RoadTextureEffectOptions options)

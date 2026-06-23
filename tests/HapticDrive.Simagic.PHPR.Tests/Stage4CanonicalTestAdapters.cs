@@ -1,30 +1,70 @@
+using HapticDrive.Actuation.Driving;
+using HapticDrive.Actuation.PHpr;
+using HapticDrive.Asio.Core.Games;
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Core.Vehicle.Freshness;
+using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 
-namespace HapticDrive.Asio.Audio.Effects;
+namespace HapticDrive.Simagic.PHPR.Tests;
 
-internal static class LegacyHapticEffectInputFactory
+internal static class Stage4CanonicalTestAdapters
 {
-    public static HapticEffectInput FromVehicleState(VehicleState vehicleState)
+    public static ValueTask<PHprRoadVibrationRoutingResult> RouteAsync(
+        this PHprRoadVibrationRouter router,
+        VehicleState? vehicleState,
+        PHprSafetyContext? safetyContext = null,
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(router);
+
+        if (vehicleState is null)
+        {
+            return router.RouteAsync(
+                frame: null,
+                drivingContext: null,
+                safetyContext,
+                nowUtc,
+                cancellationToken);
+        }
+
+        var frame = vehicleState.ToCanonicalHapticFrame();
+        var drivingContext = ActuationDrivingContextFactory.FromHapticFrame(frame, safetyContext?.DrivingArmed ?? true);
+        return router.RouteAsync(frame, drivingContext, safetyContext, nowUtc, cancellationToken);
+    }
+
+    public static ValueTask<PHprSlipLockRoutingResult> RouteAsync(
+        this PHprSlipLockRouter router,
+        VehicleState? vehicleState,
+        PHprSafetyContext? safetyContext = null,
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(router);
+
+        if (vehicleState is null)
+        {
+            return router.RouteAsync(
+                frame: null,
+                drivingContext: null,
+                safetyContext,
+                nowUtc,
+                cancellationToken);
+        }
+
+        var frame = vehicleState.ToCanonicalHapticFrame();
+        var drivingContext = ActuationDrivingContextFactory.FromHapticFrame(frame, safetyContext?.DrivingArmed ?? true);
+        return router.RouteAsync(frame, drivingContext, safetyContext, nowUtc, cancellationToken);
+    }
+
+    private static HapticFrame ToCanonicalHapticFrame(this VehicleState vehicleState)
     {
         ArgumentNullException.ThrowIfNull(vehicleState);
 
-        var freshness = new HapticFrameFreshnessSnapshot(
-            Telemetry: Present(vehicleState.Telemetry is not null),
-            Motion: Present(vehicleState.Motion is not null),
-            Session: Present(vehicleState.Session is not null),
-            Lap: Present(vehicleState.Lap is not null),
-            Participant: Present(vehicleState.Participant is not null),
-            CarStatus: Present(vehicleState.CarStatus is not null),
-            Damage: Present(vehicleState.Damage is not null),
-            MotionEx: Present(vehicleState.MotionEx is not null),
-            Event: Present(vehicleState.LastEvent is not null));
-
-        var frame = new HapticFrame(
+        return new HapticFrame(
             new HapticFrameIdentity(
-                new HapticDrive.Asio.Core.Games.GameIntegrationId("f1-25"),
-                vehicleState.Frame.Source ?? "legacy",
+                new GameIntegrationId("f1-25"),
+                vehicleState.Frame.Source ?? "test",
                 vehicleState.Frame.SessionUid,
                 vehicleState.Frame.SessionTime,
                 vehicleState.Frame.FrameIdentifier,
@@ -58,23 +98,8 @@ internal static class LegacyHapticEffectInputFactory
                 WheelVerticalForce: vehicleState.MotionEx is null ? null : MapFloatWheels(vehicleState.MotionEx.Value.WheelVertForce),
                 BrakeTemperatureCelsius: vehicleState.Telemetry is null ? null : MapBrakeTemps(vehicleState.Telemetry.Value.BrakeTemperatureCelsius),
                 VerticalG: vehicleState.Motion?.Value.GForceVertical,
-                Event: MapEventSignals(vehicleState)),
-            new HapticDrivingContext(
-                DrivingPhase.Driving,
-                vehicleState.Lap?.Value.PitStatus switch
-                {
-                    0 => PitState.None,
-                    1 => PitState.Pitting,
-                    2 => PitState.InPitArea,
-                    _ => PitState.Unknown
-                },
-                IsPaused: vehicleState.Session?.Value.GamePaused is > 0 || vehicleState.CarStatus?.Value.NetworkPaused is > 0,
-                IsPlayerControlled: vehicleState.Lap?.Value.DriverStatus is not 0,
-                AllowsDrivingOutput: vehicleState.Telemetry is not null
-                    && vehicleState.Session?.Value.GamePaused is not > 0
-                    && vehicleState.CarStatus?.Value.NetworkPaused is not > 0
-                    && vehicleState.Lap?.Value.DriverStatus is not 0
-                    && vehicleState.Lap?.Value.ResultStatus is not 0 and not 1),
+                Event: null),
+            new HapticDrivingContext(DrivingPhase.Driving, PitState.None, false, true, true),
             new HapticFrameSignalStamps(
                 Telemetry: CreateSignalStamp(vehicleState.Telemetry),
                 Motion: CreateSignalStamp(vehicleState.Motion),
@@ -85,13 +110,6 @@ internal static class LegacyHapticEffectInputFactory
                 Damage: CreateSignalStamp(vehicleState.Damage),
                 MotionEx: CreateSignalStamp(vehicleState.MotionEx),
                 Event: CreateSignalStamp(vehicleState.LastEvent)));
-
-        return new HapticEffectInput(new HapticRenderFrame(frame, freshness));
-    }
-
-    private static VehicleSignalFreshness Present(bool isPresent)
-    {
-        return new VehicleSignalFreshness(isPresent, true, true, true, true, TimeSpan.Zero, 0);
     }
 
     private static HapticSignalStamp? CreateSignalStamp<T>(VehicleStateSample<T>? sample)
@@ -115,45 +133,6 @@ internal static class LegacyHapticEffectInputFactory
         {
             SourceIdentity = stamp.SourceIdentity
         };
-    }
-
-    private static HapticEventSignals? MapEventSignals(VehicleState vehicleState)
-    {
-        if (vehicleState.LastEvent is null)
-        {
-            return null;
-        }
-
-        var lastEvent = vehicleState.LastEvent.Value;
-        var kind = string.Equals(lastEvent.EventCode, "COLL", StringComparison.Ordinal)
-            ? HapticEventKind.Collision
-            : HapticEventKind.Unknown;
-        return new HapticEventSignals(
-            kind,
-            lastEvent.InvolvesPlayer,
-            ResolveOtherVehicleIndex(vehicleState.Frame.PlayerCarIndex, lastEvent));
-    }
-
-    private static byte? ResolveOtherVehicleIndex(
-        byte? playerCarIndex,
-        VehicleEventState lastEvent)
-    {
-        if (!lastEvent.InvolvesPlayer || playerCarIndex is null)
-        {
-            return null;
-        }
-
-        if (lastEvent.PrimaryVehicleIndex == playerCarIndex)
-        {
-            return lastEvent.SecondaryVehicleIndex;
-        }
-
-        if (lastEvent.SecondaryVehicleIndex == playerCarIndex)
-        {
-            return lastEvent.PrimaryVehicleIndex;
-        }
-
-        return null;
     }
 
     private static HapticWheelSignals<byte> MapByteWheels(VehicleWheelData<byte> values)

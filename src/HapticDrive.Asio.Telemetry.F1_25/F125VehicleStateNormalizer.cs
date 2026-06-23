@@ -43,6 +43,8 @@ public sealed class F125VehicleStateNormalizer : IVehicleStateNormalizer
             IntegrationId,
             state.Frame.Source ?? "unknown",
             state.Frame.SessionUid,
+            state.Frame.SessionTime,
+            state.Frame.FrameIdentifier,
             state.Frame.OverallFrameIdentifier,
             state.Frame.PlayerCarIndex,
             nowUtc,
@@ -51,19 +53,34 @@ public sealed class F125VehicleStateNormalizer : IVehicleStateNormalizer
             SourceIdentity = state.Frame.SourceIdentity
         };
 
+        var telemetry = telemetryFreshness.IsFresh ? state.Telemetry?.Value : null;
+        var motion = motionFreshness.IsFresh ? state.Motion?.Value : null;
+        var carStatus = carStatusFreshness.IsFresh ? state.CarStatus?.Value : null;
+        var motionEx = motionExFreshness.IsFresh ? state.MotionEx?.Value : null;
         var signals = new HapticTelemetrySignals(
-            SpeedMetersPerSecond: state.Telemetry is null ? null : state.Telemetry.Value.SpeedKph / 3.6f,
-            Throttle: state.Telemetry?.Value.Throttle,
-            Brake: state.Telemetry?.Value.Brake,
-            Steer: state.Telemetry?.Value.Steer,
-            Gear: state.Telemetry?.Value.Gear,
-            EngineRpm: state.Telemetry?.Value.EngineRpm,
-            IdleRpm: state.CarStatus?.Value.IdleRpm,
-            MaxRpm: state.CarStatus?.Value.MaxRpm,
-            SurfaceKinds: state.Telemetry is null ? null : MapSurfaceKinds(state.Telemetry.Value.SurfaceTypeIds),
-            TyreSlip: state.MotionEx is null ? null : MapFloatWheels(state.MotionEx.Value.WheelSlipRatio),
-            SuspensionVelocity: state.MotionEx is null ? null : MapFloatWheels(state.MotionEx.Value.SuspensionVelocity),
-            BrakeTemperatureCelsius: state.Telemetry is null ? null : MapIntWheelsToFloat(state.Telemetry.Value.BrakeTemperatureCelsius));
+            SpeedMetersPerSecond: telemetry is null ? null : telemetry.SpeedKph / 3.6f,
+            Throttle: telemetry?.Throttle,
+            Brake: telemetry?.Brake,
+            Steer: telemetry?.Steer,
+            Gear: telemetry?.Gear,
+            SuggestedGear: telemetry?.SuggestedGear,
+            EngineRpm: telemetry?.EngineRpm,
+            IdleRpm: carStatus?.IdleRpm,
+            MaxRpm: carStatus?.MaxRpm,
+            MaxGears: carStatus?.MaxGears,
+            TractionControlActive: carStatus is null ? null : carStatus.TractionControl > 0,
+            AntiLockBrakesActive: carStatus is null ? null : carStatus.AntiLockBrakes > 0,
+            SurfaceTypeIds: telemetry is null ? null : MapByteWheels(telemetry.SurfaceTypeIds),
+            SurfaceKinds: telemetry is null ? null : MapSurfaceKinds(telemetry.SurfaceTypeIds),
+            TyreSlip: motionEx is null ? null : MapFloatWheels(motionEx.WheelSlipRatio),
+            TyreSlipAngle: motionEx is null ? null : MapFloatWheels(motionEx.WheelSlipAngle),
+            WheelSpeedMetersPerSecond: motionEx is null ? null : MapFloatWheels(motionEx.WheelSpeed),
+            SuspensionVelocity: motionEx is null ? null : MapFloatWheels(motionEx.SuspensionVelocity),
+            SuspensionAcceleration: motionEx is null ? null : MapFloatWheels(motionEx.SuspensionAcceleration),
+            WheelVerticalForce: motionEx is null ? null : MapFloatWheels(motionEx.WheelVertForce),
+            BrakeTemperatureCelsius: telemetry is null ? null : MapIntWheelsToFloat(telemetry.BrakeTemperatureCelsius),
+            VerticalG: motion?.GForceVertical,
+            Event: MapEventSignals(state, eventFreshness));
 
         var context = BuildDrivingContext(state, telemetryFreshness, sessionFreshness, lapFreshness, participantFreshness, carStatusFreshness);
 
@@ -71,18 +88,16 @@ public sealed class F125VehicleStateNormalizer : IVehicleStateNormalizer
             identity,
             signals,
             context,
-            new Dictionary<string, VehicleSignalFreshness>(StringComparer.Ordinal)
-            {
-                [HapticFrameSignalNames.Telemetry] = telemetryFreshness,
-                [HapticFrameSignalNames.Motion] = motionFreshness,
-                [HapticFrameSignalNames.Session] = sessionFreshness,
-                [HapticFrameSignalNames.Lap] = lapFreshness,
-                [HapticFrameSignalNames.Participant] = participantFreshness,
-                [HapticFrameSignalNames.CarStatus] = carStatusFreshness,
-                [HapticFrameSignalNames.Damage] = damageFreshness,
-                [HapticFrameSignalNames.MotionEx] = motionExFreshness,
-                [HapticFrameSignalNames.Event] = eventFreshness
-            });
+            new HapticFrameSignalStamps(
+                Telemetry: CreateSignalStamp(state.Telemetry),
+                Motion: CreateSignalStamp(state.Motion),
+                Session: CreateSignalStamp(state.Session),
+                Lap: CreateSignalStamp(state.Lap),
+                Participant: CreateSignalStamp(state.Participant),
+                CarStatus: CreateSignalStamp(state.CarStatus),
+                Damage: CreateSignalStamp(state.Damage),
+                MotionEx: CreateSignalStamp(state.MotionEx),
+                Event: CreateSignalStamp(state.LastEvent)));
     }
 
     private static HapticDrivingContext BuildDrivingContext(
@@ -253,6 +268,79 @@ public sealed class F125VehicleStateNormalizer : IVehicleStateNormalizer
             && carStatusFreshness.IsFresh;
     }
 
+    private static HapticSignalStamp? CreateSignalStamp<T>(VehicleStateSample<T>? sample)
+    {
+        if (sample is null)
+        {
+            return null;
+        }
+
+        var stamp = sample.Stamp;
+        return new HapticSignalStamp(
+            stamp.Source,
+            stamp.PacketKind,
+            stamp.SessionUid,
+            stamp.SessionTime,
+            stamp.FrameIdentifier,
+            stamp.OverallFrameIdentifier,
+            stamp.PlayerCarIndex,
+            stamp.ReceivedAtUtc,
+            stamp.ReceivedAtTimestamp)
+        {
+            SourceIdentity = stamp.SourceIdentity
+        };
+    }
+
+    private static HapticEventSignals? MapEventSignals(
+        VehicleState state,
+        VehicleSignalFreshness eventFreshness)
+    {
+        if (!eventFreshness.IsFresh || state.LastEvent is null)
+        {
+            return null;
+        }
+
+        var lastEvent = state.LastEvent.Value;
+        return new HapticEventSignals(
+            MapEventKind(lastEvent.EventCode),
+            lastEvent.InvolvesPlayer,
+            ResolveOtherVehicleIndex(state.Frame.PlayerCarIndex, lastEvent));
+    }
+
+    private static HapticEventKind MapEventKind(string? eventCode)
+    {
+        return string.Equals(eventCode, "COLL", StringComparison.Ordinal)
+            ? HapticEventKind.Collision
+            : HapticEventKind.Unknown;
+    }
+
+    private static byte? ResolveOtherVehicleIndex(
+        byte? playerCarIndex,
+        VehicleEventState lastEvent)
+    {
+        if (!lastEvent.InvolvesPlayer)
+        {
+            return null;
+        }
+
+        if (playerCarIndex is null)
+        {
+            return null;
+        }
+
+        if (lastEvent.PrimaryVehicleIndex == playerCarIndex)
+        {
+            return lastEvent.SecondaryVehicleIndex;
+        }
+
+        if (lastEvent.SecondaryVehicleIndex == playerCarIndex)
+        {
+            return lastEvent.PrimaryVehicleIndex;
+        }
+
+        return null;
+    }
+
     private static HapticWheelSignals<SurfaceKind> MapSurfaceKinds(VehicleWheelData<byte> raw)
     {
         return new HapticWheelSignals<SurfaceKind>(
@@ -265,6 +353,11 @@ public sealed class F125VehicleStateNormalizer : IVehicleStateNormalizer
     private static HapticWheelSignals<float> MapFloatWheels(VehicleWheelData<float> values)
     {
         return new HapticWheelSignals<float>(values.RearLeft, values.RearRight, values.FrontLeft, values.FrontRight);
+    }
+
+    private static HapticWheelSignals<byte> MapByteWheels(VehicleWheelData<byte> values)
+    {
+        return new HapticWheelSignals<byte>(values.RearLeft, values.RearRight, values.FrontLeft, values.FrontRight);
     }
 
     private static HapticWheelSignals<float> MapIntWheelsToFloat(VehicleWheelData<ushort> values)

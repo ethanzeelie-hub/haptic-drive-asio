@@ -1,13 +1,11 @@
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Core.Vehicle;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
 
 namespace HapticDrive.Actuation.PHpr;
 
 public sealed record PHprContinuousEffectsRuntimeInput(
     HapticFrame? HapticFrame,
-    VehicleState VehicleState,
     ActuationDrivingContext DrivingContext,
     bool IsPedalRoutingReady,
     PHprSafetyContext RoadSafetyContext,
@@ -237,7 +235,7 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
             }
 
             var result = await _slipLockRouter.RouteAsync(
-                input.VehicleState,
+                input.HapticFrame,
                 input.DrivingContext,
                 input.SlipLockSafetyContext).ConfigureAwait(false);
             lock (_gate)
@@ -296,7 +294,7 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
             }
 
             var result = await _roadVibrationRouter.RouteAsync(
-                input.VehicleState,
+                input.HapticFrame,
                 input.DrivingContext,
                 input.RoadSafetyContext).ConfigureAwait(false);
             lock (_gate)

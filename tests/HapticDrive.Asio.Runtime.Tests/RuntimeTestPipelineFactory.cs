@@ -39,6 +39,7 @@ internal static class RuntimeTestPipelineFactory
             profile,
             options,
             forwardingDestinations,
-            outputInterlock);
+            outputInterlock,
+            vehicleStateNormalizer: new F125VehicleStateNormalizer());
     }
 }

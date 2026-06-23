@@ -1055,11 +1055,10 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             var normalizedFrame = NormalizeHapticFrame(vehicleStateUpdate.State, packet.ReceivedAtUtc, packet.ReceivedAtTimestamp, CreateTelemetryFreshnessPolicy());
             if (normalizedFrame is not null)
             {
-                EffectEngine.Update(new HapticEffectInput(normalizedFrame, vehicleStateUpdate.State));
-            }
-            else
-            {
-                EffectEngine.Update(vehicleStateUpdate.State);
+                var renderFrame = new HapticRenderFrame(
+                    normalizedFrame,
+                    HapticFrameFreshnessEvaluator.Evaluate(normalizedFrame, TimeProvider.System, CreateTelemetryFreshnessPolicy()));
+                EffectEngine.Update(renderFrame);
             }
 
             lock (_diagnosticsGate)

@@ -1,5 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
-using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Haptics;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -93,21 +93,16 @@ public sealed class GearShiftEffect : IHapticEffectSource, IConfigurableHapticEf
             return;
         }
 
-        if (CanTrigger(input.VehicleState))
+        if (CanTrigger(input.Frame))
         {
             _pendingPulse = true;
             _pendingPulseAmplitude = CalculatePulseAmplitude(input);
-            _lastShiftSessionTime = input.VehicleState.Telemetry?.Stamp.SessionTime;
-            _lastShiftFrameIdentifier = input.Frame.Identity.OverallFrameIdentifier ?? input.VehicleState.Telemetry?.Stamp.FrameIdentifier;
+            _lastShiftSessionTime = input.Frame.Identity.SessionTime;
+            _lastShiftFrameIdentifier = input.Frame.Identity.OverallFrameIdentifier ?? input.Frame.Identity.FrameIdentifier;
         }
 
         _lastForwardGear = currentGear;
         Snapshot = CreateSnapshot(isActive: _pendingPulse || _remainingPulseFrames > 0, peakLevel: 0f);
-    }
-
-    public void Update(VehicleState vehicleState)
-    {
-        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public void UpdateOptions(GearShiftEffectOptions options)
@@ -169,14 +164,14 @@ public sealed class GearShiftEffect : IHapticEffectSource, IConfigurableHapticEf
         return new HapticEffectRenderResult(Name, Options.IsEnabled, isActive, peak);
     }
 
-    private bool CanTrigger(VehicleState vehicleState)
+    private bool CanTrigger(HapticFrame frame)
     {
         if (_lastShiftSessionTime is null)
         {
             return true;
         }
 
-        var currentSessionTime = vehicleState.Telemetry?.Stamp.SessionTime;
+        var currentSessionTime = frame.Identity.SessionTime;
         if (currentSessionTime is null || !float.IsFinite(currentSessionTime.Value))
         {
             return true;
@@ -205,8 +200,8 @@ public sealed class GearShiftEffect : IHapticEffectSource, IConfigurableHapticEf
             return gain * 0.5f;
         }
 
-        var idleRpm = (ushort?)input.Frame.Signals.IdleRpm ?? input.VehicleState.CarStatus?.Value.IdleRpm ?? Options.DefaultIdleRpm;
-        var maxRpm = (ushort?)input.Frame.Signals.MaxRpm ?? input.VehicleState.CarStatus?.Value.MaxRpm ?? Options.DefaultMaxRpm;
+        var idleRpm = (ushort?)input.Frame.Signals.IdleRpm ?? Options.DefaultIdleRpm;
+        var maxRpm = (ushort?)input.Frame.Signals.MaxRpm ?? Options.DefaultMaxRpm;
         if (idleRpm == 0 || maxRpm <= idleRpm)
         {
             idleRpm = Options.DefaultIdleRpm;
@@ -224,8 +219,8 @@ public sealed class GearShiftEffect : IHapticEffectSource, IConfigurableHapticEf
             return false;
         }
 
-        var maxGears = input.VehicleState.CarStatus?.Value.MaxGears;
-        var maximumForwardGear = maxGears is > 0 and <= 12 ? maxGears.Value : (byte)8;
+        var maxGears = input.Frame.Signals.MaxGears;
+        var maximumForwardGear = maxGears is > 0 and <= 12 ? (byte)maxGears.Value : (byte)8;
         return gear >= 1 && gear <= maximumForwardGear;
     }
 

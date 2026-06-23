@@ -1,7 +1,39 @@
+using HapticDrive.Asio.Audio.Effects;
+using HapticDrive.Asio.Core.Vehicle;
+
 namespace HapticDrive.Asio.Audio.Tests;
 
 public sealed class EffectInputGuardrailTests
 {
+    [Fact]
+    public void Effects_DoNotConsumeVehicleStateOnLivePath()
+    {
+        var runtimeParameterTypes = new[]
+        {
+            typeof(EngineVibrationEffect),
+            typeof(GearShiftEffect),
+            typeof(KerbEffect),
+            typeof(ImpactEffect),
+            typeof(RoadTextureEffect),
+            typeof(SlipEffect),
+            typeof(HapticEffectEngine)
+        }
+            .SelectMany(type => type.GetMethods().Where(method => method.DeclaringType == type))
+            .SelectMany(method => method.GetParameters())
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
+        var effectsDirectory = Path.Combine(FindRepositoryRoot(), "src", "HapticDrive.Asio.Audio", "Effects");
+        var offendingFiles = Directory
+            .GetFiles(effectsDirectory, "*.cs", SearchOption.TopDirectoryOnly)
+            .Where(path => !string.Equals(Path.GetFileName(path), "LegacyHapticEffectInputFactory.cs", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("VehicleState", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ToArray();
+
+        Assert.DoesNotContain(typeof(VehicleState), runtimeParameterTypes);
+        Assert.Empty(offendingFiles);
+    }
+
     [Fact]
     public void EffectsDoNotReadRawF125SurfaceIdsOrDriverEnums()
     {

@@ -44,26 +44,22 @@ public sealed record ShiftIntentTelemetrySnapshot(
 
     public static ShiftIntentTelemetrySnapshot FromHapticFrame(
         HapticFrame frame,
-        VehicleState vehicleState,
         DateTimeOffset? lastVehicleStateUpdateAtUtc = null,
         TimeSpan? telemetryAge = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        ArgumentNullException.ThrowIfNull(vehicleState);
-
-        var fallback = FromVehicleState(vehicleState, lastVehicleStateUpdateAtUtc, telemetryAge);
         var speedKph = frame.Signals.SpeedMetersPerSecond is null
-            ? fallback.LastKnownSpeedKph
+            ? (int?)null
             : (int)Math.Round(frame.Signals.SpeedMetersPerSecond.Value * 3.6f, MidpointRounding.AwayFromZero);
 
-        return fallback with
-        {
-            LastKnownGear = frame.Signals.Gear ?? fallback.LastKnownGear,
-            LastKnownSpeedKph = speedKph,
-            LastKnownRpm = frame.Signals.EngineRpm ?? fallback.LastKnownRpm,
-            LastKnownSessionTime = vehicleState.Frame.SessionTime,
-            LastKnownFrameIdentifier = vehicleState.Frame.FrameIdentifier,
-            LastKnownOverallFrameIdentifier = vehicleState.Frame.OverallFrameIdentifier
-        };
+        return new ShiftIntentTelemetrySnapshot(
+            frame.Signals.Gear,
+            speedKph,
+            frame.Signals.EngineRpm,
+            frame.Identity.SessionTime,
+            frame.Identity.FrameIdentifier,
+            frame.Identity.OverallFrameIdentifier,
+            lastVehicleStateUpdateAtUtc,
+            telemetryAge);
     }
 }

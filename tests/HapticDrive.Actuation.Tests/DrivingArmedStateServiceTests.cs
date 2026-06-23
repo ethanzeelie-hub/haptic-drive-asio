@@ -68,7 +68,7 @@ public sealed class DrivingArmedStateServiceTests
             FreshContext());
 
         Assert.False(state.IsArmed);
-        Assert.Equal(DrivingArmedSuppressionReason.NetworkPaused, service.GetSnapshot().LastSuppressionReason);
+        Assert.Equal(DrivingArmedSuppressionReason.Paused, service.GetSnapshot().LastSuppressionReason);
     }
 
     [Theory]
@@ -228,12 +228,15 @@ public sealed class DrivingArmedStateServiceTests
             123,
             0,
             0);
+        var receivedAtUtc = DateTimeOffset.UtcNow;
         var stamp = new VehicleStateStamp(
             "test",
             123,
             10f,
             42,
             84,
+            0,
+            receivedAtUtc,
             0)
         {
             SourceIdentity = sourceIdentity

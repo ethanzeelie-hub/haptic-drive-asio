@@ -1,6 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Haptics;
-using HapticDrive.Asio.Core.Vehicle;
 
 namespace HapticDrive.Asio.Audio.Effects;
 
@@ -43,11 +42,6 @@ public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectS
     {
         _evaluation = Evaluate(input, Options);
         Snapshot = CreateSnapshot(_evaluation, peakLevel: 0f);
-    }
-
-    public void Update(VehicleState vehicleState)
-    {
-        Update(LegacyHapticEffectInputFactory.FromVehicleState(vehicleState));
     }
 
     public void UpdateOptions(KerbEffectOptions options)
@@ -109,8 +103,8 @@ public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectS
     private static KerbEvaluation Evaluate(HapticEffectInput input, KerbEffectOptions options)
     {
         if (!options.IsEnabled
-            || HapticFrameEffectGuards.ShouldMuteForDrivingState(input.Frame)
-            || !HapticFrameEffectGuards.IsTelemetryFresh(input.Frame)
+            || HapticFrameEffectGuards.ShouldMuteForDrivingState(input)
+            || !HapticFrameEffectGuards.IsTelemetryFresh(input)
             || input.Frame.Signals.SurfaceKinds is null
             || input.Frame.Signals.SpeedMetersPerSecond is null)
         {
@@ -172,20 +166,19 @@ public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectS
 
     private static float ResolveContactMultiplier(HapticEffectInput input, KerbEffectOptions options)
     {
-        if (!HapticFrameEffectGuards.IsMotionExFresh(input.Frame))
+        if (!HapticFrameEffectGuards.IsMotionExFresh(input))
         {
             return 1f;
         }
 
-        var motionEx = input.VehicleState.MotionEx!.Value;
-        var verticalForce = VehicleStateEffectGuards.CalculateWheelAverage(
-            motionEx.WheelVertForce,
+        var verticalForce = AverageWheelValue(
+            input.Frame.Signals.WheelVerticalForce,
             value => value >= 0f && value <= 100_000f ? value : null);
-        var suspensionVelocity = VehicleStateEffectGuards.CalculateWheelAverage(
-            motionEx.SuspensionVelocity,
+        var suspensionVelocity = AverageWheelValue(
+            input.Frame.Signals.SuspensionVelocity,
             value => float.IsFinite(value) ? Math.Abs(value) : null);
-        var suspensionAcceleration = VehicleStateEffectGuards.CalculateWheelAverage(
-            motionEx.SuspensionAcceleration,
+        var suspensionAcceleration = AverageWheelValue(
+            input.Frame.Signals.SuspensionAcceleration,
             value => float.IsFinite(value) ? Math.Abs(value) : null);
 
         var forceComponent = verticalForce <= 0f
@@ -195,6 +188,32 @@ public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectS
         var accelerationComponent = HapticEffectMath.Clamp(suspensionAcceleration / 80f, 0f, 0.2f);
 
         return HapticEffectMath.Clamp(0.65f + (0.25f * forceComponent) + velocityComponent + accelerationComponent, 0.4f, 1.2f);
+    }
+
+    private static float AverageWheelValue(
+        HapticWheelSignals<float>? values,
+        Func<float, float?> selector)
+    {
+        if (values is null)
+        {
+            return 0f;
+        }
+
+        var sum = 0f;
+        var count = 0;
+        foreach (var candidate in new[] { values.RearLeft, values.RearRight, values.FrontLeft, values.FrontRight })
+        {
+            var selected = selector(candidate);
+            if (selected is null)
+            {
+                continue;
+            }
+
+            sum += selected.Value;
+            count++;
+        }
+
+        return count == 0 ? 0f : sum / count;
     }
 
     private static float SanitizeFrequency(float frequencyHz)

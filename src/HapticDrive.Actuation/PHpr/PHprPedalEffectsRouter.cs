@@ -1,6 +1,7 @@
 using HapticDrive.Actuation.Driving;
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
+using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
 using HapticDrive.Simagic.PHPR.Abstractions.Safety;
@@ -440,16 +441,17 @@ public sealed class PHprPedalEffectsRouter
         VehicleState vehicleState,
         PHprPedalEffectsRouterOptions options)
     {
+        var freshness = HapticFrameFreshnessEvaluator.Evaluate(frame, TimeProvider.System, CreateFrameFreshnessPolicy(_slipLockEvaluator.Options.MaximumTelemetryFrameLag));
         var slipLockEvaluation = _slipLockEvaluator.Evaluate(
             SlipLockEvaluationInput.FromHapticFrame(
                 frame,
-                vehicleState,
+                freshness,
                 _slipLockEvaluator.Options,
                 options.WheelSlip.IsEnabled,
                 options.WheelLock.IsEnabled));
         return
         [
-            EvaluateRoadVibration(frame, options.RoadVibration),
+            EvaluateRoadVibration(frame, freshness, options.RoadVibration),
             EvaluateWheelSlip(options.WheelSlip, slipLockEvaluation),
             EvaluateWheelLock(options.WheelLock, slipLockEvaluation)
         ];
@@ -457,13 +459,13 @@ public sealed class PHprPedalEffectsRouter
 
     private static EffectCandidate EvaluateRoadVibration(
         HapticFrame frame,
+        HapticFrameFreshnessSnapshot freshness,
         PHprPedalEffectState state)
     {
         if (!state.IsEnabled
             || !frame.Context.AllowsDrivingOutput
             || frame.Signals.SurfaceKinds is null
-            || !frame.Freshness.TryGetValue(HapticFrameSignalNames.Telemetry, out var telemetryFreshness)
-            || !telemetryFreshness.IsFresh
+            || !freshness.Telemetry.IsFresh
             || frame.Signals.SpeedMetersPerSecond is null)
         {
             return EffectCandidate.Inactive(PHprPedalEffectKind.RoadVibration, state);
@@ -766,6 +768,17 @@ public sealed class PHprPedalEffectsRouter
     private static float Clamp(float value, float minimum, float maximum)
     {
         return Math.Clamp(value, minimum, maximum);
+    }
+
+    private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)
+    {
+        return new TelemetryFreshnessPolicy(
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            TimeSpan.MaxValue,
+            maximumFrameLag);
     }
 
     private static IReadOnlyList<PHprModuleId> ExpandTarget(PHprGearPulseTarget target)

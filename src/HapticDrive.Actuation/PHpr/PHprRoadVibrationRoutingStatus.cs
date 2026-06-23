@@ -4,6 +4,7 @@ public enum PHprRoadVibrationRoutingStatus
 {
     IgnoredDisabled = 0,
     IgnoredMissingVehicleState = 1,
+    IgnoredMissingHapticFrame = 9,
     IgnoredNoActiveRoadVibration = 2,
     IgnoredNoEnabledPedal = 3,
     IgnoredMinimumInterval = 4,

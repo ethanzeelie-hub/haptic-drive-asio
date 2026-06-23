@@ -99,7 +99,8 @@ public sealed class F125VehicleStateNormalizerTests
 
         Assert.False(frame.Context.IsPlayerControlled);
         Assert.False(frame.Context.AllowsDrivingOutput);
-        Assert.False(frame.Freshness[HapticFrameSignalNames.Participant].IsFresh);
+        var freshness = HapticFrameFreshnessEvaluator.Evaluate(frame, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+        Assert.False(freshness.Participant.IsFresh);
     }
 
     [Fact]
@@ -121,7 +122,124 @@ public sealed class F125VehicleStateNormalizerTests
         Assert.False(staleFrame.Context.AllowsDrivingOutput);
     }
 
-    private static VehicleState CreateState(byte surfaceTypeId, DateTimeOffset receivedAt, long receivedTimestamp, ushort speedKph = 120)
+    [Fact]
+    public void Normalizer_MapsMaxGearsTcAbsMotionExAndEventIntoCanonicalFrame()
+    {
+        var normalizer = new F125VehicleStateNormalizer();
+        var state = CreateState(
+            surfaceTypeId: 3,
+            receivedAt: BaseTime,
+            receivedTimestamp: 10,
+            tractionControl: 1,
+            antiLockBrakes: 1,
+            wheelSlipRatio: Wheels(11f, 22f, 33f, 44f),
+            wheelSlipAngle: Wheels(0.11f, 0.22f, 0.33f, 0.44f),
+            wheelSpeed: Wheels(1f, 2f, 3f, 4f),
+            suspensionAcceleration: Wheels(5f, 6f, 7f, 8f),
+            wheelVertForce: Wheels(9f, 10f, 11f, 12f),
+            eventCode: "COLL",
+            eventInvolvesPlayer: true);
+
+        var frame = normalizer.Normalize(state, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.Equal(8, frame.Signals.MaxGears);
+        Assert.True(frame.Signals.TractionControlActive);
+        Assert.True(frame.Signals.AntiLockBrakesActive);
+        Assert.Equal(0.11f, frame.Signals.TyreSlipAngle!.RearLeft);
+        Assert.Equal(0.22f, frame.Signals.TyreSlipAngle.RearRight);
+        Assert.Equal(0.33f, frame.Signals.TyreSlipAngle.FrontLeft);
+        Assert.Equal(0.44f, frame.Signals.TyreSlipAngle.FrontRight);
+        Assert.Equal(1f, frame.Signals.WheelSpeedMetersPerSecond!.RearLeft);
+        Assert.Equal(8f, frame.Signals.SuspensionAcceleration!.FrontRight);
+        Assert.Equal(9f, frame.Signals.WheelVerticalForce!.RearLeft);
+        Assert.Equal(1.25f, frame.Signals.VerticalG);
+        Assert.Equal(HapticEventKind.Collision, frame.Signals.Event!.Kind);
+        Assert.True(frame.Signals.Event.InvolvesPlayer);
+        Assert.Equal((byte)4, frame.Signals.Event.OtherVehicleIndex);
+    }
+
+    [Fact]
+    public void Normalizer_UsesTypedSignalStampsWithoutStringDictionary()
+    {
+        var normalizer = new F125VehicleStateNormalizer();
+        var state = CreateState(surfaceTypeId: 0, receivedAt: BaseTime, receivedTimestamp: 10);
+
+        var frame = normalizer.Normalize(state, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+        var normalizerSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.Telemetry.F1_25",
+            "F125VehicleStateNormalizer.cs"));
+
+        Assert.NotNull(frame.SignalStamps.Telemetry);
+        Assert.NotNull(frame.SignalStamps.Session);
+        Assert.NotNull(frame.SignalStamps.Lap);
+        Assert.NotNull(frame.SignalStamps.Participant);
+        Assert.NotNull(frame.SignalStamps.CarStatus);
+        Assert.Equal(typeof(HapticFrameSignalStamps), typeof(HapticFrame).GetProperty(nameof(HapticFrame.SignalStamps))!.PropertyType);
+        Assert.DoesNotContain("new Dictionary<string, VehicleSignalFreshness>", normalizerSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CollisionEvent_MapsToHapticEventSignals()
+    {
+        var normalizer = new F125VehicleStateNormalizer();
+        var state = CreateState(
+            surfaceTypeId: 0,
+            receivedAt: BaseTime,
+            receivedTimestamp: 10,
+            eventCode: "COLL",
+            eventInvolvesPlayer: true);
+
+        var frame = normalizer.Normalize(state, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.NotNull(frame.Signals.Event);
+        Assert.Equal(HapticEventKind.Collision, frame.Signals.Event!.Kind);
+        Assert.True(frame.Signals.Event.InvolvesPlayer);
+        Assert.Equal((byte)4, frame.Signals.Event.OtherVehicleIndex);
+    }
+
+    [Fact]
+    public void WheelOrder_RemainsRlRrFlFr()
+    {
+        var normalizer = new F125VehicleStateNormalizer();
+        var state = CreateState(
+            surfaceTypeId: 0,
+            receivedAt: BaseTime,
+            receivedTimestamp: 10,
+            surfaceTypeIds: Wheels((byte)10, (byte)11, (byte)1, (byte)7),
+            wheelSlipRatio: Wheels(10f, 20f, 30f, 40f),
+            wheelSpeed: Wheels(100f, 200f, 300f, 400f));
+
+        var frame = normalizer.Normalize(state, BaseTime, 10, TimeProvider.System, TelemetryFreshnessPolicy.Default);
+
+        Assert.Equal((byte)10, frame.Signals.SurfaceTypeIds!.RearLeft);
+        Assert.Equal((byte)11, frame.Signals.SurfaceTypeIds.RearRight);
+        Assert.Equal((byte)1, frame.Signals.SurfaceTypeIds.FrontLeft);
+        Assert.Equal((byte)7, frame.Signals.SurfaceTypeIds.FrontRight);
+        Assert.Equal(10f, frame.Signals.TyreSlip!.RearLeft);
+        Assert.Equal(20f, frame.Signals.TyreSlip.RearRight);
+        Assert.Equal(30f, frame.Signals.TyreSlip.FrontLeft);
+        Assert.Equal(40f, frame.Signals.TyreSlip.FrontRight);
+        Assert.Equal(100f, frame.Signals.WheelSpeedMetersPerSecond!.RearLeft);
+        Assert.Equal(400f, frame.Signals.WheelSpeedMetersPerSecond.FrontRight);
+    }
+
+    private static VehicleState CreateState(
+        byte surfaceTypeId,
+        DateTimeOffset receivedAt,
+        long receivedTimestamp,
+        ushort speedKph = 120,
+        byte tractionControl = 0,
+        byte antiLockBrakes = 0,
+        VehicleWheelData<byte>? surfaceTypeIds = null,
+        VehicleWheelData<float>? wheelSlipRatio = null,
+        VehicleWheelData<float>? wheelSlipAngle = null,
+        VehicleWheelData<float>? wheelSpeed = null,
+        VehicleWheelData<float>? suspensionAcceleration = null,
+        VehicleWheelData<float>? wheelVertForce = null,
+        string? eventCode = null,
+        bool eventInvolvesPlayer = false)
     {
         var sourceIdentity = TelemetrySourceIdentity.Create(
             new HapticDrive.Asio.Core.Games.GameIntegrationId("f1-25"),
@@ -130,12 +248,28 @@ public sealed class F125VehicleStateNormalizerTests
             0,
             0);
         var stamp = CreateStamp("Car Telemetry", receivedAt, receivedTimestamp, sourceIdentity);
+        var surfaces = surfaceTypeIds ?? Wheels(surfaceTypeId, surfaceTypeId, surfaceTypeId, surfaceTypeId);
         return VehicleState.Empty with
         {
             Frame = new VehicleStateFrame(42, 5f, 10, 10, 0, "Car Telemetry")
             {
                 SourceIdentity = sourceIdentity
             },
+            Motion = new VehicleStateSample<VehicleMotionState>(
+                new VehicleMotionState(
+                    WorldPositionX: 0f,
+                    WorldPositionY: 0f,
+                    WorldPositionZ: 0f,
+                    WorldVelocityX: 0f,
+                    WorldVelocityY: 0f,
+                    WorldVelocityZ: 0f,
+                    GForceLateral: 0f,
+                    GForceLongitudinal: 0f,
+                    GForceVertical: 1.25f,
+                    Yaw: 0f,
+                    Pitch: 0f,
+                    Roll: 0f),
+                stamp),
             Session = new VehicleStateSample<VehicleSessionState>(
                 new VehicleSessionState(
                     Weather: 0,
@@ -174,12 +308,12 @@ public sealed class F125VehicleStateNormalizerTests
                     TyreSurfaceTemperatureCelsius: new VehicleWheelData<byte>(90, 90, 90, 90),
                     TyreInnerTemperatureCelsius: new VehicleWheelData<byte>(90, 90, 90, 90),
                     TyrePressurePsi: new VehicleWheelData<float>(20, 20, 20, 20),
-                    SurfaceTypeIds: new VehicleWheelData<byte>(surfaceTypeId, surfaceTypeId, surfaceTypeId, surfaceTypeId)),
+                    SurfaceTypeIds: surfaces),
                 stamp),
             CarStatus = new VehicleStateSample<VehicleCarStatusState>(
                 new VehicleCarStatusState(
-                    TractionControl: 0,
-                    AntiLockBrakes: 0,
+                    TractionControl: tractionControl,
+                    AntiLockBrakes: antiLockBrakes,
                     FuelMix: 0,
                     FrontBrakeBias: 55,
                     PitLimiterStatus: 0,
@@ -203,7 +337,49 @@ public sealed class F125VehicleStateNormalizerTests
                     ErsHarvestedThisLapMguhJoules: 0,
                     ErsDeployedThisLapJoules: 0,
                     NetworkPaused: 0),
-                stamp)
+                stamp),
+            MotionEx = new VehicleStateSample<VehicleMotionExState>(
+                new VehicleMotionExState(
+                    SuspensionPosition: Wheels(0f, 0f, 0f, 0f),
+                    SuspensionVelocity: Wheels(0f, 0f, 0f, 0f),
+                    SuspensionAcceleration: suspensionAcceleration ?? Wheels(0f, 0f, 0f, 0f),
+                    WheelSpeed: wheelSpeed ?? Wheels(0f, 0f, 0f, 0f),
+                    WheelSlipRatio: wheelSlipRatio ?? Wheels(0f, 0f, 0f, 0f),
+                    WheelSlipAngle: wheelSlipAngle ?? Wheels(0f, 0f, 0f, 0f),
+                    WheelLatForce: Wheels(0f, 0f, 0f, 0f),
+                    WheelLongForce: Wheels(0f, 0f, 0f, 0f),
+                    HeightOfCogAboveGround: 0f,
+                    LocalVelocityX: 0f,
+                    LocalVelocityY: 0f,
+                    LocalVelocityZ: 0f,
+                    AngularVelocityX: 0f,
+                    AngularVelocityY: 0f,
+                    AngularVelocityZ: 0f,
+                    AngularAccelerationX: 0f,
+                    AngularAccelerationY: 0f,
+                    AngularAccelerationZ: 0f,
+                    FrontWheelsAngleRadians: 0f,
+                    WheelVertForce: wheelVertForce ?? Wheels(0f, 0f, 0f, 0f),
+                    FrontAeroHeight: 0f,
+                    RearAeroHeight: 0f,
+                    FrontRollAngle: 0f,
+                    RearRollAngle: 0f,
+                    ChassisYaw: 0f,
+                    ChassisPitch: 0f,
+                    WheelCamber: Wheels(0f, 0f, 0f, 0f),
+                    WheelCamberGain: Wheels(0f, 0f, 0f, 0f)),
+                stamp),
+            LastEvent = eventCode is null
+                ? null
+                : new VehicleStateSample<VehicleEventState>(
+                    new VehicleEventState(
+                        eventCode,
+                        eventCode.Select(character => (byte)character).ToArray(),
+                        Array.Empty<byte>(),
+                        eventInvolvesPlayer ? (byte)0 : (byte)1,
+                        eventInvolvesPlayer ? (byte)4 : (byte)5,
+                        eventInvolvesPlayer),
+                    stamp)
         };
     }
 
@@ -254,5 +430,26 @@ public sealed class F125VehicleStateNormalizerTests
             YourTelemetry: 1,
             TechLevel: 0,
             Platform: 0);
+    }
+
+    private static VehicleWheelData<T> Wheels<T>(T rearLeft, T rearRight, T frontLeft, T frontRight)
+    {
+        return new VehicleWheelData<T>(rearLeft, rearRight, frontLeft, frontRight);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "HapticDrive.Asio.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root.");
     }
 }

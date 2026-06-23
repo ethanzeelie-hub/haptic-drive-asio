@@ -55,6 +55,130 @@ public sealed class RoadTextureEvaluator
     }
 
     public RoadTextureSignal Evaluate(
+        HapticRenderFrame renderFrame,
+        RoadTextureEvaluationContext? context = null)
+    {
+        context ??= RoadTextureEvaluationContext.Default;
+
+        RoadTextureEvaluatorOptions options;
+        lock (_gate)
+        {
+            options = _options;
+        }
+
+        var now = context.NowUtc;
+        var frame = renderFrame.Frame;
+        if (!options.IsEnabled)
+        {
+            return StoreSuppressed(now, "road disabled", options, context, renderFrame);
+        }
+
+        if (!context.HapticsRunning)
+        {
+            return StoreSuppressed(now, "haptics stopped", options, context, renderFrame);
+        }
+
+        if (context.TelemetryStale)
+        {
+            Interlocked.Increment(ref _staleTelemetrySuppressedCount);
+            return StoreSuppressed(now, "telemetry stale", options, context, renderFrame);
+        }
+
+        if (!context.DrivingArmed && !context.AllowWhenDrivingNotArmed)
+        {
+            return StoreSuppressed(now, "driving not armed", options, context, renderFrame);
+        }
+
+        if (frame.Context.IsPaused || !frame.Context.IsPlayerControlled || !frame.Context.AllowsDrivingOutput)
+        {
+            return StoreSuppressed(now, "driving state muted", options, context, renderFrame);
+        }
+
+        if (!renderFrame.Freshness.Telemetry.IsFresh)
+        {
+            Interlocked.Increment(ref _staleTelemetrySuppressedCount);
+            return StoreSuppressed(now, "telemetry missing or stale", options, context, renderFrame);
+        }
+
+        if (frame.Signals.SurfaceTypeIds is null || frame.Signals.SpeedMetersPerSecond is null)
+        {
+            return StoreSuppressed(now, "missing canonical telemetry", options, context, renderFrame);
+        }
+
+        var speedKph = (ushort)Math.Clamp(
+            (int)Math.Round(frame.Signals.SpeedMetersPerSecond.Value * 3.6f, MidpointRounding.AwayFromZero),
+            0,
+            ushort.MaxValue);
+        var speedProgress = SpeedProgress(speedKph, options.MinimumSpeedKph, options.FullIntensitySpeedKph);
+        if (speedProgress <= 0f)
+        {
+            return StoreSuppressed(now, "below road minimum speed", options, context, renderFrame);
+        }
+
+        var speedScale = SpeedScale(speedProgress);
+        var surface = EvaluateSurface(frame.Signals.SurfaceTypeIds, options);
+        if (surface.SurfaceMix <= 0f)
+        {
+            return StoreSuppressed(now, "no supported road surface", options, context, renderFrame);
+        }
+
+        var motion = EvaluateMotion(renderFrame, options);
+        var bst1FrequencyHz = EvaluateBst1Frequency(surface.Bst1FrequencyHz, speedProgress, options);
+        var noiseAmount = EvaluateNoiseAmount(surface.NoiseAmount, speedProgress, motion.RoughnessMetric, options);
+        var rawIntensity = Clamp(
+            (surface.SurfaceMix + (motion.RoughnessMetric * options.RoughnessContribution)) * speedScale,
+            0f,
+            options.MaximumIntensity);
+
+        if (surface.SurfaceClass == RoadTextureSurfaceClass.SmoothTrack)
+        {
+            rawIntensity = Math.Min(rawIntensity, options.SmoothSurfaceFloor + (motion.RoughnessMetric * 0.08f));
+        }
+
+        var gearDuckingActive = IsGearDuckingActive(context.LastGearPulseAtUtc, now, options.GearDuckingWindow);
+        var duckingGain = gearDuckingActive ? options.GearDuckingGain : 1f;
+        var smoothed = Smooth(rawIntensity, options);
+        var outputIntensity = Clamp(smoothed * duckingGain, 0f, options.MaximumIntensity);
+        var signal = new RoadTextureSignal(
+            now,
+            frame.Identity.SessionUid,
+            frame.Identity.SessionTime,
+            frame.Identity.FrameIdentifier,
+            frame.Identity.OverallFrameIdentifier,
+            options.IsEnabled,
+            TelemetryFresh: true,
+            context.HapticsRunning,
+            context.DrivingArmed || context.AllowWhenDrivingNotArmed,
+            speedKph,
+            speedScale,
+            ToVehicleWheelData(frame.Signals.SurfaceTypeIds),
+            ToVehicleWheelData(frame.Signals.SuspensionAcceleration),
+            ToVehicleWheelData(frame.Signals.WheelVerticalForce),
+            frame.Signals.VerticalG,
+            surface.SurfaceClass,
+            surface.SurfaceName,
+            surface.SurfaceMix,
+            rawIntensity,
+            smoothed,
+            outputIntensity,
+            motion.SuspensionAccelerationContribution,
+            motion.WheelVertForceContribution,
+            motion.VerticalGContribution,
+            motion.RoughnessMetric,
+            (bst1FrequencyHz + surface.PHprFrequencyHz) * 0.5f,
+            bst1FrequencyHz,
+            surface.PHprFrequencyHz,
+            noiseAmount,
+            gearDuckingActive,
+            duckingGain,
+            SuppressedReason: outputIntensity > 0f ? null : "road intensity zero")
+        {
+            DominantSurfaceTypeId = surface.DominantSurfaceTypeId
+        };
+        return Store(signal);
+    }
+
+    public RoadTextureSignal Evaluate(
         VehicleState? vehicleState,
         RoadTextureEvaluationContext? context = null)
     {
@@ -179,6 +303,42 @@ public sealed class RoadTextureEvaluator
         string reason,
         RoadTextureEvaluatorOptions options,
         RoadTextureEvaluationContext context,
+        HapticRenderFrame renderFrame)
+    {
+        _smoothedIntensity = Smooth(0f, options);
+        var frame = renderFrame.Frame;
+        var signal = RoadTextureSignal.Inactive(now, reason) with
+        {
+            RoadEffectEnabled = options.IsEnabled,
+            HapticsRunning = context.HapticsRunning,
+            DrivingArmed = context.DrivingArmed || context.AllowWhenDrivingNotArmed,
+            TelemetryFresh = !context.TelemetryStale && renderFrame.Freshness.Telemetry.IsPresent,
+            SessionUid = frame.Identity.SessionUid,
+            SessionTime = frame.Identity.SessionTime,
+            FrameIdentifier = frame.Identity.FrameIdentifier,
+            OverallFrameIdentifier = frame.Identity.OverallFrameIdentifier,
+            SpeedKph = frame.Signals.SpeedMetersPerSecond is null
+                ? (ushort)0
+                : (ushort)Math.Clamp(
+                    (int)Math.Round(frame.Signals.SpeedMetersPerSecond.Value * 3.6f, MidpointRounding.AwayFromZero),
+                    0,
+                    ushort.MaxValue),
+            SurfaceTypeIds = ToVehicleWheelData(frame.Signals.SurfaceTypeIds),
+            SuspensionAcceleration = ToVehicleWheelData(frame.Signals.SuspensionAcceleration),
+            WheelVertForce = ToVehicleWheelData(frame.Signals.WheelVerticalForce),
+            VerticalG = frame.Signals.VerticalG,
+            SmoothedIntensity = _smoothedIntensity,
+            GearDuckingActive = IsGearDuckingActive(context.LastGearPulseAtUtc, now, options.GearDuckingWindow),
+            DuckingGain = IsGearDuckingActive(context.LastGearPulseAtUtc, now, options.GearDuckingWindow) ? options.GearDuckingGain : 1f
+        };
+        return Store(signal);
+    }
+
+    private RoadTextureSignal StoreSuppressed(
+        DateTimeOffset now,
+        string reason,
+        RoadTextureEvaluatorOptions options,
+        RoadTextureEvaluationContext context,
         VehicleState? vehicleState = null)
     {
         _smoothedIntensity = Smooth(0f, options);
@@ -279,6 +439,13 @@ public sealed class RoadTextureEvaluator
             Clamp(weightedNoise / denominator, 0f, 1f));
     }
 
+    private static SurfaceEvaluation EvaluateSurface(
+        HapticWheelSignals<byte>? surfaceTypeIds,
+        RoadTextureEvaluatorOptions options)
+    {
+        return EvaluateSurface(ToVehicleWheelData(surfaceTypeIds), options);
+    }
+
     private static MotionEvaluation EvaluateMotion(VehicleState vehicleState, RoadTextureEvaluatorOptions options)
     {
         var suspensionAcceleration = vehicleState.MotionEx?.Value.SuspensionAcceleration ?? Wheels(0f);
@@ -292,6 +459,35 @@ public sealed class RoadTextureEvaluator
             options.WheelVertForceDeltaThreshold,
             options.WheelVertForceDeltaFullScale);
         var verticalG = vehicleState.Motion?.Value.GForceVertical;
+        var verticalGRoughness = verticalG is null || !float.IsFinite(verticalG.Value)
+            ? 0f
+            : Clamp((Math.Abs(verticalG.Value - 1f) - 0.12f) / 1.25f, 0f, 1f);
+
+        return new MotionEvaluation(
+            suspensionAcceleration,
+            wheelVertForce,
+            suspensionRoughness,
+            verticalForceRoughness,
+            verticalGRoughness,
+            Clamp(Math.Max(Math.Max(suspensionRoughness, verticalForceRoughness), verticalGRoughness), 0f, 1f));
+    }
+
+    private static MotionEvaluation EvaluateMotion(
+        HapticRenderFrame renderFrame,
+        RoadTextureEvaluatorOptions options)
+    {
+        var frame = renderFrame.Frame;
+        var suspensionAcceleration = ToVehicleWheelData(frame.Signals.SuspensionAcceleration);
+        var wheelVertForce = ToVehicleWheelData(frame.Signals.WheelVerticalForce);
+        var suspensionRoughness = AverageMagnitudeOverThreshold(
+            suspensionAcceleration,
+            options.SuspensionAccelerationThreshold,
+            options.SuspensionAccelerationFullScale);
+        var verticalForceRoughness = AverageDeltaOverThreshold(
+            wheelVertForce,
+            options.WheelVertForceDeltaThreshold,
+            options.WheelVertForceDeltaFullScale);
+        var verticalG = frame.Signals.VerticalG;
         var verticalGRoughness = verticalG is null || !float.IsFinite(verticalG.Value)
             ? 0f
             : Clamp((Math.Abs(verticalG.Value - 1f) - 0.12f) / 1.25f, 0f, 1f);
@@ -466,6 +662,20 @@ public sealed class RoadTextureEvaluator
     private static VehicleWheelData<T> Wheels<T>(T value)
     {
         return new VehicleWheelData<T>(value, value, value, value);
+    }
+
+    private static VehicleWheelData<byte> ToVehicleWheelData(HapticWheelSignals<byte>? values)
+    {
+        return values is null
+            ? Wheels<byte>(0)
+            : new VehicleWheelData<byte>(values.RearLeft, values.RearRight, values.FrontLeft, values.FrontRight);
+    }
+
+    private static VehicleWheelData<float> ToVehicleWheelData(HapticWheelSignals<float>? values)
+    {
+        return values is null
+            ? Wheels(0f)
+            : new VehicleWheelData<float>(values.RearLeft, values.RearRight, values.FrontLeft, values.FrontRight);
     }
 
     private static TelemetryFreshnessPolicy CreateFrameFreshnessPolicy(uint maximumFrameLag)

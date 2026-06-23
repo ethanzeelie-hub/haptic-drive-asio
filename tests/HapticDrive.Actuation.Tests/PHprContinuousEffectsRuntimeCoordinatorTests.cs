@@ -3,7 +3,6 @@ using HapticDrive.Actuation.PHpr;
 using HapticDrive.Asio.Core.Games;
 using HapticDrive.Asio.Core.Haptics;
 using HapticDrive.Asio.Core.Vehicle;
-using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Simagic.PHPR.Abstractions.Commands;
 using HapticDrive.Simagic.PHPR.Abstractions.MockProtocol;
 using HapticDrive.Simagic.PHPR.Abstractions.Output;
@@ -410,7 +409,6 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
 
             return new PHprContinuousEffectsRuntimeInput(
                 frame,
-                vehicleState,
                 ActuationDrivingContextFactory.FromHapticFrame(frame, slipLockSafetyContext.DrivingArmed),
                 IsPedalRoutingReady: true,
                 roadSafetyContext,
@@ -425,60 +423,32 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
             RoadTextureSignal signal,
             DateTimeOffset nowUtc)
         {
-            var telemetryFresh = !telemetryTimedOutMuted;
-            return new HapticFrame(
-                new HapticFrameIdentity(
-                    new GameIntegrationId("f1-25"),
-                    vehicleState.Frame.Source ?? "test",
-                    vehicleState.Frame.SessionUid,
-                    vehicleState.Frame.OverallFrameIdentifier,
-                    vehicleState.Frame.PlayerCarIndex,
-                    nowUtc,
-                    0),
-                new HapticTelemetrySignals(
-                    SpeedMetersPerSecond: vehicleState.Telemetry is null ? null : vehicleState.Telemetry.Value.SpeedKph / 3.6f,
-                    Throttle: vehicleState.Telemetry?.Value.Throttle,
-                    Brake: vehicleState.Telemetry?.Value.Brake,
-                    Steer: vehicleState.Telemetry?.Value.Steer,
-                    Gear: vehicleState.Telemetry?.Value.Gear,
-                    EngineRpm: vehicleState.Telemetry?.Value.EngineRpm,
-                    IdleRpm: vehicleState.CarStatus?.Value.IdleRpm,
-                    MaxRpm: vehicleState.CarStatus?.Value.MaxRpm,
-                    SurfaceKinds: signal.IsActive
-                        ? new HapticWheelSignals<SurfaceKind>(SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip)
-                        : new HapticWheelSignals<SurfaceKind>(SurfaceKind.Tarmac, SurfaceKind.Tarmac, SurfaceKind.Tarmac, SurfaceKind.Tarmac),
-                    TyreSlip: vehicleState.MotionEx is null
-                        ? null
-                        : new HapticWheelSignals<float>(
-                            vehicleState.MotionEx.Value.WheelSlipRatio.RearLeft,
-                            vehicleState.MotionEx.Value.WheelSlipRatio.RearRight,
-                            vehicleState.MotionEx.Value.WheelSlipRatio.FrontLeft,
-                            vehicleState.MotionEx.Value.WheelSlipRatio.FrontRight),
-                    SuspensionVelocity: vehicleState.MotionEx is null
-                        ? null
-                        : new HapticWheelSignals<float>(
-                            vehicleState.MotionEx.Value.SuspensionVelocity.RearLeft,
-                            vehicleState.MotionEx.Value.SuspensionVelocity.RearRight,
-                            vehicleState.MotionEx.Value.SuspensionVelocity.FrontLeft,
-                            vehicleState.MotionEx.Value.SuspensionVelocity.FrontRight),
-                    BrakeTemperatureCelsius: vehicleState.Telemetry is null
-                        ? null
-                        : new HapticWheelSignals<float>(
-                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.RearLeft,
-                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.RearRight,
-                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.FrontLeft,
-                            vehicleState.Telemetry.Value.BrakeTemperatureCelsius.FrontRight)),
-                new HapticDrivingContext(
-                    isRunning && !emergencyMute ? DrivingPhase.Driving : DrivingPhase.Paused,
-                    PitState.None,
-                    IsPaused: emergencyMute,
-                    IsPlayerControlled: true,
-                    AllowsDrivingOutput: isRunning && !telemetryTimedOutMuted && !emergencyMute),
-                new Dictionary<string, VehicleSignalFreshness>(StringComparer.Ordinal)
-                {
-                    [HapticFrameSignalNames.Telemetry] = new(telemetryFresh, true, true, true, telemetryFresh, TimeSpan.Zero, 0),
-                    [HapticFrameSignalNames.MotionEx] = new(vehicleState.MotionEx is not null, true, true, true, vehicleState.MotionEx is not null, TimeSpan.Zero, 0)
-                });
+            var frame = vehicleState.ToCanonicalHapticFrame();
+            var context = new HapticDrivingContext(
+                isRunning && !emergencyMute ? DrivingPhase.Driving : DrivingPhase.Paused,
+                PitState.None,
+                IsPaused: emergencyMute,
+                IsPlayerControlled: true,
+                AllowsDrivingOutput: isRunning && !telemetryTimedOutMuted && !emergencyMute);
+
+            var signals = frame.Signals with
+            {
+                SurfaceKinds = signal.IsActive
+                    ? new HapticWheelSignals<SurfaceKind>(SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip, SurfaceKind.RumbleStrip)
+                    : new HapticWheelSignals<SurfaceKind>(SurfaceKind.Tarmac, SurfaceKind.Tarmac, SurfaceKind.Tarmac, SurfaceKind.Tarmac)
+            };
+            var identity = frame.Identity with
+            {
+                CreatedAtUtc = nowUtc,
+                CreatedAtTimestamp = 0
+            };
+
+            return frame with
+            {
+                Identity = identity,
+                Signals = signals,
+                Context = context
+            };
         }
     }
 
