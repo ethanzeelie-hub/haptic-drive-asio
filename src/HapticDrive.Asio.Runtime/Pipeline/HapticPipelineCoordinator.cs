@@ -265,7 +265,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         var validation = HapticProfileValidator.Validate(profile);
         _currentProfile = validation.Profile;
         _normalMuted = _currentProfile.Mixer.IsMuted;
-        EffectEngine.UpdateOptions(_currentProfile.ToEffectOptions());
+        EffectEngine.UpdateEffectSettings(_currentProfile.ToEffectSettings());
         SyncAudioPipelineSettings();
         _lastEffectSnapshot = EffectEngine.GetSnapshot();
     }

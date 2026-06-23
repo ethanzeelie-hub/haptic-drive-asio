@@ -35,15 +35,18 @@ internal sealed class EffectSettingsListViewModel : ObservableObject
             {
                 profile.EffectSettings.TryGetValue(descriptor.Key, out var document);
                 document ??= descriptor.CreateDefaultSettings();
+                document = descriptor.Normalize(document);
                 var validationMessages = descriptor.Validate(document);
                 var parameters = descriptor.Parameters
                     .Select(parameter => new EffectParameterItemViewModel(
                         parameter.DisplayName,
                         parameter.Key,
+                        parameter.Kind.ToString(),
                         parameter.Unit,
                         parameter.Minimum,
                         parameter.Maximum,
                         parameter.DefaultValue,
+                        parameter.DecimalPlaces,
                         document.Parameters.TryGetValue(parameter.Key, out var value)
                             ? value
                             : parameter.DefaultValue))
@@ -51,10 +54,11 @@ internal sealed class EffectSettingsListViewModel : ObservableObject
 
                 return new EffectSettingsItemViewModel(
                     descriptor.DisplayName,
+                    descriptor.Description,
                     descriptor.Key,
                     descriptor.Category.ToString(),
                     document.Enabled,
-                    string.Join(", ", descriptor.RequiredSignals.Select(signal => signal.SignalName)),
+                    string.Join(", ", descriptor.RequiredSignals.Select(signal => signal.Signal.ToString())),
                     validationMessages.Count == 0
                         ? "Valid"
                         : string.Join(Environment.NewLine, validationMessages),
@@ -67,6 +71,7 @@ internal sealed class EffectSettingsListViewModel : ObservableObject
 
 internal sealed record EffectSettingsItemViewModel(
     string DisplayName,
+    string Description,
     string EffectKey,
     string Category,
     bool Enabled,
@@ -78,8 +83,10 @@ internal sealed record EffectSettingsItemViewModel(
 internal sealed record EffectParameterItemViewModel(
     string DisplayName,
     string Key,
+    string Kind,
     string Unit,
     double Minimum,
     double Maximum,
     double DefaultValue,
+    int DecimalPlaces,
     double CurrentValue);

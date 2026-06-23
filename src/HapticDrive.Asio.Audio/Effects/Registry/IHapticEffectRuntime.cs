@@ -4,14 +4,11 @@ namespace HapticDrive.Asio.Audio.Effects.Registry;
 
 public interface IHapticEffectRuntime
 {
-    string EffectKey { get; }
+    string Key { get; }
 
-    void UpdateSettings(EffectSettingsDocument settings);
+    void Reset();
 
-    void Render(
-        in HapticFrame frame,
-        Span<float> left,
-        Span<float> right,
-        int sampleRate,
-        int frameCount);
+    void ApplySettings(IReadOnlyDictionary<string, double> parameters);
+
+    void Render(in HapticRenderFrame frame, Span<float> left, Span<float> right, int sampleRate, int frameCount);
 }

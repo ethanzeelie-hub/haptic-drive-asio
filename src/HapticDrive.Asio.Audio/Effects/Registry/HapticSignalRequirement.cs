@@ -1,5 +1,7 @@
+using HapticDrive.Asio.Core.Haptics;
+
 namespace HapticDrive.Asio.Audio.Effects.Registry;
 
 public sealed record HapticSignalRequirement(
-    string SignalName,
+    HapticSignalKind Signal,
     bool RequiredForOutput);

@@ -1,5 +1,69 @@
 # Development Log
 
+## Remediation 5 - Make Effect Descriptors Create Functional Runtimes
+
+Date: 2026-06-23
+
+Status: Complete.
+
+Goal: Make effect descriptors the functional runtime source of truth for defaults, validation, runtime creation, and schema-v2 profile loading.
+
+Notes:
+
+- Replaced the old metadata-only descriptor model with functional runtime descriptors:
+  - `HapticSignalRequirement` now uses typed `HapticSignalKind`,
+  - `EffectParameterKind` was added,
+  - `EffectParameterDescriptor` now carries `Kind` and `DecimalPlaces`,
+  - `IHapticEffectRuntime` now exposes descriptor-driven `Key`, `Reset`, `ApplySettings`, and `Render` members.
+- Added `HapticEffectDescriptor` so each shipped effect descriptor now owns:
+  - stable key,
+  - display name and description,
+  - typed required signals,
+  - typed parameter descriptors,
+  - default-setting creation,
+  - parameter repair/normalization,
+  - runtime factory creation.
+- Rebuilt the shipped effect registry around functional descriptor factories for:
+  - `engine-rpm`,
+  - `gear-shift`,
+  - `kerb`,
+  - `impact`,
+  - `road-texture`,
+  - `slip-lock`.
+- Added functional runtime adapters for each built-in effect and removed shipped `MetadataOnlyRuntime` usage from the audio source tree.
+- Reworked `HapticEffectSettingsTranslator`, `HapticDriveProfile`, `HapticProfileValidator`, `HapticProfileStore`, and the runtime pipeline so schema-v2 effect documents are now the canonical runtime/settings graph:
+  - existing v2 profiles still load,
+  - missing built-in settings are filled from safe descriptor defaults,
+  - invalid descriptor parameters are repaired/clamped,
+  - unknown future effect keys are preserved for round-trip persistence without becoming runtime requirements.
+- Reworked `HapticEffectEngine` so built-in runtimes are created from descriptors and enabled/disabled entirely through descriptor-backed effect settings rather than hard-coded rendering assumptions.
+- Updated audio/UI metadata seams so the app can surface descriptor descriptions and parameter kinds/decimal places without inventing separate schema rules.
+- Replaced the old `diagnostic-test` guardrail assumptions with Stage 5 contract coverage for:
+  - functional runtime creation,
+  - no metadata-only runtime usage,
+  - typed required signals,
+  - typed parameter descriptors,
+  - schema-v2 runtime graph loading,
+  - unknown effect round-tripping without rendering,
+  - invalid parameter repair before runtime creation,
+  - disabled-effect non-rendering,
+  - add-a-new-effect guardrails.
+
+Verification:
+
+- `dotnet restore HapticDrive.Asio.sln --locked-mode` passed.
+- `dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `dotnet test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `dotnet list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- This stage stayed inside the audited Stage 5 boundary: it made descriptors and schema-v2 profiles the runtime truth without jumping ahead into the Stage 6 immutable/no-lock render-graph rewrite.
+- Automated validation stayed hardware-absent and used the existing Null-output-safe test posture only.
+- The remaining render-path hardening work is still explicitly deferred to Remediation 6.
+
 ## Remediation 4 - Complete Canonical HapticFrame Boundary
 
 Date: 2026-06-23

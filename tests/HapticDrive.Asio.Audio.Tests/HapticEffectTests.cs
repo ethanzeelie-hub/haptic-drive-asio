@@ -1,5 +1,6 @@
 using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Effects;
+using HapticDrive.Asio.Audio.Effects.Registry;
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Safety;
@@ -617,6 +618,7 @@ public sealed class HapticEffectTests
 
         Assert.True((await outputDevice.OpenAsync(configuration)).Succeeded);
         Assert.True((await outputDevice.StartAsync()).Succeeded);
+        engine.UpdateEffectSettings(CreateEffectSettings(EnableEffect("engine-rpm")));
         engine.Update(State(rpm: 9_000, throttle: 0.75f, gear: 4));
         var render = engine.RenderNextBuffer();
         var result = await pipeline.ProcessAndSubmitAsync(render.MixerInputs.Span, outputBuffer, outputDevice);
@@ -643,6 +645,12 @@ public sealed class HapticEffectTests
 
         Assert.True((await outputDevice.OpenAsync(configuration)).Succeeded);
         Assert.True((await outputDevice.StartAsync()).Succeeded);
+        engine.UpdateEffectSettings(CreateEffectSettings(
+            EnableEffect("kerb"),
+            EnableEffect("road-texture"),
+            EnableEffect("slip-lock",
+                ("wheel-slip-enabled", 1d),
+                ("wheel-lock-enabled", 1d))));
         engine.Update(State(
             rpm: 0,
             speed: 90,
@@ -668,6 +676,12 @@ public sealed class HapticEffectTests
     {
         var engine = new HapticEffectEngine(EffectFormat);
 
+        engine.UpdateEffectSettings(CreateEffectSettings(
+            EnableEffect("kerb"),
+            EnableEffect("road-texture"),
+            EnableEffect("slip-lock",
+                ("wheel-slip-enabled", 1d),
+                ("wheel-lock-enabled", 1d))));
         engine.Update(State(
             rpm: 0,
             speed: 90,
@@ -683,6 +697,36 @@ public sealed class HapticEffectTests
             input => Assert.Equal("Kerb", input.Name),
             input => Assert.Equal("Road texture", input.Name),
             input => Assert.Equal("Slip", input.Name));
+    }
+
+    [Fact]
+    public void DisabledEffectsDoNotRender()
+    {
+        var engine = new HapticEffectEngine(EffectFormat);
+
+        engine.UpdateEffectSettings(CreateEffectSettings(
+            DisableEffect("engine-rpm"),
+            DisableEffect("gear-shift"),
+            DisableEffect("kerb"),
+            DisableEffect("impact"),
+            DisableEffect("road-texture"),
+            DisableEffect("slip-lock")));
+        engine.Update(State(
+            rpm: 9_000,
+            throttle: 0.8f,
+            speed: 90,
+            surfaceTypeIds: Wheels<byte>(1),
+            wheelSlipRatio: Wheels(0.4f),
+            wheelSlipAngle: Wheels(0.2f),
+            wheelSpeed: Wheels(20f)));
+
+        var render = engine.RenderNextBuffer();
+
+        Assert.False(render.Snapshot.Engine.IsEnabled);
+        Assert.False(render.Snapshot.RoadTexture.IsEnabled);
+        Assert.False(render.Snapshot.Slip.IsEnabled);
+        Assert.Equal(0, render.Snapshot.ActiveEffectCount);
+        Assert.Empty(render.MixerInputs.ToArray());
     }
 
     [Fact]
@@ -824,6 +868,46 @@ public sealed class HapticEffectTests
         effect.Update(state);
         effect.Render(buffer);
         return buffer;
+    }
+
+    private static IReadOnlyDictionary<string, EffectSettingsDocument> CreateEffectSettings(params EffectSettingsDocument[] overrides)
+    {
+        var settings = HapticEffectSettingsTranslator.CreateDefaultDocuments(BuiltInHapticEffectRegistry.Instance)
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var document in overrides)
+        {
+            settings[document.EffectKey] = document;
+        }
+
+        return settings;
+    }
+
+    private static EffectSettingsDocument EnableEffect(
+        string key,
+        params (string Key, double Value)[] parameterOverrides)
+    {
+        return CreateEffectDocument(key, enabled: true, parameterOverrides);
+    }
+
+    private static EffectSettingsDocument DisableEffect(string key)
+    {
+        return CreateEffectDocument(key, enabled: false);
+    }
+
+    private static EffectSettingsDocument CreateEffectDocument(
+        string key,
+        bool enabled,
+        params (string Key, double Value)[] parameterOverrides)
+    {
+        var defaults = BuiltInHapticEffectRegistry.Instance.GetRequired(key).CreateDefaultSettings();
+        var parameters = defaults.Parameters.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        foreach (var (parameterKey, value) in parameterOverrides)
+        {
+            parameters[parameterKey] = value;
+        }
+
+        return new EffectSettingsDocument(defaults.EffectKey, enabled, parameters);
     }
 
     private static VehicleState State(

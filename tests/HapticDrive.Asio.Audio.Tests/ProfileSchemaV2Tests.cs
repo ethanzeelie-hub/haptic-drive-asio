@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HapticDrive.Asio.Audio.Effects;
 using HapticDrive.Asio.Audio.Effects.Registry;
 using HapticDrive.Asio.Audio.Profiles;
 
@@ -7,21 +8,30 @@ namespace HapticDrive.Asio.Audio.Tests;
 public sealed class ProfileSchemaV2Tests
 {
     [Fact]
-    public async Task V1ProfileMigratesToV2EffectDictionary()
+    public async Task ProfileV2LoadsAndCreatesRuntimeGraph()
     {
         var path = CreateTempProfilePath();
         await File.WriteAllTextAsync(
             path,
             """
             {
-              "Version": 1,
-              "Name": "Legacy V1",
+              "SchemaVersion": 2,
+              "Name": "Runtime Profile",
               "Effects": {
-                "Engine": {
-                  "IsEnabled": true,
-                  "Gain": 0.42,
-                  "MinimumFrequencyHz": 30,
-                  "MaximumFrequencyHz": 61
+                "engine-rpm": {
+                  "EffectKey": "engine-rpm",
+                  "Enabled": true,
+                  "Parameters": {
+                    "gain": 0.42,
+                    "minimum-frequency-hz": 30,
+                    "maximum-frequency-hz": 61,
+                    "high-frequency-enabled": 1,
+                    "high-frequency-hz": 50,
+                    "high-frequency-gain": 0.25,
+                    "frequency-jitter-hz": 0,
+                    "idle-throttle-gain": 0.35,
+                    "pit-gain-multiplier": 0.35
+                  }
                 }
               },
               "Mixer": {
@@ -38,20 +48,23 @@ public sealed class ProfileSchemaV2Tests
 
         var store = new HapticProfileStore();
         var result = await store.LoadAsync(path);
+        var engine = new HapticEffectEngine(new(1_000, 1, 200));
 
         Assert.True(result.Succeeded, result.Message);
         Assert.NotNull(result.Profile);
         Assert.Equal(HapticDriveProfile.CurrentVersion, result.Profile.Version);
         Assert.Equal(HapticDriveProfile.CurrentVersion, result.Profile.SchemaVersion);
+        Assert.Contains("road-texture", result.Profile.EffectSettings.Keys);
         Assert.Equal(0.42d, result.Profile.EffectSettings["engine-rpm"].Parameters["gain"], precision: 6);
-        Assert.Contains("diagnostic-test", result.Profile.EffectSettings.Keys);
-        Assert.Contains(
-            result.ValidationMessages,
-            message => message.Contains("migrated to version 2", StringComparison.OrdinalIgnoreCase));
+        engine.UpdateEffectSettings(result.Profile.ToEffectSettings());
+
+        Assert.True(engine.Options.Engine.IsEnabled);
+        Assert.True(engine.GetSnapshot().Engine.IsEnabled);
+        Assert.Equal(0.42f, engine.Options.Engine.Gain, precision: 6);
     }
 
     [Fact]
-    public async Task UnknownEffectKeyIsPreservedButNotRendered()
+    public async Task UnknownEffectKeysRoundTripButDoNotRender()
     {
         var path = CreateTempProfilePath();
         var document = """
@@ -100,13 +113,16 @@ public sealed class ProfileSchemaV2Tests
         var roundTripPath = CreateTempProfilePath();
         var save = await store.SaveAsync(load.Profile!, roundTripPath);
         var savedJson = await File.ReadAllTextAsync(roundTripPath);
+        var engine = new HapticEffectEngine(new(1_000, 1, 200));
 
         Assert.True(load.Succeeded, load.Message);
         Assert.NotNull(load.Profile);
         Assert.DoesNotContain("custom-future-effect", load.Profile.EffectSettings.Keys);
         Assert.Contains("custom-future-effect", load.Profile.UnknownEffectSettings.Keys);
+        engine.UpdateEffectSettings(load.Profile.ToEffectSettings());
         Assert.True(save.Succeeded, save.Message);
         Assert.Contains("custom-future-effect", savedJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("custom-future-effect", engine.EffectSettings.Keys);
     }
 
     [Fact]
@@ -126,7 +142,7 @@ public sealed class ProfileSchemaV2Tests
     }
 
     [Fact]
-    public async Task InvalidEffectSettingsAreReplacedByDescriptorDefaults()
+    public async Task InvalidParametersAreRepairedBeforeRuntimeCreation()
     {
         var path = CreateTempProfilePath();
         await File.WriteAllTextAsync(
@@ -158,16 +174,22 @@ public sealed class ProfileSchemaV2Tests
 
         var store = new HapticProfileStore();
         var result = await store.LoadAsync(path);
-        var defaults = BuiltInHapticEffectRegistry.Instance.GetRequired("engine-rpm").CreateDefaultSettings();
+        var engine = new HapticEffectEngine(new(1_000, 1, 200));
 
         Assert.True(result.Succeeded, result.Message);
         Assert.NotNull(result.Profile);
-        Assert.Equal(defaults.Enabled, result.Profile.EffectSettings["engine-rpm"].Enabled);
-        Assert.Equal(defaults.Parameters["gain"], result.Profile.EffectSettings["engine-rpm"].Parameters["gain"], precision: 6);
+        Assert.True(result.WasRepaired);
+        Assert.True(result.Profile.EffectSettings["engine-rpm"].Enabled);
+        Assert.Equal(1d, result.Profile.EffectSettings["engine-rpm"].Parameters["gain"], precision: 6);
+
+        engine.UpdateEffectSettings(result.Profile.ToEffectSettings());
+
+        Assert.True(engine.Options.Engine.IsEnabled);
+        Assert.Equal(1f, engine.Options.Engine.Gain, precision: 6);
         Assert.Contains(
             result.ValidationMessages,
-            message => message.Contains("engine-rpm", StringComparison.OrdinalIgnoreCase)
-                       && message.Contains("defaults were used", StringComparison.OrdinalIgnoreCase));
+            message => message.Contains("Engine RPM", StringComparison.OrdinalIgnoreCase)
+                       && message.Contains("parameter 'gain' repaired", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string CreateTempProfilePath()

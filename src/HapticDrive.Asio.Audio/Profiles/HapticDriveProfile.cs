@@ -25,7 +25,16 @@ public sealed record HapticDriveProfile(
     public HapticEffectEngineOptions ToEffectOptions()
     {
         var profile = HapticProfileValidator.Validate(this).Profile;
-        return HapticEffectSettingsTranslator.ToEngineOptions(profile.EffectSettings);
+        return HapticEffectSettingsTranslator.ToEngineOptions(profile.ToEffectSettings());
+    }
+
+    public IReadOnlyDictionary<string, EffectSettingsDocument> ToEffectSettings()
+    {
+        return EffectSettings is { Count: > 0 }
+            ? EffectSettings
+            : HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(
+                Effects ?? HapticDriveProfile.Default.Effects,
+                BuiltInHapticEffectRegistry.Instance);
     }
 
     public AudioMixerSettings ToMixerSettings(bool emergencyMute = false)
@@ -57,61 +66,13 @@ public sealed record HapticDriveProfile(
         ArgumentNullException.ThrowIfNull(mixer);
         ArgumentNullException.ThrowIfNull(safety);
 
+        var registry = BuiltInHapticEffectRegistry.Instance;
+        var effectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromOptions(effects, registry);
+
         return HapticProfileValidator.Validate(new HapticDriveProfile(
             CurrentVersion,
             name,
-            new HapticEffectTuning(
-                new EngineVibrationTuning(
-                    effects.Engine.IsEnabled,
-                    effects.Engine.Gain,
-                    effects.Engine.MinimumFrequencyHz,
-                    effects.Engine.MaximumFrequencyHz),
-                new GearShiftTuning(
-                    effects.GearShift.IsEnabled,
-                    effects.GearShift.Gain,
-                    effects.GearShift.PulseFrequencyHz,
-                    (int)Math.Round(effects.GearShift.PulseDuration.TotalMilliseconds)),
-                new KerbTuning(
-                    effects.Kerb.IsEnabled,
-                    effects.Kerb.Gain,
-                    effects.Kerb.BaseFrequencyHz,
-                    effects.Kerb.MinimumSpeedKph,
-                    effects.Kerb.FullIntensitySpeedKph),
-                new ImpactTuning(
-                    effects.Impact.IsEnabled,
-                    effects.Impact.Gain,
-                    effects.Impact.PulseFrequencyHz,
-                    (int)Math.Round(effects.Impact.PulseDuration.TotalMilliseconds),
-                    (int)Math.Round(effects.Impact.CooldownDuration.TotalMilliseconds),
-                    effects.Impact.VerticalGDeltaThreshold),
-                new RoadTextureTuning(
-                    effects.RoadTexture.IsEnabled,
-                    effects.RoadTexture.Gain,
-                    effects.RoadTexture.MinimumSpeedKph,
-                    effects.RoadTexture.FullIntensitySpeedKph)
-                {
-                    Bst1OutputEnabled = effects.RoadTexture.Bst1OutputEnabled,
-                    LowSpeedFrequencyHz = effects.RoadTexture.Bst1LowSpeedFrequencyHz,
-                    HighSpeedFrequencyHz = effects.RoadTexture.Bst1HighSpeedFrequencyHz,
-                    SpeedFrequencyInfluence = effects.RoadTexture.Bst1SpeedFrequencyInfluence,
-                    GrainAmount = effects.RoadTexture.Bst1GrainAmount
-                },
-                new SlipTuning(
-                    effects.Slip.WheelSlipEnabled || effects.Slip.WheelLockEnabled,
-                    effects.Slip.WheelSlipGain,
-                    effects.Slip.WheelSlipFrequencyHz,
-                    effects.Slip.MinimumSpeedKph,
-                    effects.Slip.SlipRatioThreshold,
-                    effects.Slip.SlipAngleThresholdRadians)
-                {
-                    WheelSlipEnabled = effects.Slip.WheelSlipEnabled,
-                    WheelSlipNoiseAmount = effects.Slip.WheelSlipNoiseAmount,
-                    WheelLockEnabled = effects.Slip.WheelLockEnabled,
-                    WheelLockGain = effects.Slip.WheelLockGain,
-                    WheelLockFrequencyHz = effects.Slip.WheelLockFrequencyHz,
-                    WheelLockNoiseAmount = effects.Slip.WheelLockNoiseAmount,
-                    WheelLockWheelSpeedRatioThreshold = effects.Slip.BrakeLockWheelSpeedRatioThreshold
-                }),
+            HapticEffectSettingsTranslator.ToLegacyTuning(effectSettings),
             new HapticMixerTuning(mixer.MasterGain, mixer.IsMuted),
             new HapticSafetyTuning(
                 safety.OutputGain,
@@ -119,121 +80,72 @@ public sealed record HapticDriveProfile(
                 safety.LimiterEnabled))
         {
             SchemaVersion = CurrentVersion,
-            EffectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(
-                new HapticEffectTuning(
-                    new EngineVibrationTuning(
-                        effects.Engine.IsEnabled,
-                        effects.Engine.Gain,
-                        effects.Engine.MinimumFrequencyHz,
-                        effects.Engine.MaximumFrequencyHz),
-                    new GearShiftTuning(
-                        effects.GearShift.IsEnabled,
-                        effects.GearShift.Gain,
-                        effects.GearShift.PulseFrequencyHz,
-                        (int)Math.Round(effects.GearShift.PulseDuration.TotalMilliseconds)),
-                    new KerbTuning(
-                        effects.Kerb.IsEnabled,
-                        effects.Kerb.Gain,
-                        effects.Kerb.BaseFrequencyHz,
-                        effects.Kerb.MinimumSpeedKph,
-                        effects.Kerb.FullIntensitySpeedKph),
-                    new ImpactTuning(
-                        effects.Impact.IsEnabled,
-                        effects.Impact.Gain,
-                        effects.Impact.PulseFrequencyHz,
-                        (int)Math.Round(effects.Impact.PulseDuration.TotalMilliseconds),
-                        (int)Math.Round(effects.Impact.CooldownDuration.TotalMilliseconds),
-                        effects.Impact.VerticalGDeltaThreshold),
-                    new RoadTextureTuning(
-                        effects.RoadTexture.IsEnabled,
-                        effects.RoadTexture.Gain,
-                        effects.RoadTexture.MinimumSpeedKph,
-                        effects.RoadTexture.FullIntensitySpeedKph)
-                    {
-                        Bst1OutputEnabled = effects.RoadTexture.Bst1OutputEnabled,
-                        LowSpeedFrequencyHz = effects.RoadTexture.Bst1LowSpeedFrequencyHz,
-                        HighSpeedFrequencyHz = effects.RoadTexture.Bst1HighSpeedFrequencyHz,
-                        SpeedFrequencyInfluence = effects.RoadTexture.Bst1SpeedFrequencyInfluence,
-                        GrainAmount = effects.RoadTexture.Bst1GrainAmount
-                    },
-                    new SlipTuning(
-                        effects.Slip.WheelSlipEnabled || effects.Slip.WheelLockEnabled,
-                        effects.Slip.WheelSlipGain,
-                        effects.Slip.WheelSlipFrequencyHz,
-                        effects.Slip.MinimumSpeedKph,
-                        effects.Slip.SlipRatioThreshold,
-                        effects.Slip.SlipAngleThresholdRadians)
-                    {
-                        WheelSlipEnabled = effects.Slip.WheelSlipEnabled,
-                        WheelSlipNoiseAmount = effects.Slip.WheelSlipNoiseAmount,
-                        WheelLockEnabled = effects.Slip.WheelLockEnabled,
-                        WheelLockGain = effects.Slip.WheelLockGain,
-                        WheelLockFrequencyHz = effects.Slip.WheelLockFrequencyHz,
-                        WheelLockNoiseAmount = effects.Slip.WheelLockNoiseAmount,
-                        WheelLockWheelSpeedRatioThreshold = effects.Slip.BrakeLockWheelSpeedRatioThreshold
-                    }),
-                BuiltInHapticEffectRegistry.Instance)
+            EffectSettings = effectSettings
         }).Profile;
     }
 
     private static HapticDriveProfile CreateDefault()
     {
-        var effects = HapticEffectEngineOptions.Default;
+        var effectOptions = HapticEffectEngineOptions.Default;
+        var safeEffects = new HapticEffectTuning(
+            new EngineVibrationTuning(
+                IsEnabled: false,
+                Gain: 0.5f,
+                effectOptions.Engine.MinimumFrequencyHz,
+                effectOptions.Engine.MaximumFrequencyHz),
+            new GearShiftTuning(
+                IsEnabled: false,
+                Gain: 0.5f,
+                effectOptions.GearShift.PulseFrequencyHz,
+                (int)Math.Round(effectOptions.GearShift.PulseDuration.TotalMilliseconds)),
+            new KerbTuning(
+                IsEnabled: false,
+                Gain: 0.5f,
+                effectOptions.Kerb.BaseFrequencyHz,
+                effectOptions.Kerb.MinimumSpeedKph,
+                effectOptions.Kerb.FullIntensitySpeedKph),
+            new ImpactTuning(
+                IsEnabled: false,
+                Gain: 0.5f,
+                effectOptions.Impact.PulseFrequencyHz,
+                (int)Math.Round(effectOptions.Impact.PulseDuration.TotalMilliseconds),
+                (int)Math.Round(effectOptions.Impact.CooldownDuration.TotalMilliseconds),
+                effectOptions.Impact.VerticalGDeltaThreshold),
+            new RoadTextureTuning(
+                IsEnabled: true,
+                Gain: 1f,
+                effectOptions.RoadTexture.MinimumSpeedKph,
+                effectOptions.RoadTexture.FullIntensitySpeedKph)
+            {
+                Bst1OutputEnabled = true,
+                LowSpeedFrequencyHz = effectOptions.RoadTexture.Bst1LowSpeedFrequencyHz,
+                HighSpeedFrequencyHz = effectOptions.RoadTexture.Bst1HighSpeedFrequencyHz,
+                SpeedFrequencyInfluence = effectOptions.RoadTexture.Bst1SpeedFrequencyInfluence,
+                GrainAmount = effectOptions.RoadTexture.Bst1GrainAmount
+            },
+            new SlipTuning(
+                IsEnabled: false,
+                Gain: 0.5f,
+                effectOptions.Slip.WheelSlipFrequencyHz,
+                effectOptions.Slip.MinimumSpeedKph,
+                effectOptions.Slip.SlipRatioThreshold,
+                effectOptions.Slip.SlipAngleThresholdRadians)
+            {
+                WheelSlipEnabled = false,
+                WheelSlipNoiseAmount = effectOptions.Slip.WheelSlipNoiseAmount,
+                WheelLockEnabled = false,
+                WheelLockGain = 0.5f,
+                WheelLockFrequencyHz = effectOptions.Slip.WheelLockFrequencyHz,
+                WheelLockNoiseAmount = effectOptions.Slip.WheelLockNoiseAmount,
+                WheelLockWheelSpeedRatioThreshold = effectOptions.Slip.BrakeLockWheelSpeedRatioThreshold
+            });
+        var effectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(
+            safeEffects,
+            BuiltInHapticEffectRegistry.Instance);
         var profile = new HapticDriveProfile(
             CurrentVersion,
             "Current Rig Defaults",
-            new HapticEffectTuning(
-                new EngineVibrationTuning(
-                    IsEnabled: false,
-                    Gain: 0.5f,
-                    effects.Engine.MinimumFrequencyHz,
-                    effects.Engine.MaximumFrequencyHz),
-                new GearShiftTuning(
-                    IsEnabled: false,
-                    Gain: 0.5f,
-                    effects.GearShift.PulseFrequencyHz,
-                    (int)Math.Round(effects.GearShift.PulseDuration.TotalMilliseconds)),
-                new KerbTuning(
-                    IsEnabled: false,
-                    Gain: 0.5f,
-                    effects.Kerb.BaseFrequencyHz,
-                    effects.Kerb.MinimumSpeedKph,
-                    effects.Kerb.FullIntensitySpeedKph),
-                new ImpactTuning(
-                    IsEnabled: false,
-                    Gain: 0.5f,
-                    effects.Impact.PulseFrequencyHz,
-                    (int)Math.Round(effects.Impact.PulseDuration.TotalMilliseconds),
-                    (int)Math.Round(effects.Impact.CooldownDuration.TotalMilliseconds),
-                    effects.Impact.VerticalGDeltaThreshold),
-                new RoadTextureTuning(
-                    IsEnabled: true,
-                    Gain: 1f,
-                    effects.RoadTexture.MinimumSpeedKph,
-                    effects.RoadTexture.FullIntensitySpeedKph)
-                {
-                    Bst1OutputEnabled = true,
-                    LowSpeedFrequencyHz = effects.RoadTexture.Bst1LowSpeedFrequencyHz,
-                    HighSpeedFrequencyHz = effects.RoadTexture.Bst1HighSpeedFrequencyHz,
-                    SpeedFrequencyInfluence = effects.RoadTexture.Bst1SpeedFrequencyInfluence,
-                    GrainAmount = effects.RoadTexture.Bst1GrainAmount
-                },
-                new SlipTuning(
-                    IsEnabled: false,
-                    Gain: 0.5f,
-                    effects.Slip.WheelSlipFrequencyHz,
-                    effects.Slip.MinimumSpeedKph,
-                    effects.Slip.SlipRatioThreshold,
-                    effects.Slip.SlipAngleThresholdRadians)
-                {
-                    WheelSlipEnabled = false,
-                    WheelSlipNoiseAmount = effects.Slip.WheelSlipNoiseAmount,
-                    WheelLockEnabled = false,
-                    WheelLockGain = 0.5f,
-                    WheelLockFrequencyHz = effects.Slip.WheelLockFrequencyHz,
-                    WheelLockNoiseAmount = effects.Slip.WheelLockNoiseAmount,
-                    WheelLockWheelSpeedRatioThreshold = effects.Slip.BrakeLockWheelSpeedRatioThreshold
-                }),
+            safeEffects,
             new HapticMixerTuning(
                 AudioMixerSettings.Default.MasterGain,
                 AudioMixerSettings.Default.IsMuted),
@@ -245,7 +157,7 @@ public sealed record HapticDriveProfile(
         return profile with
         {
             SchemaVersion = CurrentVersion,
-            EffectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(profile.Effects, BuiltInHapticEffectRegistry.Instance)
+            EffectSettings = effectSettings
         };
     }
 }
@@ -367,15 +279,50 @@ public static class HapticProfileValidator
 
         var repaired = false;
         var defaultProfile = HapticDriveProfile.Default;
-        var effects = profile.Effects
-            ?? (profile.EffectSettings is { Count: > 0 }
-                ? HapticEffectSettingsTranslator.ToLegacyTuning(profile.EffectSettings)
-                : defaultProfile.Effects);
-        if (profile.Effects is null)
+        var registry = BuiltInHapticEffectRegistry.Instance;
+        IReadOnlyDictionary<string, EffectSettingsDocument> normalizedEffectSettings;
+        if (profile.EffectSettings is { Count: > 0 })
+        {
+            var messageCountBeforeNormalize = messages.Count;
+            var normalizedFromProfile = HapticEffectSettingsTranslator.NormalizeDocuments(
+                profile.EffectSettings,
+                registry,
+                messages);
+            repaired |= messages.Count > messageCountBeforeNormalize;
+
+            if (profile.Effects is not null)
+            {
+                var normalizedFromLegacy = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(profile.Effects, registry);
+                if (!EffectSettingsMatch(normalizedFromProfile, normalizedFromLegacy))
+                {
+                    repaired = true;
+                    messages.Add("Effect settings were resynchronized from legacy effect tuning changes.");
+                    normalizedEffectSettings = normalizedFromLegacy;
+                }
+                else
+                {
+                    normalizedEffectSettings = normalizedFromProfile;
+                }
+            }
+            else
+            {
+                normalizedEffectSettings = normalizedFromProfile;
+            }
+        }
+        else if (profile.Effects is not null)
         {
             repaired = true;
-            messages.Add("Effect tuning was missing; defaults were used.");
+            messages.Add("Effect settings were missing; they were rebuilt from legacy effect tuning.");
+            normalizedEffectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(profile.Effects, registry);
         }
+        else
+        {
+            repaired = true;
+            messages.Add("Effect settings were missing; descriptor defaults were used.");
+            normalizedEffectSettings = HapticEffectSettingsTranslator.CreateDefaultDocuments(registry);
+        }
+
+        var effects = HapticEffectSettingsTranslator.ToLegacyTuning(normalizedEffectSettings);
 
         var mixer = profile.Mixer ?? defaultProfile.Mixer;
         if (profile.Mixer is null)
@@ -564,7 +511,7 @@ public static class HapticProfileValidator
                 NormalizeLimiterEnabled(safety.LimiterEnabled, messages, ref repaired)))
         {
             SchemaVersion = HapticDriveProfile.CurrentVersion,
-            EffectSettings = HapticEffectSettingsTranslator.CreateDocumentsFromLegacy(repairedEffects, BuiltInHapticEffectRegistry.Instance),
+            EffectSettings = normalizedEffectSettings,
             UnknownEffectSettings = profile.UnknownEffectSettings ?? defaultProfile.UnknownEffectSettings
         };
 
@@ -584,6 +531,42 @@ public static class HapticProfileValidator
     private static string SafeName(string? name)
     {
         return string.IsNullOrWhiteSpace(name) ? "Current Rig Defaults" : name.Trim();
+    }
+
+    private static bool EffectSettingsMatch(
+        IReadOnlyDictionary<string, EffectSettingsDocument> left,
+        IReadOnlyDictionary<string, EffectSettingsDocument> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in left)
+        {
+            if (!right.TryGetValue(pair.Key, out var other))
+            {
+                return false;
+            }
+
+            if (!string.Equals(pair.Value.EffectKey, other.EffectKey, StringComparison.OrdinalIgnoreCase)
+                || pair.Value.Enabled != other.Enabled
+                || pair.Value.Parameters.Count != other.Parameters.Count)
+            {
+                return false;
+            }
+
+            foreach (var parameter in pair.Value.Parameters)
+            {
+                if (!other.Parameters.TryGetValue(parameter.Key, out var otherValue)
+                    || Math.Abs(parameter.Value - otherValue) > 0.0001d)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static float Clamp(

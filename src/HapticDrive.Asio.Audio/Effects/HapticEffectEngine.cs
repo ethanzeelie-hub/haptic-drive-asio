@@ -1,3 +1,4 @@
+using HapticDrive.Asio.Audio.Effects.Registry;
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Haptics;
@@ -7,63 +8,49 @@ namespace HapticDrive.Asio.Audio.Effects;
 public sealed class HapticEffectEngine
 {
     private readonly object _gate = new();
-    private readonly EffectSlot<EngineVibrationEffect, EngineVibrationEffectOptions> _engineEffect;
-    private readonly EffectSlot<GearShiftEffect, GearShiftEffectOptions> _gearShiftEffect;
-    private readonly EffectSlot<KerbEffect, KerbEffectOptions> _kerbEffect;
-    private readonly EffectSlot<ImpactEffect, ImpactEffectOptions> _impactEffect;
-    private readonly EffectSlot<RoadTextureEffect, RoadTextureEffectOptions> _roadTextureEffect;
-    private readonly EffectSlot<SlipEffect, SlipEffectOptions> _slipEffect;
-    private readonly IEffectSlot[] _effectSlots;
+    private readonly IHapticEffectRegistry _registry;
+    private readonly RuntimeEffectSlot<EngineEffectRuntime> _engineEffect;
+    private readonly RuntimeEffectSlot<GearShiftEffectRuntime> _gearShiftEffect;
+    private readonly RuntimeEffectSlot<KerbEffectRuntime> _kerbEffect;
+    private readonly RuntimeEffectSlot<ImpactEffectRuntime> _impactEffect;
+    private readonly RuntimeEffectSlot<RoadTextureEffectRuntime> _roadTextureEffect;
+    private readonly RuntimeEffectSlot<SlipLockEffectRuntime> _slipEffect;
+    private readonly IRuntimeEffectSlot[] _effectSlots;
     private readonly AudioMixerInput[] _mixerInputs;
-    private IEffectSlot[] _renderSlots;
+    private IRuntimeEffectSlot[] _renderSlots;
+    private HapticRenderFrame _latestFrame;
+    private bool _hasFrame;
     private int _lastActiveEffectCount;
     private float _lastPeakLevel;
 
     public HapticEffectEngine(AudioSampleFormat format)
-        : this(format, HapticEffectEngineOptions.Default)
+        : this(format, BuiltInHapticEffectRegistry.Instance, HapticEffectSettingsTranslator.CreateDefaultDocuments(BuiltInHapticEffectRegistry.Instance))
     {
     }
 
     public HapticEffectEngine(AudioSampleFormat format, HapticEffectEngineOptions options)
+        : this(
+            format,
+            BuiltInHapticEffectRegistry.Instance,
+            HapticEffectSettingsTranslator.CreateDocumentsFromOptions(
+                options ?? throw new ArgumentNullException(nameof(options)),
+                BuiltInHapticEffectRegistry.Instance))
+    {
+    }
+
+    internal HapticEffectEngine(
+        AudioSampleFormat format,
+        IHapticEffectRegistry registry,
+        IReadOnlyDictionary<string, EffectSettingsDocument> settings)
     {
         Format = format ?? throw new ArgumentNullException(nameof(format));
-        Options = options ?? throw new ArgumentNullException(nameof(options));
-        _engineEffect = new EffectSlot<EngineVibrationEffect, EngineVibrationEffectOptions>(
-            format,
-            Options,
-            static engineOptions => engineOptions.Engine,
-            static effectOptions => effectOptions.IsEnabled,
-            static effectOptions => new EngineVibrationEffect(effectOptions));
-        _gearShiftEffect = new EffectSlot<GearShiftEffect, GearShiftEffectOptions>(
-            format,
-            Options,
-            static engineOptions => engineOptions.GearShift,
-            static effectOptions => effectOptions.IsEnabled,
-            static effectOptions => new GearShiftEffect(effectOptions));
-        _kerbEffect = new EffectSlot<KerbEffect, KerbEffectOptions>(
-            format,
-            Options,
-            static engineOptions => engineOptions.Kerb,
-            static effectOptions => effectOptions.IsEnabled,
-            static effectOptions => new KerbEffect(effectOptions));
-        _impactEffect = new EffectSlot<ImpactEffect, ImpactEffectOptions>(
-            format,
-            Options,
-            static engineOptions => engineOptions.Impact,
-            static effectOptions => effectOptions.IsEnabled,
-            static effectOptions => new ImpactEffect(effectOptions));
-        _roadTextureEffect = new EffectSlot<RoadTextureEffect, RoadTextureEffectOptions>(
-            format,
-            Options,
-            static engineOptions => engineOptions.RoadTexture,
-            static effectOptions => effectOptions.IsEnabled,
-            static effectOptions => new RoadTextureEffect(effectOptions));
-        _slipEffect = new EffectSlot<SlipEffect, SlipEffectOptions>(
-            format,
-            Options,
-            static engineOptions => engineOptions.Slip,
-            static effectOptions => effectOptions.IsEnabled,
-            static effectOptions => new SlipEffect(effectOptions));
+        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _engineEffect = CreateSlot<EngineEffectRuntime>("engine-rpm", static runtime => runtime.Snapshot.IsActive);
+        _gearShiftEffect = CreateSlot<GearShiftEffectRuntime>("gear-shift", static runtime => runtime.Snapshot.IsActive);
+        _kerbEffect = CreateSlot<KerbEffectRuntime>("kerb", static runtime => runtime.Snapshot.IsActive);
+        _impactEffect = CreateSlot<ImpactEffectRuntime>("impact", static runtime => runtime.Snapshot.IsActive);
+        _roadTextureEffect = CreateSlot<RoadTextureEffectRuntime>("road-texture", static runtime => runtime.Snapshot.IsActive);
+        _slipEffect = CreateSlot<SlipLockEffectRuntime>("slip-lock", static runtime => runtime.Snapshot.IsActive);
         _effectSlots =
         [
             _engineEffect,
@@ -74,20 +61,42 @@ public sealed class HapticEffectEngine
             _slipEffect
         ];
         _mixerInputs = new AudioMixerInput[_effectSlots.Length];
-        _renderSlots = BuildRenderSlots();
+        _renderSlots = Array.Empty<IRuntimeEffectSlot>();
+        UpdateEffectSettings(settings);
     }
 
     public AudioSampleFormat Format { get; }
 
-    public HapticEffectEngineOptions Options { get; private set; }
+    public HapticEffectEngineOptions Options { get; private set; } = HapticEffectEngineOptions.Default;
+
+    public IReadOnlyDictionary<string, EffectSettingsDocument> EffectSettings { get; private set; } =
+        new Dictionary<string, EffectSettingsDocument>(StringComparer.OrdinalIgnoreCase);
 
     public void UpdateOptions(HapticEffectEngineOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        UpdateEffectSettings(HapticEffectSettingsTranslator.CreateDocumentsFromOptions(options, _registry));
+    }
+
+    public void UpdateEffectSettings(IReadOnlyDictionary<string, EffectSettingsDocument> settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
 
         lock (_gate)
         {
-            ReconfigureEffects(options);
+            var normalized = HapticEffectSettingsTranslator.NormalizeDocuments(settings, _registry);
+            EffectSettings = normalized;
+            Options = HapticEffectSettingsTranslator.ToEngineOptions(normalized);
+
+            foreach (var effectSlot in _effectSlots)
+            {
+                var document = normalized.TryGetValue(effectSlot.Key, out var configured)
+                    ? configured
+                    : _registry.GetRequired(effectSlot.Key).CreateDefaultSettings();
+                effectSlot.ApplySettings(document);
+            }
+
+            _renderSlots = BuildRenderSlots();
         }
     }
 
@@ -99,6 +108,8 @@ public sealed class HapticEffectEngine
             {
                 effectSlot.Reset();
             }
+
+            _hasFrame = false;
             _lastActiveEffectCount = 0;
             _lastPeakLevel = 0f;
         }
@@ -108,24 +119,22 @@ public sealed class HapticEffectEngine
     {
         lock (_gate)
         {
-            _roadTextureEffect.Effect.NotifyGearPulseAccepted(timestampUtc);
+            _roadTextureEffect.Runtime.NotifyGearPulseAccepted(timestampUtc);
         }
     }
 
     public void Update(HapticEffectInput input)
     {
-        lock (_gate)
-        {
-            foreach (var effectSlot in _effectSlots)
-            {
-                effectSlot.Update(input);
-            }
-        }
+        Update(input.RenderFrame);
     }
 
     public void Update(HapticRenderFrame frame)
     {
-        Update(new HapticEffectInput(frame));
+        lock (_gate)
+        {
+            _latestFrame = frame;
+            _hasFrame = true;
+        }
     }
 
     public HapticEffectEngineSnapshot GetSnapshot()
@@ -155,48 +164,21 @@ public sealed class HapticEffectEngine
         }
     }
 
-    private void ReconfigureEffects(HapticEffectEngineOptions options)
-    {
-        Options = options;
-
-        foreach (var effectSlot in _effectSlots)
-        {
-            effectSlot.UpdateOptions(options);
-        }
-
-        _renderSlots = BuildRenderSlots();
-    }
-
-    private HapticEffectEngineSnapshot CreateSnapshot(
-        int activeEffectCount,
-        float peakLevel,
-        bool includeActivityItems)
-    {
-        var snapshot = new HapticEffectEngineSnapshot(
-            _engineEffect.Effect.Snapshot,
-            _gearShiftEffect.Effect.Snapshot,
-            _kerbEffect.Effect.Snapshot,
-            _impactEffect.Effect.Snapshot,
-            _roadTextureEffect.Effect.Snapshot,
-            _slipEffect.Effect.Snapshot,
-            activeEffectCount,
-            peakLevel);
-        if (includeActivityItems)
-        {
-            snapshot = snapshot with { ActivityItems = BuildActivityItems() };
-        }
-
-        return snapshot;
-    }
-
     private int RenderInto(Span<AudioMixerInput> mixerInputs, bool alreadyLocked)
     {
+        if (!_hasFrame)
+        {
+            _lastActiveEffectCount = 0;
+            _lastPeakLevel = 0f;
+            return 0;
+        }
+
         var activeEffectCount = 0;
         var peakLevel = 0f;
 
         foreach (var effectSlot in _renderSlots)
         {
-            var renderResult = effectSlot.Render();
+            var renderResult = effectSlot.Render(_latestFrame);
             peakLevel = Math.Max(peakLevel, renderResult.PeakLevel);
             if (effectSlot.TryCreateMixerInput(renderResult, out var mixerInput))
             {
@@ -209,7 +191,29 @@ public sealed class HapticEffectEngine
         return activeEffectCount;
     }
 
-    private IEffectSlot[] BuildRenderSlots()
+    private HapticEffectEngineSnapshot CreateSnapshot(
+        int activeEffectCount,
+        float peakLevel,
+        bool includeActivityItems)
+    {
+        var snapshot = new HapticEffectEngineSnapshot(
+            _engineEffect.Runtime.Snapshot with { IsEnabled = _engineEffect.IsEnabled },
+            _gearShiftEffect.Runtime.Snapshot with { IsEnabled = _gearShiftEffect.IsEnabled },
+            _kerbEffect.Runtime.Snapshot with { IsEnabled = _kerbEffect.IsEnabled },
+            _impactEffect.Runtime.Snapshot with { IsEnabled = _impactEffect.IsEnabled },
+            _roadTextureEffect.Runtime.Snapshot with { IsEnabled = _roadTextureEffect.IsEnabled },
+            _slipEffect.Runtime.Snapshot with { IsEnabled = _slipEffect.IsEnabled },
+            activeEffectCount,
+            peakLevel);
+        if (includeActivityItems)
+        {
+            snapshot = snapshot with { ActivityItems = BuildActivityItems() };
+        }
+
+        return snapshot;
+    }
+
+    private IRuntimeEffectSlot[] BuildRenderSlots()
     {
         return _effectSlots.Where(static slot => slot.IsEnabled).ToArray();
     }
@@ -218,99 +222,151 @@ public sealed class HapticEffectEngine
     {
         return
         [
-            new HapticEffectActivityItem("engine-rpm", _engineEffect.Effect.Snapshot.IsActive ? "active" : "idle"),
-            new HapticEffectActivityItem("gear-shift", _gearShiftEffect.Effect.Snapshot.IsActive ? "pulse active" : "idle"),
-            new HapticEffectActivityItem("kerb", _kerbEffect.Effect.Snapshot.IsActive ? "active" : "idle"),
-            new HapticEffectActivityItem("impact", _impactEffect.Effect.Snapshot.IsActive ? "pulse active" : "idle"),
-            new HapticEffectActivityItem("road-texture", _roadTextureEffect.Effect.Snapshot.IsActive ? "bst-1 active" : "idle"),
+            new HapticEffectActivityItem("engine-rpm", _engineEffect.Runtime.Snapshot.IsActive ? "active" : "idle"),
+            new HapticEffectActivityItem("gear-shift", _gearShiftEffect.Runtime.Snapshot.IsActive ? "pulse active" : "idle"),
+            new HapticEffectActivityItem("kerb", _kerbEffect.Runtime.Snapshot.IsActive ? "active" : "idle"),
+            new HapticEffectActivityItem("impact", _impactEffect.Runtime.Snapshot.IsActive ? "pulse active" : "idle"),
+            new HapticEffectActivityItem("road-texture", _roadTextureEffect.Runtime.Snapshot.IsActive ? "bst-1 active" : "idle"),
             new HapticEffectActivityItem(
                 "slip-lock",
-                _slipEffect.Effect.Snapshot.IsActive
-                    ? $"{(_slipEffect.Effect.Snapshot.ActiveSource ?? "slip").Trim().ToLowerInvariant()} active"
+                _slipEffect.Runtime.Snapshot.IsActive
+                    ? $"{(_slipEffect.Runtime.Snapshot.ActiveSource ?? "slip").Trim().ToLowerInvariant()} active"
                     : "idle")
         ];
     }
 
-    private interface IEffectSlot
+    private RuntimeEffectSlot<TRuntime> CreateSlot<TRuntime>(
+        string key,
+        Func<TRuntime, bool> isActiveSelector)
+        where TRuntime : BufferedHapticEffectRuntime
     {
+        var descriptor = _registry.GetRequired(key);
+        var runtime = descriptor.CreateRuntime(descriptor.CreateDefaultSettings()) as TRuntime
+            ?? throw new InvalidOperationException($"Descriptor '{key}' did not create runtime '{typeof(TRuntime).Name}'.");
+        return new RuntimeEffectSlot<TRuntime>(descriptor.Key, runtime, Format, isActiveSelector);
+    }
+
+    private interface IRuntimeEffectSlot
+    {
+        string Key { get; }
+
         bool IsEnabled { get; }
 
-        void UpdateOptions(HapticEffectEngineOptions options);
+        void ApplySettings(EffectSettingsDocument settings);
 
         void Reset();
 
-        void Update(HapticEffectInput input);
-
-        HapticEffectRenderResult Render();
+        HapticEffectRenderResult Render(in HapticRenderFrame frame);
 
         bool TryCreateMixerInput(HapticEffectRenderResult renderResult, out AudioMixerInput mixerInput);
     }
 
-    private sealed class EffectSlot<TEffect, TOptions> : IEffectSlot
-        where TEffect : class, IHapticEffectSource, IConfigurableHapticEffectSource<TOptions>
+    private sealed class RuntimeEffectSlot<TRuntime> : IRuntimeEffectSlot
+        where TRuntime : BufferedHapticEffectRuntime
     {
-        private readonly Func<HapticEffectEngineOptions, TOptions> _optionsSelector;
-        private readonly Func<TOptions, bool> _enabledSelector;
-        private readonly Func<TOptions, TEffect> _factory;
         private readonly AudioSampleBuffer _buffer;
+        private readonly float[] _left;
+        private readonly float[] _right;
+        private readonly Func<TRuntime, bool> _isActiveSelector;
 
-        public EffectSlot(
+        public RuntimeEffectSlot(
+            string key,
+            TRuntime runtime,
             AudioSampleFormat format,
-            HapticEffectEngineOptions initialOptions,
-            Func<HapticEffectEngineOptions, TOptions> optionsSelector,
-            Func<TOptions, bool> enabledSelector,
-            Func<TOptions, TEffect> factory)
+            Func<TRuntime, bool> isActiveSelector)
         {
-            _optionsSelector = optionsSelector ?? throw new ArgumentNullException(nameof(optionsSelector));
-            _enabledSelector = enabledSelector ?? throw new ArgumentNullException(nameof(enabledSelector));
-            _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+            Key = key ?? throw new ArgumentNullException(nameof(key));
+            Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+            _isActiveSelector = isActiveSelector ?? throw new ArgumentNullException(nameof(isActiveSelector));
             _buffer = AudioSampleBuffer.Allocate(format ?? throw new ArgumentNullException(nameof(format)));
-            Effect = _factory(_optionsSelector(initialOptions ?? throw new ArgumentNullException(nameof(initialOptions))));
-            IsEnabled = _enabledSelector(_optionsSelector(initialOptions));
+            _left = new float[format.FrameCount];
+            _right = format.ChannelCount > 1 ? new float[format.FrameCount] : Array.Empty<float>();
         }
 
-        public TEffect Effect { get; private set; } = default!;
+        public string Key { get; }
+
+        public TRuntime Runtime { get; }
 
         public bool IsEnabled { get; private set; }
 
-        public void UpdateOptions(HapticEffectEngineOptions options)
+        public void ApplySettings(EffectSettingsDocument settings)
         {
-            var effectOptions = _optionsSelector(options);
-            IsEnabled = _enabledSelector(effectOptions);
-            if (Effect is null)
+            ArgumentNullException.ThrowIfNull(settings);
+            Runtime.ApplySettings(settings.Parameters);
+            IsEnabled = settings.Enabled;
+            if (!IsEnabled)
             {
-                Effect = _factory(effectOptions);
-                return;
+                Runtime.Reset();
+                _buffer.Clear();
+                Array.Clear(_left);
+                if (_right.Length > 0)
+                {
+                    Array.Clear(_right);
+                }
             }
-
-            Effect.UpdateOptions(effectOptions);
         }
 
         public void Reset()
         {
-            Effect.Reset();
+            Runtime.Reset();
+            _buffer.Clear();
+            Array.Clear(_left);
+            if (_right.Length > 0)
+            {
+                Array.Clear(_right);
+            }
         }
 
-        public void Update(HapticEffectInput input)
+        public HapticEffectRenderResult Render(in HapticRenderFrame frame)
         {
-            Effect.Update(input);
-        }
+            _buffer.Clear();
+            if (!IsEnabled)
+            {
+                Array.Clear(_left);
+                if (_right.Length > 0)
+                {
+                    Array.Clear(_right);
+                }
 
-        public HapticEffectRenderResult Render()
-        {
-            return Effect.Render(_buffer);
+                return new HapticEffectRenderResult(Runtime.DisplayName, IsEnabled: false, IsActive: false, PeakLevel: 0f);
+            }
+
+            Runtime.Render(
+                frame,
+                _left.AsSpan(),
+                _right.Length == 0 ? Span<float>.Empty : _right.AsSpan(),
+                _buffer.SampleRate,
+                _buffer.FrameCount);
+            InterleaveChannels();
+            var peak = HapticEffectMath.CalculatePeak(_buffer);
+            return new HapticEffectRenderResult(Runtime.DisplayName, IsEnabled, _isActiveSelector(Runtime), peak);
         }
 
         public bool TryCreateMixerInput(HapticEffectRenderResult renderResult, out AudioMixerInput mixerInput)
         {
             if (renderResult.IsActive)
             {
-                mixerInput = new AudioMixerInput(_buffer, name: Effect.Name);
+                mixerInput = new AudioMixerInput(_buffer, name: Runtime.DisplayName);
                 return true;
             }
 
             mixerInput = default;
             return false;
+        }
+
+        private void InterleaveChannels()
+        {
+            if (_buffer.ChannelCount == 1)
+            {
+                _left.AsSpan().CopyTo(_buffer.Samples);
+                return;
+            }
+
+            for (var frame = 0; frame < _buffer.FrameCount; frame++)
+            {
+                _buffer[frame, 0] = _left[frame];
+                _buffer[frame, 1] = _right[frame];
+            }
         }
     }
 }

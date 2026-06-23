@@ -16,9 +16,12 @@ public static class HapticEffectSettingsTranslator
             StringComparer.OrdinalIgnoreCase);
     }
 
-    public static IReadOnlyDictionary<string, EffectSettingsDocument> CreateDocumentsFromLegacy(HapticEffectTuning tuning, IHapticEffectRegistry registry)
+    public static IReadOnlyDictionary<string, EffectSettingsDocument> CreateDocumentsFromLegacy(
+        HapticEffectTuning tuning,
+        IHapticEffectRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(tuning);
+        ArgumentNullException.ThrowIfNull(registry);
 
         var defaultEffects = LegacyDefaultTuning;
         var engine = tuning.Engine ?? defaultEffects.Engine;
@@ -30,7 +33,7 @@ public static class HapticEffectSettingsTranslator
 
         return new Dictionary<string, EffectSettingsDocument>(StringComparer.OrdinalIgnoreCase)
         {
-            ["engine-rpm"] = new(
+            ["engine-rpm"] = Doc(
                 "engine-rpm",
                 engine.IsEnabled,
                 Params(
@@ -42,16 +45,18 @@ public static class HapticEffectSettingsTranslator
                     ("high-frequency-gain", EngineVibrationEffectOptions.Default.HighFrequencyGain),
                     ("frequency-jitter-hz", EngineVibrationEffectOptions.Default.FrequencyJitterHz),
                     ("idle-throttle-gain", EngineVibrationEffectOptions.Default.IdleThrottleGain),
-                    ("pit-gain-multiplier", EngineVibrationEffectOptions.Default.PitGainMultiplier))),
-            ["gear-shift"] = new(
+                    ("pit-gain-multiplier", EngineVibrationEffectOptions.Default.PitGainMultiplier)),
+                registry),
+            ["gear-shift"] = Doc(
                 "gear-shift",
                 gear.IsEnabled,
                 Params(
                     ("gain", gear.Gain),
                     ("pulse-frequency-hz", gear.PulseFrequencyHz),
                     ("pulse-duration-ms", gear.PulseDurationMilliseconds),
-                    ("rpm-modulation-enabled", GearShiftEffectOptions.Default.ModulateGainByRpm ? 1d : 0d))),
-            ["kerb"] = new(
+                    ("rpm-modulation-enabled", GearShiftEffectOptions.Default.ModulateGainByRpm ? 1d : 0d)),
+                registry),
+            ["kerb"] = Doc(
                 "kerb",
                 kerb.IsEnabled,
                 Params(
@@ -62,8 +67,9 @@ public static class HapticEffectSettingsTranslator
                     ("high-frequency-enabled", KerbEffectOptions.Default.HighFrequencyEnabled ? 1d : 0d),
                     ("high-frequency-hz", KerbEffectOptions.Default.HighFrequencyHz),
                     ("high-frequency-gain", KerbEffectOptions.Default.HighFrequencyGain),
-                    ("noise-amount", KerbEffectOptions.Default.NoiseAmount))),
-            ["impact"] = new(
+                    ("noise-amount", KerbEffectOptions.Default.NoiseAmount)),
+                registry),
+            ["impact"] = Doc(
                 "impact",
                 impact.IsEnabled,
                 Params(
@@ -71,8 +77,9 @@ public static class HapticEffectSettingsTranslator
                     ("pulse-frequency-hz", impact.PulseFrequencyHz),
                     ("pulse-duration-ms", impact.PulseDurationMilliseconds),
                     ("cooldown-ms", impact.CooldownMilliseconds),
-                    ("vertical-g-threshold", impact.VerticalGDeltaThreshold))),
-            ["road-texture"] = new(
+                    ("vertical-g-threshold", impact.VerticalGDeltaThreshold)),
+                registry),
+            ["road-texture"] = Doc(
                 "road-texture",
                 road.IsEnabled,
                 Params(
@@ -84,8 +91,9 @@ public static class HapticEffectSettingsTranslator
                     ("low-speed-frequency-hz", road.LowSpeedFrequencyHz),
                     ("high-speed-frequency-hz", road.HighSpeedFrequencyHz),
                     ("speed-frequency-influence", road.SpeedFrequencyInfluence),
-                    ("grain-amount", road.GrainAmount))),
-            ["slip-lock"] = new(
+                    ("grain-amount", road.GrainAmount)),
+                registry),
+            ["slip-lock"] = Doc(
                 "slip-lock",
                 slip.IsEnabled,
                 Params(
@@ -100,8 +108,97 @@ public static class HapticEffectSettingsTranslator
                     ("minimum-speed-kph", slip.MinimumSpeedKph),
                     ("slip-ratio-threshold", slip.SlipRatioThreshold),
                     ("slip-angle-threshold-rad", slip.SlipAngleThresholdRadians),
-                    ("wheel-lock-wheel-speed-ratio-threshold", slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold))),
-            ["diagnostic-test"] = CreateDiagnosticTestDefaultSettings()
+                    ("wheel-lock-wheel-speed-ratio-threshold", slip.WheelLockWheelSpeedRatioThreshold ?? SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold)),
+                registry)
+        };
+    }
+
+    public static IReadOnlyDictionary<string, EffectSettingsDocument> CreateDocumentsFromOptions(
+        HapticEffectEngineOptions options,
+        IHapticEffectRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(registry);
+
+        return new Dictionary<string, EffectSettingsDocument>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["engine-rpm"] = Doc(
+                "engine-rpm",
+                options.Engine.IsEnabled,
+                Params(
+                    ("gain", options.Engine.Gain),
+                    ("minimum-frequency-hz", options.Engine.MinimumFrequencyHz),
+                    ("maximum-frequency-hz", options.Engine.MaximumFrequencyHz),
+                    ("high-frequency-enabled", options.Engine.HighFrequencyEnabled ? 1d : 0d),
+                    ("high-frequency-hz", options.Engine.HighFrequencyHz),
+                    ("high-frequency-gain", options.Engine.HighFrequencyGain),
+                    ("frequency-jitter-hz", options.Engine.FrequencyJitterHz),
+                    ("idle-throttle-gain", options.Engine.IdleThrottleGain),
+                    ("pit-gain-multiplier", options.Engine.PitGainMultiplier)),
+                registry),
+            ["gear-shift"] = Doc(
+                "gear-shift",
+                options.GearShift.IsEnabled,
+                Params(
+                    ("gain", options.GearShift.Gain),
+                    ("pulse-frequency-hz", options.GearShift.PulseFrequencyHz),
+                    ("pulse-duration-ms", options.GearShift.PulseDuration.TotalMilliseconds),
+                    ("rpm-modulation-enabled", options.GearShift.ModulateGainByRpm ? 1d : 0d)),
+                registry),
+            ["kerb"] = Doc(
+                "kerb",
+                options.Kerb.IsEnabled,
+                Params(
+                    ("gain", options.Kerb.Gain),
+                    ("base-frequency-hz", options.Kerb.BaseFrequencyHz),
+                    ("minimum-speed-kph", options.Kerb.MinimumSpeedKph),
+                    ("full-intensity-speed-kph", options.Kerb.FullIntensitySpeedKph),
+                    ("high-frequency-enabled", options.Kerb.HighFrequencyEnabled ? 1d : 0d),
+                    ("high-frequency-hz", options.Kerb.HighFrequencyHz),
+                    ("high-frequency-gain", options.Kerb.HighFrequencyGain),
+                    ("noise-amount", options.Kerb.NoiseAmount)),
+                registry),
+            ["impact"] = Doc(
+                "impact",
+                options.Impact.IsEnabled,
+                Params(
+                    ("gain", options.Impact.Gain),
+                    ("pulse-frequency-hz", options.Impact.PulseFrequencyHz),
+                    ("pulse-duration-ms", options.Impact.PulseDuration.TotalMilliseconds),
+                    ("cooldown-ms", options.Impact.CooldownDuration.TotalMilliseconds),
+                    ("vertical-g-threshold", options.Impact.VerticalGDeltaThreshold)),
+                registry),
+            ["road-texture"] = Doc(
+                "road-texture",
+                options.RoadTexture.IsEnabled,
+                Params(
+                    ("gain", options.RoadTexture.Gain),
+                    ("shared-signal-enabled", options.RoadTexture.IsEnabled ? 1d : 0d),
+                    ("bst1-output-enabled", options.RoadTexture.Bst1OutputEnabled ? 1d : 0d),
+                    ("minimum-speed-kph", options.RoadTexture.MinimumSpeedKph),
+                    ("full-intensity-speed-kph", options.RoadTexture.FullIntensitySpeedKph),
+                    ("low-speed-frequency-hz", options.RoadTexture.Bst1LowSpeedFrequencyHz),
+                    ("high-speed-frequency-hz", options.RoadTexture.Bst1HighSpeedFrequencyHz),
+                    ("speed-frequency-influence", options.RoadTexture.Bst1SpeedFrequencyInfluence),
+                    ("grain-amount", options.RoadTexture.Bst1GrainAmount)),
+                registry),
+            ["slip-lock"] = Doc(
+                "slip-lock",
+                options.Slip.IsEnabled,
+                Params(
+                    ("wheel-slip-enabled", options.Slip.WheelSlipEnabled ? 1d : 0d),
+                    ("wheel-slip-gain", options.Slip.WheelSlipGain),
+                    ("wheel-slip-frequency-hz", options.Slip.WheelSlipFrequencyHz),
+                    ("wheel-slip-noise-amount", options.Slip.WheelSlipNoiseAmount),
+                    ("wheel-lock-enabled", options.Slip.WheelLockEnabled ? 1d : 0d),
+                    ("wheel-lock-gain", options.Slip.WheelLockGain),
+                    ("wheel-lock-frequency-hz", options.Slip.WheelLockFrequencyHz),
+                    ("wheel-lock-noise-amount", options.Slip.WheelLockNoiseAmount),
+                    ("minimum-speed-kph", options.Slip.MinimumSpeedKph),
+                    ("slip-ratio-threshold", options.Slip.SlipRatioThreshold),
+                    ("slip-angle-threshold-rad", options.Slip.SlipAngleThresholdRadians),
+                    ("wheel-lock-wheel-speed-ratio-threshold", options.Slip.BrakeLockWheelSpeedRatioThreshold)),
+                registry)
         };
     }
 
@@ -117,19 +214,13 @@ public static class HapticEffectSettingsTranslator
 
         foreach (var descriptor in registry.All)
         {
-            if (!source.TryGetValue(descriptor.Key, out var document) || document is null)
-            {
-                normalized[descriptor.Key] = descriptor.CreateDefaultSettings();
-                messages?.Add($"Effect settings '{descriptor.Key}' were missing; descriptor defaults were used.");
-                continue;
-            }
-
-            var repairedDocument = NormalizeDocument(descriptor, document);
+            source.TryGetValue(descriptor.Key, out var document);
+            var repairedDocument = descriptor.Normalize(document, messages);
             var validationErrors = descriptor.Validate(repairedDocument);
             if (validationErrors.Count > 0)
             {
                 normalized[descriptor.Key] = descriptor.CreateDefaultSettings();
-                messages?.Add($"Effect settings '{descriptor.Key}' were invalid; descriptor defaults were used.");
+                messages?.Add($"Effect settings '{descriptor.Key}' could not be repaired safely; descriptor defaults were used.");
                 foreach (var error in validationErrors)
                 {
                     messages?.Add(error);
@@ -149,96 +240,22 @@ public static class HapticEffectSettingsTranslator
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        var engine = settings.TryGetValue("engine-rpm", out var engineDoc)
-            ? engineDoc
-            : BuiltInHapticEffectRegistry.Instance.GetRequired("engine-rpm").CreateDefaultSettings();
-        var gear = settings.TryGetValue("gear-shift", out var gearDoc)
-            ? gearDoc
-            : BuiltInHapticEffectRegistry.Instance.GetRequired("gear-shift").CreateDefaultSettings();
-        var kerb = settings.TryGetValue("kerb", out var kerbDoc)
-            ? kerbDoc
-            : BuiltInHapticEffectRegistry.Instance.GetRequired("kerb").CreateDefaultSettings();
-        var impact = settings.TryGetValue("impact", out var impactDoc)
-            ? impactDoc
-            : BuiltInHapticEffectRegistry.Instance.GetRequired("impact").CreateDefaultSettings();
-        var road = settings.TryGetValue("road-texture", out var roadDoc)
-            ? roadDoc
-            : BuiltInHapticEffectRegistry.Instance.GetRequired("road-texture").CreateDefaultSettings();
-        var slip = settings.TryGetValue("slip-lock", out var slipDoc)
-            ? slipDoc
-            : BuiltInHapticEffectRegistry.Instance.GetRequired("slip-lock").CreateDefaultSettings();
+        var registry = BuiltInHapticEffectRegistry.Instance;
+        var normalized = NormalizeDocuments(settings, registry);
+        var engine = GetDocumentOrDefault(normalized, registry, "engine-rpm");
+        var gear = GetDocumentOrDefault(normalized, registry, "gear-shift");
+        var kerb = GetDocumentOrDefault(normalized, registry, "kerb");
+        var impact = GetDocumentOrDefault(normalized, registry, "impact");
+        var road = GetDocumentOrDefault(normalized, registry, "road-texture");
+        var slip = GetDocumentOrDefault(normalized, registry, "slip-lock");
 
         return new HapticEffectEngineOptions(
-            EngineVibrationEffectOptions.Default with
-            {
-                IsEnabled = engine.Enabled,
-                Gain = Float(engine, "gain", 0.5),
-                MinimumFrequencyHz = Float(engine, "minimum-frequency-hz", EngineVibrationEffectOptions.Default.MinimumFrequencyHz),
-                MaximumFrequencyHz = Float(engine, "maximum-frequency-hz", EngineVibrationEffectOptions.Default.MaximumFrequencyHz),
-                HighFrequencyEnabled = Bool(engine, "high-frequency-enabled", EngineVibrationEffectOptions.Default.HighFrequencyEnabled),
-                HighFrequencyHz = Float(engine, "high-frequency-hz", EngineVibrationEffectOptions.Default.HighFrequencyHz),
-                HighFrequencyGain = Float(engine, "high-frequency-gain", EngineVibrationEffectOptions.Default.HighFrequencyGain),
-                FrequencyJitterHz = Float(engine, "frequency-jitter-hz", EngineVibrationEffectOptions.Default.FrequencyJitterHz),
-                IdleThrottleGain = Float(engine, "idle-throttle-gain", EngineVibrationEffectOptions.Default.IdleThrottleGain),
-                PitGainMultiplier = Float(engine, "pit-gain-multiplier", EngineVibrationEffectOptions.Default.PitGainMultiplier)
-            },
-            GearShiftEffectOptions.Default with
-            {
-                IsEnabled = gear.Enabled,
-                Gain = Float(gear, "gain", 0.5),
-                PulseFrequencyHz = Float(gear, "pulse-frequency-hz", GearShiftEffectOptions.Default.PulseFrequencyHz),
-                PulseDuration = TimeSpan.FromMilliseconds(Float(gear, "pulse-duration-ms", GearShiftEffectOptions.Default.PulseDuration.TotalMilliseconds)),
-                ModulateGainByRpm = Bool(gear, "rpm-modulation-enabled", GearShiftEffectOptions.Default.ModulateGainByRpm)
-            },
-            KerbEffectOptions.Default with
-            {
-                IsEnabled = kerb.Enabled,
-                Gain = Float(kerb, "gain", 0.5),
-                BaseFrequencyHz = Float(kerb, "base-frequency-hz", KerbEffectOptions.Default.BaseFrequencyHz),
-                MinimumSpeedKph = Float(kerb, "minimum-speed-kph", KerbEffectOptions.Default.MinimumSpeedKph),
-                FullIntensitySpeedKph = Float(kerb, "full-intensity-speed-kph", KerbEffectOptions.Default.FullIntensitySpeedKph),
-                HighFrequencyEnabled = Bool(kerb, "high-frequency-enabled", KerbEffectOptions.Default.HighFrequencyEnabled),
-                HighFrequencyHz = Float(kerb, "high-frequency-hz", KerbEffectOptions.Default.HighFrequencyHz),
-                HighFrequencyGain = Float(kerb, "high-frequency-gain", KerbEffectOptions.Default.HighFrequencyGain),
-                NoiseAmount = Float(kerb, "noise-amount", KerbEffectOptions.Default.NoiseAmount)
-            },
-            ImpactEffectOptions.Default with
-            {
-                IsEnabled = impact.Enabled,
-                Gain = Float(impact, "gain", 0.5),
-                PulseFrequencyHz = Float(impact, "pulse-frequency-hz", ImpactEffectOptions.Default.PulseFrequencyHz),
-                PulseDuration = TimeSpan.FromMilliseconds(Float(impact, "pulse-duration-ms", ImpactEffectOptions.Default.PulseDuration.TotalMilliseconds)),
-                CooldownDuration = TimeSpan.FromMilliseconds(Float(impact, "cooldown-ms", ImpactEffectOptions.Default.CooldownDuration.TotalMilliseconds)),
-                VerticalGDeltaThreshold = Float(impact, "vertical-g-threshold", ImpactEffectOptions.Default.VerticalGDeltaThreshold)
-            },
-            RoadTextureEffectOptions.Default with
-            {
-                IsEnabled = Bool(road, "shared-signal-enabled", road.Enabled),
-                Bst1OutputEnabled = Bool(road, "bst1-output-enabled", RoadTextureEffectOptions.Default.Bst1OutputEnabled),
-                Gain = Float(road, "gain", 1),
-                MinimumSpeedKph = Float(road, "minimum-speed-kph", RoadTextureEffectOptions.Default.MinimumSpeedKph),
-                FullIntensitySpeedKph = Float(road, "full-intensity-speed-kph", RoadTextureEffectOptions.Default.FullIntensitySpeedKph),
-                Bst1LowSpeedFrequencyHz = Float(road, "low-speed-frequency-hz", RoadTextureEffectOptions.Default.Bst1LowSpeedFrequencyHz),
-                Bst1HighSpeedFrequencyHz = Float(road, "high-speed-frequency-hz", RoadTextureEffectOptions.Default.Bst1HighSpeedFrequencyHz),
-                Bst1SpeedFrequencyInfluence = Float(road, "speed-frequency-influence", RoadTextureEffectOptions.Default.Bst1SpeedFrequencyInfluence),
-                Bst1GrainAmount = Float(road, "grain-amount", RoadTextureEffectOptions.Default.Bst1GrainAmount)
-            },
-            SlipEffectOptions.Default with
-            {
-                IsEnabled = slip.Enabled,
-                WheelSlipEnabled = Bool(slip, "wheel-slip-enabled", false),
-                WheelSlipGain = Float(slip, "wheel-slip-gain", 0.5),
-                WheelSlipFrequencyHz = Float(slip, "wheel-slip-frequency-hz", SlipEffectOptions.Default.WheelSlipFrequencyHz),
-                WheelSlipNoiseAmount = Float(slip, "wheel-slip-noise-amount", SlipEffectOptions.Default.WheelSlipNoiseAmount),
-                WheelLockEnabled = Bool(slip, "wheel-lock-enabled", false),
-                WheelLockGain = Float(slip, "wheel-lock-gain", 0.5),
-                WheelLockFrequencyHz = Float(slip, "wheel-lock-frequency-hz", SlipEffectOptions.Default.WheelLockFrequencyHz),
-                WheelLockNoiseAmount = Float(slip, "wheel-lock-noise-amount", SlipEffectOptions.Default.WheelLockNoiseAmount),
-                MinimumSpeedKph = Float(slip, "minimum-speed-kph", SlipEffectOptions.Default.MinimumSpeedKph),
-                SlipRatioThreshold = Float(slip, "slip-ratio-threshold", SlipEffectOptions.Default.SlipRatioThreshold),
-                SlipAngleThresholdRadians = Float(slip, "slip-angle-threshold-rad", SlipEffectOptions.Default.SlipAngleThresholdRadians),
-                BrakeLockWheelSpeedRatioThreshold = Float(slip, "wheel-lock-wheel-speed-ratio-threshold", SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold)
-            });
+            ToEngineVibrationEffectOptions(engine),
+            ToGearShiftEffectOptions(gear),
+            ToKerbEffectOptions(kerb),
+            ToImpactEffectOptions(impact),
+            ToRoadTextureEffectOptions(road),
+            ToSlipEffectOptions(slip));
     }
 
     public static HapticEffectTuning ToLegacyTuning(
@@ -299,43 +316,194 @@ public static class HapticEffectSettingsTranslator
             });
     }
 
-    private static Dictionary<string, double> Params(params (string Key, double Value)[] values)
+    internal static EngineVibrationEffectOptions ToEngineVibrationEffectOptions(EffectSettingsDocument settings)
     {
-        return values.ToDictionary(
-            entry => entry.Key,
-            entry => entry.Value,
-            StringComparer.OrdinalIgnoreCase);
+        ArgumentNullException.ThrowIfNull(settings);
+        return ToEngineVibrationEffectOptions(settings.Parameters) with { IsEnabled = settings.Enabled };
     }
 
-    private static float Float(EffectSettingsDocument settings, string key, double fallback)
+    internal static EngineVibrationEffectOptions ToEngineVibrationEffectOptions(IReadOnlyDictionary<string, double> parameters)
     {
-        return settings.Parameters.TryGetValue(key, out var value)
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return EngineVibrationEffectOptions.Default with
+        {
+            IsEnabled = true,
+            Gain = Float(parameters, "gain", EngineVibrationEffectOptions.Default.Gain),
+            MinimumFrequencyHz = Float(parameters, "minimum-frequency-hz", EngineVibrationEffectOptions.Default.MinimumFrequencyHz),
+            MaximumFrequencyHz = Float(parameters, "maximum-frequency-hz", EngineVibrationEffectOptions.Default.MaximumFrequencyHz),
+            HighFrequencyEnabled = Bool(parameters, "high-frequency-enabled", EngineVibrationEffectOptions.Default.HighFrequencyEnabled),
+            HighFrequencyHz = Float(parameters, "high-frequency-hz", EngineVibrationEffectOptions.Default.HighFrequencyHz),
+            HighFrequencyGain = Float(parameters, "high-frequency-gain", EngineVibrationEffectOptions.Default.HighFrequencyGain),
+            FrequencyJitterHz = Float(parameters, "frequency-jitter-hz", EngineVibrationEffectOptions.Default.FrequencyJitterHz),
+            IdleThrottleGain = Float(parameters, "idle-throttle-gain", EngineVibrationEffectOptions.Default.IdleThrottleGain),
+            PitGainMultiplier = Float(parameters, "pit-gain-multiplier", EngineVibrationEffectOptions.Default.PitGainMultiplier)
+        };
+    }
+
+    internal static GearShiftEffectOptions ToGearShiftEffectOptions(EffectSettingsDocument settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return ToGearShiftEffectOptions(settings.Parameters) with { IsEnabled = settings.Enabled };
+    }
+
+    internal static GearShiftEffectOptions ToGearShiftEffectOptions(IReadOnlyDictionary<string, double> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return GearShiftEffectOptions.Default with
+        {
+            IsEnabled = true,
+            Gain = Float(parameters, "gain", GearShiftEffectOptions.Default.Gain),
+            PulseFrequencyHz = Float(parameters, "pulse-frequency-hz", GearShiftEffectOptions.Default.PulseFrequencyHz),
+            PulseDuration = TimeSpan.FromMilliseconds(Float(parameters, "pulse-duration-ms", GearShiftEffectOptions.Default.PulseDuration.TotalMilliseconds)),
+            ModulateGainByRpm = Bool(parameters, "rpm-modulation-enabled", GearShiftEffectOptions.Default.ModulateGainByRpm)
+        };
+    }
+
+    internal static KerbEffectOptions ToKerbEffectOptions(EffectSettingsDocument settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return ToKerbEffectOptions(settings.Parameters) with { IsEnabled = settings.Enabled };
+    }
+
+    internal static KerbEffectOptions ToKerbEffectOptions(IReadOnlyDictionary<string, double> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return KerbEffectOptions.Default with
+        {
+            IsEnabled = true,
+            Gain = Float(parameters, "gain", KerbEffectOptions.Default.Gain),
+            BaseFrequencyHz = Float(parameters, "base-frequency-hz", KerbEffectOptions.Default.BaseFrequencyHz),
+            MinimumSpeedKph = Float(parameters, "minimum-speed-kph", KerbEffectOptions.Default.MinimumSpeedKph),
+            FullIntensitySpeedKph = Float(parameters, "full-intensity-speed-kph", KerbEffectOptions.Default.FullIntensitySpeedKph),
+            HighFrequencyEnabled = Bool(parameters, "high-frequency-enabled", KerbEffectOptions.Default.HighFrequencyEnabled),
+            HighFrequencyHz = Float(parameters, "high-frequency-hz", KerbEffectOptions.Default.HighFrequencyHz),
+            HighFrequencyGain = Float(parameters, "high-frequency-gain", KerbEffectOptions.Default.HighFrequencyGain),
+            NoiseAmount = Float(parameters, "noise-amount", KerbEffectOptions.Default.NoiseAmount)
+        };
+    }
+
+    internal static ImpactEffectOptions ToImpactEffectOptions(EffectSettingsDocument settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return ToImpactEffectOptions(settings.Parameters) with { IsEnabled = settings.Enabled };
+    }
+
+    internal static ImpactEffectOptions ToImpactEffectOptions(IReadOnlyDictionary<string, double> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return ImpactEffectOptions.Default with
+        {
+            IsEnabled = true,
+            Gain = Float(parameters, "gain", ImpactEffectOptions.Default.Gain),
+            PulseFrequencyHz = Float(parameters, "pulse-frequency-hz", ImpactEffectOptions.Default.PulseFrequencyHz),
+            PulseDuration = TimeSpan.FromMilliseconds(Float(parameters, "pulse-duration-ms", ImpactEffectOptions.Default.PulseDuration.TotalMilliseconds)),
+            CooldownDuration = TimeSpan.FromMilliseconds(Float(parameters, "cooldown-ms", ImpactEffectOptions.Default.CooldownDuration.TotalMilliseconds)),
+            VerticalGDeltaThreshold = Float(parameters, "vertical-g-threshold", ImpactEffectOptions.Default.VerticalGDeltaThreshold)
+        };
+    }
+
+    internal static RoadTextureEffectOptions ToRoadTextureEffectOptions(EffectSettingsDocument settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return ToRoadTextureEffectOptions(settings.Parameters) with
+        {
+            IsEnabled = settings.Enabled
+                && Bool(settings.Parameters, "shared-signal-enabled", settings.Enabled)
+        };
+    }
+
+    internal static RoadTextureEffectOptions ToRoadTextureEffectOptions(IReadOnlyDictionary<string, double> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return RoadTextureEffectOptions.Default with
+        {
+            IsEnabled = true,
+            Bst1OutputEnabled = Bool(parameters, "bst1-output-enabled", RoadTextureEffectOptions.Default.Bst1OutputEnabled),
+            Gain = Float(parameters, "gain", RoadTextureEffectOptions.Default.Gain),
+            MinimumSpeedKph = Float(parameters, "minimum-speed-kph", RoadTextureEffectOptions.Default.MinimumSpeedKph),
+            FullIntensitySpeedKph = Float(parameters, "full-intensity-speed-kph", RoadTextureEffectOptions.Default.FullIntensitySpeedKph),
+            Bst1LowSpeedFrequencyHz = Float(parameters, "low-speed-frequency-hz", RoadTextureEffectOptions.Default.Bst1LowSpeedFrequencyHz),
+            Bst1HighSpeedFrequencyHz = Float(parameters, "high-speed-frequency-hz", RoadTextureEffectOptions.Default.Bst1HighSpeedFrequencyHz),
+            Bst1SpeedFrequencyInfluence = Float(parameters, "speed-frequency-influence", RoadTextureEffectOptions.Default.Bst1SpeedFrequencyInfluence),
+            Bst1GrainAmount = Float(parameters, "grain-amount", RoadTextureEffectOptions.Default.Bst1GrainAmount)
+        };
+    }
+
+    internal static SlipEffectOptions ToSlipEffectOptions(EffectSettingsDocument settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return ToSlipEffectOptions(settings.Parameters) with { IsEnabled = settings.Enabled };
+    }
+
+    internal static SlipEffectOptions ToSlipEffectOptions(IReadOnlyDictionary<string, double> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return SlipEffectOptions.Default with
+        {
+            IsEnabled = true,
+            WheelSlipEnabled = Bool(parameters, "wheel-slip-enabled", false),
+            WheelSlipGain = Float(parameters, "wheel-slip-gain", SlipEffectOptions.Default.WheelSlipGain),
+            WheelSlipFrequencyHz = Float(parameters, "wheel-slip-frequency-hz", SlipEffectOptions.Default.WheelSlipFrequencyHz),
+            WheelSlipNoiseAmount = Float(parameters, "wheel-slip-noise-amount", SlipEffectOptions.Default.WheelSlipNoiseAmount),
+            WheelLockEnabled = Bool(parameters, "wheel-lock-enabled", false),
+            WheelLockGain = Float(parameters, "wheel-lock-gain", SlipEffectOptions.Default.WheelLockGain),
+            WheelLockFrequencyHz = Float(parameters, "wheel-lock-frequency-hz", SlipEffectOptions.Default.WheelLockFrequencyHz),
+            WheelLockNoiseAmount = Float(parameters, "wheel-lock-noise-amount", SlipEffectOptions.Default.WheelLockNoiseAmount),
+            MinimumSpeedKph = Float(parameters, "minimum-speed-kph", SlipEffectOptions.Default.MinimumSpeedKph),
+            SlipRatioThreshold = Float(parameters, "slip-ratio-threshold", SlipEffectOptions.Default.SlipRatioThreshold),
+            SlipAngleThresholdRadians = Float(parameters, "slip-angle-threshold-rad", SlipEffectOptions.Default.SlipAngleThresholdRadians),
+            BrakeLockWheelSpeedRatioThreshold = Float(parameters, "wheel-lock-wheel-speed-ratio-threshold", SlipEffectOptions.Default.BrakeLockWheelSpeedRatioThreshold)
+        };
+    }
+
+    private static EffectSettingsDocument GetDocumentOrDefault(
+        IReadOnlyDictionary<string, EffectSettingsDocument> settings,
+        IHapticEffectRegistry registry,
+        string key)
+    {
+        return settings.TryGetValue(key, out var document)
+            ? document
+            : registry.GetRequired(key).CreateDefaultSettings();
+    }
+
+    private static EffectSettingsDocument Doc(
+        string key,
+        bool enabled,
+        Dictionary<string, double> parameters,
+        IHapticEffectRegistry registry)
+    {
+        return registry.GetRequired(key).Normalize(new EffectSettingsDocument(key, enabled, parameters));
+    }
+
+    private static Dictionary<string, double> Params(params (string Key, double Value)[] values)
+    {
+        return values.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static float Float(
+        IReadOnlyDictionary<string, double> parameters,
+        string key,
+        double fallback)
+    {
+        return parameters.TryGetValue(key, out var value)
             ? (float)value
             : (float)fallback;
     }
 
-    private static bool Bool(EffectSettingsDocument settings, string key, bool fallback)
+    private static bool Bool(
+        IReadOnlyDictionary<string, double> parameters,
+        string key,
+        bool fallback)
     {
-        return settings.Parameters.TryGetValue(key, out var value)
+        return parameters.TryGetValue(key, out var value)
             ? value >= 0.5d
             : fallback;
-    }
-
-    private static EffectSettingsDocument NormalizeDocument(
-        IHapticEffectDescriptor descriptor,
-        EffectSettingsDocument document)
-    {
-        var defaultSettings = descriptor.CreateDefaultSettings();
-        var sourceParameters = document.Parameters ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        var normalizedParameters = defaultSettings.Parameters.ToDictionary(
-            parameter => parameter.Key,
-            parameter => sourceParameters.TryGetValue(parameter.Key, out var value) ? value : parameter.Value,
-            StringComparer.OrdinalIgnoreCase);
-
-        return new EffectSettingsDocument(
-            descriptor.Key,
-            document.Enabled,
-            normalizedParameters);
     }
 
     private static HapticEffectTuning CreateLegacyDefaultTuning()
@@ -393,16 +561,5 @@ public static class HapticEffectSettingsTranslator
                 WheelLockNoiseAmount = effects.Slip.WheelLockNoiseAmount,
                 WheelLockWheelSpeedRatioThreshold = effects.Slip.BrakeLockWheelSpeedRatioThreshold
             });
-    }
-
-    private static EffectSettingsDocument CreateDiagnosticTestDefaultSettings()
-    {
-        return new EffectSettingsDocument(
-            "diagnostic-test",
-            Enabled: false,
-            Params(
-                ("gain", 0.1d),
-                ("frequency-hz", 40d),
-                ("pulse-duration-ms", 100d)));
     }
 }
