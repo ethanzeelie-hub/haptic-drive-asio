@@ -20,11 +20,22 @@ internal sealed record SupportBundleExportInputs(
 internal sealed class SupportBundleExporter
 {
     private const int CurrentFormatVersion = 2;
+    private readonly Action<ZipArchive, SupportBundleExportInputs, IDiagnosticRedactor> _archiveWriter;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true
     };
+
+    public SupportBundleExporter()
+        : this(WriteArchiveEntries)
+    {
+    }
+
+    internal SupportBundleExporter(Action<ZipArchive, SupportBundleExportInputs, IDiagnosticRedactor> archiveWriter)
+    {
+        _archiveWriter = archiveWriter ?? throw new ArgumentNullException(nameof(archiveWriter));
+    }
 
     public string ExportZip(SupportBundleExportInputs inputs, string directory)
     {
@@ -52,19 +63,7 @@ internal sealed class SupportBundleExporter
         {
             using (var archive = ZipFile.Open(tempPath, ZipArchiveMode.Create))
             {
-                WriteStringEntry(archive, "README.txt", BuildReadme(inputs.RedactionMode));
-                WriteStringEntry(archive, "diagnostics-report.txt", NormalizeLineEndings(redactor.RedactText(inputs.DiagnosticsPresentation.ClipboardReportText)));
-                WriteStringEntry(archive, "diagnostics-summary.json", BuildDiagnosticsSummaryJson(inputs, redactor));
-                WriteStringEntry(archive, "diagnostic-events.json", SupportBundleJson.SerializeEvents(inputs.StructuredDiagnostics.Events, redactor, JsonOptions));
-                if (!string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText))
-                {
-                    WriteStringEntry(
-                        archive,
-                        "selected-recording-detail.txt",
-                        NormalizeLineEndings(redactor.RedactText(inputs.SelectedRecordingDetailText)));
-                }
-
-                WriteStringEntry(archive, "manifest.json", BuildManifestJson(inputs, redactor));
+                _archiveWriter(archive, inputs, redactor);
             }
 
             if (File.Exists(finalPath))
@@ -95,8 +94,8 @@ internal sealed class SupportBundleExporter
             Private local export. This bundle contains structured diagnostics, sanitized diagnostics text, and optional selected-recording detail text only.
             No hardware output is triggered by export.
             Redaction mode: {redactionMode}.
-            Safe mode excludes private IPs, serials, raw USB payloads, and full local paths.
-            Extended mode still redacts raw USB payloads, serials, hostnames, and process IDs.
+            Safe mode excludes private IPs, serials, raw USB payloads, approval phrases, and full local paths.
+            Extended mode may include private IPs only after explicit UI confirmation and still redacts raw USB payloads, serials, approval phrases, hostnames, and process IDs.
             Do not commit raw captures, serial numbers, private device paths, or raw USB data.
             """);
     }
@@ -119,6 +118,7 @@ internal sealed class SupportBundleExporter
 
     private static string BuildManifestJson(SupportBundleExportInputs inputs, IDiagnosticRedactor redactor)
     {
+        var correlationIdsIncluded = BuildCorrelationIdsIncluded(inputs.StructuredDiagnostics.CorrelationIds);
         var payload = new
         {
             FormatVersion = CurrentFormatVersion,
@@ -134,7 +134,11 @@ internal sealed class SupportBundleExporter
             ContainsPrivateIpAddresses = inputs.RedactionMode == DiagnosticRedactionMode.Extended,
             ContainsSerialNumbers = false,
             ContainsRawUsbPayloads = false,
+            PrivateIpInclusionRequested = inputs.RedactionMode == DiagnosticRedactionMode.Extended,
+            RawUsbDataExcluded = true,
+            RedactionCategoriesApplied = SupportBundleDiagnosticRedactor.GetAppliedRedactionCategories(inputs.RedactionMode),
             CorrelationIds = inputs.StructuredDiagnostics.CorrelationIds,
+            CorrelationIdsIncluded = correlationIdsIncluded,
             EventCount = inputs.StructuredDiagnostics.Events.Count,
             SelectedRecordingFileName = redactor.RedactText(inputs.SelectedRecordingFileName ?? string.Empty),
             Files = BuildManifestFiles(inputs)
@@ -160,6 +164,48 @@ internal sealed class SupportBundleExporter
 
         files.Add("manifest.json");
         return files;
+    }
+
+    private static IReadOnlyList<string> BuildCorrelationIdsIncluded(SupportBundleCorrelationIds correlationIds)
+    {
+        var included = new List<string>
+        {
+            nameof(correlationIds.AppSessionId),
+            nameof(correlationIds.OutputSessionId),
+            nameof(correlationIds.PHprAuthorizationGeneration)
+        };
+
+        if (!string.IsNullOrWhiteSpace(correlationIds.TelemetrySessionId))
+        {
+            included.Add(nameof(correlationIds.TelemetrySessionId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(correlationIds.RecordingSessionId))
+        {
+            included.Add(nameof(correlationIds.RecordingSessionId));
+        }
+
+        return included;
+    }
+
+    private static void WriteArchiveEntries(
+        ZipArchive archive,
+        SupportBundleExportInputs inputs,
+        IDiagnosticRedactor redactor)
+    {
+        WriteStringEntry(archive, "README.txt", BuildReadme(inputs.RedactionMode));
+        WriteStringEntry(archive, "diagnostics-report.txt", NormalizeLineEndings(redactor.RedactText(inputs.DiagnosticsPresentation.ClipboardReportText)));
+        WriteStringEntry(archive, "diagnostics-summary.json", BuildDiagnosticsSummaryJson(inputs, redactor));
+        WriteStringEntry(archive, "diagnostic-events.json", SupportBundleJson.SerializeEvents(inputs.StructuredDiagnostics.Events, redactor, JsonOptions));
+        if (!string.IsNullOrWhiteSpace(inputs.SelectedRecordingDetailText))
+        {
+            WriteStringEntry(
+                archive,
+                "selected-recording-detail.txt",
+                NormalizeLineEndings(redactor.RedactText(inputs.SelectedRecordingDetailText)));
+        }
+
+        WriteStringEntry(archive, "manifest.json", BuildManifestJson(inputs, redactor));
     }
 
     private static string ResolveApplicationVersion()

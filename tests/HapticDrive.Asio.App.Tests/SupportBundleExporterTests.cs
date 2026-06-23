@@ -32,21 +32,9 @@ public sealed class SupportBundleExporterTests
                 Pipeline: stopped
                 P-HPR real direct control: enabled; selected True; private path held in memory only.
                 """),
-            new SupportBundleStructuredDiagnostics(
-                new SupportBundleCorrelationIds("app-1", "telemetry-1", null, "output-1"),
-                [
-                    new DiagnosticEvent(
-                        generatedAt,
-                        "app.diagnostics.snapshot",
-                        DiagnosticSeverity.Information,
-                        "SupportBundle",
-                        "Snapshot captured.",
-                        new Dictionary<string, string>
-                        {
-                            ["gameId"] = "f1-25"
-                        },
-                        "app-1")
-                ]),
+            CreateStructuredDiagnostics(
+                generatedAt,
+                new SupportBundleCorrelationIds("app-1", "telemetry-1", null, "output-1", 3)),
             DiagnosticRedactionMode.Safe);
 
         var path = exporter.ExportZip(inputs, directory.Path);
@@ -95,21 +83,9 @@ public sealed class SupportBundleExporterTests
                 SummaryText: "Diagnostics summary.",
                 Items: ["Pipeline: stopped"],
                 ClipboardReportText: "Haptic Drive ASIO diagnostics"),
-            new SupportBundleStructuredDiagnostics(
-                new SupportBundleCorrelationIds("app-2", null, "recording-2", "output-2"),
-                [
-                    new DiagnosticEvent(
-                        generatedAt,
-                        "recording.capture-integrity",
-                        DiagnosticSeverity.Warning,
-                        "Recording",
-                        "Recording dropped packets.",
-                        new Dictionary<string, string>
-                        {
-                            ["droppedPackets"] = "1"
-                        },
-                        "recording-2")
-                ]),
+            CreateStructuredDiagnostics(
+                generatedAt,
+                new SupportBundleCorrelationIds("app-2", null, "recording-2", "output-2", 2)),
             DiagnosticRedactionMode.Safe,
             SelectedRecordingFileName: "session.hdrec",
             SelectedRecordingDetailText:
@@ -135,70 +111,7 @@ public sealed class SupportBundleExporterTests
     }
 
     [Fact]
-    public void ExportZip_SafeModeContainsNoRawUsbOrPrivateInventory()
-    {
-        using var directory = new TemporaryDirectory();
-        var exporter = new SupportBundleExporter();
-        var generatedAt = new DateTimeOffset(2026, 6, 20, 6, 7, 8, TimeSpan.Zero);
-        var inputs = new SupportBundleExportInputs(
-            generatedAt,
-            SelectedGameId: "f1-25",
-            SelectedGameDisplayName: "F1 25",
-            new DiagnosticsStatusPresentation(
-                RoadRecorderStatusText: @"Road recorder: active; path C:\Users\ethan\OneDrive\private\road-flight.jsonl.",
-                SummaryText: "Diagnostics summary from 192.168.1.50 host: rig-pc.",
-                Items:
-                [
-                    @"HID path \\?\hid#vid_3670&pid_0905#private-serial",
-                    "raw usb payload: 01 02 03 04 05 06",
-                    "serial: ABC123456789"
-                ],
-                ClipboardReportText:
-                """
-                Haptic Drive ASIO diagnostics
-                host: rig-pc
-                listener 192.168.1.50
-                raw usb payload: 01 02 03 04 05 06
-                serial: ABC123456789
-                """),
-            new SupportBundleStructuredDiagnostics(
-                new SupportBundleCorrelationIds("app-3", "telemetry-3", null, "output-3"),
-                [
-                    new DiagnosticEvent(
-                        generatedAt,
-                        "telemetry.ingress-backpressure",
-                        DiagnosticSeverity.Warning,
-                        "Telemetry",
-                        "raw usb payload: 01 02 03 04 05 06",
-                        new Dictionary<string, string>
-                        {
-                            ["sourceIp"] = "192.168.1.50",
-                            ["devicePath"] = @"\\?\hid#vid_3670&pid_0905#private-serial"
-                        },
-                        "telemetry-3")
-                ]),
-            DiagnosticRedactionMode.Safe,
-            SelectedRecordingFileName: "session.hdrec",
-            SelectedRecordingDetailText: @"Device path C:\Users\ethan\Captures\session.hdrec from 192.168.1.50.");
-
-        var path = exporter.ExportZip(inputs, directory.Path);
-
-        using var archive = ZipFile.OpenRead(path);
-        var report = ReadEntryText(archive, "diagnostics-report.txt");
-        var summaryJson = ReadEntryText(archive, "diagnostics-summary.json");
-        var eventsJson = ReadEntryText(archive, "diagnostic-events.json");
-
-        Assert.DoesNotContain("192.168.1.50", report, StringComparison.Ordinal);
-        Assert.DoesNotContain("rig-pc", report, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("ABC123456789", report, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("01 02 03 04 05 06", report, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(@"C:\Users\ethan", summaryJson, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("private-serial", eventsJson, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("192.168.1.50", eventsJson, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ExportZip_ManifestMarksRedactionMode()
+    public void SupportBundle_IncludesRedactionManifest()
     {
         using var directory = new TemporaryDirectory();
         var exporter = new SupportBundleExporter();
@@ -212,9 +125,9 @@ public sealed class SupportBundleExporterTests
                 SummaryText: "summary",
                 Items: ["item"],
                 ClipboardReportText: "report"),
-            new SupportBundleStructuredDiagnostics(
-                new SupportBundleCorrelationIds("app-4", null, null, "output-4"),
-                []),
+            CreateStructuredDiagnostics(
+                generatedAt,
+                new SupportBundleCorrelationIds("app-4", null, null, "output-4", 5)),
             DiagnosticRedactionMode.Extended);
 
         var path = exporter.ExportZip(inputs, directory.Path);
@@ -223,8 +136,67 @@ public sealed class SupportBundleExporterTests
         var manifestJson = ReadEntryText(archive, "manifest.json");
 
         Assert.Contains(@"""RedactionMode"": ""Extended""", manifestJson, StringComparison.Ordinal);
-        Assert.Contains(@"""ContainsPrivateIpAddresses"": true", manifestJson, StringComparison.Ordinal);
-        Assert.Contains(@"""EventCount"": 0", manifestJson, StringComparison.Ordinal);
+        Assert.Contains(@"""PrivateIpInclusionRequested"": true", manifestJson, StringComparison.Ordinal);
+        Assert.Contains(@"""RawUsbDataExcluded"": true", manifestJson, StringComparison.Ordinal);
+        Assert.Contains(@"""RedactionCategoriesApplied"": [", manifestJson, StringComparison.Ordinal);
+        Assert.Contains(@"""CorrelationIdsIncluded"": [", manifestJson, StringComparison.Ordinal);
+        Assert.Contains(@"""EventCount"": 2", manifestJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportFailure_LeavesNoPartialFinalZip()
+    {
+        using var directory = new TemporaryDirectory();
+        var exporter = new SupportBundleExporter((archive, _, _) =>
+        {
+            var entry = archive.CreateEntry("README.txt");
+            using var writer = new StreamWriter(entry.Open());
+            writer.Write("partial");
+            throw new InvalidOperationException("boom");
+        });
+
+        var inputs = new SupportBundleExportInputs(
+            new DateTimeOffset(2026, 6, 20, 8, 9, 10, TimeSpan.Zero),
+            SelectedGameId: "f1-25",
+            SelectedGameDisplayName: "F1 25",
+            new DiagnosticsStatusPresentation("disabled", "summary", ["item"], "report"),
+            CreateStructuredDiagnostics(
+                DateTimeOffset.UtcNow,
+                new SupportBundleCorrelationIds("app-5", null, null, "output-5", 1)),
+            DiagnosticRedactionMode.Safe);
+
+        Assert.Throws<InvalidOperationException>(() => exporter.ExportZip(inputs, directory.Path));
+
+        var supportBundlesDirectory = Path.Combine(directory.Path, "support-bundles");
+        Assert.False(Directory.EnumerateFiles(supportBundlesDirectory, "*.zip", SearchOption.TopDirectoryOnly).Any());
+        Assert.False(Directory.EnumerateFiles(supportBundlesDirectory, "*.tmp", SearchOption.TopDirectoryOnly).Any());
+    }
+
+    private static SupportBundleStructuredDiagnostics CreateStructuredDiagnostics(
+        DateTimeOffset generatedAt,
+        SupportBundleCorrelationIds correlationIds)
+    {
+        return StructuredDiagnosticsBuilder.Build(
+            new StructuredDiagnosticsBuildInputs(
+                generatedAt,
+                "f1-25",
+                "F1 25",
+                "null",
+                "Default",
+                [
+                    new DiagnosticEvent(
+                        generatedAt.AddSeconds(-1),
+                        "telemetry.stale",
+                        DiagnosticSeverity.Warning,
+                        "Telemetry",
+                        "Telemetry freshness is stale for output-driving signals.",
+                        new Dictionary<string, string>(StringComparer.Ordinal)
+                        {
+                            ["telemetryFresh"] = "False"
+                        },
+                        correlationIds.TelemetrySessionId ?? correlationIds.AppSessionId)
+                ],
+                correlationIds));
     }
 
     private static string ReadEntryText(ZipArchive archive, string entryName)

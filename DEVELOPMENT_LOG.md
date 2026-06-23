@@ -1,5 +1,77 @@
 # Development Log
 
+## Remediation 9 - Add Structured Diagnostics And Privacy Controls
+
+Date: 2026-06-24
+
+Status: Complete.
+
+Goal: Replace ad hoc support-bundle event rebuilding with bounded structured diagnostics, session-safe correlation, and export-time privacy enforcement that keeps private local data out of safe bundles.
+
+Notes:
+
+- Added the Stage 9 core diagnostics primitives in `src/HapticDrive.Asio.Core/Diagnostics`:
+  - `DiagnosticEvent`,
+  - `IDiagnosticSink`,
+  - bounded ring-buffer `InMemoryDiagnosticSink` with oldest-first eviction at `4096` events,
+  - `DiagnosticCorrelationContext` for app/telemetry/output/recording session IDs plus live P-HPR authorization generation tracking.
+- Added `RuntimeHealthMonitor` in `src/HapticDrive.Asio.Runtime/Diagnostics` so non-render/runtime observers can publish bounded structured events for:
+  - output interlock trips,
+  - participant silence/reset observation failures,
+  - telemetry session rotation and stale freshness,
+  - ingress drops,
+  - recording drops/incomplete finalization,
+  - replay subscriber failures,
+  - audio underrun/drop/render-overrun and output-fault conditions.
+- Reworked the app-side diagnostics/support-bundle flow:
+  - `AppCompositionRoot` now constructs one shared diagnostic sink, correlation context, and runtime health monitor for the app session,
+  - `AppRuntimeSession` now observes runtime snapshots on the telemetry status timer and before support-bundle export,
+  - support-bundle exports now consume the bounded buffered diagnostic snapshot instead of synthesizing all health events only at export time.
+- Added explicit app-side structured events for the Stage 9 gaps that do not belong in render/native callback code:
+  - P-HPR authorization success/failure/revocation without phrase persistence,
+  - output-interlock reset failures,
+  - shutdown timeout/failure,
+  - persistence warnings,
+  - direct P-HPR blocked-write warnings with safe-path redaction before publication.
+- Moved the support-bundle redaction logic into dedicated `src/HapticDrive.Asio.App/DiagnosticsRedactor.cs` and tightened coverage for:
+  - `%USERPROFILE%` and drive-rooted paths,
+  - UNC host/path redaction,
+  - private IPv4, IPv6 loopback/ULA/link-local, and IPv4-mapped IPv6,
+  - HID paths,
+  - serial-like values,
+  - process IDs,
+  - raw USB/raw protocol byte payloads,
+  - the controlled P-HPR approval phrase.
+- Extended support-bundle export manifest/reporting so bundles now declare:
+  - redaction mode,
+  - redaction categories applied,
+  - whether private-IP inclusion was requested,
+  - whether raw USB data was excluded,
+  - event count,
+  - correlation IDs included.
+- Added/updated Stage 9 test coverage:
+  - `DiagnosticSinkTests`,
+  - `RuntimeHealthMonitorTests`,
+  - `DiagnosticsSupportBundleTests`,
+  - `DiagnosticsRedactorTests`,
+  - `SupportBundleExporterTests`,
+  - `RenderPaths_DoNotCallDiagnosticSinkPublish`.
+- Validation at this checkpoint:
+  - `dotnet restore HapticDrive.Asio.sln --locked-mode`
+  - `dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror`
+  - `dotnet test tests/HapticDrive.Asio.Core.Tests/HapticDrive.Asio.Core.Tests.csproj -c Release --no-build`
+  - `dotnet test tests/HapticDrive.Asio.Runtime.Tests/HapticDrive.Asio.Runtime.Tests.csproj -c Release --no-build`
+  - `dotnet test tests/HapticDrive.Asio.App.Tests/HapticDrive.Asio.App.Tests.csproj -c Release`
+  - `dotnet test HapticDrive.Asio.sln -c Release --no-build`
+  - `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore`
+  - `dotnet list HapticDrive.Asio.sln package --vulnerable --include-transitive`
+  - `Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly`
+
+Self-review:
+
+- The live diagnostics path stays outside render/native callback code. Runtime observers publish from timer/worker/controller boundaries, and the render-path guardrail now explicitly checks that `IDiagnosticSink.Publish(...)` is not called from the active audio callback slices.
+- Safe-mode bundles now have stronger privacy guarantees than the prior export-time-only implementation, but the in-memory sink intentionally remains local/session-scoped and is not persisted or exported raw outside the redacted bundle path.
+
 ## Remediation 8 - Complete Runtime Ownership And UI Decomposition
 
 Date: 2026-06-24

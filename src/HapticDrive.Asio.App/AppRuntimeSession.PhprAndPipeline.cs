@@ -11,6 +11,7 @@ using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.App.Controllers;
 using HapticDrive.Asio.App.ViewModels;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Diagnostics;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle.Freshness;
@@ -248,6 +249,18 @@ internal sealed partial class AppRuntimeSession
     private void RevokePhprWriteAuthorization(string reason)
     {
         _phprWriteAuthorization.Revoke(reason);
+        var authorization = _phprWriteAuthorization.Current;
+        _diagnosticCorrelationContext.ObservePhprAuthorizationGeneration(authorization.Generation);
+        PublishDiagnosticEvent(
+            "phpr.authorization-revoked",
+            DiagnosticSeverity.Warning,
+            "PHpr",
+            authorization.Reason,
+            _diagnosticCorrelationContext.Current.AppSessionId,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["authorizationGeneration"] = authorization.Generation.ToString()
+            });
         UpdatePhprWriteAuthorizationStatus();
     }
 

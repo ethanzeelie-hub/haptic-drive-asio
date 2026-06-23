@@ -6,8 +6,10 @@ using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.App.Controllers;
 using HapticDrive.Asio.App.ViewModels;
+using HapticDrive.Asio.Core.Diagnostics;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Runtime;
+using HapticDrive.Asio.Runtime.Diagnostics;
 using HapticDrive.Asio.Runtime.Safety;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
@@ -39,6 +41,9 @@ internal sealed class AppCompositionRoot
         var phprWriteAuthorization = new PHprSessionWriteAuthorization();
         var testBench = new AudioTestBench();
         var drivingArmedStateService = new DrivingArmedStateService();
+        var diagnosticSink = new InMemoryDiagnosticSink();
+        var diagnosticCorrelationContext = new DiagnosticCorrelationContext();
+        var runtimeHealthMonitor = new RuntimeHealthMonitor(diagnosticSink, diagnosticCorrelationContext);
 
         Services = new AppServices(
             effectSettingsViewModel,
@@ -61,6 +66,9 @@ internal sealed class AppCompositionRoot
             new AsioReadinessDiagnostics(asioDriverCatalog),
             outputInterlock,
             phprWriteAuthorization,
+            diagnosticSink,
+            diagnosticCorrelationContext,
+            runtimeHealthMonitor,
             testBench,
             new WindowsInputDeviceDiscovery(),
             new WheelInputCandidateProvider(),

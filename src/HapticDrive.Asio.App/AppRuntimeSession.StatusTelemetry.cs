@@ -33,6 +33,7 @@ internal sealed partial class AppRuntimeSession
         {
             RefreshPhprSoftwareCoexistenceStatus();
             var pipelineSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+            ObserveDiagnosticState(pipelineSnapshot);
             await RouteMockPedalEffectsFromSnapshotAsync(pipelineSnapshot);
             RecordRoadTextureFlightRecorder(pipelineSnapshot);
             UpdateTelemetryStatus();

@@ -11,11 +11,13 @@ using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.App.Controllers;
 using HapticDrive.Asio.App.ViewModels;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Diagnostics;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle.Freshness;
 using HapticDrive.Asio.Recording;
 using HapticDrive.Asio.Runtime;
+using HapticDrive.Asio.Runtime.Diagnostics;
 using HapticDrive.Asio.Runtime.Pipeline;
 using HapticDrive.Asio.Runtime.Safety;
 using HapticDrive.Asio.Runtime.Telemetry;
@@ -88,6 +90,9 @@ internal sealed partial class AppRuntimeSession
     private readonly HapticProfileStore _profileStore;
     private readonly PhprEffectProfileStore _phprProfileStore;
     private readonly RuntimeLifecycleCoordinator _runtimeLifecycleCoordinator;
+    private readonly IDiagnosticSink _diagnosticSink;
+    private readonly DiagnosticCorrelationContext _diagnosticCorrelationContext;
+    private readonly RuntimeHealthMonitor _runtimeHealthMonitor;
     private readonly OutputInterlockSupervisor _outputInterlockSupervisor;
     private readonly EffectSettingsListViewModel _effectSettingsViewModel;
     private readonly SafetyStateViewModel _safetyStateViewModel;
@@ -283,17 +288,12 @@ internal sealed partial class AppRuntimeSession
     private int _telemetryStatusTickInFlight;
     private long _telemetryStatusTickSkippedCount;
     private readonly string _roadTextureFlightRecorderSessionId = Guid.NewGuid().ToString("N");
-    private readonly string _appSessionCorrelationId = Guid.NewGuid().ToString("N");
     private IRoadTextureFlightRecorder _roadTextureFlightRecorder = DisabledRoadTextureFlightRecorder.Instance;
     private DateTimeOffset? _lastPhprCoexistenceScanUtc;
     private string? _lastPhprValidationExportPath;
     private string? _lastSupportBundleExportPath;
-    private string? _telemetrySessionCorrelationId;
-    private string? _telemetrySessionFingerprint;
-    private string? _recordingSessionCorrelationId;
-    private string? _recordingSessionFingerprint;
-    private string _outputDeviceSessionCorrelationId = Guid.NewGuid().ToString("N");
-    private string? _outputDeviceSessionFingerprint;
+    private string? _lastPublishedSettingsError;
+    private string? _lastPublishedPhprBlockedReason;
     private string _lastPhprPedalsPulseMessage = "No normal P-HPR test pulse has been sent.";
     private string _lastBst1PaddleGearPulseMessage = "BST-1 paddle gear pulse is disabled.";
     private bool _bst1PaddleGearPulseEnabled;
@@ -343,6 +343,9 @@ internal sealed partial class AppRuntimeSession
         _asioReadinessDiagnostics = services.AsioReadinessDiagnostics;
         _outputInterlock = services.OutputInterlock;
         _phprWriteAuthorization = services.PhprWriteAuthorization;
+        _diagnosticSink = services.DiagnosticSink;
+        _diagnosticCorrelationContext = services.DiagnosticCorrelationContext;
+        _runtimeHealthMonitor = services.RuntimeHealthMonitor;
         _testBench = services.TestBench;
         _inputDeviceDiscovery = services.InputDeviceDiscovery;
         _wheelInputCandidateProvider = services.WheelInputCandidateProvider;
@@ -832,63 +835,125 @@ internal sealed partial class AppRuntimeSession
     private SupportBundleCorrelationIds CaptureSupportBundleCorrelationIds(HapticPipelineSnapshot pipelineSnapshot)
     {
         ArgumentNullException.ThrowIfNull(pipelineSnapshot);
-
-        UpdateTelemetrySessionCorrelation(pipelineSnapshot);
-        UpdateRecordingSessionCorrelation(pipelineSnapshot.Recording);
-        UpdateOutputSessionCorrelation(BuildSelectedOutputId());
-
+        ObserveDiagnosticState(pipelineSnapshot);
+        var correlation = _diagnosticCorrelationContext.Current;
         return new SupportBundleCorrelationIds(
-            _appSessionCorrelationId,
-            _telemetrySessionCorrelationId,
-            _recordingSessionCorrelationId,
-            _outputDeviceSessionCorrelationId);
+            correlation.AppSessionId,
+            correlation.TelemetrySessionId,
+            correlation.RecordingSessionId,
+            correlation.OutputSessionId,
+            correlation.PHprAuthorizationGeneration);
     }
 
-    private void UpdateTelemetrySessionCorrelation(HapticPipelineSnapshot pipelineSnapshot)
+    private void ObserveDiagnosticState(HapticPipelineSnapshot pipelineSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(pipelineSnapshot);
+
+        _diagnosticCorrelationContext.ObservePhprAuthorizationGeneration(_phprWriteAuthorization.Current.Generation);
+        _runtimeHealthMonitor.ObserveInterlock(pipelineSnapshot.OutputInterlock);
+        _runtimeHealthMonitor.ObserveSupervisor(_outputInterlockSupervisor.Current);
+        _runtimeHealthMonitor.ObservePipeline(
+            pipelineSnapshot,
+            BuildTelemetrySessionKey(pipelineSnapshot),
+            BuildSelectedOutputId());
+        _runtimeHealthMonitor.ObserveTelemetryIngress(_telemetryIngressWorker.GetSnapshot());
+        _runtimeHealthMonitor.ObserveRecording(
+            pipelineSnapshot.Recording,
+            pipelineSnapshot.Recording.IsRecording
+                ? Path.GetFileName(pipelineSnapshot.Recording.FilePath)
+                : null);
+        _runtimeHealthMonitor.ObserveReplay(pipelineSnapshot.Replay);
+
+        PublishPersistenceDiagnosticIfNeeded();
+        PublishPhprBlockedWriteDiagnosticIfNeeded();
+    }
+
+    private string BuildTelemetrySessionKey(HapticPipelineSnapshot pipelineSnapshot)
     {
         var identity = pipelineSnapshot.HapticFrame?.Identity;
-        var source = identity?.Source ?? pipelineSnapshot.VehicleState.Frame.Source;
+        var source = identity?.Source ?? pipelineSnapshot.VehicleState.Frame.Source ?? "unknown";
         var sessionUid = identity?.SessionUid ?? pipelineSnapshot.VehicleState.Frame.SessionUid;
         var playerCarIndex = identity?.PlayerCarIndex ?? pipelineSnapshot.VehicleState.Frame.PlayerCarIndex;
-        if (string.IsNullOrWhiteSpace(source) && sessionUid is null && playerCarIndex is null)
+        return $"{source}|{sessionUid?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{playerCarIndex?.ToString(CultureInfo.InvariantCulture) ?? "none"}";
+    }
+
+    private void PublishPersistenceDiagnosticIfNeeded()
+    {
+        if (string.IsNullOrWhiteSpace(_settingsError))
+        {
+            _lastPublishedSettingsError = null;
+            return;
+        }
+
+        var trimmed = _settingsError.Trim();
+        if (string.Equals(_lastPublishedSettingsError, trimmed, StringComparison.Ordinal))
         {
             return;
         }
 
-        var fingerprint = $"{source ?? "unknown"}|{sessionUid?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{playerCarIndex?.ToString(CultureInfo.InvariantCulture) ?? "none"}";
-        if (!string.Equals(_telemetrySessionFingerprint, fingerprint, StringComparison.Ordinal))
-        {
-            _telemetrySessionFingerprint = fingerprint;
-            _telemetrySessionCorrelationId = Guid.NewGuid().ToString("N");
-        }
+        _lastPublishedSettingsError = trimmed;
+        var correlation = _diagnosticCorrelationContext.Current;
+        PublishDiagnosticEvent(
+            "persistence.settings-warning",
+            DiagnosticSeverity.Warning,
+            "Persistence",
+            trimmed,
+            correlation.AppSessionId,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["settingsError"] = trimmed
+            });
     }
 
-    private void UpdateRecordingSessionCorrelation(TelemetryRecordingSnapshot recordingSnapshot)
+    private void PublishPhprBlockedWriteDiagnosticIfNeeded()
     {
-        ArgumentNullException.ThrowIfNull(recordingSnapshot);
+        var snapshot = _phprDirectRuntime.GetSnapshot();
+        var blockedReason = string.IsNullOrWhiteSpace(snapshot.BlockedReason)
+            ? null
+            : new SupportBundleDiagnosticRedactor(DiagnosticRedactionMode.Safe).RedactText(snapshot.BlockedReason);
 
-        if (!recordingSnapshot.IsRecording || string.IsNullOrWhiteSpace(recordingSnapshot.FilePath))
+        if (string.IsNullOrWhiteSpace(blockedReason))
         {
-            _recordingSessionFingerprint = null;
-            _recordingSessionCorrelationId = null;
+            _lastPublishedPhprBlockedReason = null;
             return;
         }
 
-        var fingerprint = recordingSnapshot.FilePath.Trim();
-        if (!string.Equals(_recordingSessionFingerprint, fingerprint, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(_lastPublishedPhprBlockedReason, blockedReason, StringComparison.Ordinal))
         {
-            _recordingSessionFingerprint = fingerprint;
-            _recordingSessionCorrelationId = Guid.NewGuid().ToString("N");
+            return;
         }
+
+        _lastPublishedPhprBlockedReason = blockedReason;
+        var correlation = _diagnosticCorrelationContext.Current;
+        PublishDiagnosticEvent(
+            "phpr.blocked-write",
+            DiagnosticSeverity.Warning,
+            "PHpr",
+            blockedReason,
+            correlation.OutputSessionId,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["authorizationGeneration"] = correlation.PHprAuthorizationGeneration.ToString()
+            });
     }
 
-    private void UpdateOutputSessionCorrelation(string outputId)
+    private void PublishDiagnosticEvent(
+        string eventId,
+        DiagnosticSeverity severity,
+        string category,
+        string message,
+        string correlationId,
+        IReadOnlyDictionary<string, string>? properties = null)
     {
-        if (!string.Equals(_outputDeviceSessionFingerprint, outputId, StringComparison.Ordinal))
-        {
-            _outputDeviceSessionFingerprint = outputId;
-            _outputDeviceSessionCorrelationId = Guid.NewGuid().ToString("N");
-        }
+        _diagnosticSink.Publish(
+            new DiagnosticEvent(
+                DateTimeOffset.UtcNow,
+                eventId,
+                severity,
+                category,
+                message,
+                properties ?? new Dictionary<string, string>(StringComparer.Ordinal),
+                correlationId));
     }
 
     private static string ComputeProfileHash(HapticDriveProfile profile)
@@ -1110,6 +1175,16 @@ internal sealed partial class AppRuntimeSession
             if (await Task.WhenAny(cleanupTask, Task.Delay(shutdownTimeout)).ConfigureAwait(true) != cleanupTask)
             {
                 FooterStatusText.Text = "Shutdown timed out after 5 seconds; closing with best-effort cleanup.";
+                PublishDiagnosticEvent(
+                    "runtime.shutdown-timeout",
+                    DiagnosticSeverity.Error,
+                    "Runtime",
+                    "Shutdown timed out after 5 seconds; proceeding with best-effort cleanup.",
+                    _diagnosticCorrelationContext.Current.AppSessionId,
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["pendingTaskCount"] = (_activeReplayTask is { IsCompleted: false } ? 1 : 0).ToString(CultureInfo.InvariantCulture)
+                    });
                 RecordShutdownDiagnostic(
                     "shutdown-cleanup-timeout",
                     DateTimeOffset.UtcNow,
@@ -1130,6 +1205,16 @@ internal sealed partial class AppRuntimeSession
         }
         catch (Exception ex)
         {
+            PublishDiagnosticEvent(
+                "runtime.shutdown-failure",
+                DiagnosticSeverity.Error,
+                "Runtime",
+                ex.Message,
+                _diagnosticCorrelationContext.Current.AppSessionId,
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["exceptionType"] = ex.GetType().Name
+                });
             RecordShutdownDiagnostic(
                 "shutdown-cleanup-failed",
                 DateTimeOffset.UtcNow,

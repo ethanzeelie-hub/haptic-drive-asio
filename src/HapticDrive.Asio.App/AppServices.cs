@@ -5,8 +5,10 @@ using HapticDrive.Asio.Audio.Profiles;
 using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.App.Controllers;
 using HapticDrive.Asio.App.ViewModels;
+using HapticDrive.Asio.Core.Diagnostics;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Runtime;
+using HapticDrive.Asio.Runtime.Diagnostics;
 using HapticDrive.Input.Abstractions.Devices;
 using HapticDrive.Input.Abstractions.Paddles;
 using HapticDrive.Input.Abstractions.Shift;
@@ -43,6 +45,9 @@ internal sealed class AppServices
         AsioReadinessDiagnostics asioReadinessDiagnostics,
         IOutputInterlock outputInterlock,
         IPHprWriteAuthorization phprWriteAuthorization,
+        IDiagnosticSink diagnosticSink,
+        DiagnosticCorrelationContext diagnosticCorrelationContext,
+        RuntimeHealthMonitor runtimeHealthMonitor,
         AudioTestBench testBench,
         IInputDeviceDiscovery inputDeviceDiscovery,
         IWheelInputCandidateProvider wheelInputCandidateProvider,
@@ -80,6 +85,9 @@ internal sealed class AppServices
         AsioReadinessDiagnostics = asioReadinessDiagnostics ?? throw new ArgumentNullException(nameof(asioReadinessDiagnostics));
         OutputInterlock = outputInterlock ?? throw new ArgumentNullException(nameof(outputInterlock));
         PhprWriteAuthorization = phprWriteAuthorization ?? throw new ArgumentNullException(nameof(phprWriteAuthorization));
+        DiagnosticSink = diagnosticSink ?? throw new ArgumentNullException(nameof(diagnosticSink));
+        DiagnosticCorrelationContext = diagnosticCorrelationContext ?? throw new ArgumentNullException(nameof(diagnosticCorrelationContext));
+        RuntimeHealthMonitor = runtimeHealthMonitor ?? throw new ArgumentNullException(nameof(runtimeHealthMonitor));
         TestBench = testBench ?? throw new ArgumentNullException(nameof(testBench));
         InputDeviceDiscovery = inputDeviceDiscovery ?? throw new ArgumentNullException(nameof(inputDeviceDiscovery));
         WheelInputCandidateProvider = wheelInputCandidateProvider ?? throw new ArgumentNullException(nameof(wheelInputCandidateProvider));
@@ -137,6 +145,12 @@ internal sealed class AppServices
     public IOutputInterlock OutputInterlock { get; }
 
     public IPHprWriteAuthorization PhprWriteAuthorization { get; }
+
+    public IDiagnosticSink DiagnosticSink { get; }
+
+    public DiagnosticCorrelationContext DiagnosticCorrelationContext { get; }
+
+    public RuntimeHealthMonitor RuntimeHealthMonitor { get; }
 
     public AudioTestBench TestBench { get; }
 

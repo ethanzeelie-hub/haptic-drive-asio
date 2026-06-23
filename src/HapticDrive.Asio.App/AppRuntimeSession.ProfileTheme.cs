@@ -1424,16 +1424,6 @@ internal sealed partial class AppRuntimeSession
     private SupportBundleStructuredDiagnostics BuildSupportBundleStructuredDiagnostics(DateTimeOffset generatedAtUtc)
     {
         var pipelineSnapshot = _hapticPipeline.GetSnapshot();
-        var outputStatus = pipelineSnapshot.Output;
-        var effectSnapshot = pipelineSnapshot.Effects;
-        var testBenchSnapshot = _testBench.GetSnapshot();
-        var audioDiagnostics = AudioRuntimeDiagnosticsSnapshot.Create(
-            outputStatus,
-            effectSnapshot,
-            pipelineSnapshot.Audio,
-            testBenchSnapshot);
-        var receiverSnapshot = _telemetryReceiver.GetSnapshot();
-        var ingressSnapshot = _telemetryIngressWorker.GetSnapshot();
         var correlationIds = CaptureSupportBundleCorrelationIds(pipelineSnapshot);
 
         return StructuredDiagnosticsBuilder.Build(
@@ -1443,11 +1433,7 @@ internal sealed partial class AppRuntimeSession
                 GameTelemetryCatalog.GetDisplayName(_selectedGameId),
                 BuildSelectedOutputId(),
                 _currentProfile.Name,
-                _settingsError,
-                pipelineSnapshot,
-                receiverSnapshot,
-                ingressSnapshot,
-                audioDiagnostics,
+                _diagnosticSink.Snapshot(),
                 correlationIds));
     }
 

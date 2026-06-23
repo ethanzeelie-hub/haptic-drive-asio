@@ -18,6 +18,24 @@ public sealed class RenderPathGuardrailTests
     }
 
     [Fact]
+    public void RenderPaths_DoNotCallDiagnosticSinkPublish()
+    {
+        var coordinatorRenderPath = ReadSlice(
+            "src/HapticDrive.Asio.Runtime/Pipeline/HapticPipelineCoordinator.cs",
+            "    private AudioOutputRenderCallbackResult RenderOutputBuffer(",
+            "    private async ValueTask RenderManualAsioHardwarePulseAsync(");
+        var streamingRenderPath = ReadSlice(
+            "src/HapticDrive.Asio.Audio/Devices/AudioOutputDeviceBase.cs",
+            "    private void RunStreamingLoop(",
+            "    private void RecordRenderCallback(");
+
+        Assert.False(coordinatorRenderPath.Contains("IDiagnosticSink", StringComparison.Ordinal));
+        Assert.False(coordinatorRenderPath.Contains(".Publish(", StringComparison.Ordinal));
+        Assert.False(streamingRenderPath.Contains("IDiagnosticSink", StringComparison.Ordinal));
+        Assert.False(streamingRenderPath.Contains(".Publish(", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void RenderPath_DoesNotFormatStrings()
     {
         var coordinatorRenderPath = ReadSlice(

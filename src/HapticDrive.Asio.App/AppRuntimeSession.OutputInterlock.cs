@@ -1,4 +1,5 @@
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Diagnostics;
 using HapticDrive.Asio.Core.Safety;
 using System.Windows;
 using System.Windows.Input;
@@ -52,12 +53,12 @@ internal sealed partial class AppRuntimeSession
         var outputStatus = _hapticPipeline.GetSnapshot().Output;
         if (!_hapticsStarted || !_hapticPipeline.GetSnapshot().IsRunning)
         {
-            return "Output interlock reset blocked: start haptics first so the runtime and safety path are active.";
+            return PublishOutputInterlockResetFailure("Output interlock reset blocked: start haptics first so the runtime and safety path are active.");
         }
 
         if (!IsOutputConfigurationValidForInterlockReset(outputStatus))
         {
-            return "Output interlock reset blocked: select a valid output configuration before enabling output.";
+            return PublishOutputInterlockResetFailure("Output interlock reset blocked: select a valid output configuration before enabling output.");
         }
 
         if (!_outputInterlock.Current.IsLatched)
@@ -69,12 +70,12 @@ internal sealed partial class AppRuntimeSession
             _outputInterlockSupervisor,
             out var resetBlockedMessage))
         {
-            return resetBlockedMessage;
+            return PublishOutputInterlockResetFailure(resetBlockedMessage);
         }
 
         if (!_outputInterlock.Reset("Output interlock reset from the main window after readiness checks passed."))
         {
-            return "Output interlock reset was ignored because the latch state did not change.";
+            return PublishOutputInterlockResetFailure("Output interlock reset was ignored because the latch state did not change.");
         }
 
         await ApplyOutputInterlockChangeAsync(
@@ -114,6 +115,21 @@ internal sealed partial class AppRuntimeSession
         UpdateManualAsioHardwareTestStatus();
         UpdateDiagnosticsStatus();
         UpdateDeviceStatus();
+    }
+
+    private string PublishOutputInterlockResetFailure(string message)
+    {
+        PublishDiagnosticEvent(
+            "safety.interlock-reset-failure",
+            DiagnosticSeverity.Warning,
+            "Safety",
+            message,
+            _diagnosticCorrelationContext.Current.AppSessionId,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["interlockGeneration"] = _outputInterlock.Current.Generation.ToString()
+            });
+        return message;
     }
 
     private void SyncOutputInterlockState(OutputInterlockSnapshot snapshot)

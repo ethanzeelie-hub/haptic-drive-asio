@@ -11,6 +11,7 @@ using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.App.Controllers;
 using HapticDrive.Asio.App.ViewModels;
 using HapticDrive.Asio.Core.Audio;
+using HapticDrive.Asio.Core.Diagnostics;
 using HapticDrive.Asio.Core.Safety;
 using HapticDrive.Asio.Core.Telemetry;
 using HapticDrive.Asio.Core.Vehicle.Freshness;
@@ -524,10 +525,24 @@ internal sealed partial class AppRuntimeSession
     {
         var authorized = _phprWriteAuthorization.TryAuthorize(RealPhprApprovalPhraseTextBox.Text);
         RealPhprApprovalPhraseTextBox.Text = string.Empty;
+        var authorization = _phprWriteAuthorization.Current;
+        _diagnosticCorrelationContext.ObservePhprAuthorizationGeneration(authorization.Generation);
         UpdatePhprWriteAuthorizationStatus();
         UpdateRealPhprDirectControlStatus();
         UpdatePhprPedalsStatus();
         UpdateDiagnosticsStatus();
+        PublishDiagnosticEvent(
+            authorized ? "phpr.authorization-success" : "phpr.authorization-failure",
+            authorized ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
+            "PHpr",
+            authorized
+                ? "Controlled real P-HPR writes were authorized for the current session."
+                : "Controlled real P-HPR write authorization failed.",
+            _diagnosticCorrelationContext.Current.AppSessionId,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["authorizationGeneration"] = authorization.Generation.ToString()
+            });
         FooterStatusText.Text = authorized
             ? "Controlled real P-HPR writes authorized for this session."
             : "Controlled real P-HPR write authorization failed.";
