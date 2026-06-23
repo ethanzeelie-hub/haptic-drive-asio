@@ -110,6 +110,36 @@ public sealed class ProfileTuningControllerTests
         Assert.Equal(["Profile could not be saved: disk full."], failures);
     }
 
+    [Fact]
+    public async Task ProfileCallbacks_AreDispatcherSafe()
+    {
+        var currentProfile = HapticDriveProfile.Default;
+        var livePreviewCount = 0;
+        var controlTextCount = 0;
+        var dispatcher = new FakeMainWindowUiDispatcher(hasAccess: false);
+
+        await using var controller = CreateController(
+            currentProfileAccessor: () => currentProfile,
+            replaceCurrentProfile: profile => currentProfile = profile,
+            applyLivePreview: _ => livePreviewCount++,
+            updateControlText: _ => controlTextCount++,
+            dispatcher: dispatcher,
+            debounceDelay: TimeSpan.FromMilliseconds(20));
+
+        controller.ApplyLiveTuning(currentProfile with { Name = "Queued update" }, hapticsStarted: false);
+
+        Assert.Equal(0, livePreviewCount);
+        Assert.Equal(0, controlTextCount);
+        Assert.Equal(HapticDriveProfile.Default.Name, currentProfile.Name);
+        Assert.Equal(1, dispatcher.PendingCount);
+
+        dispatcher.RunNextOnUiThread();
+
+        Assert.Equal(1, livePreviewCount);
+        Assert.Equal(1, controlTextCount);
+        Assert.Equal("Queued update", currentProfile.Name);
+    }
+
     private static ProfileTuningController CreateController(
         EffectSettingsListViewModel? effectSettingsViewModel = null,
         Func<HapticDriveProfile>? currentProfileAccessor = null,
@@ -120,6 +150,7 @@ public sealed class ProfileTuningControllerTests
         Func<HapticDriveProfile, CancellationToken, ValueTask<HapticProfileSaveResult>>? saveAsync = null,
         Action<AudioProfileWorkflowFeedback>? publishFeedback = null,
         Action<string>? reportSaveFailure = null,
+        IMainWindowUiDispatcher? dispatcher = null,
         TimeSpan? debounceDelay = null)
     {
         return new ProfileTuningController(
@@ -133,6 +164,54 @@ public sealed class ProfileTuningControllerTests
             saveAsync ?? ((_, _) => ValueTask.FromResult(HapticProfileSaveResult.Success("memory", wasRepaired: false, []))),
             publishFeedback ?? (_ => { }),
             reportSaveFailure ?? (_ => { }),
+            dispatcher,
             debounceDelay: debounceDelay);
+    }
+
+    private sealed class FakeMainWindowUiDispatcher(bool hasAccess) : IMainWindowUiDispatcher
+    {
+        private readonly Queue<Action> _pending = [];
+        private bool _hasAccess = hasAccess;
+
+        public int PendingCount => _pending.Count;
+
+        public bool CheckAccess()
+        {
+            return _hasAccess;
+        }
+
+        public void BeginInvoke(Action action)
+        {
+            _pending.Enqueue(action);
+        }
+
+        public ValueTask InvokeAsync(Action action)
+        {
+            var previous = _hasAccess;
+            _hasAccess = true;
+            try
+            {
+                action();
+                return ValueTask.CompletedTask;
+            }
+            finally
+            {
+                _hasAccess = previous;
+            }
+        }
+
+        public void RunNextOnUiThread()
+        {
+            var previous = _hasAccess;
+            _hasAccess = true;
+            try
+            {
+                _pending.Dequeue().Invoke();
+            }
+            finally
+            {
+                _hasAccess = previous;
+            }
+        }
     }
 }

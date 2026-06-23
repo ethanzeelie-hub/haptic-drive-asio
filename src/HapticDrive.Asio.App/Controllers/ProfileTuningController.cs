@@ -18,6 +18,7 @@ internal sealed class ProfileTuningController : IAsyncDisposable
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _debounceDelay;
+    private readonly IMainWindowUiDispatcher? _dispatcher;
     private CancellationTokenSource? _scheduledSaveCts;
 
     public ProfileTuningController(
@@ -31,6 +32,7 @@ internal sealed class ProfileTuningController : IAsyncDisposable
         Func<HapticDriveProfile, CancellationToken, ValueTask<HapticProfileSaveResult>> saveAsync,
         Action<AudioProfileWorkflowFeedback> publishFeedback,
         Action<string> reportSaveFailure,
+        IMainWindowUiDispatcher? dispatcher = null,
         TimeProvider? timeProvider = null,
         TimeSpan? debounceDelay = null)
     {
@@ -44,6 +46,7 @@ internal sealed class ProfileTuningController : IAsyncDisposable
         _saveAsync = saveAsync ?? throw new ArgumentNullException(nameof(saveAsync));
         _publishFeedback = publishFeedback ?? throw new ArgumentNullException(nameof(publishFeedback));
         _reportSaveFailure = reportSaveFailure ?? throw new ArgumentNullException(nameof(reportSaveFailure));
+        _dispatcher = dispatcher;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _debounceDelay = debounceDelay ?? TimeSpan.FromMilliseconds(250);
     }
@@ -54,10 +57,13 @@ internal sealed class ProfileTuningController : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        _replaceCurrentProfile(profile);
-        _applyLivePreview(profile);
-        _updateControlText(profile);
-        RefreshEffectSettings(profile);
+        DispatchUi(() =>
+        {
+            _replaceCurrentProfile(profile);
+            _applyLivePreview(profile);
+            _updateControlText(profile);
+            RefreshEffectSettings(profile);
+        });
         ScheduleDebouncedSave(profile, hapticsStarted);
     }
 
@@ -66,10 +72,13 @@ internal sealed class ProfileTuningController : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(profile);
 
         CancelScheduledSave();
-        _replaceCurrentProfile(profile);
-        _applyLivePreview(profile);
-        _updateControlText(profile);
-        RefreshEffectSettings(profile);
+        await DispatchUiAsync(() =>
+        {
+            _replaceCurrentProfile(profile);
+            _applyLivePreview(profile);
+            _updateControlText(profile);
+            RefreshEffectSettings(profile);
+        }).ConfigureAwait(false);
         var saveResult = await PersistAsync(profile, CancellationToken.None).ConfigureAwait(false);
         Publish(AudioProfileWorkflowFeedbackPlanner.BuildProfileNameCommitFeedback(saveResult));
     }
@@ -155,13 +164,47 @@ internal sealed class ProfileTuningController : IAsyncDisposable
 
     private void Publish(AudioProfileWorkflowFeedback feedback)
     {
-        _publishFeedback(feedback);
-        if (!string.IsNullOrWhiteSpace(feedback.FooterStatusText)
-            && feedback.ProfileStatusMessage is not null
-            && feedback.ProfileStatusMessage.Contains("could not be saved", StringComparison.OrdinalIgnoreCase))
+        DispatchUi(() =>
         {
-            _reportSaveFailure(feedback.FooterStatusText);
+            _publishFeedback(feedback);
+            if (!string.IsNullOrWhiteSpace(feedback.FooterStatusText)
+                && feedback.ProfileStatusMessage is not null
+                && feedback.ProfileStatusMessage.Contains("could not be saved", StringComparison.OrdinalIgnoreCase))
+            {
+                _reportSaveFailure(feedback.FooterStatusText);
+            }
+        });
+    }
+
+    private void DispatchUi(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (_dispatcher is null)
+        {
+            action();
+            return;
         }
+
+        if (MainWindowUiDispatch.BeginInvokeIfRequired(_dispatcher, action))
+        {
+            return;
+        }
+
+        action();
+    }
+
+    private ValueTask DispatchUiAsync(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (_dispatcher is null)
+        {
+            action();
+            return ValueTask.CompletedTask;
+        }
+
+        return MainWindowUiDispatch.InvokeAsync(_dispatcher, action);
     }
 
     private void CancelScheduledSave()

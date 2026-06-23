@@ -45,13 +45,6 @@ public partial class ProfilesView : UserControl, IAudioProfileProfilesViewSync
         ApplyAudioProfileControlValues(values);
     }
 
-    internal T GetRequiredControl<T>(string name)
-        where T : FrameworkElement
-    {
-        return FindName(name) as T
-            ?? throw new InvalidOperationException($"ProfilesView control '{name}' was not found.");
-    }
-
     private void ProfileNameTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
         ProfileNameLostFocus?.Invoke(sender, e);

@@ -55,26 +55,40 @@ public sealed class GeminiReviewClosureGuardrailTests
     }
 
     [Fact]
-    public void MainWindowSource_StillOwnsResidualExecutionHeavyEntryPoints()
+    public void MainWindowShell_StaysThinWhileRuntimeSessionOwnsExecutionHeavyEntryPoints()
     {
-        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
+        var mainWindowSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs");
+        var runtimeSource = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
 
-        Assert.Contains("private async void StartStopButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("? await _hapticPipeline.StopAsync()", source, StringComparison.Ordinal);
-        Assert.Contains(": await _hapticPipeline.StartAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("private async void EmergencyMuteButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("_outputInterlock.Trip(", source, StringComparison.Ordinal);
-        Assert.Contains("private async void ResetOutputInterlockButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("private async void MainWindow_PreviewKeyDown", source, StringComparison.Ordinal);
-        Assert.Contains("private async void PhprPedalsStopAllClearDeviceStateButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.StopAllAsync(", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.EmergencyStopAsync(", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.InitializeStartupCleanupAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("await _telemetryReceiver.StartAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("_telemetryStatusTimer.Start();", source, StringComparison.Ordinal);
-        Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", source, StringComparison.Ordinal);
-        Assert.Contains("_outputInterlock.Trip(OutputInterlockReason.Shutdown", source, StringComparison.Ordinal);
-        Assert.Contains("_hapticPipeline.StopManualAsioHardwareTest(", source, StringComparison.Ordinal);
+        Assert.Contains("_runtime = new AppRuntimeSession(this, services);", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("_runtime.MainWindow_PreviewKeyDown(sender, e);", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_outputInterlock.Trip(", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_hapticPipeline.StartAsync()", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_hapticPipeline.StopAsync()", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_phprDirectRuntime.StopAllAsync(", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_telemetryReceiver.StartAsync()", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("StartStopButton_Click(", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResetOutputInterlockButton_Click(", mainWindowSource, StringComparison.Ordinal);
+
+        Assert.Contains("internal async void StartStopButton_Click", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("? await _hapticPipeline.StopAsync()", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains(": await _hapticPipeline.StartAsync();", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("internal async void EmergencyMuteButton_Click", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_outputInterlock.Trip(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("internal async void ResetOutputInterlockButton_Click", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("internal async void MainWindow_PreviewKeyDown", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("private async void PhprPedalsStopAllClearDeviceStateButton_Click", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _phprDirectRuntime.StopAllAsync(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _phprDirectRuntime.EmergencyStopAsync(", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _phprDirectRuntime.InitializeStartupCleanupAsync();", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _telemetryReceiver.StartAsync();", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_telemetryStatusTimer.Start();", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_outputInterlock.Trip(OutputInterlockReason.Shutdown", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_hapticPipeline.StopManualAsioHardwareTest(", runtimeSource, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

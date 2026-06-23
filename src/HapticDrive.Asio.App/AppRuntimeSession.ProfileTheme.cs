@@ -1,4 +1,4 @@
-﻿using HapticDrive.Asio.Audio.Devices;
+using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Diagnostics;
 using HapticDrive.Asio.Audio.DriverDiscovery;
 using HapticDrive.Asio.Audio.Effects;
@@ -46,9 +46,9 @@ using System.Windows.Threading;
 
 namespace HapticDrive.Asio.App;
 
-public partial class MainWindow : Window
+internal sealed partial class AppRuntimeSession
 {
-    private void ThemeButton_Click(object sender, RoutedEventArgs e)
+    internal void ThemeButton_Click(object sender, RoutedEventArgs e)
     {
         _lightTheme = !_lightTheme;
         ApplyTheme(_lightTheme);

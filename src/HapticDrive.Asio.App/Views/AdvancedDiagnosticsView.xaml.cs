@@ -43,18 +43,189 @@ public partial class AdvancedDiagnosticsView : UserControl
         InitializeComponent();
     }
 
+    internal Border AdvancedPhprDiagnosticsPanelControl => AdvancedPhprDiagnosticsPanel;
+
+    internal CheckBox AdvancedDiagnosticsEnabledCheckBoxControl => AdvancedDiagnosticsEnabledCheckBox;
+
+    internal TextBlock AdvancedDiagnosticsGateTextControl => AdvancedDiagnosticsGateText;
+
+    internal StackPanel AdvancedDiagnosticsContentPanelControl => AdvancedDiagnosticsContentPanel;
+
+    internal TextBlock PhprWorkflowStatusTextControl => PhprWorkflowStatusText;
+
+    internal ItemsControl PhprWorkflowItemsControlControl => PhprWorkflowItemsControl;
+
+    internal TextBlock PhprLiveF1ValidationStatusTextControl => PhprLiveF1ValidationStatusText;
+
+    internal ItemsControl PhprLiveF1ValidationItemsControlControl => PhprLiveF1ValidationItemsControl;
+
+    internal TextBlock PhprCoexistenceStatusTextControl => PhprCoexistenceStatusText;
+
+    internal ItemsControl PhprCoexistenceItemsControlControl => PhprCoexistenceItemsControl;
+
+    internal TextBlock PhprControlledWriteReadinessStatusTextControl => PhprControlledWriteReadinessStatusText;
+
+    internal ItemsControl PhprControlledWriteReadinessItemsControlControl => PhprControlledWriteReadinessItemsControl;
+
+    internal CheckBox RealPhprDirectControlEnabledCheckBoxControl => RealPhprDirectControlEnabledCheckBox;
+
+    internal CheckBox RealPhprDirectControlArmCheckBoxControl => RealPhprDirectControlArmCheckBox;
+
+    internal ComboBox RealPhprCandidateComboBoxControl => RealPhprCandidateComboBox;
+
+    internal TextBlock RealPhprCandidatePickerStatusTextControl => RealPhprCandidatePickerStatusText;
+
+    internal TextBox RealPhprInterfaceTextBoxControl => RealPhprInterfaceTextBox;
+
+    internal TextBox RealPhprReportIdTextBoxControl => RealPhprReportIdTextBox;
+
+    internal TextBox RealPhprReportLengthTextBoxControl => RealPhprReportLengthTextBox;
+
+    internal ComboBox RealPhprReportTransportComboBoxControl => RealPhprReportTransportComboBox;
+
+    internal TextBox RealPhprApprovalPhraseTextBoxControl => RealPhprApprovalPhraseTextBox;
+
+    internal Button AuthorizeRealPhprWritesButtonControl => AuthorizeRealPhprWritesButton;
+
+    internal TextBlock RealPhprAuthorizationStatusTextControl => RealPhprAuthorizationStatusText;
+
+    internal CheckBox RealPhprBrakeEnabledCheckBoxControl => RealPhprBrakeEnabledCheckBox;
+
+    internal TextBox RealPhprBrakeStrengthTextBoxControl => RealPhprBrakeStrengthTextBox;
+
+    internal TextBox RealPhprBrakeFrequencyTextBoxControl => RealPhprBrakeFrequencyTextBox;
+
+    internal TextBox RealPhprBrakeDurationTextBoxControl => RealPhprBrakeDurationTextBox;
+
+    internal CheckBox RealPhprThrottleEnabledCheckBoxControl => RealPhprThrottleEnabledCheckBox;
+
+    internal TextBox RealPhprThrottleStrengthTextBoxControl => RealPhprThrottleStrengthTextBox;
+
+    internal TextBox RealPhprThrottleFrequencyTextBoxControl => RealPhprThrottleFrequencyTextBox;
+
+    internal TextBox RealPhprThrottleDurationTextBoxControl => RealPhprThrottleDurationTextBox;
+
+    internal TextBox RealRoadBrakeMinStrengthTextBoxControl => RealRoadBrakeMinStrengthTextBox;
+
+    internal TextBox RealRoadBrakeMinFrequencyTextBoxControl => RealRoadBrakeMinFrequencyTextBox;
+
+    internal TextBox RealRoadBrakeFrequencyTextBoxControl => RealRoadBrakeFrequencyTextBox;
+
+    internal TextBox RealRoadBrakeDurationTextBoxControl => RealRoadBrakeDurationTextBox;
+
+    internal TextBox RealRoadThrottleMinStrengthTextBoxControl => RealRoadThrottleMinStrengthTextBox;
+
+    internal TextBox RealRoadThrottleMinFrequencyTextBoxControl => RealRoadThrottleMinFrequencyTextBox;
+
+    internal TextBox RealRoadThrottleFrequencyTextBoxControl => RealRoadThrottleFrequencyTextBox;
+
+    internal TextBox RealRoadThrottleDurationTextBoxControl => RealRoadThrottleDurationTextBox;
+
+    internal ComboBox RealSlipTargetComboBoxControl => RealSlipTargetComboBox;
+
+    internal TextBox RealSlipMinStrengthTextBoxControl => RealSlipMinStrengthTextBox;
+
+    internal TextBox RealSlipMinFrequencyTextBoxControl => RealSlipMinFrequencyTextBox;
+
+    internal TextBox RealSlipFrequencyTextBoxControl => RealSlipFrequencyTextBox;
+
+    internal TextBox RealSlipDurationTextBoxControl => RealSlipDurationTextBox;
+
+    internal ComboBox RealLockTargetComboBoxControl => RealLockTargetComboBox;
+
+    internal TextBox RealLockMinStrengthTextBoxControl => RealLockMinStrengthTextBox;
+
+    internal TextBox RealLockMinFrequencyTextBoxControl => RealLockMinFrequencyTextBox;
+
+    internal TextBox RealLockFrequencyTextBoxControl => RealLockFrequencyTextBox;
+
+    internal TextBox RealLockDurationTextBoxControl => RealLockDurationTextBox;
+
+    internal Button TestRealPhprBrakePulseButtonControl => TestRealPhprBrakePulseButton;
+
+    internal Button TestRealPhprThrottlePulseButtonControl => TestRealPhprThrottlePulseButton;
+
+    internal TextBlock RealPhprDirectStatusTextControl => RealPhprDirectStatusText;
+
+    internal ItemsControl RealPhprDirectItemsControlControl => RealPhprDirectItemsControl;
+
+    internal CheckBox MockGearPulseEnabledCheckBoxControl => MockGearPulseEnabledCheckBox;
+
+    internal ComboBox MockGearPulseTargetComboBoxControl => MockGearPulseTargetComboBox;
+
+    internal TextBox MockGearPulseStrengthTextBoxControl => MockGearPulseStrengthTextBox;
+
+    internal TextBox MockGearPulseFrequencyTextBoxControl => MockGearPulseFrequencyTextBox;
+
+    internal TextBox MockGearPulseDurationTextBoxControl => MockGearPulseDurationTextBox;
+
+    internal TextBlock MockGearPulseStatusTextControl => MockGearPulseStatusText;
+
+    internal ItemsControl MockGearPulseItemsControlControl => MockGearPulseItemsControl;
+
+    internal CheckBox MockPedalEffectsEnabledCheckBoxControl => MockPedalEffectsEnabledCheckBox;
+
+    internal CheckBox RoadPedalEffectEnabledCheckBoxControl => RoadPedalEffectEnabledCheckBox;
+
+    internal ComboBox RoadPedalEffectTargetComboBoxControl => RoadPedalEffectTargetComboBox;
+
+    internal TextBox RoadPedalEffectStrengthTextBoxControl => RoadPedalEffectStrengthTextBox;
+
+    internal TextBox RoadPedalEffectFrequencyTextBoxControl => RoadPedalEffectFrequencyTextBox;
+
+    internal TextBox RoadPedalEffectDurationTextBoxControl => RoadPedalEffectDurationTextBox;
+
+    internal CheckBox SlipPedalEffectEnabledCheckBoxControl => SlipPedalEffectEnabledCheckBox;
+
+    internal ComboBox SlipPedalEffectTargetComboBoxControl => SlipPedalEffectTargetComboBox;
+
+    internal TextBox SlipPedalEffectStrengthTextBoxControl => SlipPedalEffectStrengthTextBox;
+
+    internal TextBox SlipPedalEffectFrequencyTextBoxControl => SlipPedalEffectFrequencyTextBox;
+
+    internal TextBox SlipPedalEffectDurationTextBoxControl => SlipPedalEffectDurationTextBox;
+
+    internal CheckBox LockPedalEffectEnabledCheckBoxControl => LockPedalEffectEnabledCheckBox;
+
+    internal ComboBox LockPedalEffectTargetComboBoxControl => LockPedalEffectTargetComboBox;
+
+    internal TextBox LockPedalEffectStrengthTextBoxControl => LockPedalEffectStrengthTextBox;
+
+    internal TextBox LockPedalEffectFrequencyTextBoxControl => LockPedalEffectFrequencyTextBox;
+
+    internal TextBox LockPedalEffectDurationTextBoxControl => LockPedalEffectDurationTextBox;
+
+    internal TextBlock MockPedalEffectsStatusTextControl => MockPedalEffectsStatusText;
+
+    internal ItemsControl MockPedalEffectsItemsControlControl => MockPedalEffectsItemsControl;
+
+    internal Border SettingsPanelControl => SettingsPanel;
+
+    internal CheckBox SettingsLightThemeCheckBoxControl => SettingsLightThemeCheckBox;
+
+    internal TextBlock SettingsStatusTextControl => SettingsStatusText;
+
+    internal TextBlock SettingsPathTextControl => SettingsPathText;
+
+    internal TextBlock RuntimePrerequisiteTextControl => RuntimePrerequisiteText;
+
+    internal Border DiagnosticsPanelControl => DiagnosticsPanel;
+
+    internal CheckBox ExtendedSupportBundleDiagnosticsCheckBoxControl => ExtendedSupportBundleDiagnosticsCheckBox;
+
+    internal CheckBox RoadTextureFlightRecorderCheckBoxControl => RoadTextureFlightRecorderCheckBox;
+
+    internal TextBlock RoadTextureFlightRecorderStatusTextControl => RoadTextureFlightRecorderStatusText;
+
+    internal TextBlock DiagnosticsSummaryTextControl => DiagnosticsSummaryText;
+
+    internal ItemsControl DiagnosticsItemsControlControl => DiagnosticsItemsControl;
+
     internal void Apply(DiagnosticsStatusPresentation presentation)
     {
         RoadTextureFlightRecorderStatusText.Text = presentation.RoadRecorderStatusText;
         DiagnosticsSummaryText.Text = presentation.SummaryText;
         DiagnosticsItemsControl.ItemsSource = presentation.Items;
-    }
-
-    internal T GetRequiredControl<T>(string name)
-        where T : FrameworkElement
-    {
-        return FindName(name) as T
-            ?? throw new InvalidOperationException($"AdvancedDiagnosticsView control '{name}' was not found.");
     }
 
     private void AdvancedDiagnosticsEnabledCheckBox_Changed(object sender, RoutedEventArgs e)

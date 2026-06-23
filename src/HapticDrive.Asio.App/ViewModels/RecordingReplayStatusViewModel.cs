@@ -5,6 +5,7 @@ internal sealed class RecordingReplayStatusViewModel : ObservableObject
     private string _recordingStatusText = string.Empty;
     private string _replayStatusText = string.Empty;
     private string _warningText = string.Empty;
+    private string _runtimeState = "Stopped";
 
     public string RecordingStatusText
     {
@@ -22,5 +23,11 @@ internal sealed class RecordingReplayStatusViewModel : ObservableObject
     {
         get => _warningText;
         set => SetProperty(ref _warningText, value);
+    }
+
+    public string RuntimeState
+    {
+        get => _runtimeState;
+        set => SetProperty(ref _runtimeState, value);
     }
 }

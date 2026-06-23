@@ -46,26 +46,14 @@ public sealed class OutputSafetyParticipantAppTests
     [Fact]
     public void UiCannotBypassInterlockForAudioOrPhpr()
     {
-        var source = File.ReadAllText(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "..",
+        var source = MainWindowSourceTestHelper.ReadRepositoryFile(
             "src",
             "HapticDrive.Asio.App",
-            "MainWindow.xaml.cs"));
-        var interlockSource = File.ReadAllText(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "..",
+            "AppRuntimeSession.cs");
+        var interlockSource = MainWindowSourceTestHelper.ReadRepositoryFile(
             "src",
             "HapticDrive.Asio.App",
-            "MainWindow.OutputInterlock.cs"));
+            "AppRuntimeSession.OutputInterlock.cs");
 
         Assert.Contains("new OutputInterlockSupervisor(", source, StringComparison.Ordinal);
         Assert.Contains("_applicationSafetyController.TryBuildResetBlockedMessage(", interlockSource, StringComparison.Ordinal);

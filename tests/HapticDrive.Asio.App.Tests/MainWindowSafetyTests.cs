@@ -11,7 +11,7 @@ public sealed class MainWindowSafetyTests
 
         Assert.Contains("_outputInterlock.Trip(", source, StringComparison.Ordinal);
         Assert.Contains("OutputInterlockReason.UserEmergencyMute", source, StringComparison.Ordinal);
-        Assert.Contains("private async void ResetOutputInterlockButton_Click", source, StringComparison.Ordinal);
+        Assert.Contains("ResetOutputInterlockButton_Click", source, StringComparison.Ordinal);
     }
 
     [Fact]

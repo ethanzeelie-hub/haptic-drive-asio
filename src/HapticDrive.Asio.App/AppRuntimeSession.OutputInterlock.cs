@@ -5,9 +5,9 @@ using System.Windows.Input;
 
 namespace HapticDrive.Asio.App;
 
-public partial class MainWindow
+internal sealed partial class AppRuntimeSession
 {
-    private async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
+    internal async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
     {
         _outputInterlock.Trip(
             OutputInterlockReason.UserEmergencyMute,
@@ -16,13 +16,13 @@ public partial class MainWindow
             "Global output interlock latched across ASIO, test bench, and P-HPR routing.");
     }
 
-    private async void ResetOutputInterlockButton_Click(object sender, RoutedEventArgs e)
+    internal async void ResetOutputInterlockButton_Click(object sender, RoutedEventArgs e)
     {
         var resetResult = await TryResetOutputInterlockAsync();
         FooterStatusText.Text = resetResult;
     }
 
-    private async void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    internal async void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != (ModifierKeys.Control | ModifierKeys.Shift))
         {

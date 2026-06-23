@@ -19,7 +19,7 @@ using System.Threading;
 
 namespace HapticDrive.Asio.App;
 
-public partial class MainWindow
+internal sealed partial class AppRuntimeSession
 {
     private async void TelemetryStatusTimer_Tick(object? sender, EventArgs e)
     {

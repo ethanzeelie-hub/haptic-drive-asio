@@ -1,4 +1,4 @@
-﻿using HapticDrive.Asio.Audio.Devices;
+using HapticDrive.Asio.Audio.Devices;
 using HapticDrive.Asio.Audio.Diagnostics;
 using HapticDrive.Asio.Audio.DriverDiscovery;
 using HapticDrive.Asio.Audio.Effects;
@@ -47,9 +47,9 @@ using HapticDrive.Asio.Core.Games;
 
 namespace HapticDrive.Asio.App;
 
-public partial class MainWindow : Window
+internal sealed partial class AppRuntimeSession
 {
-    private async void StartStopButton_Click(object sender, RoutedEventArgs e)
+    internal async void StartStopButton_Click(object sender, RoutedEventArgs e)
     {
         // Guardrail: keep execution ownership inline at the shell boundary: ? await _hapticPipeline.StopAsync() : await _hapticPipeline.StartAsync();
         await RunSerializedLifecycleOperationAsync(
@@ -86,7 +86,7 @@ public partial class MainWindow : Window
             "Start/stop haptics failed");
     }
 
-    private async void StartRecordingButton_Click(object sender, RoutedEventArgs e)
+    internal async void StartRecordingButton_Click(object sender, RoutedEventArgs e)
     {
         await RunSerializedLifecycleOperationAsync(
             async (_, _) =>

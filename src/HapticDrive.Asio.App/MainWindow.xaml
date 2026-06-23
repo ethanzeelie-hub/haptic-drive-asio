@@ -73,7 +73,6 @@
                             AutomationProperties.Name="Start or stop haptics"
                             Style="{StaticResource PrimaryButtonStyle}"
                             TabIndex="0"
-                            Click="StartStopButton_Click"
                             Content="Start Haptics" />
                     <Button x:Name="StartRecordingButton"
                             Margin="0,0,8,0"
@@ -82,7 +81,6 @@
                             AutomationProperties.Name="Start or stop recording"
                             Style="{StaticResource TopBarButtonStyle}"
                             TabIndex="1"
-                            Click="StartRecordingButton_Click"
                             Content="Start Recording" />
                     <Button x:Name="EmergencyMuteButton"
                             Margin="0,0,8,0"
@@ -92,7 +90,6 @@
                             Style="{StaticResource DangerButtonStyle}"
                             TabIndex="2"
                             ToolTip="Emergency mute all outputs (Ctrl+Shift+M)"
-                            Click="EmergencyMuteButton_Click"
                             Content="Emergency Mute" />
                     <Button x:Name="ResetOutputInterlockButton"
                             Margin="0,0,8,0"
@@ -102,7 +99,6 @@
                             Style="{StaticResource TopBarButtonStyle}"
                             TabIndex="3"
                             ToolTip="Reset the global output interlock (Ctrl+Shift+R)"
-                            Click="ResetOutputInterlockButton_Click"
                             Content="Reset Output Interlock" />
                     <Button x:Name="ThemeButton"
                             AutomationProperties.AccessKey="Alt+T"
@@ -110,7 +106,6 @@
                             AutomationProperties.Name="Toggle theme"
                             Style="{StaticResource TopBarButtonStyle}"
                             TabIndex="4"
-                            Click="ThemeButton_Click"
                             Content="Theme: Dark" />
                 </StackPanel>
             </Grid>

@@ -29,6 +29,40 @@ public partial class TelemetryUdpView : UserControl
         InitializeComponent();
     }
 
+    internal ComboBox ReplayTimingModeComboBoxControl => ReplayTimingModeComboBox;
+
+    internal TextBlock ReplayTimingModeHelpTextControl => ReplayTimingModeHelpText;
+
+    internal CheckBox AllowLanTelemetryCheckBoxControl => AllowLanTelemetryCheckBox;
+
+    internal TextBox AllowedRemoteAddressesTextBoxControl => AllowedRemoteAddressesTextBox;
+
+    internal TextBlock TelemetryListenerStatusTextControl => TelemetryListenerStatusText;
+
+    internal TextBox RecordingRenameTextBoxControl => RecordingRenameTextBox;
+
+    internal TextBox RecordingLibraryFilterTextBoxControl => RecordingLibraryFilterTextBox;
+
+    internal TextBlock RecordingLibraryDetailTextControl => RecordingLibraryDetailText;
+
+    internal ListBox RecordingLibraryListBoxControl => RecordingLibraryListBox;
+
+    internal TextBlock RecordingLibraryStatusTextControl => RecordingLibraryStatusText;
+
+    internal TextBox ForwardingNameTextBoxControl => ForwardingNameTextBox;
+
+    internal TextBox ForwardingHostTextBoxControl => ForwardingHostTextBox;
+
+    internal TextBox ForwardingPortTextBoxControl => ForwardingPortTextBox;
+
+    internal CheckBox ForwardingEnabledCheckBoxControl => ForwardingEnabledCheckBox;
+
+    internal TextBlock ForwardingEditorStatusTextControl => ForwardingEditorStatusText;
+
+    internal ListBox ForwardingDestinationsListBoxControl => ForwardingDestinationsListBox;
+
+    internal TextBlock ForwardingDestinationsSummaryTextControl => ForwardingDestinationsSummaryText;
+
     internal void Apply(TelemetryUdpStatusPresentation presentation)
     {
         ReplayTimingModeHelpText.Text = presentation.ReplayTimingModeHelpText;
@@ -38,13 +72,6 @@ public partial class TelemetryUdpView : UserControl
         RecordingsDetailText.Text = presentation.RecordingsDetailText;
         ReplayDetailText.Text = presentation.ReplayDetailText;
         ForwardingDestinationsSummaryText.Text = presentation.ForwardingDestinationsSummaryText;
-    }
-
-    internal T GetRequiredControl<T>(string name)
-        where T : FrameworkElement
-    {
-        return FindName(name) as T
-            ?? throw new InvalidOperationException($"TelemetryUdpView control '{name}' was not found.");
     }
 
     private void ReplayTimingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

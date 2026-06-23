@@ -6,6 +6,7 @@ internal sealed class OutputDeviceStatusViewModel : ObservableObject
     private string _statusText = string.Empty;
     private int _sampleRate;
     private int _bufferSize;
+    private string _runtimeState = "Stopped";
 
     public string SelectedOutputId
     {
@@ -29,5 +30,11 @@ internal sealed class OutputDeviceStatusViewModel : ObservableObject
     {
         get => _bufferSize;
         set => SetProperty(ref _bufferSize, value);
+    }
+
+    public string RuntimeState
+    {
+        get => _runtimeState;
+        set => SetProperty(ref _runtimeState, value);
     }
 }

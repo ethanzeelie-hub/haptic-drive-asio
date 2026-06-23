@@ -29,6 +29,104 @@ public partial class TestingValidationView : UserControl
         InitializeComponent();
     }
 
+    internal ComboBox TestBenchSignalComboBoxControl => TestBenchSignalComboBox;
+
+    internal Button TestBenchStartStopButtonControl => TestBenchStartStopButton;
+
+    internal TextBlock TestBenchStateTextControl => TestBenchStateText;
+
+    internal TextBlock TestBenchPeakTextControl => TestBenchPeakText;
+
+    internal TextBlock TestBenchLimiterTextControl => TestBenchLimiterText;
+
+    internal TextBlock TestBenchOutputTextControl => TestBenchOutputText;
+
+    internal TextBlock TestBenchWarningTextControl => TestBenchWarningText;
+
+    internal TextBox ManualBst1StrengthTextBoxControl => ManualBst1StrengthTextBox;
+
+    internal TextBox Bst1OutputTrimTextBoxControl => Bst1OutputTrimTextBox;
+
+    internal TextBox ManualBst1FrequencyTextBoxControl => ManualBst1FrequencyTextBox;
+
+    internal TextBox ManualBst1DurationTextBoxControl => ManualBst1DurationTextBox;
+
+    internal TextBlock ManualAsioHardwareStatusTextControl => ManualAsioHardwareStatusText;
+
+    internal TextBlock ManualAsioHardwareBlockedReasonTextControl => ManualAsioHardwareBlockedReasonText;
+
+    internal TextBlock PhprPedalsModeBadgeTextControl => PhprPedalsModeBadgeText;
+
+    internal TextBlock PhprPedalsStatusTextControl => PhprPedalsStatusText;
+
+    internal TextBlock PhprPedalsDeviceStatusTextControl => PhprPedalsDeviceStatusText;
+
+    internal TextBlock PhprPedalsLastResultTextControl => PhprPedalsLastResultText;
+
+    internal Button TestPhprBrakePulseButtonControl => TestPhprBrakePulseButton;
+
+    internal Button TestPhprThrottlePulseButtonControl => TestPhprThrottlePulseButton;
+
+    internal CheckBox LocalGearTestModeCheckBoxControl => LocalGearTestModeCheckBox;
+
+    internal CheckBox LocalGearTestAutoStartListenerCheckBoxControl => LocalGearTestAutoStartListenerCheckBox;
+
+    internal Button StartGearTestListenerButtonControl => StartGearTestListenerButton;
+
+    internal TextBlock LocalGearTestStatusTextControl => LocalGearTestStatusText;
+
+    internal CheckBox PaddleGearBenchEnabledCheckBoxControl => PaddleGearBenchEnabledCheckBox;
+
+    internal CheckBox PaddleGearBenchArmCheckBoxControl => PaddleGearBenchArmCheckBox;
+
+    internal ComboBox PaddleGearBenchOutputModeComboBoxControl => PaddleGearBenchOutputModeComboBox;
+
+    internal ComboBox PaddleGearBenchTargetComboBoxControl => PaddleGearBenchTargetComboBox;
+
+    internal TextBox PaddleGearBenchStrengthTextBoxControl => PaddleGearBenchStrengthTextBox;
+
+    internal TextBox PaddleGearBenchFrequencyTextBoxControl => PaddleGearBenchFrequencyTextBox;
+
+    internal TextBox PaddleGearBenchDurationTextBoxControl => PaddleGearBenchDurationTextBox;
+
+    internal TextBlock PaddleGearBenchStatusTextControl => PaddleGearBenchStatusText;
+
+    internal ItemsControl PaddleGearBenchItemsControlControl => PaddleGearBenchItemsControl;
+
+    internal CheckBox PhprValidationUserPresentCheckBoxControl => PhprValidationUserPresentCheckBox;
+
+    internal CheckBox PhprValidationP700ConnectedCheckBoxControl => PhprValidationP700ConnectedCheckBox;
+
+    internal CheckBox PhprValidationBrakeInstalledCheckBoxControl => PhprValidationBrakeInstalledCheckBox;
+
+    internal CheckBox PhprValidationThrottleInstalledCheckBoxControl => PhprValidationThrottleInstalledCheckBox;
+
+    internal CheckBox PhprValidationGearPaddlePlannedCheckBoxControl => PhprValidationGearPaddlePlannedCheckBox;
+
+    internal TextBox PhprValidationDeviceInfoTextBoxControl => PhprValidationDeviceInfoTextBox;
+
+    internal TextBox PhprValidationPassFailDecisionTextBoxControl => PhprValidationPassFailDecisionTextBox;
+
+    internal TextBox PhprValidationBrakeResultTextBoxControl => PhprValidationBrakeResultTextBox;
+
+    internal TextBox PhprValidationThrottleResultTextBoxControl => PhprValidationThrottleResultTextBox;
+
+    internal TextBox PhprValidationEmergencyStopResultTextBoxControl => PhprValidationEmergencyStopResultTextBox;
+
+    internal TextBox PhprValidationUpshiftResultTextBoxControl => PhprValidationUpshiftResultTextBox;
+
+    internal TextBox PhprValidationDownshiftResultTextBoxControl => PhprValidationDownshiftResultTextBox;
+
+    internal TextBox PhprValidationWrongPedalTextBoxControl => PhprValidationWrongPedalTextBox;
+
+    internal TextBox PhprValidationSustainedVibrationTextBoxControl => PhprValidationSustainedVibrationTextBox;
+
+    internal TextBox PhprValidationNotesTextBoxControl => PhprValidationNotesTextBox;
+
+    internal TextBlock PhprValidationStatusTextControl => PhprValidationStatusText;
+
+    internal ItemsControl PhprValidationItemsControlControl => PhprValidationItemsControl;
+
     internal void Apply(TestingValidationStatusPresentation presentation)
     {
         TestBenchStartStopButton.Content = presentation.TestBenchStartStopButtonText;
@@ -37,13 +135,6 @@ public partial class TestingValidationView : UserControl
         TestBenchLimiterText.Text = presentation.TestBenchLimiterText;
         TestBenchOutputText.Text = presentation.TestBenchOutputText;
         TestBenchWarningText.Text = presentation.TestBenchWarningText;
-    }
-
-    internal T GetRequiredControl<T>(string name)
-        where T : FrameworkElement
-    {
-        return FindName(name) as T
-            ?? throw new InvalidOperationException($"TestingValidationView control '{name}' was not found.");
     }
 
     private void TestBenchSignalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

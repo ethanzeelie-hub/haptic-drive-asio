@@ -1,5 +1,77 @@
 # Development Log
 
+## Remediation 8 - Complete Runtime Ownership And UI Decomposition
+
+Date: 2026-06-24
+
+Status: Complete.
+
+Goal: Move app startup and shared UI/runtime service ownership out of ad hoc `MainWindow` construction so Stage 8 can continue toward controller-owned workflows and a shell-only window.
+
+Notes:
+
+- Added `AppCompositionRoot` and immutable `AppServices` in `src/HapticDrive.Asio.App` so shared app-owned view-model/controller services are constructed once outside `MainWindow`.
+- Switched WPF app startup away from `StartupUri` and into `App.OnStartup(...)`, where `AppCompositionRoot` now creates the shell window explicitly.
+- Updated `MainWindow` construction to consume shared controller/view-model services from `AppServices` instead of constructing those Stage 8 ownership seams inline.
+- Extended the composition-root ownership seam so `AppCompositionRoot` now also constructs and caches shared startup/runtime support services and the sanitized settings hydration snapshot before `MainWindow` exists:
+  - settings store and hydration snapshot,
+  - output interlock and session P-HPR authorization,
+  - ASIO driver catalog/visibility/readiness diagnostics,
+  - shared input discovery / paddle source services,
+  - shared test/export/profile/runtime-coordinator support services.
+- Updated `MainWindow` to consume those shared services from immutable `AppServices` instead of constructing them inline during shell startup.
+- Added `AppCompositionRootTests` and replaced the old inline-startup guardrail with Stage 8 composition-root assertions so the app test suite now validates the remediation direction instead of the prior inline-startup design.
+- Added controller-side runtime ownership primitives in `src/HapticDrive.Asio.App/Controllers`:
+  - `AudioOutputController` now owns latest-generation output selection application, superseded-selection cancellation, controller runtime state publication, and shutdown/dispose rejection.
+  - `RecordingReplayController` now owns exclusive recording/replay operation serialization plus shutdown/dispose rejection without latest-wins cancellation.
+  - shared Stage 8 controller runtime state is now explicit via `ControllerRuntimeState` and `ControllerOperationResult`.
+- Extended the status view-model seams used by those controllers so runtime state publication is explicit rather than hidden in ad hoc shell logic.
+- Made `ProfileTuningController` dispatcher-safe by routing live-preview/control-text/feedback callbacks through `IMainWindowUiDispatcher`, and updated `MainWindow` to construct the controller with `WpfMainWindowUiDispatcher`.
+- Removed the remaining generic shell control-lookup seam:
+  - deleted `MainWindow.ControlAccessors.cs`,
+  - added explicit typed control reference properties to `EffectsView`, `TelemetryUdpView`, `AdvancedDiagnosticsView`, and `TestingValidationView`,
+  - removed `GetRequiredControl<T>` helpers from the extracted views so `MainWindow` now uses direct view-owned references through `MainWindow.ViewReferences.cs`.
+- Added Stage 8 controller coverage:
+  - `AudioOutputControllerTests`,
+  - `RecordingReplayControllerTests`,
+  - `ApplicationSafetyControllerTests`,
+  - `ProfileCallbacks_AreDispatcherSafe` in `ProfileTuningControllerTests`,
+  - `TelemetrySessionControllerTests`,
+  - `PhprOutputControllerTests`,
+  - `DiagnosticsPresentationControllerTests`,
+  - `MainWindowCompositionGuardrailTests` for `NoGetRequiredControlRemains` and controller/view-name separation.
+- Completed the Stage 8 shell/runtime split:
+  - moved the execution-heavy shell workflow surface into `AppRuntimeSession` partials,
+  - recreated `MainWindow` as a thin shell host with explicit `MainWindow.ShellAccess.cs`,
+  - kept `MainWindow` focused on view host construction, DataContext assignment, shell navigation, top-level keyboard routing, and close lifecycle only,
+  - moved top-bar Start/Record/Emergency/Reset/Theme button workflow wiring out of XAML code-behind and into the runtime session.
+- Replaced the remaining direct shell control ownership with host-to-runtime seam access:
+  - `MainWindow.ControlAccessors.cs` remains removed,
+  - `AppRuntimeSession.ViewReferences.cs` now resolves explicit shell/view references through `MainWindow.ShellAccess.cs`,
+  - `AppRuntimeSession` owns runtime event wiring, lifecycle orchestration, and execution-heavy flows without requiring WPF window construction in controller tests.
+- Tightened Stage 8 shell guardrails to the audited target:
+  - total `MainWindow*.cs` size is now `162` lines,
+  - no `MainWindow` partial exceeds `61` lines,
+  - `MainWindow*.cs` guardrails now prove the shell does not directly own HID writer, pipeline coordinator, direct runtime, or start/stop workflow execution.
+- Updated source/audit tests to enforce the Stage 8 architecture rather than the old inline-`MainWindow` ownership model:
+  - `MainWindowSourceTestHelper` now reads both `MainWindow*.cs` and `AppRuntimeSession*.cs` for residual runtime-source guardrails,
+  - composition-root/source guardrails now assert a thin shell plus runtime-session ownership split,
+  - legacy interlock/source tests now follow the `AppRuntimeSession` file layout,
+  - new Stage 8 size tests enforce `< 1000` total `MainWindow*.cs` lines and `< 500` per partial.
+- Validation at this checkpoint:
+  - `dotnet restore HapticDrive.Asio.sln --locked-mode`
+  - `dotnet build HapticDrive.Asio.sln -c Release --no-restore -warnaserror`
+  - `dotnet test tests/HapticDrive.Asio.App.Tests/HapticDrive.Asio.App.Tests.csproj -c Release`
+  - `dotnet test HapticDrive.Asio.sln -c Release --no-build`
+  - `dotnet format HapticDrive.Asio.sln --verify-no-changes --no-restore`
+  - `Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly`
+
+Self-review:
+
+- This closes the audited Stage 8 boundary instead of only landing the early composition-root groundwork. `MainWindow` is now a real shell host again, not just a smaller code-behind file.
+- The heavy runtime partials are still large and will need later remediation stages, but they are no longer inflating `MainWindow*.cs` or re-coupling controller tests to window construction.
+- Hardware-absent constraints remained intact throughout: verification stayed on build/test/check-only paths and did not require ASIO hardware or any real P-HPR write authorization.
+
 ## Remediation 7 - Guarantee Ingress Recording Replay And Shutdown Integrity
 
 Date: 2026-06-23
@@ -65,7 +137,7 @@ Self-review:
 
 - This stage stayed inside the audited Stage 7 boundary: ingress lifecycle, recording/replay integrity, continuous-runtime restart/fault behavior, and shutdown sequencing only.
 - Hardware-absent rules stayed intact throughout validation: automated tests used the existing fake/mock paths and did not perform any real P-HPR USB write or require physical shaker hardware.
-- The next audited remediation stage remains Remediation 8.
+- Remediation 8 is now in progress; the composition-root/service-ownership foundation is landed and the remaining controller/runtime ownership extraction still needs to complete.
 
 ## Remediation 6 - Complete Lock-Free Real-Time Effect Rendering
 

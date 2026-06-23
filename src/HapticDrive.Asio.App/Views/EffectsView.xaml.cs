@@ -18,6 +18,58 @@ public partial class EffectsView : UserControl, IAudioProfileEffectsViewSync
         InitializeComponent();
     }
 
+    internal TextBox NormalPhprGearDurationTextBoxControl => NormalPhprGearDurationTextBox;
+
+    internal CheckBox Bst1PaddleGearPulseEnabledCheckBoxControl => Bst1PaddleGearPulseEnabledCheckBox;
+
+    internal TextBox Bst1PaddleGearStrengthTextBoxControl => Bst1PaddleGearStrengthTextBox;
+
+    internal TextBox Bst1PaddleGearFrequencyTextBoxControl => Bst1PaddleGearFrequencyTextBox;
+
+    internal CheckBox Bst1PaddleGearSyncDurationCheckBoxControl => Bst1PaddleGearSyncDurationCheckBox;
+
+    internal TextBox Bst1PaddleGearDurationTextBoxControl => Bst1PaddleGearDurationTextBox;
+
+    internal TextBlock Bst1PaddleGearEffectiveDurationTextControl => Bst1PaddleGearEffectiveDurationText;
+
+    internal CheckBox NormalPhprBrakeEnabledCheckBoxControl => NormalPhprBrakeEnabledCheckBox;
+
+    internal TextBox NormalPhprBrakeStrengthTextBoxControl => NormalPhprBrakeStrengthTextBox;
+
+    internal TextBox NormalPhprBrakeFrequencyTextBoxControl => NormalPhprBrakeFrequencyTextBox;
+
+    internal TextBox NormalPhprBrakeDurationTextBoxControl => NormalPhprBrakeDurationTextBox;
+
+    internal CheckBox RealRoadVibrationEnabledCheckBoxControl => RealRoadVibrationEnabledCheckBox;
+
+    internal CheckBox RealRoadBrakeEnabledCheckBoxControl => RealRoadBrakeEnabledCheckBox;
+
+    internal TextBox RealRoadBrakeStrengthTextBoxControl => RealRoadBrakeStrengthTextBox;
+
+    internal CheckBox RealLockEnabledCheckBoxControl => RealLockEnabledCheckBox;
+
+    internal TextBox RealLockStrengthTextBoxControl => RealLockStrengthTextBox;
+
+    internal TextBox RealLockCadenceTextBoxControl => RealLockCadenceTextBox;
+
+    internal CheckBox NormalPhprThrottleEnabledCheckBoxControl => NormalPhprThrottleEnabledCheckBox;
+
+    internal TextBox NormalPhprThrottleStrengthTextBoxControl => NormalPhprThrottleStrengthTextBox;
+
+    internal TextBox NormalPhprThrottleFrequencyTextBoxControl => NormalPhprThrottleFrequencyTextBox;
+
+    internal TextBox NormalPhprThrottleDurationTextBoxControl => NormalPhprThrottleDurationTextBox;
+
+    internal CheckBox RealRoadThrottleEnabledCheckBoxControl => RealRoadThrottleEnabledCheckBox;
+
+    internal TextBox RealRoadThrottleStrengthTextBoxControl => RealRoadThrottleStrengthTextBox;
+
+    internal CheckBox RealSlipEnabledCheckBoxControl => RealSlipEnabledCheckBox;
+
+    internal TextBox RealSlipStrengthTextBoxControl => RealSlipStrengthTextBox;
+
+    internal TextBox RealSlipCadenceTextBoxControl => RealSlipCadenceTextBox;
+
     internal void Apply(EffectsStatusPresentation presentation)
     {
         SharedRoadSignalStatusText.Text = presentation.SharedRoadSignalStatusText;
@@ -158,13 +210,6 @@ public partial class EffectsView : UserControl, IAudioProfileEffectsViewSync
     void IAudioProfileEffectsViewSync.ApplyAudioProfileEffectControlText(Bst1AudioProfileEffectControlTextValues values)
     {
         ApplyAudioProfileEffectControlText(values);
-    }
-
-    internal T GetRequiredControl<T>(string name)
-        where T : FrameworkElement
-    {
-        return FindName(name) as T
-            ?? throw new InvalidOperationException($"EffectsView control '{name}' was not found.");
     }
 
     private void TuningControl_Changed(object sender, RoutedEventArgs e)

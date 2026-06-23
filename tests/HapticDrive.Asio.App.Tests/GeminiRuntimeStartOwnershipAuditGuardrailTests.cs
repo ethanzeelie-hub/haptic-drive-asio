@@ -37,44 +37,58 @@ public sealed class GeminiRuntimeStartOwnershipAuditGuardrailTests
     }
 
     [Fact]
-    public void MainWindowSource_KeepsCompositionStartupAndSafetyExecutionInline()
+    public void CompositionRoot_SeparatesAppStartupFromShellConstruction()
     {
-        var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
+        var appSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "App.xaml.cs");
+        var rootSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppCompositionRoot.cs");
+        var servicesSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppServices.cs");
+        var mainWindowSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "MainWindow.xaml.cs");
+        var runtimeSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppRuntimeSession.cs");
 
-        Assert.Contains("_phprDirectRuntime = new PHprDirectRuntimeCoordinator(", source, StringComparison.Ordinal);
-        Assert.Contains("_realPhprContinuousEffectsRuntime = new PHprContinuousEffectsRuntimeCoordinator(", source, StringComparison.Ordinal);
-        Assert.Contains("_paddleInputRoutingCoordinator = new PaddleInputRoutingCoordinator(", source, StringComparison.Ordinal);
-        Assert.Contains("DevicesViewControl.PhprPedalsEmergencyStopClicked += PhprPedalsEmergencyStopButton_Click;", source, StringComparison.Ordinal);
-        Assert.Contains("DevicesViewControl.PhprPedalsStopAllClearDeviceStateClicked += PhprPedalsStopAllClearDeviceStateButton_Click;", source, StringComparison.Ordinal);
-        Assert.Contains("AdvancedDiagnosticsViewControl.RealPhprEmergencyStopClicked += RealPhprEmergencyStopButton_Click;", source, StringComparison.Ordinal);
-        Assert.Contains("TestingValidationViewControl.TestBenchStartStopClicked += TestBenchStartStopButton_Click;", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.InitializeStartupCleanupAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("await _telemetryReceiver.StartAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("_realPhprContinuousEffectsRuntime.StartSlipLockRuntime();", source, StringComparison.Ordinal);
-        Assert.Contains("_realPhprContinuousEffectsRuntime.StartRoadVibrationRuntime();", source, StringComparison.Ordinal);
-        Assert.Contains("private async void StartStopButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("? await _hapticPipeline.StopAsync()", source, StringComparison.Ordinal);
-        Assert.Contains(": await _hapticPipeline.StartAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("private async void EmergencyMuteButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("_outputInterlock.Trip(", source, StringComparison.Ordinal);
-        Assert.Contains("private async void ResetOutputInterlockButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("private async void MainWindow_PreviewKeyDown", source, StringComparison.Ordinal);
-        Assert.Contains("private async void PhprPedalsEmergencyStopButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("await _phprDirectRuntime.EmergencyStopAsync(\"normal P-HPR pedals emergency stop button\");", source, StringComparison.Ordinal);
-        Assert.Contains("private async void PhprPedalsStopAllClearDeviceStateButton_Click", source, StringComparison.Ordinal);
-        Assert.Contains("var result = await _phprDirectRuntime.StopAllAsync(\"manual P-HPR Stop All / Clear Device State button\");", source, StringComparison.Ordinal);
-        Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.TripOutputInterlock:", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.StopUdpReceiver:", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.CompleteAndDrainIngress:", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.StopAndFinalizeRecording:", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.StopReplay:", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.StopActuatorRuntimes:", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.StopAndDisposeAudio:", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.DisposeRemainingServices:", source, StringComparison.Ordinal);
-        Assert.Contains("_realPhprContinuousEffectsRuntime", source, StringComparison.Ordinal);
-        Assert.Contains(".StopAsync(step.Timeout ?? TimeSpan.FromSeconds(2))", source, StringComparison.Ordinal);
-        Assert.Contains("_outputInterlock.Trip(OutputInterlockReason.Shutdown", source, StringComparison.Ordinal);
+        Assert.Contains("_compositionRoot = new AppCompositionRoot();", appSource, StringComparison.Ordinal);
+        Assert.Contains("MainWindow = _compositionRoot.CreateMainWindow();", appSource, StringComparison.Ordinal);
+        Assert.Contains("Services = new AppServices(", rootSource, StringComparison.Ordinal);
+        Assert.Contains("return new MainWindow(Services);", rootSource, StringComparison.Ordinal);
+        Assert.Contains("internal MainWindow(AppServices services)", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("_runtime = new AppRuntimeSession(this, services);", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("EffectsViewControl.DataContext = _effectSettingsViewModel;", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_applicationSafetyController = services.ApplicationSafetyController;", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_telemetrySessionController = services.TelemetrySessionController;", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_audioOutputController = services.AudioOutputController;", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_recordingReplayController = services.RecordingReplayController;", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_phprOutputController = services.PhprOutputController;", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_diagnosticsPresentationController = services.DiagnosticsPresentationController;", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("_applicationSafetyController = services.ApplicationSafetyController;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_telemetrySessionController = services.TelemetrySessionController;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_audioOutputController = services.AudioOutputController;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_recordingReplayController = services.RecordingReplayController;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_phprOutputController = services.PhprOutputController;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_diagnosticsPresentationController = services.DiagnosticsPresentationController;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_settingsStore = services.SettingsStore;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_outputInterlock = services.OutputInterlock;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_phprWriteAuthorization = services.PhprWriteAuthorization;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("_testBench = services.TestBench;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("var appSettings = services.SettingsHydrationSnapshot;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("public ApplicationSafetyController ApplicationSafetyController { get; }", servicesSource, StringComparison.Ordinal);
+        Assert.Contains("public TelemetrySessionController TelemetrySessionController { get; }", servicesSource, StringComparison.Ordinal);
+        Assert.Contains("public AppSettingsStore SettingsStore { get; }", servicesSource, StringComparison.Ordinal);
+        Assert.Contains("public IOutputInterlock OutputInterlock { get; }", servicesSource, StringComparison.Ordinal);
+        Assert.Contains("public RuntimeLifecycleCoordinator RuntimeLifecycleCoordinator { get; }", servicesSource, StringComparison.Ordinal);
     }
 
     [Fact]

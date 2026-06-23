@@ -29,8 +29,13 @@ public sealed class AppSettingsSnapshotBuilderGuardrailTests
     public void MainWindowSource_UsesSettingsBuilderAndPresenterInsteadOfOwningSaveAndStatusShaping()
     {
         var source = MainWindowSourceTestHelper.ReadCombinedMainWindowSource();
+        var compositionRootSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppCompositionRoot.cs");
 
-        Assert.Contains("AppSettingsSnapshotBuilder.BuildHydrationSnapshot(_settingsStore.Load())", source, StringComparison.Ordinal);
+        Assert.Contains("AppSettingsSnapshotBuilder.BuildHydrationSnapshot(settingsStore.Load())", compositionRootSource, StringComparison.Ordinal);
+        Assert.Contains("var appSettings = services.SettingsHydrationSnapshot;", source, StringComparison.Ordinal);
         Assert.Contains("AppSettingsSnapshotBuilder.BuildAppSettings(BuildCurrentAppSettingsSaveInputs())", source, StringComparison.Ordinal);
         Assert.Contains("PersistedSettingsStatusPresenter.Build(new PersistedSettingsStatusSnapshot(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_settingsStore.Save(new AppSettings", source, StringComparison.Ordinal);

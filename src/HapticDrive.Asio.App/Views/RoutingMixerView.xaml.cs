@@ -69,13 +69,6 @@ public partial class RoutingMixerView : UserControl, IAudioProfileRoutingMixerVi
         ApplyAudioProfileMixerControlText(values);
     }
 
-    internal T GetRequiredControl<T>(string name)
-        where T : FrameworkElement
-    {
-        return FindName(name) as T
-            ?? throw new InvalidOperationException($"RoutingMixerView control '{name}' was not found.");
-    }
-
     private void TuningControl_Changed(object sender, RoutedEventArgs e)
     {
         TuningControlChanged?.Invoke(sender, e);

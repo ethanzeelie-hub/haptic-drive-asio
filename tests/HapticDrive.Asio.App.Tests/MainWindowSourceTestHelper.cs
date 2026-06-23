@@ -33,7 +33,13 @@ internal static class MainWindowSourceTestHelper
             "src",
             "HapticDrive.Asio.App");
 
-        var paths = Directory.GetFiles(mainWindowDirectory, "MainWindow*.cs", SearchOption.TopDirectoryOnly)
+        var paths = Directory.GetFiles(mainWindowDirectory, "*.cs", SearchOption.TopDirectoryOnly)
+            .Where(path =>
+            {
+                var fileName = Path.GetFileName(path);
+                return fileName.StartsWith("MainWindow", StringComparison.OrdinalIgnoreCase)
+                    || fileName.StartsWith("AppRuntimeSession", StringComparison.OrdinalIgnoreCase);
+            })
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -50,5 +56,20 @@ internal static class MainWindowSourceTestHelper
                 "HapticDrive.Asio.App",
                 "MainWindow.xaml.cs"))
             .Count();
+    }
+
+    public static IReadOnlyDictionary<string, int> ReadMainWindowPartialLineCounts()
+    {
+        var mainWindowDirectory = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "HapticDrive.Asio.App");
+
+        return Directory.GetFiles(mainWindowDirectory, "MainWindow*.cs", SearchOption.TopDirectoryOnly)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                path => Path.GetFileName(path)!,
+                path => File.ReadLines(path).Count(),
+                StringComparer.OrdinalIgnoreCase);
     }
 }
