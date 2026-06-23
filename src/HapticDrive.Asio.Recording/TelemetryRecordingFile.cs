@@ -490,7 +490,7 @@ public static class TelemetryRecordingFile
             string.IsNullOrWhiteSpace(header.BindAddress) ? "127.0.0.1" : header.BindAddress,
             endedAtUtc ?? header.EndedAtUtc,
             packetIndices.Count,
-            footerFound && incompleteReason is null,
+            IsRecordingComplete(header, footerFound && incompleteReason is null),
             header.DroppedPacketCount);
 
         return new V2Descriptor(metadata, packetIndices, incompleteReason);
@@ -551,6 +551,21 @@ public static class TelemetryRecordingFile
     private static long ToUnixTimeNanoseconds(DateTimeOffset value)
     {
         return value.ToUnixTimeMilliseconds() * 1_000_000L + ((value.Ticks % TimeSpan.TicksPerMillisecond) * 100L);
+    }
+
+    private static bool IsRecordingComplete(HeaderV2Document header, bool footerValidated)
+    {
+        if (!footerValidated)
+        {
+            return false;
+        }
+
+        var headerWasFinalized = header.EndedAtUtc is not null
+            || header.PacketCount > 0
+            || header.DroppedPacketCount > 0
+            || header.RecordingComplete;
+
+        return !headerWasFinalized || header.RecordingComplete;
     }
 
     private static DateTimeOffset FromUnixTimeNanoseconds(long value)

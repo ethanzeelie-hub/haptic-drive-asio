@@ -64,8 +64,16 @@ public sealed class GeminiRuntimeStartOwnershipAuditGuardrailTests
         Assert.Contains("private async void PhprPedalsStopAllClearDeviceStateButton_Click", source, StringComparison.Ordinal);
         Assert.Contains("var result = await _phprDirectRuntime.StopAllAsync(\"manual P-HPR Stop All / Clear Device State button\");", source, StringComparison.Ordinal);
         Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", source, StringComparison.Ordinal);
-        Assert.Contains("case ShutdownCleanupStepKind.StopContinuousPhprRuntime:", source, StringComparison.Ordinal);
-        Assert.Contains("await _realPhprContinuousEffectsRuntime", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.TripOutputInterlock:", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.StopUdpReceiver:", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.CompleteAndDrainIngress:", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.StopAndFinalizeRecording:", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.StopReplay:", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.StopActuatorRuntimes:", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.StopAndDisposeAudio:", source, StringComparison.Ordinal);
+        Assert.Contains("case ShutdownCleanupStepKind.DisposeRemainingServices:", source, StringComparison.Ordinal);
+        Assert.Contains("_realPhprContinuousEffectsRuntime", source, StringComparison.Ordinal);
+        Assert.Contains(".StopAsync(step.Timeout ?? TimeSpan.FromSeconds(2))", source, StringComparison.Ordinal);
         Assert.Contains("_outputInterlock.Trip(OutputInterlockReason.Shutdown", source, StringComparison.Ordinal);
     }
 

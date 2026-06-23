@@ -11,117 +11,162 @@ namespace HapticDrive.Asio.Runtime.Tests;
 public sealed class TelemetryIngressWorkerTests
 {
     [Fact]
-    public async Task DoesNotCreatePerPacketTasks()
-    {
-        var processedPackets = 0;
-        await using var worker = new TelemetryIngressWorker(
-            _ =>
-            {
-                Interlocked.Increment(ref processedPackets);
-                return CreatePacketResult();
-            },
-            isRecordingEnabled: () => false,
-            recordPacket: _ => TelemetryRecordingOperationResult.NotRecording("Not recording."),
-            markRecordingIncomplete: _ => { },
-            isForwardingEnabled: () => false,
-            forwardPacketAsync: static (_, _) => ValueTask.CompletedTask);
-
-        await worker.StartAsync();
-        for (var i = 0; i < 128; i++)
-        {
-            worker.Enqueue(CreatePacket(i + 1, [(byte)i]));
-        }
-
-        await SpinWaitAsync(() => Volatile.Read(ref processedPackets) >= 128);
-        var snapshot = worker.GetSnapshot();
-
-        Assert.Equal(3, snapshot.BackgroundWorkerCount);
-        Assert.Equal(128, snapshot.ReceivedPacketCount);
-        Assert.Equal(0, snapshot.HapticDroppedPacketCount);
-    }
-
-    [Fact]
-    public async Task HapticChannelDropsOldestUnderLoad()
+    public async Task TelemetryIngressWorker_RestartsWithFreshChannelsAfterStopAsync()
     {
         var processedSequences = new ConcurrentQueue<long>();
         await using var worker = new TelemetryIngressWorker(
             packet =>
             {
                 processedSequences.Enqueue(packet.SequenceNumber);
-                Thread.Sleep(2);
                 return CreatePacketResult();
             },
             isRecordingEnabled: () => false,
-            recordPacket: _ => TelemetryRecordingOperationResult.NotRecording("Not recording."),
+            enqueueForRecording: _ => TelemetryRecordingOperationResult.NotRecording("Not recording."),
+            waitForRecordingDrainAsync: static (_, _) => ValueTask.FromResult(TelemetryRecordingDrainResult.Complete()),
             markRecordingIncomplete: _ => { },
             isForwardingEnabled: () => false,
-            forwardPacketAsync: static (_, _) => ValueTask.CompletedTask,
-            new TelemetryIngressWorkerOptions(HapticChannelCapacity: 8, ForwardingChannelCapacity: 8, RecordingChannelCapacity: 8));
+            forwardPacketAsync: static (_, _) => ValueTask.CompletedTask);
 
         await worker.StartAsync();
-        for (var i = 0; i < 64; i++)
-        {
-            worker.Enqueue(CreatePacket(i + 1, [(byte)i]));
-        }
-
-        await SpinWaitAsync(() => processedSequences.Any(sequence => sequence == 64), timeoutMs: 5000);
+        worker.ProcessTelemetryPacket(CreatePacket(1, [0x01]));
+        await SpinWaitAsync(() => processedSequences.Contains(1));
         await worker.StopAsync();
-        var snapshot = worker.GetSnapshot();
 
-        Assert.True(snapshot.HapticDroppedPacketCount > 0);
-        Assert.Contains(64L, processedSequences);
-        Assert.True(processedSequences.Count < 64);
+        await worker.StartAsync();
+        worker.ProcessTelemetryPacket(CreatePacket(2, [0x02]));
+        await SpinWaitAsync(() => processedSequences.Contains(2));
+
+        var snapshot = worker.GetSnapshot();
+        Assert.True(snapshot.IsRunning);
+        Assert.Equal(1, snapshot.ReceivedPacketCount);
+        Assert.Equal(0, snapshot.HapticDroppedPacketCount);
     }
 
     [Fact]
-    public async Task ForwarderPreservesPayloadBytes()
+    public async Task TelemetryIngressWorker_StopDrainsRecordingPackets()
     {
-        byte[]? forwardedPayload = null;
-        var forwarded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var drainStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowDrain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         await using var worker = new TelemetryIngressWorker(
             _ => CreatePacketResult(),
-            isRecordingEnabled: () => false,
-            recordPacket: _ => TelemetryRecordingOperationResult.NotRecording("Not recording."),
-            markRecordingIncomplete: _ => { },
-            isForwardingEnabled: () => true,
-            forwardPacketAsync: (packet, _) =>
+            isRecordingEnabled: () => true,
+            enqueueForRecording: _ => TelemetryRecordingOperationResult.Success("Queued."),
+            waitForRecordingDrainAsync: async (_, _) =>
             {
-                forwardedPayload = packet.Payload.ToArray();
-                forwarded.TrySetResult();
-                return ValueTask.CompletedTask;
-            });
+                drainStarted.TrySetResult();
+                await allowDrain.Task.ConfigureAwait(false);
+                return TelemetryRecordingDrainResult.Complete();
+            },
+            markRecordingIncomplete: _ => { },
+            isForwardingEnabled: () => false,
+            forwardPacketAsync: static (_, _) => ValueTask.CompletedTask);
 
-        var payload = new byte[] { 0xF1, 0x25, 0xAA, 0x55 };
         await worker.StartAsync();
-        worker.Enqueue(CreatePacket(1, payload));
+        worker.EnqueueForRecording(CreatePacket(1, [0x01]));
 
-        await WaitForAsync(forwarded.Task);
+        var stopTask = worker.StopAsync().AsTask();
+        await WaitForAsync(drainStarted.Task);
+        Assert.False(stopTask.IsCompleted);
 
-        Assert.Equal(payload, forwardedPayload);
+        allowDrain.TrySetResult();
+        await stopTask;
     }
 
     [Fact]
-    public async Task RecordingDropMarksRecordingIncomplete()
+    public async Task TelemetryIngressWorker_TimeoutMarksExactRemainingCountIncomplete()
     {
         var incompleteMessages = new ConcurrentQueue<string>();
         await using var worker = new TelemetryIngressWorker(
             _ => CreatePacketResult(),
             isRecordingEnabled: () => true,
-            recordPacket: _ => TelemetryRecordingOperationResult.Dropped("Recording queue full."),
+            enqueueForRecording: _ => TelemetryRecordingOperationResult.Success("Queued."),
+            waitForRecordingDrainAsync: static (_, _) => ValueTask.FromResult(TelemetryRecordingDrainResult.TimedOut(7)),
             markRecordingIncomplete: message => incompleteMessages.Enqueue(message),
             isForwardingEnabled: () => false,
-            forwardPacketAsync: static (_, _) => ValueTask.CompletedTask,
-            new TelemetryIngressWorkerOptions(HapticChannelCapacity: 8, ForwardingChannelCapacity: 8, RecordingChannelCapacity: 1));
+            forwardPacketAsync: static (_, _) => ValueTask.CompletedTask);
 
         await worker.StartAsync();
-        worker.Enqueue(CreatePacket(1, [0x01]));
-        await SpinWaitAsync(() => worker.GetSnapshot().RecordingMarkedIncomplete);
         await worker.StopAsync();
 
         var snapshot = worker.GetSnapshot();
-
         Assert.True(snapshot.RecordingMarkedIncomplete);
-        Assert.NotEmpty(incompleteMessages);
+        Assert.Equal(7, snapshot.RemainingRecordingPacketCount);
+        Assert.Contains(incompleteMessages, message => message.Contains("7", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TelemetryIngressWorker_RejectsEnqueueAfterAcceptingDisabled()
+    {
+        await using var worker = new TelemetryIngressWorker(
+            _ => CreatePacketResult(),
+            isRecordingEnabled: () => false,
+            enqueueForRecording: _ => TelemetryRecordingOperationResult.NotRecording("Not recording."),
+            waitForRecordingDrainAsync: static (_, _) => ValueTask.FromResult(TelemetryRecordingDrainResult.Complete()),
+            markRecordingIncomplete: _ => { },
+            isForwardingEnabled: () => true,
+            forwardPacketAsync: static (_, _) => ValueTask.CompletedTask);
+
+        await worker.StartAsync();
+        await worker.StopAsync();
+
+        Assert.False(worker.ProcessTelemetryPacket(CreatePacket(1, [0x01])));
+        Assert.False(worker.EnqueueForForwarding(CreatePacket(2, [0x02])));
+
+        var snapshot = worker.GetSnapshot();
+        Assert.Contains("accepting was disabled", snapshot.LastErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TelemetryIngressWorker_DropCountsAndDepthsAreExact()
+    {
+        var releaseHaptic = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseForwarding = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hapticStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var forwardingStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var worker = new TelemetryIngressWorker(
+            packet =>
+            {
+                hapticStarted.TrySetResult();
+                releaseHaptic.Task.GetAwaiter().GetResult();
+                return CreatePacketResult();
+            },
+            isRecordingEnabled: () => false,
+            enqueueForRecording: _ => TelemetryRecordingOperationResult.NotRecording("Not recording."),
+            waitForRecordingDrainAsync: static (_, _) => ValueTask.FromResult(TelemetryRecordingDrainResult.Complete()),
+            markRecordingIncomplete: _ => { },
+            isForwardingEnabled: () => true,
+            forwardPacketAsync: async (_, _) =>
+            {
+                forwardingStarted.TrySetResult();
+                await releaseForwarding.Task.ConfigureAwait(false);
+            },
+            options: new TelemetryIngressWorkerOptions(HapticChannelCapacity: 1, ForwardingChannelCapacity: 1, RecordingChannelCapacity: 8));
+
+        await worker.StartAsync();
+        worker.ProcessTelemetryPacket(CreatePacket(1, [0x01]));
+        worker.EnqueueForForwarding(CreatePacket(1, [0x01]));
+        await WaitForAsync(hapticStarted.Task);
+        await WaitForAsync(forwardingStarted.Task);
+
+        worker.ProcessTelemetryPacket(CreatePacket(2, [0x02]));
+        worker.ProcessTelemetryPacket(CreatePacket(3, [0x03]));
+        worker.ProcessTelemetryPacket(CreatePacket(4, [0x04]));
+        worker.EnqueueForForwarding(CreatePacket(2, [0x02]));
+        worker.EnqueueForForwarding(CreatePacket(3, [0x03]));
+        worker.EnqueueForForwarding(CreatePacket(4, [0x04]));
+
+        var snapshot = worker.GetSnapshot();
+        Assert.Equal(4, snapshot.ReceivedPacketCount);
+        Assert.Equal(2, snapshot.HapticDroppedPacketCount);
+        Assert.Equal(2, snapshot.ForwardingDroppedPacketCount);
+        Assert.Equal(1, snapshot.RemainingHapticPacketCount);
+        Assert.Equal(1, snapshot.RemainingForwardingPacketCount);
+
+        releaseHaptic.TrySetResult();
+        releaseForwarding.TrySetResult();
+        await worker.StopAsync();
     }
 
     private static HapticPipelinePacketResult CreatePacketResult()

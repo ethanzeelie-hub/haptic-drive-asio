@@ -14,16 +14,14 @@ internal enum ShutdownCleanupActionKind
 
 internal enum ShutdownCleanupStepKind
 {
-    DetachUnhandledExceptionAndInputTelemetryHandlers = 0,
-    StopTelemetryStatusTimer = 1,
-    StopContinuousPhprRuntime = 2,
-    StopStandaloneBst1PulseSession = 3,
-    DisposeTestBench = 4,
-    DisposePaddleInputSource = 5,
-    DisposeTelemetryReceiver = 6,
-    StopRoadAndDisposeRealPhprOutput = 7,
-    DisposeContinuousPhprRuntime = 8,
-    DisposeHapticPipeline = 9
+    TripOutputInterlock = 0,
+    StopUdpReceiver = 1,
+    CompleteAndDrainIngress = 2,
+    StopAndFinalizeRecording = 3,
+    StopReplay = 4,
+    StopActuatorRuntimes = 5,
+    StopAndDisposeAudio = 6,
+    DisposeRemainingServices = 7
 }
 
 internal sealed record ShutdownCleanupStep(
@@ -42,52 +40,44 @@ internal static class ShutdownCleanupPlanner
         ShutdownCleanupContext.AppShutdown,
         [
             new(
-                ShutdownCleanupStepKind.DetachUnhandledExceptionAndInputTelemetryHandlers,
-                ShutdownCleanupActionKind.DetachObserver,
-                "Detach global exception hooks plus paddle and telemetry event subscriptions before stop/dispose work begins."),
-            new(
-                ShutdownCleanupStepKind.StopTelemetryStatusTimer,
+                ShutdownCleanupStepKind.TripOutputInterlock,
                 ShutdownCleanupActionKind.StopOnly,
-                "Stop the telemetry status timer before runtime and device cleanup."),
+                "Trip the global output interlock before any shutdown stop or dispose work begins."),
             new(
-                ShutdownCleanupStepKind.StopContinuousPhprRuntime,
+                ShutdownCleanupStepKind.StopUdpReceiver,
                 ShutdownCleanupActionKind.StopOnly,
-                "Stop the continuous P-HPR road/slip/lock runtime before disposing its routers or output dependencies.",
+                "Stop the UDP telemetry receiver before ingress drain and recording finalization.",
                 TimeSpan.FromSeconds(2)),
             new(
-                ShutdownCleanupStepKind.StopStandaloneBst1PulseSession,
+                ShutdownCleanupStepKind.CompleteAndDrainIngress,
                 ShutdownCleanupActionKind.StopOnly,
-                "Stop the standalone BST-1 local/manual ASIO pulse session before pipeline disposal."),
-            new(
-                ShutdownCleanupStepKind.DisposeTestBench,
-                ShutdownCleanupActionKind.Dispose,
-                "Dispose the app-owned test bench after standalone pulse cleanup.",
+                "Disable ingress acceptance, complete ingress queues, and drain remaining haptic/forwarding/recording work before recording finalization.",
                 TimeSpan.FromSeconds(2)),
             new(
-                ShutdownCleanupStepKind.DisposePaddleInputSource,
-                ShutdownCleanupActionKind.Dispose,
-                "Dispose the read-only paddle listener after detaching event subscriptions.",
+                ShutdownCleanupStepKind.StopAndFinalizeRecording,
+                ShutdownCleanupActionKind.StopOnly,
+                "Stop recording and write the final footer only after ingress drain completes.",
                 TimeSpan.FromSeconds(2)),
             new(
-                ShutdownCleanupStepKind.DisposeTelemetryReceiver,
-                ShutdownCleanupActionKind.Dispose,
-                "Dispose the UDP telemetry receiver after event detachment and timer stop.",
+                ShutdownCleanupStepKind.StopReplay,
+                ShutdownCleanupActionKind.StopOnly,
+                "Stop replay and wait for the replay loop to exit before actuator or audio shutdown.",
                 TimeSpan.FromSeconds(2)),
             new(
-                ShutdownCleanupStepKind.StopRoadAndDisposeRealPhprOutput,
-                ShutdownCleanupActionKind.Dispose,
-                "Stop real P-HPR road output and then dispose the real P-HPR output backend.",
+                ShutdownCleanupStepKind.StopActuatorRuntimes,
+                ShutdownCleanupActionKind.StopOnly,
+                "Stop continuous and direct actuator runtimes before audio shutdown.",
                 TimeSpan.FromSeconds(2)),
             new(
-                ShutdownCleanupStepKind.DisposeContinuousPhprRuntime,
+                ShutdownCleanupStepKind.StopAndDisposeAudio,
                 ShutdownCleanupActionKind.Dispose,
-                "Dispose the continuous P-HPR runtime coordinator after its runtime loops have been stopped.",
-                TimeSpan.FromSeconds(2)),
+                "Stop standalone/manual audio activity and dispose the haptic audio pipeline after upstream shutdown work completes.",
+                TimeSpan.FromSeconds(3)),
             new(
-                ShutdownCleanupStepKind.DisposeHapticPipeline,
+                ShutdownCleanupStepKind.DisposeRemainingServices,
                 ShutdownCleanupActionKind.Dispose,
-                "Dispose the haptic pipeline last so ASIO/output-owned resources close after upstream app-owned stop work.",
-                TimeSpan.FromSeconds(3))
+                "Dispose remaining app-owned services, listeners, observers, and timers after outputs are already stopped.",
+                TimeSpan.FromSeconds(2))
         ]);
 
     public static ShutdownCleanupPlan BuildAppShutdownPlan()

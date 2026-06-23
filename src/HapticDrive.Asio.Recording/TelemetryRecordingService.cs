@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading.Channels;
 using HapticDrive.Asio.Core.Telemetry;
 
@@ -5,9 +6,10 @@ namespace HapticDrive.Asio.Recording;
 
 public sealed class TelemetryRecordingService : IAsyncDisposable
 {
-    public const int DefaultQueueCapacityPackets = 4_096;
+    public const int DefaultQueueCapacityPackets = 8_192;
 
-    private readonly object _gate = new();
+    private readonly object _sessionGate = new();
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly TimeProvider _timeProvider;
     private readonly int _maxPayloadLength;
     private readonly int _queueCapacityPackets;
@@ -40,7 +42,7 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
 
     public TelemetryRecordingSnapshot GetSnapshot()
     {
-        lock (_gate)
+        lock (_sessionGate)
         {
             return new TelemetryRecordingSnapshot(
                 _session is not null,
@@ -56,91 +58,93 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         }
     }
 
-    public ValueTask<TelemetryRecordingOperationResult> StartAsync(
+    public async ValueTask<TelemetryRecordingOperationResult> StartAsync(
         string path,
         TelemetryRecordingMetadata? metadata = null,
         CancellationToken cancellationToken = default)
     {
         if (cancellationToken.IsCancellationRequested)
         {
-            return ValueTask.FromResult(TelemetryRecordingOperationResult.Cancelled("Recording start was cancelled."));
-        }
-
-        lock (_gate)
-        {
-            if (_disposed)
-            {
-                return ValueTask.FromResult(TelemetryRecordingOperationResult.Failure("Recording service is disposed."));
-            }
-
-            if (_session is not null)
-            {
-                return ValueTask.FromResult(TelemetryRecordingOperationResult.AlreadyRecording("Recording is already running."));
-            }
+            return TelemetryRecordingOperationResult.Cancelled("Recording start was cancelled.");
         }
 
         if (string.IsNullOrWhiteSpace(path))
         {
-            return ValueTask.FromResult(TelemetryRecordingOperationResult.Failure("Recording path is required."));
+            return TelemetryRecordingOperationResult.Failure("Recording path is required.");
         }
 
-        Stream? stream = null;
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            var fullPath = Path.GetFullPath(path);
-            var directory = Path.GetDirectoryName(fullPath);
-            if (!string.IsNullOrWhiteSpace(directory))
+            lock (_sessionGate)
             {
-                Directory.CreateDirectory(directory);
-            }
-
-            var createdAtUtc = _timeProvider.GetUtcNow();
-            metadata ??= TelemetryRecordingMetadata.CreateDefault(createdAtUtc);
-
-            stream = _recordingStreamFactory(fullPath);
-
-            var headerReservation = TelemetryRecordingFile.WriteHeader(stream, metadata);
-            var recordingStream = stream;
-            stream = null;
-            var channel = Channel.CreateBounded<TelemetryRecordedPacket>(
-                new BoundedChannelOptions(_queueCapacityPackets)
+                if (_disposed)
                 {
-                    SingleReader = true,
-                    SingleWriter = false,
-                    FullMode = BoundedChannelFullMode.Wait
-                });
-            Task<RecordingWriterResult>? writerTask = null;
-            var session = new RecordingSession(fullPath, metadata.CreatedAtUtc, metadata, headerReservation, channel, writerTask: null!, _queueCapacityPackets);
-            writerTask = Task.Run(
-                () => WriteLoopAsync(recordingStream, headerReservation, channel.Reader, _maxPayloadLength, session, _timeProvider),
-                CancellationToken.None);
-            session.AttachWriterTask(writerTask);
-
-            lock (_gate)
-            {
-                if (_session is not null)
-                {
-                    channel.Writer.TryComplete();
-                    return ValueTask.FromResult(TelemetryRecordingOperationResult.AlreadyRecording("Recording is already running."));
+                    return TelemetryRecordingOperationResult.Failure("Recording service is disposed.");
                 }
 
+                if (_session is not null)
+                {
+                    return TelemetryRecordingOperationResult.AlreadyRecording("Recording is already running.");
+                }
+            }
+
+            var fullPath = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(fullPath);
+            var createdAtUtc = _timeProvider.GetUtcNow();
+            metadata ??= TelemetryRecordingMetadata.CreateDefault(createdAtUtc);
+            var session = RecordingSession.CreateReserved(fullPath, metadata, _queueCapacityPackets);
+
+            lock (_sessionGate)
+            {
                 _session = session;
                 _lastErrorMessage = null;
             }
 
-            return ValueTask.FromResult(TelemetryRecordingOperationResult.Success("Recording started."));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or InvalidDataException)
-        {
-            stream?.Dispose();
-
-            lock (_gate)
+            Stream? stream = null;
+            try
             {
-                _lastErrorMessage = ex.Message;
-            }
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
 
-            return ValueTask.FromResult(TelemetryRecordingOperationResult.Failure($"Recording could not start: {ex.Message}"));
+                stream = _recordingStreamFactory(fullPath);
+                var headerReservation = TelemetryRecordingFile.WriteHeader(stream, metadata);
+                var recordingStream = stream;
+                session.AttachWriterTask(Task.Run(
+                    () => WriteLoopAsync(
+                        recordingStream,
+                        headerReservation,
+                        session.Channel.Reader,
+                        _maxPayloadLength,
+                        session,
+                        _timeProvider),
+                    CancellationToken.None));
+                stream = null;
+                return TelemetryRecordingOperationResult.Success("Recording started.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or InvalidDataException)
+            {
+                stream?.Dispose();
+                session.FailInitialization($"Recording could not start: {ex.Message}");
+                lock (_sessionGate)
+                {
+                    if (ReferenceEquals(_session, session))
+                    {
+                        _session = null;
+                    }
+
+                    _lastErrorMessage = ex.Message;
+                }
+
+                return TelemetryRecordingOperationResult.Failure($"Recording could not start: {ex.Message}");
+            }
+        }
+        finally
+        {
+            _lifecycleGate.Release();
         }
     }
 
@@ -149,7 +153,7 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(packet);
 
         RecordingSession? session;
-        lock (_gate)
+        lock (_sessionGate)
         {
             if (_disposed)
             {
@@ -159,7 +163,7 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             session = _session;
         }
 
-        if (session is null)
+        if (session is null || !session.IsAccepting)
         {
             return TelemetryRecordingOperationResult.NotRecording("Recording is not running.");
         }
@@ -184,13 +188,13 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             packet.Payload);
         if (!session.Channel.Writer.TryWrite(recordedPacket))
         {
-            if (session.Channel.Reader.Completion.IsCompleted || session.WriterTask.IsCompleted)
+            if (session.WriterTask.IsCompleted || !session.IsAccepting)
             {
                 return SetSessionError(session, "Recording writer is not accepting packets.");
             }
 
             session.MarkPacketDropped();
-            lock (_gate)
+            lock (_sessionGate)
             {
                 _lastErrorMessage = $"Recording queue full at capacity {_queueCapacityPackets:N0}; packet dropped.";
             }
@@ -209,55 +213,101 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             message = "Recording is incomplete.";
         }
 
-        lock (_gate)
+        lock (_sessionGate)
         {
             _session?.MarkIncomplete(message);
             _lastErrorMessage = message;
         }
     }
 
-    public async ValueTask<TelemetryRecordingOperationResult> StopAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<TelemetryRecordingDrainResult> WaitForQueueDrainAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        if (timeout < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout), "Drain timeout cannot be negative.");
+        }
 
         RecordingSession? session;
-        lock (_gate)
+        lock (_sessionGate)
         {
             session = _session;
-            _session = null;
         }
 
         if (session is null)
         {
-            return TelemetryRecordingOperationResult.NotRecording("Recording is not running.");
+            return TelemetryRecordingDrainResult.Complete();
         }
 
-        session.Channel.Writer.TryComplete();
+        var deadlineUtc = _timeProvider.GetUtcNow() + timeout;
+        while (session.QueuedPacketCount > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_timeProvider.GetUtcNow() >= deadlineUtc)
+            {
+                return TelemetryRecordingDrainResult.TimedOut(session.QueuedPacketCount);
+            }
 
-        RecordingWriterResult result;
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken).ConfigureAwait(false);
+        }
+
+        return TelemetryRecordingDrainResult.Complete();
+    }
+
+    public async ValueTask<TelemetryRecordingOperationResult> StopAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
         try
         {
-            result = await session.WriterTask.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            result = RecordingWriterResult.Failure(0, "Recording stop was cancelled.");
-        }
+            RecordingSession? session;
+            lock (_sessionGate)
+            {
+                session = _session;
+                _session = null;
+            }
 
-        lock (_gate)
-        {
-            _lastErrorMessage = result.Succeeded ? null : result.Message;
-        }
+            if (session is null)
+            {
+                return TelemetryRecordingOperationResult.NotRecording("Recording is not running.");
+            }
 
-        return result.Succeeded
-            ? TelemetryRecordingOperationResult.Success($"Recording stopped with {result.PacketCount:N0} packets.")
-            : TelemetryRecordingOperationResult.Failure(result.Message);
+            session.StopAccepting();
+            session.Channel.Writer.TryComplete();
+
+            RecordingWriterResult result;
+            try
+            {
+                result = await session.WriterTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                result = RecordingWriterResult.Failure(0, "Recording stop was cancelled.");
+            }
+
+            lock (_sessionGate)
+            {
+                _lastErrorMessage = result.Succeeded ? result.WarningMessage : result.Message;
+            }
+
+            return result.Succeeded
+                ? TelemetryRecordingOperationResult.Success(result.Message)
+                : TelemetryRecordingOperationResult.Failure(result.Message);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
         RecordingSession? session;
-        lock (_gate)
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+
+        try
         {
             if (_disposed)
             {
@@ -265,22 +315,34 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             }
 
             _disposed = true;
-            session = _session;
-            _session = null;
+            lock (_sessionGate)
+            {
+                session = _session;
+                _session = null;
+            }
+        }
+        finally
+        {
+            _lifecycleGate.Release();
         }
 
         if (session is not null)
         {
+            session.StopAccepting();
             session.Channel.Writer.TryComplete();
             await session.WriterTask.ConfigureAwait(false);
         }
+
+        _lifecycleGate.Dispose();
     }
 
     private TelemetryRecordingOperationResult SetSessionError(RecordingSession session, string message)
     {
+        session.MarkIncomplete(message);
+        session.StopAccepting();
         session.Channel.Writer.TryComplete(new InvalidDataException(message));
 
-        lock (_gate)
+        lock (_sessionGate)
         {
             _lastErrorMessage = message;
         }
@@ -319,13 +381,25 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
                 packetCount,
                 endedAtUtc,
                 recordingCrc.GetCurrentHashAsUInt32());
-            TelemetryRecordingFile.TryUpdateHeader(stream, headerReservation, finalMetadata);
+
+            try
+            {
+                if (!TelemetryRecordingFile.TryUpdateHeader(stream, headerReservation, finalMetadata))
+                {
+                    session.SetHeaderUpdateWarning("Recording header update could not be applied; footer remains authoritative.");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
+            {
+                session.SetHeaderUpdateWarning($"Recording header update failed safely: {ex.Message}");
+            }
+
+            FlushRecordingStream(stream);
             await stream.FlushAsync().ConfigureAwait(false);
             return RecordingWriterResult.Success(
                 packetCount,
-                finalMetadata.RecordingComplete
-                    ? $"Recording stopped with {packetCount:N0} packets."
-                    : $"Recording stopped with {packetCount:N0} packets and was marked incomplete.");
+                BuildStopMessage(finalMetadata, packetCount, session.WarningMessage),
+                session.WarningMessage);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -337,23 +411,53 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         }
     }
 
+    private static string BuildStopMessage(
+        TelemetryRecordingMetadata metadata,
+        long packetCount,
+        string? warningMessage)
+    {
+        var message = metadata.RecordingComplete
+            ? $"Recording stopped with {packetCount:N0} packets."
+            : $"Recording stopped with {packetCount:N0} packets and was marked incomplete.";
+
+        return string.IsNullOrWhiteSpace(warningMessage)
+            ? message
+            : $"{message} Warning: {warningMessage}";
+    }
+
+    private static void FlushRecordingStream(Stream stream)
+    {
+        if (stream is FileStream fileStream)
+        {
+            fileStream.Flush(flushToDisk: true);
+            return;
+        }
+
+        stream.Flush();
+    }
+
     private sealed class RecordingSession
     {
-        public RecordingSession(
+        private readonly TaskCompletionSource<RecordingWriterResult> _writerCompletion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private long _packetCount;
+        private long _enqueuedPacketCount;
+        private long _dequeuedPacketCount;
+        private long _droppedPacketCount;
+        private int _recordingIncomplete;
+        private int _accepting = 1;
+
+        private RecordingSession(
             string filePath,
             DateTimeOffset startedAtUtc,
             TelemetryRecordingMetadata metadata,
-            TelemetryRecordingFile.RecordingHeaderReservation headerReservation,
             Channel<TelemetryRecordedPacket> channel,
-            Task<RecordingWriterResult> writerTask,
             int queueCapacityPackets)
         {
             FilePath = filePath;
             StartedAtUtc = startedAtUtc;
             Metadata = metadata;
-            HeaderReservation = headerReservation;
             Channel = channel;
-            WriterTask = writerTask;
             QueueCapacityPackets = queueCapacityPackets;
         }
 
@@ -363,11 +467,9 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
 
         public TelemetryRecordingMetadata Metadata { get; }
 
-        public TelemetryRecordingFile.RecordingHeaderReservation HeaderReservation { get; }
-
         public Channel<TelemetryRecordedPacket> Channel { get; }
 
-        public Task<RecordingWriterResult> WriterTask { get; private set; }
+        public Task<RecordingWriterResult> WriterTask => _writerCompletion.Task;
 
         public int QueueCapacityPackets { get; }
 
@@ -379,15 +481,32 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
 
         public bool RecordingIncomplete => Volatile.Read(ref _recordingIncomplete) > 0;
 
+        public bool IsAccepting => Volatile.Read(ref _accepting) == 1;
+
         public string? IncompleteReason { get; private set; }
+
+        public string? WarningMessage { get; private set; }
 
         public TimeSpan? LastPacketRelativeTime { get; private set; }
 
-        private long _packetCount;
-        private long _enqueuedPacketCount;
-        private long _dequeuedPacketCount;
-        private long _droppedPacketCount;
-        private int _recordingIncomplete;
+        public static RecordingSession CreateReserved(
+            string filePath,
+            TelemetryRecordingMetadata metadata,
+            int queueCapacityPackets)
+        {
+            return new RecordingSession(
+                filePath,
+                metadata.CreatedAtUtc,
+                metadata,
+                System.Threading.Channels.Channel.CreateBounded<TelemetryRecordedPacket>(
+                    new BoundedChannelOptions(queueCapacityPackets)
+                    {
+                        SingleReader = true,
+                        SingleWriter = false,
+                        FullMode = BoundedChannelFullMode.Wait
+                    }),
+                queueCapacityPackets);
+        }
 
         public void MarkPacketRecorded(TimeSpan relativeTime)
         {
@@ -413,9 +532,49 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
             IncompleteReason = message;
         }
 
+        public void SetHeaderUpdateWarning(string message)
+        {
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                WarningMessage = message;
+            }
+        }
+
+        public void StopAccepting()
+        {
+            Volatile.Write(ref _accepting, 0);
+        }
+
         public void AttachWriterTask(Task<RecordingWriterResult> writerTask)
         {
-            WriterTask = writerTask ?? throw new ArgumentNullException(nameof(writerTask));
+            ArgumentNullException.ThrowIfNull(writerTask);
+            _ = writerTask.ContinueWith(
+                task =>
+                {
+                    if (task.IsCanceled)
+                    {
+                        _writerCompletion.TrySetResult(RecordingWriterResult.Failure(0, "Recording writer was cancelled."));
+                    }
+                    else if (task.IsFaulted)
+                    {
+                        var message = task.Exception?.GetBaseException().Message ?? "Recording writer failed.";
+                        _writerCompletion.TrySetResult(RecordingWriterResult.Failure(0, message));
+                    }
+                    else
+                    {
+                        _writerCompletion.TrySetResult(task.Result);
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        public void FailInitialization(string message)
+        {
+            StopAccepting();
+            Channel.Writer.TryComplete(new InvalidOperationException(message));
+            _writerCompletion.TrySetResult(RecordingWriterResult.Failure(0, message));
         }
 
         public TelemetryRecordingMetadata BuildFinalMetadata(long packetCount, DateTimeOffset endedAtUtc)
@@ -430,11 +589,15 @@ public sealed class TelemetryRecordingService : IAsyncDisposable
         }
     }
 
-    private sealed record RecordingWriterResult(bool Succeeded, long PacketCount, string Message)
+    private sealed record RecordingWriterResult(
+        bool Succeeded,
+        long PacketCount,
+        string Message,
+        string? WarningMessage = null)
     {
-        public static RecordingWriterResult Success(long packetCount, string message)
+        public static RecordingWriterResult Success(long packetCount, string message, string? warningMessage = null)
         {
-            return new(true, packetCount, message);
+            return new(true, packetCount, message, warningMessage);
         }
 
         public static RecordingWriterResult Failure(long packetCount, string message)

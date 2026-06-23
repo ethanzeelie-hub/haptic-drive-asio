@@ -206,6 +206,77 @@ public sealed class PHprContinuousEffectsRuntimeCoordinatorTests
         Assert.False(disposedSnapshot.RoadRuntimeActive);
     }
 
+    [Fact]
+    public async Task PHprContinuousEffectsRuntimeCoordinator_RoadRuntimeRestartsAfterStop()
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateRoadInput();
+
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.Runtime.GetSnapshot().RoadRuntimeActive);
+
+        var firstStop = await harness.Runtime.StopAsync(TimeSpan.FromSeconds(1));
+        Assert.False(firstStop.RoadRuntimeTimedOut);
+
+        harness.Runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.Runtime.GetSnapshot().RoadRuntimeActive);
+    }
+
+    [Fact]
+    public async Task PHprContinuousEffectsRuntimeCoordinator_SlipLockRuntimeRestartsAfterStop()
+    {
+        await using var harness = new RuntimeHarness();
+        harness.CurrentInput = harness.CreateSlipInput();
+
+        harness.Runtime.StartSlipLockRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.Runtime.GetSnapshot().SlipLockRuntimeActive);
+
+        var firstStop = await harness.Runtime.StopAsync(TimeSpan.FromSeconds(1));
+        Assert.False(firstStop.SlipLockRuntimeTimedOut);
+
+        harness.Runtime.StartSlipLockRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => harness.Runtime.GetSnapshot().SlipLockRuntimeActive);
+    }
+
+    [Fact]
+    public async Task PHprContinuousEffectsRuntimeCoordinator_FaultedLoopRecordsSnapshot()
+    {
+        await using var harness = new RuntimeHarness();
+        await using var runtime = new PHprContinuousEffectsRuntimeCoordinator(
+            harness.RoadRouter,
+            harness.SlipLockRouter,
+            () => throw new InvalidOperationException("synthetic runtime fault"),
+            harness.Clock);
+
+        runtime.StartRoadVibrationRuntime();
+        await WaitForAsync(() => harness.Clock.PendingDelayCount >= 1);
+        harness.Clock.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        await WaitForAsync(() => runtime.GetSnapshot().LastRoadRuntimeFault == "synthetic runtime fault");
+
+        var snapshot = runtime.GetSnapshot();
+        Assert.Equal("synthetic runtime fault", snapshot.LastRoadRuntimeFault);
+        Assert.True(snapshot.RoadRuntimeActive);
+    }
+
+    [Fact]
+    public async Task PHprContinuousEffectsRuntimeCoordinator_DisposeBlocksRestart()
+    {
+        await using var harness = new RuntimeHarness();
+
+        await harness.Runtime.DisposeAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => harness.Runtime.StartRoadVibrationRuntime());
+        Assert.Throws<ObjectDisposedException>(() => harness.Runtime.StartSlipLockRuntime());
+    }
+
     public static IEnumerable<object[]> BlockingRoadContexts()
     {
         yield return

@@ -1,5 +1,72 @@
 # Development Log
 
+## Remediation 7 - Guarantee Ingress Recording Replay And Shutdown Integrity
+
+Date: 2026-06-23
+
+Status: Complete.
+
+Goal: Repair telemetry ingress lifecycle, recording/replay shutdown correctness, continuous P-HPR runtime restart behavior, and application shutdown ordering so Stage 7 integrity guarantees hold without changing the larger architecture.
+
+Notes:
+
+- Reworked `TelemetryIngressWorker` to match the audited Stage 7 contract:
+  - ingress now creates fresh bounded haptic/forwarding channels on every start,
+  - recording no longer has a second ingress-owned queue and is handed directly to `TelemetryRecordingService`,
+  - accepting is disabled before stop drains begin,
+  - stop now completes haptic/forwarding work, waits bounded drain, then waits recording drain separately,
+  - timeout paths record the exact remaining recording queue count and mark the recording incomplete.
+- Reworked `TelemetryRecordingService` lifecycle and completion behavior:
+  - `StartAsync` is now serialized through a lifecycle semaphore and reserves one session before any file creation,
+  - concurrent starts return `AlreadyRecording` instead of racing file creation,
+  - queue drain waiting is explicit,
+  - dropped packets mark the capture incomplete,
+  - valid footer finalization remains authoritative while persisted incomplete/drop metadata is preserved on load,
+  - file-backed recording flush now uses `Flush(flushToDisk: true)` before disposal.
+- Added a streaming `TelemetryRecordingReader` seam and updated replay/file-load usage around it so replay-from-file stays memory-bounded while reusing validated packet-read behavior.
+- Hardened `TelemetryReplayService`:
+  - default replay mode is now `TimePreserving`,
+  - fast replay remains explicit,
+  - `StopAsync` now cancels and waits for the active replay loop,
+  - cancellation is rechecked after replay delays so stop cannot race through a blocked scheduler and incorrectly report success,
+  - subscriber exceptions remain isolated,
+  - replay no longer copies payload arrays unnecessarily on the normal path.
+- Hardened `PHprContinuousEffectsRuntimeCoordinator`:
+  - each runtime now owns a fresh CTS per start,
+  - completed runtimes can be started again after stop,
+  - runtime-loop faults are captured into snapshot state instead of silently killing the loop,
+  - disposal now blocks future restart attempts.
+- Corrected app shutdown ordering to follow the audited Stage 7 plan exactly:
+  - trip output interlock,
+  - stop UDP receiver,
+  - complete and drain ingress,
+  - stop and finalize recording,
+  - stop replay,
+  - stop actuator runtimes,
+  - stop and dispose audio,
+  - dispose remaining services.
+- Replaced and extended Stage 7 guardrail coverage across:
+  - ingress restart/drain/remaining-count behavior,
+  - recording concurrent-start/drop/footer semantics,
+  - replay stop/subscriber isolation/default mode/streaming behavior,
+  - continuous P-HPR runtime restart/fault/dispose behavior,
+  - shutdown-order source and planner checks.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `powershell -ExecutionPolicy Bypass -File .\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- This stage stayed inside the audited Stage 7 boundary: ingress lifecycle, recording/replay integrity, continuous-runtime restart/fault behavior, and shutdown sequencing only.
+- Hardware-absent rules stayed intact throughout validation: automated tests used the existing fake/mock paths and did not perform any real P-HPR USB write or require physical shaker hardware.
+- The next audited remediation stage remains Remediation 8.
+
 ## Remediation 6 - Complete Lock-Free Real-Time Effect Rendering
 
 Date: 2026-06-23

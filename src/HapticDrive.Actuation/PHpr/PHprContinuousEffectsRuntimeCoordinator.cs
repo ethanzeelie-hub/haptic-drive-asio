@@ -21,7 +21,9 @@ public sealed record PHprContinuousEffectsRuntimeSnapshot(
     long RoadHigherPrioritySuppressedCount,
     long RoadInFlightSuppressedCount,
     PHprSlipLockRoutingResult? LastSlipLockRoutingResult,
-    PHprRoadVibrationRoutingResult? LastRoadVibrationRoutingResult);
+    PHprRoadVibrationRoutingResult? LastRoadVibrationRoutingResult,
+    string? LastSlipLockRuntimeFault = null,
+    string? LastRoadRuntimeFault = null);
 
 public sealed record PHprContinuousEffectsRuntimeStopResult(
     bool SlipLockRuntimeTimedOut,
@@ -43,7 +45,8 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
     private readonly PHprSlipLockRouter _slipLockRouter;
     private readonly Func<PHprContinuousEffectsRuntimeInput> _inputProvider;
     private readonly IPHprContinuousEffectsRuntimeClock _clock;
-    private readonly CancellationTokenSource _runtimeCts = new();
+    private CancellationTokenSource? _slipLockRuntimeCts;
+    private CancellationTokenSource? _roadVibrationRuntimeCts;
     private Task? _slipLockRuntimeTask;
     private Task? _roadVibrationRuntimeTask;
     private bool _routingRoadVibration;
@@ -52,6 +55,8 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
     private long _roadInFlightSuppressedCount;
     private PHprRoadVibrationRoutingResult? _lastRoadVibrationRoutingResult;
     private PHprSlipLockRoutingResult? _lastSlipLockRoutingResult;
+    private string? _lastSlipLockRuntimeFault;
+    private string? _lastRoadRuntimeFault;
     private bool _disposed;
 
     public PHprContinuousEffectsRuntimeCoordinator(
@@ -72,14 +77,17 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
 
         lock (_gate)
         {
-            if (_slipLockRuntimeTask is not null || _runtimeCts.IsCancellationRequested)
+            if (_slipLockRuntimeTask is { IsCompleted: false })
             {
                 return;
             }
 
+            _lastSlipLockRuntimeFault = null;
+            _slipLockRuntimeCts?.Dispose();
+            _slipLockRuntimeCts = new CancellationTokenSource();
             _slipLockRuntimeTask = Task.Run(
-                () => RunRealSlipLockRuntimeAsync(_runtimeCts.Token),
-                _runtimeCts.Token);
+                () => RunRealSlipLockRuntimeAsync(_slipLockRuntimeCts.Token),
+                CancellationToken.None);
         }
     }
 
@@ -89,14 +97,17 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
 
         lock (_gate)
         {
-            if (_roadVibrationRuntimeTask is not null || _runtimeCts.IsCancellationRequested)
+            if (_roadVibrationRuntimeTask is { IsCompleted: false })
             {
                 return;
             }
 
+            _lastRoadRuntimeFault = null;
+            _roadVibrationRuntimeCts?.Dispose();
+            _roadVibrationRuntimeCts = new CancellationTokenSource();
             _roadVibrationRuntimeTask = Task.Run(
-                () => RunRealRoadVibrationRuntimeAsync(_runtimeCts.Token),
-                _runtimeCts.Token);
+                () => RunRealRoadVibrationRuntimeAsync(_roadVibrationRuntimeCts.Token),
+                CancellationToken.None);
         }
     }
 
@@ -114,7 +125,9 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
                 RoadHigherPrioritySuppressedCount: _roadHigherPrioritySuppressedCount,
                 RoadInFlightSuppressedCount: _roadInFlightSuppressedCount,
                 LastSlipLockRoutingResult: _lastSlipLockRoutingResult,
-                LastRoadVibrationRoutingResult: _lastRoadVibrationRoutingResult);
+                LastRoadVibrationRoutingResult: _lastRoadVibrationRoutingResult,
+                LastSlipLockRuntimeFault: _lastSlipLockRuntimeFault,
+                LastRoadRuntimeFault: _lastRoadRuntimeFault);
         }
     }
 
@@ -122,18 +135,50 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
-        _runtimeCts.Cancel();
-
+        CancellationTokenSource? slipLockRuntimeCts;
+        CancellationTokenSource? roadVibrationRuntimeCts;
         Task? slipLockTask;
         Task? roadRuntimeTask;
         lock (_gate)
         {
+            slipLockRuntimeCts = _slipLockRuntimeCts;
+            roadVibrationRuntimeCts = _roadVibrationRuntimeCts;
             slipLockTask = _slipLockRuntimeTask;
             roadRuntimeTask = _roadVibrationRuntimeTask;
         }
 
+        if (slipLockRuntimeCts is not null)
+        {
+            await slipLockRuntimeCts.CancelAsync().ConfigureAwait(false);
+        }
+
+        if (roadVibrationRuntimeCts is not null)
+        {
+            await roadVibrationRuntimeCts.CancelAsync().ConfigureAwait(false);
+        }
+
         var slipLockTimedOut = await WaitForRuntimeToStopAsync(slipLockTask, timeout, cancellationToken).ConfigureAwait(false);
         var roadTimedOut = await WaitForRuntimeToStopAsync(roadRuntimeTask, timeout, cancellationToken).ConfigureAwait(false);
+
+        lock (_gate)
+        {
+            if (!slipLockTimedOut)
+            {
+                _slipLockRuntimeTask = null;
+                _slipLockRuntimeCts?.Dispose();
+                _slipLockRuntimeCts = null;
+                _routingSlipLock = false;
+            }
+
+            if (!roadTimedOut)
+            {
+                _roadVibrationRuntimeTask = null;
+                _roadVibrationRuntimeCts?.Dispose();
+                _roadVibrationRuntimeCts = null;
+                _routingRoadVibration = false;
+            }
+        }
+
         return new PHprContinuousEffectsRuntimeStopResult(slipLockTimedOut, roadTimedOut);
     }
 
@@ -151,7 +196,15 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
         }
         finally
         {
-            _runtimeCts.Dispose();
+            lock (_gate)
+            {
+                _slipLockRuntimeCts?.Dispose();
+                _slipLockRuntimeCts = null;
+                _roadVibrationRuntimeCts?.Dispose();
+                _roadVibrationRuntimeCts = null;
+                _slipLockRuntimeTask = null;
+                _roadVibrationRuntimeTask = null;
+            }
         }
     }
 
@@ -162,12 +215,22 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
             while (true)
             {
                 await _clock.DelayAsync(RuntimeCadence, cancellationToken).ConfigureAwait(false);
-                var input = _inputProvider();
-                await RouteRealSlipLockFromInputAsync(input).ConfigureAwait(false);
-                await _slipLockRouter.StopIfHoldExpiredAsync(
-                        nowUtc: _clock.UtcNow,
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
+                try
+                {
+                    var input = _inputProvider();
+                    await RouteRealSlipLockFromInputAsync(input).ConfigureAwait(false);
+                    await _slipLockRouter.StopIfHoldExpiredAsync(
+                            nowUtc: _clock.UtcNow,
+                            cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    lock (_gate)
+                    {
+                        _lastSlipLockRuntimeFault = ex.Message;
+                    }
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -185,15 +248,25 @@ public sealed class PHprContinuousEffectsRuntimeCoordinator : IAsyncDisposable
             while (true)
             {
                 await _clock.DelayAsync(RuntimeCadence, cancellationToken).ConfigureAwait(false);
-                var input = _inputProvider();
-                await RouteRealRoadVibrationFromInputAsync(
-                        input,
-                        IsHigherPriorityPedalEffectActive(_clock.UtcNow))
-                    .ConfigureAwait(false);
-                await _roadVibrationRouter.StopIfHoldExpiredAsync(
-                        nowUtc: _clock.UtcNow,
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
+                try
+                {
+                    var input = _inputProvider();
+                    await RouteRealRoadVibrationFromInputAsync(
+                            input,
+                            IsHigherPriorityPedalEffectActive(_clock.UtcNow))
+                        .ConfigureAwait(false);
+                    await _roadVibrationRouter.StopIfHoldExpiredAsync(
+                            nowUtc: _clock.UtcNow,
+                            cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    lock (_gate)
+                    {
+                        _lastRoadRuntimeFault = ex.Message;
+                    }
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

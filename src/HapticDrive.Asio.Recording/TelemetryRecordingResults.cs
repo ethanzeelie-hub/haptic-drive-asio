@@ -175,6 +175,25 @@ public sealed record TelemetryRecordingSnapshot(
     bool RecordingIncomplete = false,
     string? IncompleteReason = null);
 
+public sealed record TelemetryRecordingDrainResult(
+    bool Drained,
+    int RemainingQueuedPacketCount,
+    string Message)
+{
+    public static TelemetryRecordingDrainResult Complete()
+    {
+        return new(true, 0, "Recording queue drained.");
+    }
+
+    public static TelemetryRecordingDrainResult TimedOut(int remainingQueuedPacketCount)
+    {
+        return new(
+            false,
+            remainingQueuedPacketCount,
+            $"Recording queue drain timed out with {remainingQueuedPacketCount:N0} packet(s) still queued.");
+    }
+}
+
 public sealed record TelemetryReplaySnapshot(
     bool IsReplaying,
     string? SourceFilePath,

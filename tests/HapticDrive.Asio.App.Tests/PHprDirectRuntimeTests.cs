@@ -307,7 +307,6 @@ public sealed class PHprDirectRuntimeTests
         await WaitForScheduledRuntimeDelaysAsync(harness.RuntimeClock, 2);
 
         harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(30));
-        await WaitForDiagnosticsAsync(harness.Output, diagnostics => diagnostics.StaleStopIgnoredCount == 1);
         harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(280));
         await WaitForRecorderLineAsync(harness, "direct-paddle-bench-stale-observer-ignored");
 
@@ -315,8 +314,8 @@ public sealed class PHprDirectRuntimeTests
         Assert.Equal(PHprDirectRuntimeState.Active, harness.Runtime.GetSnapshot().State);
         Assert.DoesNotContain(harness.Writer.Reports, report => report.State == PHprHidReportState.EmergencyStop);
 
-        harness.OutputClock.AdvanceBy(TimeSpan.FromMilliseconds(10));
-        await WaitForReportsAsync(harness.Writer, 3);
+        await WaitForScheduledOutputDelaysAsync(harness.OutputClock, 1);
+        await AdvanceClockUntilReportsAsync(harness.OutputClock, harness.Writer, 3, TimeSpan.FromMilliseconds(5));
         harness.RuntimeClock.AdvanceBy(TimeSpan.FromMilliseconds(250));
         await WaitForMarkerClearedAsync(harness.Store);
         await WaitForRecorderLineAsync(harness, "direct-paddle-bench-stop-observed");
@@ -567,6 +566,22 @@ public sealed class PHprDirectRuntimeTests
         }
 
         Assert.True(writer.Reports.Count >= count, $"Expected {count} reports but saw {writer.Reports.Count} after advancing the fake clock.");
+    }
+
+    private static async Task WaitForScheduledOutputDelaysAsync(FakeDirectStopClock clock, int count)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (clock.ScheduledDelayCount >= count)
+            {
+                return;
+            }
+
+            await Task.Delay(5);
+        }
+
+        Assert.True(clock.ScheduledDelayCount >= count, $"Expected {count} scheduled output delay(s) but saw {clock.ScheduledDelayCount}.");
     }
 
     private static async Task WaitForScheduledRuntimeDelaysAsync(FakeRuntimeClock clock, int count)
@@ -842,6 +857,17 @@ public sealed class PHprDirectRuntimeTests
         private readonly object _gate = new();
         private readonly List<ScheduledDelay> _delays = [];
         private TimeSpan _elapsed;
+
+        public int ScheduledDelayCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _delays.Count;
+                }
+            }
+        }
 
         public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
         {

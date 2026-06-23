@@ -55,6 +55,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
     private readonly ITelemetryReplayDelayScheduler? _delayScheduler;
     private readonly int _maxPayloadLength;
     private CancellationTokenSource? _activeReplayCts;
+    private Task<TelemetryReplayResult>? _activeReplayTask;
     private string? _activeReplaySourceFilePath;
     private string _statusMessage = "Replay idle.";
     private long _packetsReplayed;
@@ -103,16 +104,20 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         TelemetryReplayOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var openResult = await TelemetryRecordingFile.OpenReaderAsync(path, _maxPayloadLength, cancellationToken).ConfigureAwait(false);
-        if (!openResult.Succeeded || openResult.Reader is null)
+        TelemetryRecordingReader reader;
+        try
         {
-            return TelemetryReplayResult.Failure(0, openResult.Message);
+            reader = await TelemetryRecordingReader.OpenAsync(path, _maxPayloadLength, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidDataException or ArgumentException)
+        {
+            return TelemetryReplayResult.Failure(0, $"Replay failed: {ex.Message}");
         }
 
-        await using var reader = openResult.Reader;
+        await using var replayReader = reader;
         return await ReplayPacketStreamAsync(
-            reader.Metadata,
-            ReadPacketsAsync(reader, cancellationToken),
+            replayReader.Metadata,
+            replayReader.ReadPacketsAsync(cancellationToken),
             options,
             fullPath: path,
             cancellationToken).ConfigureAwait(false);
@@ -141,7 +146,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(packets);
-        options ??= TelemetryReplayOptions.Fast;
+        options ??= TelemetryReplayOptions.TimePreserving;
 
         if (options.Speed <= 0 || double.IsNaN(options.Speed) || double.IsInfinity(options.Speed))
         {
@@ -150,7 +155,8 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             return failure;
         }
 
-        using var replayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var replayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task<TelemetryReplayResult>? replayTask;
 
         lock (_gate)
         {
@@ -168,9 +174,58 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
             Interlocked.Exchange(ref _skippedSleepCount, 0);
             Interlocked.Exchange(ref _subscriberExceptionCount, 0);
             _lastSubscriberErrorMessage = null;
+            replayTask = RunReplayLoopAsync(packets, options, replayCts.Token);
+            _activeReplayTask = replayTask;
         }
 
-        TelemetryReplayResult result;
+        try
+        {
+            var result = await replayTask.ConfigureAwait(false);
+            SetStatus(result);
+            return result;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(_activeReplayCts, replayCts) || ReferenceEquals(_activeReplayTask, replayTask))
+                {
+                    _activeReplayCts = null;
+                    _activeReplayTask = null;
+                    _activeReplaySourceFilePath = null;
+                }
+            }
+
+            replayCts.Dispose();
+        }
+    }
+
+    public async ValueTask StopAsync()
+    {
+        CancellationTokenSource? activeReplayCts;
+        Task<TelemetryReplayResult>? activeReplayTask;
+        lock (_gate)
+        {
+            activeReplayCts = _activeReplayCts;
+            activeReplayTask = _activeReplayTask;
+        }
+
+        if (activeReplayCts is not null)
+        {
+            await activeReplayCts.CancelAsync().ConfigureAwait(false);
+        }
+
+        if (activeReplayTask is not null)
+        {
+            await activeReplayTask.ConfigureAwait(false);
+        }
+    }
+
+    private async Task<TelemetryReplayResult> RunReplayLoopAsync(
+        IAsyncEnumerable<TelemetryRecordedPacket> packets,
+        TelemetryReplayOptions options,
+        CancellationToken cancellationToken)
+    {
         DateTimeOffset? firstRecordedPacketAtUtc = null;
         long replayStartTimestamp = 0;
 
@@ -178,7 +233,7 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         {
             await foreach (var recordedPacket in packets.ConfigureAwait(false))
             {
-                replayCts.Token.ThrowIfCancellationRequested();
+                cancellationToken.ThrowIfCancellationRequested();
 
                 if (firstRecordedPacketAtUtc is null)
                 {
@@ -194,7 +249,8 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                     var remainingDelay = targetOffset - elapsed;
                     if (remainingDelay > TimeSpan.Zero)
                     {
-                        await DelayAsync(remainingDelay, replayCts.Token).ConfigureAwait(false);
+                        await DelayAsync(remainingDelay, cancellationToken).ConfigureAwait(false);
+                        cancellationToken.ThrowIfCancellationRequested();
                     }
                     else if (targetOffset > TimeSpan.Zero)
                     {
@@ -212,69 +268,38 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
                     UpdateMaxLatePacketTicks(lateBy.Ticks);
                 }
 
-                var replayedAtUtc = _timeProvider.GetUtcNow();
-                var replayedAtTimestamp = _timeProvider.GetTimestamp();
-
                 var replayedPacket = new UdpTelemetryPacket(
                     recordedPacket.SequenceNumber,
-                    recordedPacket.Payload.ToArray(),
+                    recordedPacket.Payload,
                     new IPEndPoint(IPAddress.Loopback, 0),
-                    replayedAtUtc,
-                    replayedAtTimestamp);
+                    _timeProvider.GetUtcNow(),
+                    _timeProvider.GetTimestamp());
 
                 PublishPacketReplayed(replayedPacket, recordedPacket);
                 Interlocked.Increment(ref _packetsReplayed);
             }
 
-            result = TelemetryReplayResult.Success(Interlocked.Read(ref _packetsReplayed));
+            return TelemetryReplayResult.Success(Interlocked.Read(ref _packetsReplayed));
         }
         catch (OperationCanceledException)
         {
-            result = TelemetryReplayResult.Cancelled(Interlocked.Read(ref _packetsReplayed));
+            return TelemetryReplayResult.Cancelled(Interlocked.Read(ref _packetsReplayed));
         }
         catch (EndOfStreamException ex)
         {
-            result = TelemetryReplayResult.Failure(
+            return TelemetryReplayResult.Failure(
                 Interlocked.Read(ref _packetsReplayed),
                 $"Replay failed: Recording is truncated: {ex.Message}");
         }
         catch (InvalidDataException ex)
         {
-            result = TelemetryReplayResult.Failure(
+            return TelemetryReplayResult.Failure(
                 Interlocked.Read(ref _packetsReplayed),
                 $"Replay failed: {ex.Message}");
         }
         catch (Exception ex)
         {
-            result = TelemetryReplayResult.Failure(Interlocked.Read(ref _packetsReplayed), $"Replay failed: {ex.Message}");
-        }
-        finally
-        {
-            lock (_gate)
-            {
-                if (ReferenceEquals(_activeReplayCts, replayCts))
-                {
-                    _activeReplayCts = null;
-                    _activeReplaySourceFilePath = null;
-                }
-            }
-        }
-
-        SetStatus(result);
-        return result;
-    }
-
-    public async ValueTask StopAsync()
-    {
-        CancellationTokenSource? activeReplayCts;
-        lock (_gate)
-        {
-            activeReplayCts = _activeReplayCts;
-        }
-
-        if (activeReplayCts is not null)
-        {
-            await activeReplayCts.CancelAsync().ConfigureAwait(false);
+            return TelemetryReplayResult.Failure(Interlocked.Read(ref _packetsReplayed), $"Replay failed: {ex.Message}");
         }
     }
 
@@ -362,10 +387,4 @@ public sealed class TelemetryReplayService : ITelemetryReplayService
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
-    private static IAsyncEnumerable<TelemetryRecordedPacket> ReadPacketsAsync(
-        TelemetryRecordingFile.TelemetryRecordingFileReader reader,
-        CancellationToken cancellationToken)
-    {
-        return reader.ReadPacketsAsync(cancellationToken);
-    }
 }

@@ -35,6 +35,8 @@ internal sealed class TelemetrySessionController
         ArgumentNullException.ThrowIfNull(ingressWorker);
         ArgumentNullException.ThrowIfNull(packet);
 
-        ingressWorker.Enqueue(packet);
+        ingressWorker.ProcessTelemetryPacket(packet);
+        ingressWorker.EnqueueForRecording(packet);
+        ingressWorker.EnqueueForForwarding(packet);
     }
 }

@@ -250,6 +250,110 @@ public sealed class TelemetryRecordingServiceTests
     }
 
     [Fact]
+    public async Task TelemetryRecordingService_ConcurrentStartsCreateOneFileOnly()
+    {
+        var path = CreateTempRecordingPath();
+        var streamCreateCount = 0;
+
+        await using var recorder = new TelemetryRecordingService(
+            recordingStreamFactory: _ =>
+            {
+                Interlocked.Increment(ref streamCreateCount);
+                return new MemoryStream();
+            });
+
+        var startOne = recorder.StartAsync(path).AsTask();
+        var startTwo = recorder.StartAsync(path).AsTask();
+        var results = await Task.WhenAll(startOne, startTwo);
+
+        Assert.Single(results, result => result.Succeeded);
+        Assert.Single(results, result => result.Status == TelemetryRecordingOperationStatus.AlreadyRecording);
+        Assert.Equal(1, streamCreateCount);
+        Assert.True((await recorder.StopAsync()).Succeeded);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingService_DroppedPacketPreventsCompleteMetadata()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 10, 15, 0, TimeSpan.Zero);
+        await using var blockingStream = new BlockingFileRecordingStream(path);
+        await using var recorder = new TelemetryRecordingService(
+            queueCapacityPackets: 1,
+            recordingStreamFactory: _ => blockingStream);
+
+        Assert.True((await recorder.StartAsync(path, TelemetryRecordingMetadata.CreateDefault(createdAtUtc))).Succeeded);
+        blockingStream.BlockPacketWrites = true;
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01], createdAtUtc)).Succeeded);
+        Assert.True(blockingStream.WaitForBlockedPacketWrite(TimeSpan.FromSeconds(3)));
+        Assert.True(recorder.RecordPacket(CreatePacket(2, [0x02], createdAtUtc.AddMilliseconds(5))).Succeeded);
+
+        var droppedResult = recorder.RecordPacket(CreatePacket(3, [0x03], createdAtUtc.AddMilliseconds(10)));
+        Assert.Equal(TelemetryRecordingOperationStatus.Dropped, droppedResult.Status);
+
+        blockingStream.ReleaseBlockedWrites();
+        Assert.True((await recorder.StopAsync()).Succeeded);
+
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.False(loadResult.Recording!.Metadata.RecordingComplete);
+        Assert.Equal(1, loadResult.Recording.Metadata.DroppedPacketCount);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingService_CleanNoDropRecordingHasValidFooter()
+    {
+        var path = CreateTempRecordingPath();
+        var createdAtUtc = new DateTimeOffset(2026, 6, 21, 10, 30, 0, TimeSpan.Zero);
+
+        await using var recorder = new TelemetryRecordingService();
+        Assert.True((await recorder.StartAsync(path, TelemetryRecordingMetadata.CreateDefault(createdAtUtc))).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01], createdAtUtc)).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(2, [0x02], createdAtUtc.AddMilliseconds(5))).Succeeded);
+        var stopResult = await recorder.StopAsync();
+
+        var bytes = await File.ReadAllBytesAsync(path);
+        var loadResult = await TelemetryRecordingFile.LoadAsync(path);
+
+        Assert.True(stopResult.Succeeded, stopResult.Message);
+        Assert.Equal("END2", Encoding.ASCII.GetString(bytes, bytes.Length - 24, 4));
+        Assert.True(loadResult.Succeeded, loadResult.Message);
+        Assert.True(loadResult.Recording!.Metadata.RecordingComplete);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingService_HeaderUpdateFailureIsWarningOnly()
+    {
+        var path = CreateTempRecordingPath();
+        await using var stream = new HeaderUpdateFailingStream();
+        await using var recorder = new TelemetryRecordingService(recordingStreamFactory: _ => stream);
+
+        Assert.True((await recorder.StartAsync(path)).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01], DateTimeOffset.UtcNow)).Succeeded);
+        var stopResult = await recorder.StopAsync();
+        var snapshot = recorder.GetSnapshot();
+
+        Assert.True(stopResult.Succeeded, stopResult.Message);
+        Assert.Contains("Warning", stopResult.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("header update", snapshot.LastErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TelemetryRecordingService_FlushesToDiskBeforeDispose()
+    {
+        var path = CreateTempRecordingPath();
+        await using var stream = new FlushTrackingStream();
+        await using var recorder = new TelemetryRecordingService(recordingStreamFactory: _ => stream);
+
+        Assert.True((await recorder.StartAsync(path)).Succeeded);
+        Assert.True(recorder.RecordPacket(CreatePacket(1, [0x01], DateTimeOffset.UtcNow)).Succeeded);
+        Assert.True((await recorder.StopAsync()).Succeeded);
+
+        Assert.True(stream.FlushCalledBeforeDispose);
+        Assert.True(stream.DisposeCalled);
+    }
+
+    [Fact]
     public async Task Loading_CorruptHeaderFailsSafely()
     {
         var path = CreateTempRecordingPath();
@@ -650,6 +754,156 @@ public sealed class TelemetryRecordingServiceTests
 
             _packetWriteBlocked.Set();
             _releasePacketWrites.Wait(TimeSpan.FromSeconds(3));
+        }
+    }
+
+    private sealed class BlockingFileRecordingStream : Stream
+    {
+        private readonly FileStream _inner;
+        private readonly ManualResetEventSlim _packetWriteBlocked = new(false);
+        private readonly ManualResetEventSlim _releasePacketWrites = new(false);
+
+        public BlockingFileRecordingStream(string path)
+        {
+            _inner = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read, 16 * 1024, useAsync: true);
+        }
+
+        public bool BlockPacketWrites { get; set; }
+
+        public override bool CanRead => _inner.CanRead;
+
+        public override bool CanSeek => _inner.CanSeek;
+
+        public override bool CanWrite => _inner.CanWrite;
+
+        public override long Length => _inner.Length;
+
+        public override long Position
+        {
+            get => _inner.Position;
+            set => _inner.Position = value;
+        }
+
+        public bool WaitForBlockedPacketWrite(TimeSpan timeout)
+        {
+            return _packetWriteBlocked.Wait(timeout);
+        }
+
+        public void ReleaseBlockedWrites()
+        {
+            _releasePacketWrites.Set();
+        }
+
+        public override void Flush()
+        {
+            _inner.Flush();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return _inner.Read(buffer, offset, count);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            return _inner.Seek(offset, origin);
+        }
+
+        public override void SetLength(long value)
+        {
+            _inner.SetLength(value);
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            MaybeBlockPacketWrite();
+            _inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            MaybeBlockPacketWrite();
+            _inner.Write(buffer);
+        }
+
+        public override ValueTask DisposeAsync()
+        {
+            _packetWriteBlocked.Dispose();
+            _releasePacketWrites.Dispose();
+            return _inner.DisposeAsync();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _packetWriteBlocked.Dispose();
+                _releasePacketWrites.Dispose();
+                _inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private void MaybeBlockPacketWrite()
+        {
+            if (!BlockPacketWrites)
+            {
+                return;
+            }
+
+            _packetWriteBlocked.Set();
+            _releasePacketWrites.Wait(TimeSpan.FromSeconds(3));
+        }
+    }
+
+    private sealed class HeaderUpdateFailingStream : MemoryStream
+    {
+        public override long Seek(long offset, SeekOrigin loc)
+        {
+            var target = loc switch
+            {
+                SeekOrigin.Begin => offset,
+                SeekOrigin.Current => Position + offset,
+                SeekOrigin.End => Length + offset,
+                _ => throw new ArgumentOutOfRangeException(nameof(loc))
+            };
+
+            if (target < Position)
+            {
+                throw new IOException("synthetic header update failure");
+            }
+
+            return base.Seek(offset, loc);
+        }
+    }
+
+    private sealed class FlushTrackingStream : MemoryStream
+    {
+        public bool FlushCalledBeforeDispose { get; private set; }
+
+        public bool DisposeCalled { get; private set; }
+
+        public override void Flush()
+        {
+            if (!DisposeCalled)
+            {
+                FlushCalledBeforeDispose = true;
+            }
+
+            base.Flush();
+        }
+
+        public override ValueTask DisposeAsync()
+        {
+            DisposeCalled = true;
+            return base.DisposeAsync();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            DisposeCalled = true;
+            base.Dispose(disposing);
         }
     }
 }
