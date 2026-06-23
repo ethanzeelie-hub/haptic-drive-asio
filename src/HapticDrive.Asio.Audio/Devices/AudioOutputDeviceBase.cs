@@ -6,6 +6,7 @@ namespace HapticDrive.Asio.Audio.Devices;
 public abstract class AudioOutputDeviceBase : IAudioOutputDevice
 {
     private const long UnsetTimeSpanTicks = long.MinValue;
+    private const string RenderCallbackFailedMessage = "Render callback failed safely.";
 
     private AudioOutputConfiguration _configuration = AudioOutputConfiguration.Default;
     private CancellationTokenSource? _streamingCancellation;
@@ -319,10 +320,10 @@ public abstract class AudioOutputDeviceBase : IAudioOutputDevice
             {
                 renderResult = renderCallback(streamingBuffer, context);
             }
-            catch (Exception ex)
+            catch
             {
                 streamingBuffer.Clear();
-                renderResult = AudioOutputRenderCallbackResult.Failure($"Render callback failed: {ex.Message}");
+                renderResult = AudioOutputRenderCallbackResult.Failure(RenderCallbackFailedMessage);
             }
 
             var renderDuration = Stopwatch.GetElapsedTime(renderStartedTimestamp);

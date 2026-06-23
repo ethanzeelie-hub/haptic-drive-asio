@@ -239,9 +239,8 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
         private readonly float[][] _slots;
         private readonly int _samplesPerBuffer;
         private readonly TimeSpan _expectedPeriod;
-        private int _readSlotIndex;
-        private int _writeSlotIndex;
-        private int _queuedBufferCount;
+        private long _consumerSequence;
+        private long _producerSequence;
         private int _readSampleOffset;
         private long _lastCallbackTimestamp;
         private long _submittedBufferCount;
@@ -301,16 +300,17 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
                 return false;
             }
 
-            if (Volatile.Read(ref _queuedBufferCount) == _slots.Length)
+            var producerSequence = Interlocked.Read(ref _producerSequence);
+            var consumerSequence = Interlocked.Read(ref _consumerSequence);
+            if (producerSequence - consumerSequence >= _slots.Length)
             {
                 Interlocked.Increment(ref _droppedBufferCount);
                 return false;
             }
 
-            var slotIndex = _writeSlotIndex;
+            var slotIndex = (int)(producerSequence % _slots.Length);
             samples.CopyTo(_slots[slotIndex]);
-            _writeSlotIndex = (slotIndex + 1) % _slots.Length;
-            Interlocked.Increment(ref _queuedBufferCount);
+            Volatile.Write(ref _producerSequence, producerSequence + 1);
 
             Interlocked.Increment(ref _submittedBufferCount);
             return true;
@@ -318,10 +318,8 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
 
         public void Reset()
         {
-            _readSlotIndex = 0;
-            _writeSlotIndex = 0;
-            _readSampleOffset = 0;
-            Volatile.Write(ref _queuedBufferCount, 0);
+            Volatile.Write(ref _readSampleOffset, 0);
+            Volatile.Write(ref _consumerSequence, Interlocked.Read(ref _producerSequence));
             Interlocked.Exchange(ref _lastCallbackTimestamp, 0);
         }
 
@@ -332,7 +330,7 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
                 Interlocked.Read(ref _droppedBufferCount),
                 Interlocked.Read(ref _callbackCount),
                 Interlocked.Read(ref _underrunCount),
-                Volatile.Read(ref _queuedBufferCount),
+                checked((int)Math.Max(0L, Interlocked.Read(ref _producerSequence) - Interlocked.Read(ref _consumerSequence))),
                 ReadOptionalTimeSpan(ref _lastCallbackJitterTicks),
                 ReadOptionalTimeSpan(ref _maximumCallbackJitterTicks),
                 _slots.Length);
@@ -340,29 +338,32 @@ public sealed class NativeAsioOutputBackend : IAsioOutputBackend
 
         private int CopyQueuedSamples(byte[] buffer, int offset, int count)
         {
-            if (Volatile.Read(ref _queuedBufferCount) == 0)
+            var consumerSequence = Interlocked.Read(ref _consumerSequence);
+            var producerSequence = Interlocked.Read(ref _producerSequence);
+            if (consumerSequence >= producerSequence)
             {
                 return 0;
             }
 
-            var currentSlot = _slots[_readSlotIndex];
-            var availableSamples = _samplesPerBuffer - _readSampleOffset;
+            var currentSlot = _slots[(int)(consumerSequence % _slots.Length)];
+            var readSampleOffset = Volatile.Read(ref _readSampleOffset);
+            var availableSamples = _samplesPerBuffer - readSampleOffset;
             var requestedSamples = count / sizeof(float);
             var samplesToCopy = Math.Min(availableSamples, requestedSamples);
             var bytesToCopy = samplesToCopy * sizeof(float);
             Buffer.BlockCopy(
                 currentSlot,
-                _readSampleOffset * sizeof(float),
+                readSampleOffset * sizeof(float),
                 buffer,
                 offset,
                 bytesToCopy);
 
-            _readSampleOffset += samplesToCopy;
-            if (_readSampleOffset == _samplesPerBuffer)
+            readSampleOffset += samplesToCopy;
+            Volatile.Write(ref _readSampleOffset, readSampleOffset);
+            if (readSampleOffset == _samplesPerBuffer)
             {
-                _readSampleOffset = 0;
-                _readSlotIndex = (_readSlotIndex + 1) % _slots.Length;
-                Interlocked.Decrement(ref _queuedBufferCount);
+                Volatile.Write(ref _readSampleOffset, 0);
+                Interlocked.CompareExchange(ref _consumerSequence, consumerSequence + 1, consumerSequence);
             }
 
             return bytesToCopy;

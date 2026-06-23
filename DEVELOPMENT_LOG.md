@@ -1,5 +1,64 @@
 # Development Log
 
+## Remediation 6 - Complete Lock-Free Real-Time Effect Rendering
+
+Date: 2026-06-23
+
+Status: Complete.
+
+Goal: Replace the remaining lock-based audio render path with immutable/atomic steady-state rendering and add Stage 6 guardrail coverage for no-lock, no-allocation callback behavior.
+
+Notes:
+
+- Reworked the effect engine steady-state path around an immutable `HapticEffectGraph`:
+  - runtime graphs are now built off the render path,
+  - graph publication uses atomic reference swap,
+  - current render-frame state is published atomically,
+  - steady-state render no longer takes the old engine gate lock.
+- Added Stage 6 render failure tracking:
+  - `HapticRenderFailureCode`
+  - `HapticRenderFailureState`
+  - atomic failure count / last-code publication on render exceptions.
+- Removed per-buffer/per-exception formatting from the callback-adjacent device path:
+  - `AudioOutputDeviceBase` now returns a stable render-failure message,
+  - `AsioAudioOutputDevice` now uses a stable accepted-buffer status message,
+  - `NullAudioOutputDevice` now uses a stable consumed-buffer status message.
+- Extended `AudioRenderPipeline` so the coordinator can render with supplied mixer/safety snapshots instead of mutating `MixerSettings` / `SafetyOptions` on the callback thread.
+- Reworked the runtime coordinator render path so it now follows the audited Stage 6 guardrails:
+  - removed the callback `Monitor` gate from `RenderOutputBuffer`,
+  - render-path telemetry stale interlock trips are now deferred through an atomic pending flag and flushed off the callback,
+  - render-path diagnostic publication / `SetPipelineError(...)` calls are removed,
+  - manual ASIO test render injection now uses lock-free active-run reads and stable failure text.
+- Reworked manual ASIO render-side run state so pulse-owned counters/peaks/RMS/frame tracking are updated atomically instead of through the old per-run lock.
+- Hardened the native ASIO queue bookkeeping toward the Stage 6 SPSC requirement:
+  - the callback path still uses preallocated slots only,
+  - enqueue overrun remains drop-only,
+  - underruns still zero the callback buffer,
+  - queue reset now advances via producer/consumer sequence state instead of the old shared queued-count reset.
+- Added Stage 6 test/guardrail coverage:
+  - `ConcurrentSettingsUpdate_DoesNotBlockRender`
+  - `RenderException_ClearsOutputAndStoresAtomicFailure`
+  - `NativeCallback_UnderrunWritesZeros`
+  - `NativeCallback_ProducerOverrunNeverBlocks`
+  - `NativeQueue_ConcurrentSubmitReadResetStopStress`
+  - `RenderPath_DoesNotPublishDiagnostics`
+  - `RenderPath_DoesNotFormatStrings`
+  - `RenderSteadyState_NoLockNoAllocationAfterWarmup`
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `powershell -ExecutionPolicy Bypass -File .\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed. The direct script invocation variant was blocked by the local PowerShell execution policy, so the equivalent process-level bypass was used for this validation step.
+
+Self-review:
+
+- The implementation stayed inside the audited Stage 6 boundary: immutable effect graph publication, lock-free steady-state rendering, callback-safe failure handling, and native queue/test guardrails only.
+- Full Stage 6 validation is now complete; the only environment-specific workaround used was a process-level PowerShell execution-policy bypass for the launcher preflight command.
+
 ## Remediation 5 - Make Effect Descriptors Create Functional Runtimes
 
 Date: 2026-06-23

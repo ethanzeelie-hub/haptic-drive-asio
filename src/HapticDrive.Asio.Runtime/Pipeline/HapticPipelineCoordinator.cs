@@ -3,6 +3,7 @@ using HapticDrive.Asio.Audio.Effects;
 using HapticDrive.Asio.Audio.Mixing;
 using HapticDrive.Asio.Audio.Pipeline;
 using HapticDrive.Asio.Audio.Profiles;
+using HapticDrive.Asio.Audio.Safety;
 using HapticDrive.Asio.Audio.TestBench;
 using HapticDrive.Asio.Core.Audio;
 using HapticDrive.Asio.Core.Haptics;
@@ -18,10 +19,14 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 {
     private static readonly TimeSpan StandaloneManualAsioCallbackActivationTimeout = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan ManualAsioQueueRoomTimeout = TimeSpan.FromMilliseconds(250);
+    private const string RenderStoppedMessage = "Haptic pipeline is stopped; render callback produced silence.";
+    private const string RenderInterlockMutedMessage = "Output interlock latched; rendered safety silence.";
+    private const string RenderTelemetryMutedMessage = "Telemetry stale; rendered safety silence.";
+    private const string RenderSuccessMessage = "Rendered haptic buffer.";
+    private const string ManualAsioHardwareRenderFailureMessage = "Manual ASIO Hardware Test failed safely.";
+    private const string TelemetryStaleInterlockMessage = "Critical driving telemetry is stale; output remains muted until fresh telemetry arrives and the interlock is reset.";
 
     private readonly object _diagnosticsGate = new();
-    private readonly object _renderCallbackGate = new();
-    private readonly object _manualAsioHardwareTestGate = new();
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly AudioSampleBuffer _outputBuffer;
@@ -82,6 +87,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private long _maxRenderDurationTicks;
     private long _lastRenderTelemetryAgeTicks = long.MinValue;
     private int _telemetryTimedOutMutedFlag;
+    private int _telemetryStaleInterlockPendingFlag;
+    private AudioMixerSettings _currentMixerSettings = AudioMixerSettings.Default;
+    private AudioSafetyProcessorOptions _currentSafetyOptions = AudioSafetyProcessorOptions.Default;
 
     public HapticPipelineCoordinator(
         IGameTelemetryAdapter telemetryGameAdapter,
@@ -274,7 +282,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _normalMuted = isMuted;
-        AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with { IsMuted = isMuted };
+        SyncAudioPipelineSettings();
     }
 
     public void NotifyLocalGearPulseAccepted(DateTimeOffset? timestampUtc = null)
@@ -395,38 +403,34 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             generation,
             DateTimeOffset.UtcNow);
 
-        ManualAsioHardwareTestRun? supersededRun;
-        lock (_manualAsioHardwareTestGate)
+        var supersededRun = Interlocked.Exchange(ref _manualAsioHardwareTestRun, run);
+        if (supersededRun is not null && supersededRun.FramesRemaining > 0)
         {
-            supersededRun = _manualAsioHardwareTestRun;
-            if (supersededRun is not null && supersededRun.FramesRemaining > 0)
-            {
-                supersededRun.MarkSuperseded();
-                Interlocked.Increment(ref _manualAsioHardwareDroppedPulseCount);
-            }
-
-            _manualAsioHardwareTestRun = run;
-            _lastManualAsioHardwareTestRequest = normalized;
-            _lastManualAsioHardwareTestBlockedReason = null;
-            _lastManualAsioHardwareTestError = null;
-            _manualAsioHardwareTestRenderedFrameCount = 0;
-            _lastManualAsioHardwareTestUsedAsio = true;
-            if (IsManualAsioGearPulseSource(normalized.Source))
-            {
-                _lastGearBst1PulseUsedAsio = true;
-                EffectEngine.NotifyRoadTextureGearPulseAccepted(run.StartedAtUtc);
-                _lastEffectSnapshot = EffectEngine.GetSnapshot();
-            }
-            else
-            {
-                _lastManualBst1PulseUsedAsio = true;
-            }
-            _lastManualAsioHardwareTestBlocked = false;
-            _lastManualAsioHardwareTestLimiterApplied = false;
-            _lastManualAsioHardwareTestPeak = 0f;
-            _lastManualAsioHardwareSubmittedFrames = 0;
-            _lastManualAsioHardwareDroppedFrames = 0;
+            supersededRun.MarkSuperseded();
+            Interlocked.Increment(ref _manualAsioHardwareDroppedPulseCount);
         }
+
+        _lastManualAsioHardwareTestRequest = normalized;
+        _lastManualAsioHardwareTestBlockedReason = null;
+        _lastManualAsioHardwareTestError = null;
+        Interlocked.Exchange(ref _manualAsioHardwareTestRenderedFrameCount, 0);
+        _lastManualAsioHardwareTestUsedAsio = true;
+        if (IsManualAsioGearPulseSource(normalized.Source))
+        {
+            _lastGearBst1PulseUsedAsio = true;
+            EffectEngine.NotifyRoadTextureGearPulseAccepted(run.StartedAtUtc);
+            _lastEffectSnapshot = EffectEngine.GetSnapshot();
+        }
+        else
+        {
+            _lastManualBst1PulseUsedAsio = true;
+        }
+
+        _lastManualAsioHardwareTestBlocked = false;
+        _lastManualAsioHardwareTestLimiterApplied = false;
+        _lastManualAsioHardwareTestPeak = 0f;
+        Interlocked.Exchange(ref _lastManualAsioHardwareSubmittedFrames, 0);
+        Interlocked.Exchange(ref _lastManualAsioHardwareDroppedFrames, 0);
 
         if (supersededRun is not null && supersededRun.FramesRemaining > 0)
         {
@@ -466,15 +470,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                lock (_manualAsioHardwareTestGate)
-                {
-                    if (ReferenceEquals(_manualAsioHardwareTestRun, run))
-                    {
-                        _manualAsioHardwareTestRun = null;
-                    }
-
-                    _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
-                }
+                TryClearManualAsioHardwareTestRun(run);
+                _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
 
                 RecordManualAsioHardwareFlight(
                     "pulse-failed",
@@ -535,15 +532,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                lock (_manualAsioHardwareTestGate)
-                {
-                    if (ReferenceEquals(_manualAsioHardwareTestRun, run))
-                    {
-                        _manualAsioHardwareTestRun = null;
-                    }
-
-                    _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
-                }
+                TryClearManualAsioHardwareTestRun(run);
+                _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
 
                 RecordManualAsioHardwareFlight(
                     "pulse-failed",
@@ -563,10 +553,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 var stopResult = await OutputDevice.StopAsync(cancellationToken).ConfigureAwait(false);
                 if (!stopResult.Succeeded)
                 {
-                    lock (_manualAsioHardwareTestGate)
-                    {
-                        _lastManualAsioHardwareTestError = stopResult.Message;
-                    }
+                    _lastManualAsioHardwareTestError = stopResult.Message;
                 }
             }
         }
@@ -593,15 +580,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                lock (_manualAsioHardwareTestGate)
-                {
-                    if (ReferenceEquals(_manualAsioHardwareTestRun, run))
-                    {
-                        _manualAsioHardwareTestRun = null;
-                    }
-
-                    _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
-                }
+                TryClearManualAsioHardwareTestRun(run);
+                _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
 
                 RecordManualAsioHardwareFlight(
                     "pulse-failed",
@@ -624,13 +604,10 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
     public void StopManualAsioHardwareTest(string? reason = null)
     {
-        lock (_manualAsioHardwareTestGate)
+        Interlocked.Exchange(ref _manualAsioHardwareTestRun, null);
+        if (!string.IsNullOrWhiteSpace(reason))
         {
-            _manualAsioHardwareTestRun = null;
-            if (!string.IsNullOrWhiteSpace(reason))
-            {
-                _lastManualAsioHardwareTestError = reason.Trim();
-            }
+            _lastManualAsioHardwareTestError = reason.Trim();
         }
     }
 
@@ -639,17 +616,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         var outputStatus = OutputDevice.GetStatus();
         ManualAsioHardwareTestRequest? lastRequest;
         ManualAsioHardwareTestRun? activeRun;
-        long renderedFrames;
-        string? blockedReason;
-        string? lastError;
-        lock (_manualAsioHardwareTestGate)
-        {
-            lastRequest = _lastManualAsioHardwareTestRequest;
-            activeRun = _manualAsioHardwareTestRun;
-            renderedFrames = _manualAsioHardwareTestRenderedFrameCount;
-            blockedReason = _lastManualAsioHardwareTestBlockedReason;
-            lastError = _lastManualAsioHardwareTestError;
-        }
+        var renderedFrames = Interlocked.Read(ref _manualAsioHardwareTestRenderedFrameCount);
+        var blockedReason = _lastManualAsioHardwareTestBlockedReason;
+        var lastError = _lastManualAsioHardwareTestError;
+        lastRequest = _lastManualAsioHardwareTestRequest;
+        activeRun = Volatile.Read(ref _manualAsioHardwareTestRun);
 
         return new ManualAsioHardwareTestSnapshot(
             IsActive: activeRun is not null,
@@ -819,9 +790,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 return HapticPipelineOperationResult.Failure("Haptic pipeline is stopped; no output buffer was submitted.");
             }
 
+            FlushPendingTelemetryStaleInterlockTrip();
             SyncAudioPipelineSettings();
 
             var renderResult = RenderIntoBuffer(_outputBuffer, DateTimeOffset.UtcNow);
+            FlushPendingTelemetryStaleInterlockTrip();
             if (!renderResult.Succeeded)
             {
                 SetPipelineError(renderResult.Message);
@@ -847,6 +820,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
     public HapticPipelineSnapshot GetSnapshot()
     {
+        FlushPendingTelemetryStaleInterlockTrip();
+
         DateTimeOffset? lastPacketAtUtc;
         DateTimeOffset? lastVehicleStateUpdateAtUtc;
         string lastPacketMessage;
@@ -1066,6 +1041,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 _lastVehicleStateUpdateAtUtc = packet.ReceivedAtUtc;
             }
             Volatile.Write(ref _telemetryTimedOutMutedFlag, 0);
+            Interlocked.Exchange(ref _telemetryStaleInterlockPendingFlag, 0);
         }
 
         lock (_diagnosticsGate)
@@ -1108,24 +1084,10 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         if (!_isRunning && !ShouldKeepLocalAsioPulseCallbackAlive())
         {
             destination.Clear();
-            return AudioOutputRenderCallbackResult.Failure("Haptic pipeline is stopped; render callback produced silence.");
+            return AudioOutputRenderCallbackResult.Failure(RenderStoppedMessage);
         }
 
-        if (!Monitor.TryEnter(_renderCallbackGate))
-        {
-            destination.Clear();
-            Interlocked.Increment(ref _renderOverrunCount);
-            return AudioOutputRenderCallbackResult.Failure("Haptic render callback skipped because the previous render is still active.");
-        }
-
-        try
-        {
-            return RenderIntoBuffer(destination, context.CallbackStartedAtUtc);
-        }
-        finally
-        {
-            Monitor.Exit(_renderCallbackGate);
-        }
+        return RenderIntoBuffer(destination, context.CallbackStartedAtUtc);
     }
 
     private AudioOutputRenderCallbackResult RenderIntoBuffer(
@@ -1140,20 +1102,14 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             var interlockSnapshot = _outputInterlock.Current;
             if (interlockSnapshot.IsLatched)
             {
-                AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
-                {
-                    IsMuted = true,
-                    EmergencyMute = true
-                };
-                AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
-                {
-                    EmergencyMute = true
-                };
-                _lastAudioSnapshot = AudioPipeline.Process(ReadOnlySpan<AudioMixerInput>.Empty, destination);
+                _lastAudioSnapshot = AudioPipeline.Process(
+                    ReadOnlySpan<AudioMixerInput>.Empty,
+                    destination,
+                    CreateRenderMixerSettings(isMuted: true, emergencyMute: true),
+                    CreateRenderSafetyOptions(emergencyMute: true));
                 Interlocked.Increment(ref _interlockSilenceCount);
                 Interlocked.Increment(ref _renderedBufferCount);
-                SetPipelineError(null);
-                return AudioOutputRenderCallbackResult.Success("Output interlock latched; rendered safety silence.");
+                return AudioOutputRenderCallbackResult.Success(RenderInterlockMutedMessage);
             }
 
             var nowTimestamp = TimeProvider.System.GetTimestamp();
@@ -1174,9 +1130,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 && telemetryAge is { } age
                 && age >= TelemetryFreshnessPolicy.Default.MaxTelemetryAge)
             {
-                _outputInterlock.Trip(
-                    OutputInterlockReason.TelemetryStale,
-                    "Critical driving telemetry is stale; output remains muted until fresh telemetry arrives and the interlock is reset.");
+                Interlocked.CompareExchange(ref _telemetryStaleInterlockPendingFlag, 1, 0);
             }
 
             Interlocked.Exchange(ref _lastRenderTelemetryAgeTicks, telemetryAge?.Ticks ?? long.MinValue);
@@ -1197,17 +1151,13 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 out var manualAsioHardwareTestRun);
             var telemetryMuteAppliesToMixer = telemetryTimedOut && !manualAsioHardwareTestActive;
 
-            AudioPipeline.MixerSettings = AudioPipeline.MixerSettings with
-            {
-                IsMuted = _normalMuted || telemetryMuteAppliesToMixer,
-                EmergencyMute = false
-            };
-            AudioPipeline.SafetyOptions = AudioPipeline.SafetyOptions with
-            {
-                EmergencyMute = false
-            };
-
-            _lastAudioSnapshot = AudioPipeline.Process(_renderMixerInputs.AsSpan(0, renderInputCount), destination);
+            _lastAudioSnapshot = AudioPipeline.Process(
+                _renderMixerInputs.AsSpan(0, renderInputCount),
+                destination,
+                CreateRenderMixerSettings(
+                    isMuted: _normalMuted || telemetryMuteAppliesToMixer,
+                    emergencyMute: false),
+                CreateRenderSafetyOptions(emergencyMute: false));
             if (manualAsioHardwareTestRun is not null)
             {
                 var consumed = manualAsioHardwareTestRun.RecordPostLimiterOutput(destination);
@@ -1230,9 +1180,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             }
 
             Interlocked.Increment(ref _renderedBufferCount);
-            SetPipelineError(null);
             return AudioOutputRenderCallbackResult.Success(
-                telemetryTimedOut ? "Telemetry stale; rendered safety silence." : "Rendered haptic buffer.",
+                telemetryTimedOut ? RenderTelemetryMutedMessage : RenderSuccessMessage,
                 telemetryAge,
                 telemetryTimedOut);
         }
@@ -1266,61 +1215,57 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         ref int mixerInputCount,
         out ManualAsioHardwareTestRun? activeRun)
     {
-        activeRun = null;
-        lock (_manualAsioHardwareTestGate)
+        activeRun = Volatile.Read(ref _manualAsioHardwareTestRun);
+        if (activeRun is null)
         {
-            activeRun = _manualAsioHardwareTestRun;
-            if (activeRun is null)
-            {
-                return false;
-            }
+            return false;
+        }
 
-            if (activeRun.FramesRemaining <= 0)
+        if (activeRun.FramesRemaining <= 0)
+        {
+            TryClearManualAsioHardwareTestRun(activeRun);
+            activeRun = null;
+            return false;
+        }
+
+        try
+        {
+            activeRun.Generator.Generate(activeRun.SignalBuffer);
+            var framesThisBuffer = activeRun.ConsumeFrames(activeRun.SignalBuffer.FrameCount);
+            if (framesThisBuffer <= 0)
             {
-                _manualAsioHardwareTestRun = null;
+                TryClearManualAsioHardwareTestRun(activeRun);
                 activeRun = null;
                 return false;
             }
 
-            try
+            if (framesThisBuffer < activeRun.SignalBuffer.FrameCount)
             {
-                activeRun.Generator.Generate(activeRun.SignalBuffer);
-                var framesThisBuffer = (int)Math.Min(activeRun.FramesRemaining, activeRun.SignalBuffer.FrameCount);
-                if (framesThisBuffer < activeRun.SignalBuffer.FrameCount)
-                {
-                    ClearFrames(activeRun.SignalBuffer, framesThisBuffer);
-                }
-
-                activeRun.FramesRemaining -= framesThisBuffer;
-                activeRun.RecordPreLimiterInput(framesThisBuffer);
-                mixerInputs[mixerInputCount++] = new AudioMixerInput(
-                    activeRun.SignalBuffer,
-                    name: activeRun.MixerInputName);
-
-                if (activeRun.FramesRemaining <= 0)
-                {
-                    if (ReferenceEquals(_manualAsioHardwareTestRun, activeRun))
-                    {
-                        _manualAsioHardwareTestRun = null;
-                    }
-                    else
-                    {
-                        Interlocked.Increment(ref _manualAsioHardwareTestStaleStopIgnoredCount);
-                    }
-                }
-
-                return framesThisBuffer > 0;
+                ClearFrames(activeRun.SignalBuffer, framesThisBuffer);
             }
-            catch (Exception ex)
+
+            activeRun.RecordPreLimiterInput(framesThisBuffer);
+            mixerInputs[mixerInputCount++] = new AudioMixerInput(
+                activeRun.SignalBuffer,
+                name: activeRun.MixerInputName);
+
+            if (activeRun.FramesRemaining <= 0 && !TryClearManualAsioHardwareTestRun(activeRun))
             {
-                if (ReferenceEquals(_manualAsioHardwareTestRun, activeRun))
-                {
-                    _manualAsioHardwareTestRun = null;
-                }
-
-                _lastManualAsioHardwareTestError = $"Manual ASIO Hardware Test failed safely: {ex.Message}";
-                return false;
+                Interlocked.Increment(ref _manualAsioHardwareTestStaleStopIgnoredCount);
             }
+
+            return true;
+        }
+        catch
+        {
+            if (activeRun is not null)
+            {
+                TryClearManualAsioHardwareTestRun(activeRun);
+            }
+
+            _lastManualAsioHardwareTestError = ManualAsioHardwareRenderFailureMessage;
+            activeRun = null;
+            return false;
         }
     }
 
@@ -1431,12 +1376,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                     await Task.Delay(GetOutputBufferDuration(), cancellationToken).ConfigureAwait(false);
                 }
 
-                lock (_manualAsioHardwareTestGate)
+                if (!ReferenceEquals(Volatile.Read(ref _manualAsioHardwareTestRun), run))
                 {
-                    if (!ReferenceEquals(_manualAsioHardwareTestRun, run))
-                    {
-                        break;
-                    }
+                    break;
                 }
             }
 
@@ -1547,14 +1489,12 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                     return;
                 }
 
-                lock (_manualAsioHardwareTestGate)
+                var activeRun = Volatile.Read(ref _manualAsioHardwareTestRun);
+                if (activeRun is not null
+                    && !ReferenceEquals(activeRun, run)
+                    && renderedFrameCount < run.TotalFrameCount)
                 {
-                    if (_manualAsioHardwareTestRun is not null
-                        && !ReferenceEquals(_manualAsioHardwareTestRun, run)
-                        && renderedFrameCount < run.TotalFrameCount)
-                    {
-                        break;
-                    }
+                    break;
                 }
 
                 await Task.Delay(TimeSpan.FromMilliseconds(2), cancellationToken).ConfigureAwait(false);
@@ -1562,13 +1502,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
             var finalRenderedFramesAfterPulse = Interlocked.Read(ref _manualAsioHardwareTestRenderedFrameCount);
             var finalRenderedFrameCount = Math.Max(0, finalRenderedFramesAfterPulse - renderedFramesBeforePulse);
-            lock (_manualAsioHardwareTestGate)
-            {
-                if (ReferenceEquals(_manualAsioHardwareTestRun, run))
-                {
-                    _manualAsioHardwareTestRun = null;
-                }
-            }
+            TryClearManualAsioHardwareTestRun(run);
 
             RecordManualAsioHardwareFlight(
                 "pulse-truncated",
@@ -1750,14 +1684,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             _lastManualAsioHardwareTestRequest = normalized;
         }
 
-        lock (_manualAsioHardwareTestGate)
-        {
-            _manualAsioHardwareTestRun = null;
-            _lastManualAsioHardwareTestBlockedReason = reason;
-            _lastManualAsioHardwareTestError = null;
-            _lastManualAsioHardwareTestUsedAsio = outputStatus?.Kind == AudioOutputDeviceKind.Asio;
-            _lastManualAsioHardwareTestBlocked = true;
-        }
+        Interlocked.Exchange(ref _manualAsioHardwareTestRun, null);
+        _lastManualAsioHardwareTestBlockedReason = reason;
+        _lastManualAsioHardwareTestError = null;
+        _lastManualAsioHardwareTestUsedAsio = outputStatus?.Kind == AudioOutputDeviceKind.Asio;
+        _lastManualAsioHardwareTestBlocked = true;
 
         if (normalized is not null)
         {
@@ -2018,18 +1949,53 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
     private bool IsEmergencyMuted => _outputInterlock.Current.IsLatched;
 
+    private AudioMixerSettings CreateRenderMixerSettings(bool isMuted, bool emergencyMute)
+    {
+        return _currentMixerSettings with
+        {
+            IsMuted = isMuted,
+            EmergencyMute = emergencyMute
+        };
+    }
+
+    private AudioSafetyProcessorOptions CreateRenderSafetyOptions(bool emergencyMute)
+    {
+        return _currentSafetyOptions with
+        {
+            EmergencyMute = emergencyMute
+        };
+    }
+
+    private void FlushPendingTelemetryStaleInterlockTrip()
+    {
+        if (Interlocked.Exchange(ref _telemetryStaleInterlockPendingFlag, 0) == 0)
+        {
+            return;
+        }
+
+        _outputInterlock.Trip(OutputInterlockReason.TelemetryStale, TelemetryStaleInterlockMessage);
+        SyncAudioPipelineSettings();
+    }
+
     private void SyncAudioPipelineSettings()
     {
         var emergencyMuted = IsEmergencyMuted;
-        AudioPipeline.MixerSettings = _currentProfile.ToMixerSettings(emergencyMuted) with
+        _currentMixerSettings = _currentProfile.ToMixerSettings(emergencyMuted) with
         {
             IsMuted = _normalMuted,
             EmergencyMute = emergencyMuted
         };
-        AudioPipeline.SafetyOptions = _currentProfile.ToSafetyOptions(emergencyMuted) with
+        _currentSafetyOptions = _currentProfile.ToSafetyOptions(emergencyMuted) with
         {
             EmergencyMute = emergencyMuted
         };
+        AudioPipeline.MixerSettings = _currentMixerSettings;
+        AudioPipeline.SafetyOptions = _currentSafetyOptions;
+    }
+
+    private bool TryClearManualAsioHardwareTestRun(ManualAsioHardwareTestRun run)
+    {
+        return ReferenceEquals(Interlocked.CompareExchange(ref _manualAsioHardwareTestRun, null, run), run);
     }
 
     private sealed record PacketProcessingResult(
@@ -2039,10 +2005,15 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
     private sealed class ManualAsioHardwareTestRun
     {
-        private readonly object _gate = new();
-        private double _preLimiterSquareSum;
-        private double _postLimiterSquareSum;
+        private long _framesRemaining;
+        private long _pulseOwnedFramesGenerated;
+        private long _pulseOwnedFramesConsumed;
+        private int _pulseOwnedPeakPreLimiterBits;
+        private int _pulseOwnedPeakPostLimiterBits;
+        private long _preLimiterSquareSumBits;
+        private long _postLimiterSquareSumBits;
         private int _lastFramesPrepared;
+        private int _wasSuperseded;
 
         public ManualAsioHardwareTestRun(
             IAudioTestSignalGenerator generator,
@@ -2055,7 +2026,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             Generator = generator;
             SignalBuffer = signalBuffer;
             Request = request;
-            FramesRemaining = framesRemaining;
+            _framesRemaining = framesRemaining;
             TotalFrameCount = framesRemaining;
             GenerationId = generationId;
             StartedAtUtc = startedAtUtc;
@@ -2074,7 +2045,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
         public ManualAsioHardwareTestRequest Request { get; }
 
-        public long FramesRemaining { get; set; }
+        public long FramesRemaining => Interlocked.Read(ref _framesRemaining);
 
         public long TotalFrameCount { get; }
 
@@ -2084,24 +2055,22 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
         public DateTimeOffset StopDueAtUtc { get; }
 
-        public long PulseOwnedFramesGenerated { get; private set; }
+        public long PulseOwnedFramesGenerated => Interlocked.Read(ref _pulseOwnedFramesGenerated);
 
-        public long PulseOwnedFramesConsumed { get; private set; }
+        public long PulseOwnedFramesConsumed => Interlocked.Read(ref _pulseOwnedFramesConsumed);
 
-        public float PulseOwnedPeakPreLimiter { get; private set; }
+        public float PulseOwnedPeakPreLimiter => BitConverter.Int32BitsToSingle(Volatile.Read(ref _pulseOwnedPeakPreLimiterBits));
 
-        public float PulseOwnedPeakPostLimiter { get; private set; }
+        public float PulseOwnedPeakPostLimiter => BitConverter.Int32BitsToSingle(Volatile.Read(ref _pulseOwnedPeakPostLimiterBits));
 
         public float PulseOwnedRmsPreLimiter
         {
             get
             {
-                lock (_gate)
-                {
-                    return PulseOwnedFramesGenerated <= 0
-                        ? 0f
-                        : (float)Math.Sqrt(_preLimiterSquareSum / PulseOwnedFramesGenerated);
-                }
+                var generatedFrames = PulseOwnedFramesGenerated;
+                return generatedFrames <= 0
+                    ? 0f
+                    : (float)Math.Sqrt(BitConverter.Int64BitsToDouble(Interlocked.Read(ref _preLimiterSquareSumBits)) / generatedFrames);
             }
         }
 
@@ -2109,16 +2078,14 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         {
             get
             {
-                lock (_gate)
-                {
-                    return PulseOwnedFramesConsumed <= 0
-                        ? 0f
-                        : (float)Math.Sqrt(_postLimiterSquareSum / PulseOwnedFramesConsumed);
-                }
+                var consumedFrames = PulseOwnedFramesConsumed;
+                return consumedFrames <= 0
+                    ? 0f
+                    : (float)Math.Sqrt(BitConverter.Int64BitsToDouble(Interlocked.Read(ref _postLimiterSquareSumBits)) / consumedFrames);
             }
         }
 
-        public bool WasSuperseded { get; private set; }
+        public bool WasSuperseded => Volatile.Read(ref _wasSuperseded) != 0;
 
         public bool HasRequiredOutputEnergy =>
             Request.EffectivePreLimiterAmplitude == 0f
@@ -2126,7 +2093,33 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
         public void MarkSuperseded()
         {
-            WasSuperseded = true;
+            Volatile.Write(ref _wasSuperseded, 1);
+        }
+
+        public int ConsumeFrames(int maximumFrameCount)
+        {
+            if (maximumFrameCount <= 0)
+            {
+                return 0;
+            }
+
+            while (true)
+            {
+                var remainingFrames = Interlocked.Read(ref _framesRemaining);
+                if (remainingFrames <= 0)
+                {
+                    return 0;
+                }
+
+                var framesToConsume = (int)Math.Min(remainingFrames, maximumFrameCount);
+                if (Interlocked.CompareExchange(
+                    ref _framesRemaining,
+                    remainingFrames - framesToConsume,
+                    remainingFrames) == remainingFrames)
+                {
+                    return framesToConsume;
+                }
+            }
         }
 
         public void RecordPreLimiterInput(int frameCount)
@@ -2134,7 +2127,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             var frames = Math.Clamp(frameCount, 0, SignalBuffer.FrameCount);
             if (frames == 0)
             {
-                _lastFramesPrepared = 0;
+                Volatile.Write(ref _lastFramesPrepared, 0);
                 return;
             }
 
@@ -2152,19 +2145,16 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 squareSum += sample * sample;
             }
 
-            lock (_gate)
-            {
-                _lastFramesPrepared = frames;
-                PulseOwnedFramesGenerated += frames;
-                PulseOwnedPeakPreLimiter = Math.Max(PulseOwnedPeakPreLimiter, peak);
-                _preLimiterSquareSum += squareSum;
-            }
+            Volatile.Write(ref _lastFramesPrepared, frames);
+            Interlocked.Add(ref _pulseOwnedFramesGenerated, frames);
+            UpdateMaximum(ref _pulseOwnedPeakPreLimiterBits, peak);
+            AddDouble(ref _preLimiterSquareSumBits, squareSum);
         }
 
         public int RecordPostLimiterOutput(AudioSampleBuffer outputBuffer)
         {
             ArgumentNullException.ThrowIfNull(outputBuffer);
-            var frames = Math.Clamp(_lastFramesPrepared, 0, outputBuffer.FrameCount);
+            var frames = Math.Clamp(Interlocked.Exchange(ref _lastFramesPrepared, 0), 0, outputBuffer.FrameCount);
             if (frames == 0)
             {
                 return 0;
@@ -2184,15 +2174,45 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 squareSum += sample * sample;
             }
 
-            lock (_gate)
-            {
-                PulseOwnedFramesConsumed += frames;
-                PulseOwnedPeakPostLimiter = Math.Max(PulseOwnedPeakPostLimiter, peak);
-                _postLimiterSquareSum += squareSum;
-                _lastFramesPrepared = 0;
-            }
+            Interlocked.Add(ref _pulseOwnedFramesConsumed, frames);
+            UpdateMaximum(ref _pulseOwnedPeakPostLimiterBits, peak);
+            AddDouble(ref _postLimiterSquareSumBits, squareSum);
 
             return frames;
+        }
+
+        private static void AddDouble(ref long targetBits, double value)
+        {
+            while (true)
+            {
+                var currentBits = Interlocked.Read(ref targetBits);
+                var currentValue = BitConverter.Int64BitsToDouble(currentBits);
+                var updatedValue = currentValue + value;
+                var updatedBits = BitConverter.DoubleToInt64Bits(updatedValue);
+                if (Interlocked.CompareExchange(ref targetBits, updatedBits, currentBits) == currentBits)
+                {
+                    return;
+                }
+            }
+        }
+
+        private static void UpdateMaximum(ref int targetBits, float candidate)
+        {
+            while (true)
+            {
+                var currentBits = Volatile.Read(ref targetBits);
+                var currentValue = BitConverter.Int32BitsToSingle(currentBits);
+                if (candidate <= currentValue)
+                {
+                    return;
+                }
+
+                var candidateBits = BitConverter.SingleToInt32Bits(candidate);
+                if (Interlocked.CompareExchange(ref targetBits, candidateBits, currentBits) == currentBits)
+                {
+                    return;
+                }
+            }
         }
     }
 }

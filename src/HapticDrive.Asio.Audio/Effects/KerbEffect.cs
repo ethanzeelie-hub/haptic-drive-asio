@@ -122,18 +122,11 @@ public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectS
 
         var activeWheelCount = 0;
         var surfaces = input.Frame.Signals.SurfaceKinds;
-        var orderedSurfaces = new[] { surfaces.RearLeft, surfaces.RearRight, surfaces.FrontLeft, surfaces.FrontRight };
         SurfaceKind? dominantSurfaceKind = null;
-        foreach (var surfaceKind in orderedSurfaces)
-        {
-            if (!IsKerbSurface(surfaceKind))
-            {
-                continue;
-            }
-
-            activeWheelCount++;
-            dominantSurfaceKind ??= surfaceKind;
-        }
+        AccumulateKerbSurface(surfaces.RearLeft, ref activeWheelCount, ref dominantSurfaceKind);
+        AccumulateKerbSurface(surfaces.RearRight, ref activeWheelCount, ref dominantSurfaceKind);
+        AccumulateKerbSurface(surfaces.FrontLeft, ref activeWheelCount, ref dominantSurfaceKind);
+        AccumulateKerbSurface(surfaces.FrontRight, ref activeWheelCount, ref dominantSurfaceKind);
 
         if (activeWheelCount == 0 || dominantSurfaceKind is null)
         {
@@ -153,10 +146,24 @@ public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectS
         return new KerbEvaluation(
             IsActive: true,
             (byte)dominantSurfaceKind.Value,
-            dominantSurfaceKind.Value.ToString(),
+            GetSurfaceName(dominantSurfaceKind.Value),
             SanitizeFrequency(options.BaseFrequencyHz),
             amplitude,
             activeWheelCount);
+    }
+
+    private static void AccumulateKerbSurface(
+        SurfaceKind surfaceKind,
+        ref int activeWheelCount,
+        ref SurfaceKind? dominantSurfaceKind)
+    {
+        if (!IsKerbSurface(surfaceKind))
+        {
+            return;
+        }
+
+        activeWheelCount++;
+        dominantSurfaceKind ??= surfaceKind;
     }
 
     private static bool IsKerbSurface(SurfaceKind surfaceKind)
@@ -201,19 +208,38 @@ public sealed class KerbEffect : IHapticEffectSource, IConfigurableHapticEffectS
 
         var sum = 0f;
         var count = 0;
-        foreach (var candidate in new[] { values.RearLeft, values.RearRight, values.FrontLeft, values.FrontRight })
-        {
-            var selected = selector(candidate);
-            if (selected is null)
-            {
-                continue;
-            }
-
-            sum += selected.Value;
-            count++;
-        }
+        AccumulateWheelValue(values.RearLeft, selector, ref sum, ref count);
+        AccumulateWheelValue(values.RearRight, selector, ref sum, ref count);
+        AccumulateWheelValue(values.FrontLeft, selector, ref sum, ref count);
+        AccumulateWheelValue(values.FrontRight, selector, ref sum, ref count);
 
         return count == 0 ? 0f : sum / count;
+    }
+
+    private static void AccumulateWheelValue(
+        float candidate,
+        Func<float, float?> selector,
+        ref float sum,
+        ref int count)
+    {
+        var selected = selector(candidate);
+        if (selected is null)
+        {
+            return;
+        }
+
+        sum += selected.Value;
+        count++;
+    }
+
+    private static string GetSurfaceName(SurfaceKind surfaceKind)
+    {
+        return surfaceKind switch
+        {
+            SurfaceKind.RumbleStrip => "RumbleStrip",
+            SurfaceKind.Ridged => "Ridged",
+            _ => "Other"
+        };
     }
 
     private static float SanitizeFrequency(float frequencyHz)

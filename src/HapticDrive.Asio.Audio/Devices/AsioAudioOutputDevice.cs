@@ -6,6 +6,7 @@ namespace HapticDrive.Asio.Audio.Devices;
 public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
 {
     public const string PreferredDriverName = "M-Audio M-Track Solo and Duo ASIO";
+    private const string BufferAcceptedStatusMessage = "ASIO output accepted a safety-processed buffer.";
 
     private readonly IAsioDriverCatalog _driverCatalog;
     private readonly IAsioOutputBackend _backend;
@@ -240,14 +241,12 @@ public sealed class AsioAudioOutputDevice : AudioOutputDeviceBase
         if (!submitResult.Succeeded)
         {
             _lastError = submitResult.ErrorMessage ?? submitResult.Message;
-            return AudioOutputDeviceResult.Failure(
-                $"ASIO output dropped a buffer: {submitResult.Message}",
-                GetStatus());
+            return AudioOutputDeviceResult.Failure(submitResult.Message, GetStatus());
         }
 
         Interlocked.Increment(ref _submittedBufferCount);
         _lastError = null;
-        StatusMessage = $"ASIO output accepted {buffer.FrameCount:N0} safety-processed frame(s).";
+        StatusMessage = BufferAcceptedStatusMessage;
         return AudioOutputDeviceResult.Success(StatusMessage, GetStatus());
     }
 

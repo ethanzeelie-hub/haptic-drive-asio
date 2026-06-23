@@ -4,6 +4,7 @@ namespace HapticDrive.Asio.Audio.Devices;
 
 public sealed class NullAudioOutputDevice : AudioOutputDeviceBase
 {
+    private const string BufferConsumedStatusMessage = "Null output consumed a buffer.";
     private long _submittedBufferCount;
     private long _submittedFrameCount;
     private long _submittedSampleCount;
@@ -80,7 +81,7 @@ public sealed class NullAudioOutputDevice : AudioOutputDeviceBase
         Interlocked.Add(ref _submittedSampleCount, buffer.SampleCount);
         Volatile.Write(ref _lastPeakLevel, peakLevel);
 
-        StatusMessage = $"Null output consumed {buffer.FrameCount:N0} frame(s).";
+        StatusMessage = BufferConsumedStatusMessage;
         return AudioOutputDeviceResult.Success(StatusMessage, GetStatus());
     }
 

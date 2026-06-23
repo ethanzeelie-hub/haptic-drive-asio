@@ -54,15 +54,24 @@ public sealed class AudioRenderPipeline
         ReadOnlySpan<AudioMixerInput> inputs,
         AudioSampleBuffer outputBuffer)
     {
+        return Process(inputs, outputBuffer, MixerSettings, SafetyOptions);
+    }
+
+    public AudioRenderPipelineSnapshot Process(
+        ReadOnlySpan<AudioMixerInput> inputs,
+        AudioSampleBuffer outputBuffer,
+        AudioMixerSettings mixerSettings,
+        AudioSafetyProcessorOptions safetyOptions)
+    {
         ArgumentNullException.ThrowIfNull(outputBuffer);
         AudioSampleBuffer.EnsureSameFormat(Format, outputBuffer.Format);
 
-        var mixerSnapshot = _mixer.Mix(inputs, _mixBuffer, MixerSettings);
-        var safetyOptions = SafetyOptions with
+        var mixerSnapshot = _mixer.Mix(inputs, _mixBuffer, mixerSettings);
+        var effectiveSafetyOptions = safetyOptions with
         {
-            EmergencyMute = SafetyOptions.EmergencyMute || MixerSettings.EmergencyMute
+            EmergencyMute = safetyOptions.EmergencyMute || mixerSettings.EmergencyMute
         };
-        var safetySnapshot = _safetyProcessor.Process(_mixBuffer, outputBuffer, safetyOptions);
+        var safetySnapshot = _safetyProcessor.Process(_mixBuffer, outputBuffer, effectiveSafetyOptions);
 
         return new AudioRenderPipelineSnapshot(
             mixerSnapshot.IsRunning,
