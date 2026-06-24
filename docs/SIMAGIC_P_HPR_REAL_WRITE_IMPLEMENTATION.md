@@ -57,7 +57,9 @@ Start commands are blocked unless all of these are true:
 
 - direct control enabled,
 - direct control armed,
+- session authorization active for the current session,
 - selected device path/interface/report configured,
+- global output interlock clear,
 - coexistence status is `Clear`,
 - emergency stop latch is clear,
 - `PHprSafetyLimiter` accepts the command,
@@ -65,7 +67,7 @@ Start commands are blocked unless all of these are true:
 - strength/frequency/duration are inside safety limits,
 - command rate and continuous-duration limits are respected.
 
-Stop and emergency-stop reports may be attempted when a device is selected so the app can try to quiet both modules.
+Direct mode selection and arm state do not authorize writes by themselves. Non-stop writes recheck session authorization and the global interlock immediately before the physical writer is opened/written. Stop and emergency-stop reports may be attempted when a device is selected so the app can try to quiet both modules even while non-stop writes are blocked.
 
 Enable, arm, and selected device path are runtime-only and are not persisted.
 

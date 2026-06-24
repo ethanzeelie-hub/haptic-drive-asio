@@ -56,7 +56,7 @@ Raw captures, private paths, serial numbers, and unsanitized inventories remain 
 | High | Repeated observation matching controlled scenario changes. |
 | ConfirmedObservation | Bytes or input bits were directly observed in sanitized captures. |
 
-`ConfirmedObservation` means the bytes were observed. It does not mean safe command status, write-ready status, or approval for real hardware output.
+`ConfirmedObservation` means the bytes were observed. It does not mean safe command status, write-ready status, or authorization for real hardware output.
 
 ## Confirmed Non-Output Input Mappings
 
@@ -273,4 +273,4 @@ Implementation details live in `docs/SIMAGIC_P_HPR_MOCK_PROTOCOL.md`.
 
 ## Final Safety Statement
 
-This document supports gated Stage 2Q implementation. It does not authorise unattended execution of real USB writes or any claim of physical P-HPR validation.
+This document supports gated Stage 2Q implementation. It does not authorise unattended execution of real USB writes or any claim of completed physical P-HPR validation.

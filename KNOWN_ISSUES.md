@@ -4,13 +4,18 @@ This file tracks active issues only. Historical stage-by-stage issue notes are a
 
 ## True blockers
 
-- Public redistribution remains blocked until the owner selects and approves license terms. Packaging and release artifacts are readying the repo for release, but they do not grant redistribution rights.
-- The audited high-remediation program is still in progress. Remediation 1 through Remediation 11 are complete, but the final documentation/readiness reconciliation stage still needs to land before the direct P-HPR path can be considered fully remediated end-to-end.
+- Public redistribution remains blocked until the owner selects and approves license terms. Packaging and release artifacts do not grant redistribution rights.
+
+## Active engineering
+
+- Real Simagic P-HPR physical safety remains manually unvalidated on hardware in this repository state.
+- Real P-HPR stop/off behavior on hardware remains manually unvalidated.
+- SimPro/SimHub coexistence under real direct control remains manually unvalidated.
 
 ## Hardware-later tuning and validation
 
 - Physical shaker feel, safe gain, physical latency, and final frequency tuning are still unvalidated in this codebase and must not be claimed complete until local hardware testing is finished.
-- Real Simagic P-HPR USB writes remain unauthorized unless the owner provides the exact approval phrase required by the project rules.
+- Real Simagic P-HPR writes still require fresh session authorization plus clear interlock/direct-mode gates before any non-stop hardware output can occur.
 
 ## Owner and legal decisions
 

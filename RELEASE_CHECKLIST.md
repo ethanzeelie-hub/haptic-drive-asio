@@ -29,9 +29,11 @@ Use this checklist before treating a local package as release-ready.
 ## Policy checks
 
 - README does not imply production WASAPI streaming support.
+- README and release docs state that verification uses Release configuration.
 - No release script disables NuGet audit.
 - No known unresolved high or critical dependency vulnerabilities remain.
 - Public redistribution is still blocked until the owner chooses a license.
+- Release notes/docs do not claim physical P-HPR safety validation, final shaker tuning, or permanent real-write authorization.
 
 ## Manual reminder
 

@@ -4,7 +4,7 @@
 
 Stage 2R adds the validation harness for later supervised real P-HPR testing.
 
-Phase 3J adds a final controlled CLI smoke-test command after Ethan provided the exact controlled-write approval phrase. It still does not run hardware vibration automatically and does not mark physical validation as passed.
+Phase 3J adds a final controlled CLI smoke-test command with session-only authorization from the exact controlled-write phrase. It still does not run hardware vibration automatically and does not mark physical validation as passed.
 
 The Phase 3J direct-output picker follow-up fixes the validation blocker where sanitized inventory exports could not provide a pasteable private HID path. The app now refreshes local HID candidates, shows safe labels only, keeps the private path in memory, and applies it internally when selected.
 
@@ -12,7 +12,7 @@ The second Phase 3J picker follow-up fixes the Raw Input metadata blocker. Raw I
 
 The third Phase 3J picker follow-up fixes the HID report-write blocker observed after open-check success. Open-check only proves the selected path can be opened and closed without sending a report. Direct real output now also requires known HID output-report capability, or a successful no-command report-shape validation, before `can pulse` can become true. If output-report length is unavailable, real pulses stay blocked.
 
-The fourth Phase 3J picker follow-up adds explicit HID FeatureReport support for the current local evidence. The `VID_3670/PID_0905` HID device-interface candidate exposes a 64-byte feature report and report ID `0xF1`, which likely matches the known F1 EC SET_REPORT-style command family. Dry-run can validate that feature-report shape and show expected first bytes without sending a report. Real pulses remain blocked unless the selected transport, report ID, report length, open-check, approval, coexistence, and emergency-stop gates all pass.
+The fourth Phase 3J picker follow-up adds explicit HID FeatureReport support for the current local evidence. The `VID_3670/PID_0905` HID device-interface candidate exposes a 64-byte feature report and report ID `0xF1`, which likely matches the known F1 EC SET_REPORT-style command family. Dry-run can validate that feature-report shape and show expected first bytes without sending a report. Dry-run does not authorize writes. Real pulses remain blocked unless the selected transport, report ID, report length, open-check, session authorization, coexistence, and emergency-stop gates all pass.
 
 ## Implemented Harness
 
@@ -33,7 +33,7 @@ The app checklist combines user confirmations with current runtime state:
 - throttle module installed,
 - direct control enabled,
 - direct control armed,
-- exact approval phrase confirmed for the current session,
+- session authorization active for the current session,
 - selected device/interface/report,
 - visible safety limits,
 - visible emergency stop,
@@ -58,12 +58,12 @@ The Advanced / Diagnostics direct-control section includes a local-only candidat
 - The selected report transport is explicit: `OutputReport` or `FeatureReport`. Feature report ID `0xF1` is shown when advertised and is treated as the likely F1 EC family shape.
 - The private HID path stays in memory only and is applied internally when a candidate is selected.
 - Copied diagnostics, docs, tests, and sanitized exports must not contain private HID paths.
-- Open Check opens and immediately closes the selected HID writer without sending any output report or feature report.
-- Dry Run Gates validates selected candidate, source method, Raw Input-only status, openable HID path status, selected transport, selected report ID, report capability/shape validation, open-check result, report length, expected first bytes, direct-control enable/arm, approval phrase, coexistence, and emergency-stop gates without opening the HID writer.
+- Open Check opens and immediately closes the selected HID writer without sending any output report or feature report. Open-check is real hardware access even though it sends no reports.
+- Dry Run Gates validates selected candidate, source method, Raw Input-only status, openable HID path status, selected transport, selected report ID, report capability/shape validation, open-check result, report length, expected first bytes, direct-control enable/arm, session authorization state, coexistence, and emergency-stop gates without opening the HID writer. Dry-run does not authorize writes.
 
 ## Controlled CLI Smoke Test
 
-`controlled-write-test` is the explicit command-line route for a final local P-HPR smoke test. It defaults to dry-run and does not open the HID writer unless `--execute` is supplied with the exact approval phrase.
+`controlled-write-test` is the explicit command-line route for a final local P-HPR smoke test. It defaults to dry-run and does not open the HID writer unless `--execute` is supplied with the exact approval phrase that authorizes the current session only.
 
 `direct-output-dry-run` is the local discovery-only companion command. It lists safe candidate labels and validates gates without opening the HID writer. A selected candidate cannot report `can pulse True` until `direct-output-open-check` has succeeded for that same openable HID device-interface candidate and known output-report or feature-report capability plus successful report-shape validation is present:
 
@@ -92,7 +92,7 @@ Execute, only when physically ready:
 The command:
 
 - requires selected private HID path, clear SimPro/SimHub coexistence, and exact approval phrase for real writes,
-- requires direct control enabled and armed for real writes,
+- requires direct control enabled and armed for real writes, but direct mode selection and arm state do not authorize writes by themselves,
 - uses normalized 0-100% strength, 1-50 Hz frequency, and 10-1000 ms duration,
 - defaults to a 10%, 50 Hz, 50 ms brake-then-throttle sequence,
 - requests emergency stop at the end,
@@ -161,7 +161,7 @@ No automated test opens a real HID device or sends a real P-HPR report.
 
 ## Physical Validation Status
 
-Controlled P-HPR write testing is approved. User-run local validation has confirmed brake and throttle direct pulses plus parameter response on the selected FeatureReport path. Remaining validation includes safety envelope, emergency-stop physical behavior, sustained-vibration behavior, physical latency, road/slip/lock feel, real coexistence, and live-session behavior.
+This repository does not claim completed physical P-HPR safety validation. Manual-local evidence is still required for brake/throttle pulse behavior, safety envelope, emergency-stop physical behavior, sustained-vibration behavior, physical latency, road/slip/lock feel, real coexistence, and live-session behavior.
 
 Until real results are supplied, do not claim:
 

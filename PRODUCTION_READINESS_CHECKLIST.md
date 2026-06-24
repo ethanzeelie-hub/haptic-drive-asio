@@ -28,6 +28,7 @@ This checklist is the final manual smoke pass for the software architecture and 
 
 - [ ] Export a safe-mode support bundle.
 - [ ] Confirm private paths, serial-like values, hostnames, private IPs, and raw USB payloads are redacted in the safe bundle.
+- [ ] Confirm the support bundle does not include the P-HPR authorization phrase or session-authorization state.
 
 ## Packaging
 
@@ -40,5 +41,6 @@ This checklist is the final manual smoke pass for the software architecture and 
 ## Final non-claims
 
 - [ ] Do not claim final shaker feel, safe physical gain, or physical latency until local hardware validation is complete.
-- [ ] Do not claim authorized real P-HPR USB writes without the exact owner approval phrase.
+- [ ] Do not claim real P-HPR safety validation, stop behavior, or coexistence validation without supervised manual evidence.
+- [ ] Do not treat Direct mode selection, arm state, dry-run, or open-check as write authorization.
 - [ ] Do not claim public redistribution rights until the owner selects license terms.

@@ -71,7 +71,7 @@ The WPF app stores the latest coexistence snapshot and passes its `Status` into 
 
 Stage 2O remains conservative: an active SimPro+SimHub conflict blocks mock P-HPR starts as well as any future direct-control starts. Single-process observations warn but do not block mock starts.
 
-Stage 2Q is stricter for real direct starts: `Unknown`, `SimProRunning`, `SimHubRunning`, and `ActiveConflict` all block real direct start reports. Stop and emergency-stop reports may still be attempted when a device is selected so the app can try to quiet modules.
+Stage 2Q is stricter for real direct starts: `Unknown`, `SimProRunning`, `SimHubRunning`, and `ActiveConflict` all block real direct start reports. A coexistence conflict also revokes current-session direct-write authorization. Stop and emergency-stop reports may still be attempted when a device is selected so the app can try to quiet modules.
 
 ## WPF Diagnostics
 

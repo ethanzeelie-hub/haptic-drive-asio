@@ -63,6 +63,7 @@ A real gear pulse can write only when all direct-control gates pass:
 
 - direct control enabled for the current session,
 - direct control armed for the current session,
+- session authorization active for the current session,
 - selected device/interface/report configured,
 - SimPro/SimHub coexistence status is `Clear`,
 - emergency stop is clear,
@@ -71,7 +72,7 @@ A real gear pulse can write only when all direct-control gates pass:
 
 Mock mode remains available for diagnostics without hardware output. Real mode is default-off and requires explicit manual enable and arm.
 
-Bench Direct mode is stricter than normal diagnostics: it requires the selected openable HID path to use FeatureReport transport, report ID `0xF1`, 64-byte report length, successful open-check, accepted report shape/capability, approval confirmation, coexistence `Clear`, emergency stop clear, and road/slip/lock routes disabled before a paddle bench pulse can reach the real output.
+Bench Direct mode is stricter than normal diagnostics: it requires the selected openable HID path to use FeatureReport transport, report ID `0xF1`, 64-byte report length, successful open-check, accepted report shape/capability, session authorization active for the current session, coexistence `Clear`, emergency stop clear, and road/slip/lock routes disabled before a paddle bench pulse can reach the real output.
 
 ## Latency Diagnostics
 

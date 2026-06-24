@@ -12,7 +12,7 @@ Stage 26I hardens raw UDP telemetry recording and replay with the resilient `.hd
 - Mark incomplete captures when packets are dropped or a recording is not cleanly finalized.
 - Recover valid packets from truncated or partially written v2 files without reconstructing packet bytes.
 
-Stage 17 feeds replayed packets through the same parser, `VehicleState`, effect, mixer, safety, and output-owned render path as live UDP packets. Stage 18 adds a recordings library UI that lists local `.hdrec` files, reads metadata summaries without loading full payloads, and can replay the selected recording. Stage 18p-B makes normal UI replay time-preserving by default and keeps fast replay as an explicit debug/parser mode.
+Stage 17 feeds replayed packets through the same parser, `VehicleState`, effect, mixer, safety, and output-owned render path as live UDP packets. Stage 18 adds a recordings library UI that lists local `.hdrec` files, reads metadata summaries without loading full payloads, and can replay the selected recording. Stage 18p-B makes normal UI replay `TimePreserving` by default and keeps fast replay as an explicit debug/parser mode.
 
 Replay still does not implement recording trimming, route snapshots, profile snapshots inside recordings, real WASAPI output, or physical hardware validation.
 
@@ -98,6 +98,7 @@ The Recordings page can:
 - Start and stop raw UDP recording.
 - Persist selected game/profile hash metadata in new v2 captures.
 - Replay the latest local recording in Real-time mode by default.
+- Use `TimePreserving` replay as the default operator-facing mode.
 - Refresh the local recordings library.
 - Show file name, packet count, file size, source game, source profile, completion state, dropped-packet count, app version, created time, and modified time for readable `.hdrec` files.
 - Replay the selected recording through the same output-owned haptic pipeline in Real-time mode by default.

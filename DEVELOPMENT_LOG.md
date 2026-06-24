@@ -1,5 +1,54 @@
 # Development Log
 
+## Remediation 12 - Reconcile Documentation And Final Readiness State
+
+Date: 2026-06-24
+
+Status: Complete.
+
+Goal: Align live documentation, known issues, roadmap status, and final readiness language with the implemented Stage 1-11 remediation behavior so the repo no longer overstates authorization, physical validation, or architecture guarantees.
+
+Notes:
+
+- Updated live root docs and readiness files:
+  - `README.md` now states the audited remediation is complete for software hardening, keeps `NullAudioOutputDevice` as the default-safe posture, clarifies that convenience ASIO selection does not emit output, and describes real P-HPR writes as a session-only physical-boundary gate rather than owner-level permanent approval.
+  - `ARCHITECTURE.md` now describes the global interlock as the authoritative participant/supervisor safety boundary, records canonical `HapticFrame` plus `HapticRenderFrame` responsibilities accurately, and states the no-lock/no-diagnostic-publish render-path contract in its tested form.
+  - `KNOWN_ISSUES.md`, `RELEASE_STATUS.md`, `RELEASE_CHECKLIST.md`, and `PRODUCTION_READINESS_CHECKLIST.md` now track only active blockers and current non-claims: manual hardware validation, direct P-HPR stop/coexistence proof, and owner/legal redistribution decisions.
+- Reconciled the effect and recording docs with the audited runtime boundaries:
+  - `docs/RECORDING_AND_REPLAY.md` now explicitly states `TimePreserving` as the default replay mode, streaming replay as the bounded-memory path, dropped packets as a blocker for complete status, and the v2 footer as the authoritative completion marker.
+  - `docs/HAPTIC_EFFECTS.md` and `docs/HOW_TO_ADD_A_HAPTIC_EFFECT.md` now state that built-in descriptors create functional runtimes, audio effects render from canonical `HapticRenderFrame`, and effect runtimes must stay free of render-path logging, locking, allocation-after-warmup, and disk/network/UI work.
+- Rewrote the live P-HPR operator/safety docs to match the Stage 1 physical-boundary model instead of the earlier readiness/approval wording:
+  - direct mode selection and arm state do not authorize writes,
+  - the approval phrase authorizes only the current session,
+  - authorization is not persisted/logged/exported,
+  - dry-run does not authorize writes,
+  - open-check is real hardware access even though it sends no reports,
+  - non-stop writes recheck authorization plus interlock at the physical boundary,
+  - stop/stop-all remain permitted for cleanup while unauthorized or latched,
+  - repository docs no longer claim completed physical P-HPR safety validation without manual-local evidence.
+- Added documentation governance coverage in app/research tests so future edits must keep the live docs aligned with:
+  - no stale approval-flag terminology,
+  - session-only authorization wording,
+  - open-check-as-hardware-access wording,
+  - active-only known-issues structure,
+  - Release-based verification instructions.
+- Updated historical wording that still mentioned the removed persisted approval flag so the live repo-wide audit surface no longer preserves the old term outside archived history.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe restore HapticDrive.Asio.sln --locked-mode` passed.
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore -warnaserror` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed a second time.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\.dotnet\dotnet.exe list HapticDrive.Asio.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+
+Self-review:
+
+- This stage stayed inside the Stage 12 remit: documentation/readiness reconciliation plus doc-governance checks only, with no runtime architecture or hardware-behavior changes.
+- Remaining blockers are now intentionally described as manual-local validation or owner/legal decisions rather than unfinished software-remediation work.
+
 ## Remediation 11 - Replace Debt-Preserving Guardrails With Semantic Coverage
 
 Date: 2026-06-24
@@ -502,7 +551,7 @@ Goal: Remove persisted/direct-option approval state and enforce the exact contro
 Notes:
 
 - Added `PHprWriteAuthorizationSnapshot`, `IPHprWriteAuthorization`, and `PHprSessionWriteAuthorization` in `HapticDrive.Simagic.PHPR.Abstractions`.
-- Removed `DirectControlApprovalConfirmed` from `PHprRealOutputOptions` and removed all reads/writes/assertions of that persisted-style flag.
+- Removed the old persisted direct-control approval flag from `PHprRealOutputOptions` and removed all reads/writes/assertions of that persisted-style flag.
 - Tightened the real write boundary in `SimagicPhprOutputDevice` so non-stop writes now require:
   - direct control enabled,
   - direct control armed,

@@ -16,7 +16,7 @@ Phase 3H packages the current P-HPR implementation for final review. Phase 3J ad
 - SimPro/SimHub detection: implemented as read-only process detection.
 - Replay validation: implemented for road/slip/lock software routing.
 - Live F1 validation workflow: implemented as a passive manual checklist.
-- Controlled P-HPR CLI smoke test: implemented, dry-run by default, real writes gated by exact approval phrase plus `--execute`.
+- Controlled P-HPR CLI smoke test: implemented, dry-run by default, real writes gated by current-session authorization from the exact approval phrase plus `--execute`.
 - Direct-output candidate picker: implemented with safe labels, runtime-only private HID paths, HID device-interface selection, HID registry metadata surfacing, OutputReport/FeatureReport transport selection, and no-report/no-feature-report open-check.
 - User guide, quick start, troubleshooting, and final acceptance docs: implemented.
 
@@ -80,7 +80,7 @@ Normal full-suite verification should report zero skipped tests. Zero skipped te
 
 ## Physical Validation Status
 
-Controlled P-HPR write testing is approved and the command path exists. User-run local validation has confirmed brake and throttle direct pulses plus strength/frequency/duration response on the selected FeatureReport path. No physical safety envelope, safe gain, emergency-stop physical behavior, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, or real SimPro/SimHub coexistence claim is made by automated work.
+The command path exists, but this repository does not claim completed physical P-HPR safety validation. Manual-local evidence is still required for brake/throttle pulse correctness, safe gain, emergency-stop physical behavior, physical latency, sustained-vibration behavior, road feel, slip feel, lock feel, and real SimPro/SimHub coexistence.
 
 ## Run Command
 

@@ -65,10 +65,12 @@ public sealed class DocumentationConsistencyTests
         var knownIssues = MainWindowSourceTestHelper.ReadRepositoryFile("KNOWN_ISSUES.md");
 
         Assert.Contains("## True blockers", knownIssues, StringComparison.Ordinal);
+        Assert.Contains("## Active engineering", knownIssues, StringComparison.Ordinal);
         Assert.Contains("## Hardware-later tuning and validation", knownIssues, StringComparison.Ordinal);
         Assert.Contains("## Owner and legal decisions", knownIssues, StringComparison.Ordinal);
         Assert.DoesNotContain("## Stage 00", knownIssues, StringComparison.Ordinal);
         Assert.DoesNotContain("## Stage 26B", knownIssues, StringComparison.Ordinal);
+        Assert.DoesNotContain("high-remediation program is still in progress", knownIssues, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -77,6 +79,7 @@ public sealed class DocumentationConsistencyTests
         var architecture = MainWindowSourceTestHelper.ReadRepositoryFile("ARCHITECTURE.md");
 
         Assert.Contains("canonical `HapticFrame`", architecture, StringComparison.Ordinal);
+        Assert.Contains("`HapticRenderFrame`", architecture, StringComparison.Ordinal);
         Assert.Contains("output interlock", architecture, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("recording and replay", architecture, StringComparison.OrdinalIgnoreCase);
     }

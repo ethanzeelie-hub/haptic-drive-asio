@@ -17,7 +17,7 @@ Non-goals for the current build:
 
 - claiming physical shaker tuning or safe gain as finished,
 - claiming production WASAPI streaming,
-- adding real P-HPR USB automation without explicit owner approval,
+- adding real P-HPR USB automation without session-only authorization and explicit manual local action,
 - coupling future game support to F1-specific enums or packet structs.
 
 ## System flow
@@ -65,7 +65,8 @@ flowchart LR
 ### Canonical haptic boundary
 
 - `IVehicleStateNormalizer` turns `VehicleState` into a canonical `HapticFrame`.
-- `canonical HapticFrame` is the cross-game contract for effect and actuation logic.
+- `canonical HapticFrame` is the cross-game live-path contract for effect and actuation logic.
+- Audio effects render from `HapticRenderFrame`, which wraps the canonical `HapticFrame` plus evaluated freshness.
 - Effects and actuation routes should not depend on raw F1 packet IDs, raw F1 surface IDs, or F1-only enums on the live path.
 
 `HapticFrame` currently carries:
@@ -84,6 +85,7 @@ flowchart LR
   - required-signal declarations,
   - validation,
   - runtime factory.
+- Built-in descriptors create functional runtimes rather than metadata-only placeholders.
 - Profiles persist effect settings as schema-v2 keyed documents.
 
 ### Output boundary
@@ -97,16 +99,17 @@ flowchart LR
 
 - P-HPR is intentionally separate from ASIO and `IAudioOutputDevice`.
 - Actuation consumes canonical `HapticFrame` plus `ActuationDrivingContext`.
-- Real USB writes remain explicitly gated and must not run in automated tests.
+- Real USB writes remain explicitly gated by session-only authorization and the global output interlock, and they must not run in automated tests.
 
 ## Safety model
 
-The global output interlock is the top-level safety authority.
+The global output interlock is the top-level authoritative safety boundary.
 
 - It starts latched by default.
 - It can trip for startup-safe default, emergency mute, stale telemetry, device faults, invalid configuration, manual-test blocking, and shutdown.
-- When latched, audio output, manual test output, and actuation routes all suppress output.
+- When latched, audio output, manual test output, and actuation routes all suppress output through interlock-aware participants and the supervisor.
 - Shutdown trips the interlock before device stop/dispose.
+- Direct P-HPR non-stop writes also require session-only authorization at the physical write boundary immediately before writer open/write.
 
 Related ADRs:
 
@@ -118,19 +121,22 @@ Related ADRs:
 The steady-state render/callback path must remain:
 
 - allocation-free after warmup,
+- lock-free after warmup,
 - free of UI work,
 - free of disk IO,
 - free of logging and string formatting,
-- free of blocking network or telemetry work.
+- free of blocking network or telemetry work,
+- free of diagnostic event publication.
 
-Diagnostics on the hot path are limited to atomic counters and immutable snapshot publication.
+Hot-path diagnostics are limited to atomic counters and preallocated state snapshots within the tested real-time acceptance boundary.
 
 ## Recording and replay
 
 - New recordings use the resilient v2 format.
 - Raw packets are stored unchanged.
 - Truncated recordings recover up to the first invalid record and remain marked incomplete.
-- Replay uses absolute packet deadlines to avoid cumulative drift.
+- Replay defaults to `TimePreserving`, uses absolute packet deadlines to avoid cumulative drift, and streams packets from disk instead of preloading whole recordings.
+- Dropped packets prevent a recording from being marked complete, and a valid footer remains the authoritative completion marker.
 
 See [docs/RECORDING_AND_REPLAY.md](/C:/Users/ethan/OneDrive/Documents/ASIO%20Haptic%20Engine%20Program/docs/RECORDING_AND_REPLAY.md).
 

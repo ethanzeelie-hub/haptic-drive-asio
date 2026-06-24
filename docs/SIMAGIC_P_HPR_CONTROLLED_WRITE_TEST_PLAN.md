@@ -45,8 +45,9 @@ Before the first real write test in a later stage:
 10. Real writes are disabled by default.
 11. Direct-control enabled state is explicit and runtime-only.
 12. Direct-control armed state is explicit, runtime-only, and not persisted.
-13. Safety limits are active.
-14. Coexistence status is `Clear` for the first test.
+13. Session authorization is active only for the current session and is not persisted/logged/exported.
+14. Safety limits are active.
+15. Coexistence status is `Clear` for the first test.
 
 ## First Write Test
 
@@ -73,16 +74,17 @@ The first real write test must be deliberately small:
 6. Enable direct-control mode manually.
 7. Select target device/interface/report manually.
 8. Arm direct control manually.
-9. Send one low-strength brake pulse.
-10. Verify a stop command is sent and vibration stops.
-11. Send one low-strength throttle pulse.
-12. Verify a stop command is sent and vibration stops.
-13. Test emergency stop.
-14. Test telemetry stale gate.
-15. Test emergency mute gate.
-16. Test `DrivingArmed` gate.
-17. Test SimPro/SimHub conflict gate.
-18. Record results.
+9. Enter the exact approval phrase to authorize only the current session.
+10. Send one low-strength brake pulse.
+11. Verify a stop command is sent and vibration stops.
+12. Send one low-strength throttle pulse.
+13. Verify a stop command is sent and vibration stops.
+14. Test emergency stop.
+15. Test telemetry stale gate.
+16. Test emergency mute gate.
+17. Test `DrivingArmed` gate.
+18. Test SimPro/SimHub conflict gate.
+19. Record results.
 
 ## Pass Criteria
 
@@ -92,7 +94,7 @@ The first real write test must be deliberately small:
 - Emergency stop works.
 - App remains responsive.
 - Direct control cannot start when SimPro/SimHub conflict is active.
-- No writes occur unless direct control is explicitly enabled and armed.
+- No writes occur unless direct control is explicitly enabled and armed and the current session is authorized.
 - No writes occur on app startup.
 - No armed state is persisted.
 

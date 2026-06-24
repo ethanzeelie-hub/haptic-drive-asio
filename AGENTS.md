@@ -45,8 +45,12 @@ These rules are durable project guidance for Haptic Drive ASIO.
 
 - P-HPR modules are non-audio actuators; do not route them through ASIO or `IAudioOutputDevice`.
 - Keep any future P-HPR actuator architecture separate from the ASIO/BST-1 audio path.
-- Do not implement or execute real P-HPR USB writes until the user says exactly: `I approve Phase 2 controlled P-HPR write testing`.
-- Until that exact phrase is present, allowed work is documentation, read-only device/input discovery, capture guides, protocol hypotheses, mock output, mock routing, diagnostics, and tests only.
+- Automated tests must never execute real P-HPR USB writes.
+- Automated tests must never instantiate `WindowsHidReportWriter`.
+- Non-stop real P-HPR writes require session-only authorization at the physical write boundary.
+- The authorization phrase must never be persisted, logged, exported, or included in diagnostics/support bundles.
+- Stop, stop-all, and emergency-stop remain permitted for fail-safe cleanup even when non-stop writes are unauthorized or the interlock is latched.
+- Allowed work without hardware validation remains documentation, read-only device/input discovery, capture guides, protocol hypotheses, mock output, mock routing, diagnostics, and tests.
 - Read-only GT Neo paddle input observation is allowed.
 - Paddle input is the default future P-HPR gear-pulse source.
 - Default future gear-pulse mode is `InstantPaddleOnly`: fire from paddle press through cached `DrivingArmed`, with no telemetry wait and no default second confirmation pulse.

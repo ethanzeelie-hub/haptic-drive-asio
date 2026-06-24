@@ -5,8 +5,9 @@ namespace HapticDrive.Asio.App.Tests;
 public sealed class MainWindowCompositionGuardrailTests
 {
     [Fact]
-    public void NoGetRequiredControlRemains()
+    public void NoRemovedControlLookupHelperRemains()
     {
+        var removedControlLookup = "Get" + "Required" + "Control";
         var appSourceDirectory = Path.Combine(
             MainWindowSourceTestHelper.FindRepositoryRoot(),
             "src",
@@ -15,7 +16,7 @@ public sealed class MainWindowCompositionGuardrailTests
         foreach (var path in Directory.GetFiles(appSourceDirectory, "*.cs", SearchOption.AllDirectories))
         {
             var source = File.ReadAllText(path);
-            Assert.DoesNotContain("GetRequiredControl", source, StringComparison.Ordinal);
+            Assert.DoesNotContain(removedControlLookup, source, StringComparison.Ordinal);
             Assert.DoesNotContain("FindName(", source, StringComparison.Ordinal);
         }
     }

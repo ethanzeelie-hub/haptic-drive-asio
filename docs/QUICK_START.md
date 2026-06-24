@@ -7,7 +7,7 @@ cd "C:\Users\ethan\OneDrive\Documents\ASIO Haptic Engine Program"
 .\Run-HapticDrive.cmd
 ```
 
-If the M-Audio M-Track Solo and Duo ASIO driver is discoverable, the app starts with ASIO Output, that driver, channel `1`, and Arm ASIO selected, but it does not emit output. If that driver is missing, the app starts with `NullAudioOutputDevice`. Real P-HPR direct control still requires explicit session enable/arm.
+If the M-Audio M-Track Solo and Duo ASIO driver is discoverable, the app starts with ASIO Output, that driver, channel `1`, and Arm ASIO selected, but it does not emit output. If that driver is missing, the app starts with `NullAudioOutputDevice`. Real P-HPR direct control still requires explicit enable/arm plus current-session authorization.
 
 ## Confirm F1 25 Telemetry
 
@@ -60,7 +60,7 @@ Use this when mapped paddles need validation without live F1 telemetry.
 3. Use `Start Gear Test Listener` if the listener is not already running.
 4. Keep output mode `Mock` first.
 4. Press one mapped paddle and confirm accepted bench gear events plus mock gear routing count increase.
-5. Use `Direct` only after the FeatureReport `0xF1` / 64-byte direct gates, coexistence, emergency stop, approval, road, slip, and lock checks are green.
+5. Use `Direct` only after the FeatureReport `0xF1` / 64-byte direct gates, session authorization, coexistence, emergency stop, road, slip, and lock checks are green.
 
 Local Gear Test does not require Start Haptics, UDP telemetry, live F1 25, replay, or cached `DrivingArmed`. Bench enable/arm state is not persisted, and normal live-driving shift intent still requires cached `DrivingArmed`.
 
@@ -81,7 +81,7 @@ Use real direct mode only under local supervision.
 
 1. Confirm SimPro Manager and SimHub coexistence status is `Clear`.
 2. Refresh direct-output candidates and select a HID device-interface candidate, not a Raw Input metadata-only candidate.
-3. Run Open Check so the HID writer opens and closes without sending an output report.
+3. Run Open Check so the HID writer opens and closes without sending an output report. Open-check is real hardware access even though it sends no reports.
 4. Enable real direct control.
 5. Arm real direct control.
 6. Start with one low-strength brake pulse, then one low-strength throttle pulse.
@@ -107,7 +107,7 @@ The controlled-write CLI remains dry-run by default:
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
 ```
 
-Add `--execute` only when physically present, SimPro/SimHub coexistence is clear, emergency stop is visible, and the selected HID path has already passed no-report open-check.
+Dry-run does not authorize writes. Add `--execute` only when physically present, SimPro/SimHub coexistence is clear, emergency stop is visible, and the selected HID path has already passed no-report open-check.
 
 ## Configure P-HPR Effects
 

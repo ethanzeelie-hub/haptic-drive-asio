@@ -33,6 +33,7 @@ public sealed class ArchitectureGuardrailTests
     {
         var root = new AppCompositionRoot();
         var services = root.Services;
+        var removedControlLookup = "Get" + "Required" + "Control";
         var controllerSourceDirectory = Path.Combine(
             MainWindowSourceTestHelper.FindRepositoryRoot(),
             "src",
@@ -55,7 +56,7 @@ public sealed class ArchitectureGuardrailTests
             Assert.DoesNotContain("CheckBox", source, StringComparison.Ordinal);
             Assert.DoesNotContain("ComboBox", source, StringComparison.Ordinal);
             Assert.DoesNotContain("FindName(", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("GetRequiredControl", source, StringComparison.Ordinal);
+            Assert.DoesNotContain(removedControlLookup, source, StringComparison.Ordinal);
         }
     }
 

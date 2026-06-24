@@ -4,7 +4,7 @@
 
 Stage 2Q adds a gated direct-control UI and write-capable adapter for later manual testing. Phase 3A hardens that adapter with explicit writer lifecycle, timeout handling, disconnect diagnostics, report validation, and close-on-dispose behavior. Phase 3B completes instant paddle gear-pulse production integration through that same gated backend. Phase 3C adds road-vibration production routing through that same gated backend. Phase 3D adds wheel-slip and wheel-lock production routing through that same gated backend. Phase 3E adds the P-HPR workflow summary, P-HPR effect profiles, and fuller diagnostics/report coverage. Phase 3F validates replay-driven road/slip/lock software routing and replay-source diagnostics with mock/fake output only. Phase 3I simplifies normal Devices controls and moves research internals behind Advanced diagnostics. Phase 3J adds the final controlled CLI smoke-test command and zero-skip readiness reporting. The Stage 18 follow-up adds a runtime-only Paddle Gear Bench Test for mapped-paddle validation without live telemetry.
 
-Current user-validated local status: brake direct pulse works, throttle direct pulse works, strength/frequency/duration changes physically respond, and writes have succeeded with no reported failures on the selected `VID_3670/PID_0905` FeatureReport `0xF1` / 64-byte path. Codex did not independently perform physical measurement, and no safe-gain, physical latency, or sustained-vibration claim is made.
+This repository does not claim completed physical P-HPR safety validation. Manual-local evidence is still required for pulse correctness, stop behavior, safety envelope, coexistence behavior, safe gain, physical latency, and sustained-vibration behavior.
 
 ## Devices Page Controls
 
@@ -29,7 +29,7 @@ Controls:
 - `Emergency Stop`: attempts brake and throttle stop reports when a device is selected, then latches.
 - `Clear Emergency Stop`: clears the latch, but does not enable or arm direct control.
 
-The pulse buttons remain disabled until direct control is enabled, armed, a device is selected, coexistence status is `Clear`, and emergency stop is clear.
+The pulse buttons remain disabled until direct control is enabled, armed, a device is selected, session authorization is active, coexistence status is `Clear`, the global interlock is clear, and emergency stop is clear. Direct mode selection does not authorize writes. Arm state does not authorize writes. The approval phrase authorizes only the current session.
 
 Phase 3A diagnostics include connection state, writer-open state, open/close counts, last open/write/stop/close status, disconnect count, timeout count, invalid-report count, and write timeout. Phase 3B adds last gear-pulse latency diagnostics: paddle event time, accepted shift-intent time, command creation time, write completion time, and per-command traces. Phase 3C adds real road-vibration enabled state, per-pedal road settings, and last road route result diagnostics. Phase 3D adds real slip/lock enabled state, effect settings, and last slip/lock route result diagnostics. These diagnostics do not auto-run output and do not prove physical latency, road feel, slip feel, or lock feel.
 
@@ -68,7 +68,7 @@ Bench mode:
 
 Start in `Mock` output mode. Mock bench routing sends no HID reports and does not touch ASIO/BST-1.
 
-Use `Direct` output mode only when direct gates are green: selected openable HID device-interface path, FeatureReport transport, report ID `0xF1`, 64-byte report length, successful open-check, report shape/capability accepted, approval confirmed, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled.
+Use `Direct` output mode only when direct gates are green: selected openable HID device-interface path, FeatureReport transport, report ID `0xF1`, 64-byte report length, successful open-check, report shape/capability accepted, session authorization active for the current session, coexistence `Clear`, emergency stop clear, road vibration disabled, and slip/lock disabled.
 
 Initial direct bench defaults are brake only, `10%`, `50 Hz`, `50 ms`, one paddle press, no loop.
 
@@ -90,7 +90,7 @@ If the wrong pedal moves, both pedals move unexpectedly, output feels too strong
 
 ## Gear Pulse Routing
 
-Accepted GT Neo paddle shift intent can route to the direct P-HPR adapter only when direct control is explicitly enabled and armed for the current session.
+Accepted GT Neo paddle shift intent can route to the direct P-HPR adapter only when direct control is explicitly enabled and armed and the current session is authorized.
 
 Default future gear-pulse behavior remains `InstantPaddleOnly`:
 
@@ -115,7 +115,7 @@ Real road vibration is disabled by default.
 
 When enabled, the app can route road vibration to brake, throttle, or both pedals. Each pedal has independent minimum/maximum strength, minimum/maximum frequency, and duration settings. The route scales between those values from the current road intensity.
 
-Road vibration requires direct control to be enabled and armed for the current session. It is also blocked by stale telemetry, stopped haptics, emergency mute, cached `DrivingArmed` false, SimPro/SimHub conflict, missing selected output, emergency stop, safety-limiter rejection, and the deterministic route interval.
+Road vibration requires direct control to be enabled and armed and the current session to be authorized. It is also blocked by stale telemetry, stopped haptics, emergency mute, cached `DrivingArmed` false, SimPro/SimHub conflict, missing selected output, emergency stop, global interlock latch, safety-limiter rejection, and the deterministic route interval.
 
 Stage 18o-B makes P-HPR road vibration and the ASIO/BST-1 road texture effect consume the same shared software road signal. The outputs remain separate: P-HPR still routes through the P-HPR safety limiter and HID output path, while BST-1 still renders through the mixer and audio safety chain. Accepted gear pulses briefly duck/suppress road texture for priority.
 
@@ -127,7 +127,7 @@ When enabled, wheel slip defaults to the throttle pedal and wheel lock defaults 
 
 Wheel lock priority is above wheel slip. Both are above road vibration and below instant gear pulse. Road vibration yields in the same WPF routing tick when a higher-priority slip/lock command just routed.
 
-Slip and lock routing require the same gates as road vibration: direct control enabled and armed for the current session, fresh telemetry, haptics running, emergency mute clear, cached `DrivingArmed` true, SimPro/SimHub coexistence `Clear`, selected output ready, emergency stop clear, safety-limiter acceptance, and the deterministic route interval.
+Slip and lock routing require the same gates as road vibration: direct control enabled and armed, current-session authorization active, fresh telemetry, haptics running, emergency mute clear, cached `DrivingArmed` true, SimPro/SimHub coexistence `Clear`, selected output ready, emergency stop clear, global interlock clear, safety-limiter acceptance, and the deterministic route interval.
 
 The ASIO/BST-1 slip and brake-lock effect remains separate and unchanged.
 
@@ -175,7 +175,7 @@ Use this controlled-write dry-run before adding `--execute`:
 .\.dotnet\dotnet.exe run --project src\HapticDrive.Simagic.PHPR.Research\HapticDrive.Simagic.PHPR.Research.csproj -- controlled-write-test --approval "I approve Phase 2 controlled P-HPR write testing" --device-path "<private-hid-path>" --target sequence --strength-percent 10 --frequency-hz 50 --duration-ms 50
 ```
 
-Add `--execute` only when physically present, the selected private HID path has passed no-report open-check, SimPro/SimHub coexistence is clear, and emergency stop is visible. The command hides the private HID path in console output, requests emergency stop at the end, and does not export local validation evidence.
+Open-check is real hardware access even though it sends no reports. Dry-run does not authorize writes. Add `--execute` only when physically present, the selected private HID path has passed no-report open-check, SimPro/SimHub coexistence is clear, and emergency stop is visible. The command hides the private HID path in console output, requests emergency stop at the end, and does not export local validation evidence.
 
 ## Live F1 25 Validation Workflow
 
@@ -223,4 +223,4 @@ Stage 2Q through Phase 3J do not prove physical pedal mapping, safe output stren
 - Troubleshooting: `docs\TROUBLESHOOTING.md`
 - Final acceptance: `docs\FINAL_P_HPR_ACCEPTANCE.md`
 
-Phase 3J adds the final controlled CLI smoke-test path. It does not complete physical validation.
+Phase 3J adds the final controlled CLI smoke-test path. It does not complete physical validation, and it does not claim completed physical P-HPR safety validation.

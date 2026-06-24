@@ -111,12 +111,19 @@ Stage 13 does not implement a separate advanced ABS effect, advanced tyre model,
 
 ## Integration
 
-The `HapticEffectEngine` renders active effect buffers as `AudioMixerInput` sources through an internal registered effect-slot seam. The Stage 10 mixer and safety processor still handle source summing, master gain, normal mute, emergency mute, invalid sample sanitisation, limiting, clipping, and final submission to `NullAudioOutputDevice` in automated tests.
+The `HapticEffectEngine` renders active effect buffers as `AudioMixerInput` sources through an internal registered effect-slot seam. Built-in descriptors create the shipped runtimes, and render-time inputs arrive as canonical `HapticRenderFrame` values rather than effect-specific telemetry structs. The Stage 10 mixer and safety processor still handle source summing, master gain, normal mute, emergency mute, invalid sample sanitisation, limiting, clipping, and final submission to `NullAudioOutputDevice` in automated tests.
 
 The WPF shell adds Stage 14 controls for per-effect enabled state and gain, selected existing effect parameters, mixer/safety settings, versioned JSON profiles, and read-only diagnostics. The effect engine can retune by replacing immutable option records under a short lock, then continues to feed the same mixer, safety processor, emergency mute, limiter, clipping protection, and `NullAudioOutputDevice` path.
 
 Stage 17 does not add new effect categories, routing matrices, calibration UI, live graphs, real WASAPI output, Simagic P-HPR output, or physical calibration.
 
-The output-owned render path renders effects only from current in-memory `VehicleState`/effect state, then passes buffers through the existing mixer and safety processor. If fresh parsed `VehicleState` has not arrived within the wall-clock timeout, effects are muted and safety silence is rendered until telemetry updates again.
+The output-owned render path renders effects only from current in-memory canonical frame/effect state, then passes buffers through the existing mixer and safety processor. If fresh parsed telemetry has not arrived within the wall-clock timeout, effects are muted and safety silence is rendered until telemetry updates again.
+
+Render-path rules for every effect runtime:
+
+- no render-path logging or diagnostic publication,
+- no render-path locking,
+- no render-path allocation after warmup,
+- no render-path disk, UI, or network work.
 
 These defaults are not physical shaker calibration and must not be treated as final safe gain, final feel, final latency, or final frequency tuning. Those remain unvalidated until the real hardware chain is tested locally.

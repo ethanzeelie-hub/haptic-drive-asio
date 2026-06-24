@@ -45,14 +45,16 @@ Normal start commands require:
 
 - direct control enabled,
 - direct control armed,
+- session authorization active for the current session,
 - selected device path/interface/report,
 - report length matching the 64-byte SimHub F1 EC payload,
 - selected writer interface matching the configured selector,
+- global output interlock clear,
 - SimPro/SimHub coexistence `Clear`,
 - emergency stop clear,
 - `PHprSafetyLimiter` acceptance.
 
-Stop and emergency-stop paths may attempt stop reports with a selected valid interface so the app can try to quiet the modules. Dispose attempts emergency-stop-style brake/throttle stop reports only when direct control is armed or a stop is pending, then closes the writer where possible.
+Direct mode selection and arm state do not authorize writes by themselves. Non-stop writes recheck session authorization and the global interlock immediately before the writer is opened/written. Stop and emergency-stop paths may attempt stop reports with a selected valid interface so the app can try to quiet the modules. Dispose attempts emergency-stop-style brake/throttle stop reports only when direct control is armed or a stop is pending, then closes the writer where possible.
 
 ## Failure Handling
 

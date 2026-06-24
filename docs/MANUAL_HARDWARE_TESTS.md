@@ -38,13 +38,13 @@ Do not set the BST-1 validation flag until the shaker output check has actually 
 
 ## Controlled P-HPR Write Smoke Test
 
-Ethan has approved controlled Phase 2 P-HPR write testing with the exact phrase:
+Real non-stop P-HPR writes require fresh session authorization from the exact phrase:
 
 ```text
 I approve Phase 2 controlled P-HPR write testing
 ```
 
-Before any real pulse, use the app picker or `direct-output-dry-run` / `direct-output-open-check` to confirm the selected candidate is a HID device-interface path, not Raw Input metadata only, and that open-check succeeds without sending an output report.
+Direct mode selection and arm state do not authorize writes by themselves. Before any real pulse, use the app picker or `direct-output-dry-run` / `direct-output-open-check` to confirm the selected candidate is a HID device-interface path, not Raw Input metadata only, and that open-check succeeds without sending an output report. Open-check is real hardware access even though it sends no reports. Dry-run does not authorize writes.
 
 The command below is the only CLI path that can send real P-HPR HID reports. It defaults to dry-run unless `--execute` is present, hides the private HID path from console output, blocks non-clear SimPro/SimHub coexistence, sends a low-strength pulse plan, and requests emergency stop at the end.
 

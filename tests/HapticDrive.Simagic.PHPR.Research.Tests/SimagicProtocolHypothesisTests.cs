@@ -155,6 +155,17 @@ public sealed class SimagicProtocolHypothesisTests
         }
     }
 
+    [Fact]
+    public void ProtocolHypothesesDoc_UsesAuthorizationWordingAndNoValidationClaim()
+    {
+        var documentPath = Path.Combine(FindRepositoryRoot(), "docs", "SIMAGIC_PROTOCOL_HYPOTHESES.md");
+        var document = File.ReadAllText(documentPath);
+
+        Assert.Contains("authorization for real hardware output", document, StringComparison.Ordinal);
+        Assert.Contains("completed physical P-HPR validation", document, StringComparison.Ordinal);
+        Assert.DoesNotContain("approval for real hardware output", document, StringComparison.Ordinal);
+    }
+
     private static SimagicProtocolHypothesis Find(SimagicProtocolHypothesisSet hypothesisSet, string id)
     {
         return Assert.Single(hypothesisSet.Hypotheses, hypothesis => string.Equals(hypothesis.Id, id, StringComparison.Ordinal));
@@ -173,5 +184,22 @@ public sealed class SimagicProtocolHypothesisTests
         var path = Path.Combine(Path.GetTempPath(), $"haptic-drive-stage-2j-{Guid.NewGuid():N}");
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = AppContext.BaseDirectory;
+
+        while (!string.IsNullOrEmpty(directory))
+        {
+            if (File.Exists(Path.Combine(directory, "HapticDrive.Asio.sln")))
+            {
+                return directory;
+            }
+
+            directory = Path.GetDirectoryName(directory);
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root from test output directory.");
     }
 }
