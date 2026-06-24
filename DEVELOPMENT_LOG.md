@@ -1,5 +1,42 @@
 # Development Log
 
+## Stage 18r-G - Startup Navigation Construction Crash Hotfix
+
+Date: 2026-06-24
+
+Status: Complete.
+
+Goal: Stop the Release WPF app from crashing during startup when the shell navigation selection fires before `MainWindow` has finished assigning its runtime session.
+
+Notes:
+
+- Fixed the startup ownership race without moving runtime responsibilities back into `MainWindow`:
+  - `MainWindow` now assigns `_runtime`, then calls a dedicated `AppRuntimeSession.InitializeAfterHostAssignment()` method.
+  - `AppRuntimeSession` no longer sets `NavigationList.SelectedIndex` inside its constructor, so construction-time selection cannot fire before the runtime field is assigned.
+  - `MainWindow.NavigationList_SelectionChanged` now returns safely if `_runtime` is still null during construction, preserving the thin shell/runtime boundary while preventing the earlier `NullReferenceException`.
+- Preserved the initial/default page experience after startup:
+  - post-construction runtime initialization now selects the default dashboard page after the runtime field is assigned,
+  - the regression test proves `MainWindow` construction reaches the default dashboard state without crashing when initial navigation selection runs.
+- Added startup diagnostics for early-launch failures:
+  - `App.OnStartup()` now catches synchronous startup exceptions, writes a local `startup-failure-*.log` file under `local-validation-results`, shows a startup failure `MessageBox` when possible, and exits with a failure code instead of silently disappearing.
+- Added regression coverage and guardrails:
+  - `MainWindowStartupTests` now exercises real WPF `MainWindow` construction on an STA thread and verifies the dashboard page is selected,
+  - a source guardrail now verifies the navigation event forwarder checks `_runtime` before dereferencing it,
+  - architecture guardrails now expect the explicit post-assignment initialization call rather than constructor-time selection side effects.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+- Direct launch of `src\HapticDrive.Asio.App\bin\Release\net8.0-windows\HapticDrive.Asio.App.exe` stayed alive and created a real main window handle (`MainWindowHandle=525866`) instead of exiting immediately.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild` was verified through the launcher path and produced a live `HapticDrive.Asio.App.exe` process with a main window.
+
+Self-review:
+
+- The fix stays narrowly scoped to the startup crash path and keeps `MainWindow` as a thin shell over `AppRuntimeSession`.
+- No hardware-dependent behavior was added; the change remains safe for hardware-absent builds, tests, and CI.
+
 ## Remediation 12 - Reconcile Documentation And Final Readiness State
 
 Date: 2026-06-24

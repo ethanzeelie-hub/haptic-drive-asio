@@ -26,9 +26,18 @@ public partial class MainWindow : Window
         EffectsViewControl.DataContext = _effectSettingsViewModel;
 
         _runtime = new AppRuntimeSession(this, services);
+        _runtime.InitializeAfterHostAssignment();
     }
 
-    private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e) => _runtime.NavigationList_SelectionChanged(sender, e);
+    private void NavigationList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_runtime is null)
+        {
+            return;
+        }
+
+        _runtime.NavigationList_SelectionChanged(sender, e);
+    }
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e) => _runtime.MainWindow_PreviewKeyDown(sender, e);
 

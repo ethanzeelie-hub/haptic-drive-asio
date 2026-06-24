@@ -17,8 +17,10 @@ public sealed class ArchitectureGuardrailTests
 
         Assert.Contains("private readonly AppRuntimeSession _runtime;", source, StringComparison.Ordinal);
         Assert.Contains("_runtime = new AppRuntimeSession(this, services);", source, StringComparison.Ordinal);
+        Assert.Contains("_runtime.InitializeAfterHostAssignment();", source, StringComparison.Ordinal);
         Assert.Contains("private void NavigationList_SelectionChanged", source, StringComparison.Ordinal);
-        Assert.Contains("=> _runtime.NavigationList_SelectionChanged(sender, e);", source, StringComparison.Ordinal);
+        Assert.Contains("if (_runtime is null)", source, StringComparison.Ordinal);
+        Assert.Contains("_runtime.NavigationList_SelectionChanged(sender, e);", source, StringComparison.Ordinal);
         Assert.Contains("private void MainWindow_PreviewKeyDown", source, StringComparison.Ordinal);
         Assert.Contains("=> _runtime.MainWindow_PreviewKeyDown(sender, e);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ApplicationSafetyController", source, StringComparison.Ordinal);

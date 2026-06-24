@@ -587,7 +587,6 @@ internal sealed partial class AppRuntimeSession
         DevicesViewControl.ClearShiftIntentDiagnosticsClicked += ClearShiftIntentDiagnosticsButton_Click;
 
         NavigationList.ItemsSource = _pages;
-        NavigationList.SelectedIndex = 0;
         OutputModeComboBox.ItemsSource = _outputModeOptions;
         OutputModeComboBox.SelectedItem = _outputModeOptions.Single(option => option.Kind == _selectedOutputKind);
         AsioOutputChannelComboBox.ItemsSource = _asioOutputChannelChoices;
@@ -647,6 +646,14 @@ internal sealed partial class AppRuntimeSession
         AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
         TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
         _host.Loaded += MainWindow_Loaded;
+    }
+
+    internal void InitializeAfterHostAssignment()
+    {
+        if (NavigationList.SelectedIndex < 0 && NavigationList.Items.Count > 0)
+        {
+            NavigationList.SelectedIndex = 0;
+        }
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
