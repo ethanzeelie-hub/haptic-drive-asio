@@ -168,6 +168,15 @@ internal sealed partial class AppRuntimeSession
     private TextBlock PhprPedalsModeBadgeText => TestingValidationViewControl.PhprPedalsModeBadgeTextControl;
     private TextBlock PhprPedalsStatusText => TestingValidationViewControl.PhprPedalsStatusTextControl;
     private TextBlock PhprPedalsDeviceStatusText => TestingValidationViewControl.PhprPedalsDeviceStatusTextControl;
+    private ItemsControl PhprPedalsChecklistItemsControl => TestingValidationViewControl.PhprPedalsChecklistItemsControlControl;
+    private Button RefreshTestingPhprCandidateButton => TestingValidationViewControl.RefreshTestingPhprCandidateButtonControl;
+    private Button RunTestingPhprOpenCheckButton => TestingValidationViewControl.RunTestingPhprOpenCheckButtonControl;
+    private Button EnableTestingPhprDirectControlButton => TestingValidationViewControl.EnableTestingPhprDirectControlButtonControl;
+    private Button ArmTestingPhprDirectControlButton => TestingValidationViewControl.ArmTestingPhprDirectControlButtonControl;
+    private Button ClearTestingPhprEmergencyStopButton => TestingValidationViewControl.ClearTestingPhprEmergencyStopButtonControl;
+    private Button ResetTestingOutputInterlockButton => TestingValidationViewControl.ResetTestingOutputInterlockButtonControl;
+    private TextBox TestingPhprApprovalPhraseTextBox => TestingValidationViewControl.TestingPhprApprovalPhraseTextBoxControl;
+    private Button AuthorizeTestingPhprSessionButton => TestingValidationViewControl.AuthorizeTestingPhprSessionButtonControl;
     private TextBlock PhprPedalsLastResultText => TestingValidationViewControl.PhprPedalsLastResultTextControl;
     private Button TestPhprBrakePulseButton => TestingValidationViewControl.TestPhprBrakePulseButtonControl;
     private Button TestPhprThrottlePulseButton => TestingValidationViewControl.TestPhprThrottlePulseButtonControl;

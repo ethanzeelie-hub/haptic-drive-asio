@@ -516,6 +516,11 @@ internal sealed partial class AppRuntimeSession
         await RefreshRealPhprCandidateItemsAsync(autoSelectPreferred: false);
     }
 
+    private async void RefreshTestingPhprCandidateButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshRealPhprCandidateItemsAsync(autoSelectPreferred: true);
+    }
+
     private void ApplyRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
     {
         ConfigureRealPhprOutputFromControls("Real P-HPR manual selection applied for this session only.");
@@ -523,29 +528,7 @@ internal sealed partial class AppRuntimeSession
 
     private void AuthorizeRealPhprWritesButton_Click(object sender, RoutedEventArgs e)
     {
-        var authorized = _phprWriteAuthorization.TryAuthorize(RealPhprApprovalPhraseTextBox.Text);
-        RealPhprApprovalPhraseTextBox.Text = string.Empty;
-        var authorization = _phprWriteAuthorization.Current;
-        _diagnosticCorrelationContext.ObservePhprAuthorizationGeneration(authorization.Generation);
-        UpdatePhprWriteAuthorizationStatus();
-        UpdateRealPhprDirectControlStatus();
-        UpdatePhprPedalsStatus();
-        UpdateDiagnosticsStatus();
-        PublishDiagnosticEvent(
-            authorized ? "phpr.authorization-success" : "phpr.authorization-failure",
-            authorized ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
-            "PHpr",
-            authorized
-                ? "Controlled real P-HPR writes were authorized for the current session."
-                : "Controlled real P-HPR write authorization failed.",
-            _diagnosticCorrelationContext.Current.AppSessionId,
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["authorizationGeneration"] = authorization.Generation.ToString()
-            });
-        FooterStatusText.Text = authorized
-            ? "Controlled real P-HPR writes authorized for this session."
-            : "Controlled real P-HPR write authorization failed.";
+        AuthorizeRealPhprWrites(RealPhprApprovalPhraseTextBox.Text);
     }
 
     private void DryRunRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -575,26 +558,12 @@ internal sealed partial class AppRuntimeSession
 
     private async void OpenCheckRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfigureRealPhprOutputFromControls("Real P-HPR open-check prepared; no output report or feature report will be sent."))
-        {
-            return;
-        }
+        await RunSelectedRealPhprOpenCheckAsync();
+    }
 
-        var result = await _phprHidOpenCheckRunner.RunAsync(
-            _realPhprOptions.Selector,
-            _realPhprOptions.CandidateHasOpenableHidPath,
-            _realPhprOptions.CandidateIsRawInputOnly,
-            allowHardwareAccess: true);
-        ApplyRealPhprOpenCheckResult(result);
-        UpdateRealPhprDirectControlStatus();
-        UpdatePhprPedalsStatus();
-        UpdatePhprValidationStatus();
-        UpdateDiagnosticsStatus();
-        RealPhprCandidatePickerStatusText.Text =
-            $"{result.Message} attempted {result.Attempted}; succeeded {result.Succeeded}; failed {result.Failed}; open {result.OpenStatus?.ToString() ?? "none"}; close {result.CloseStatus?.ToString() ?? "none"}; sanitized error {result.SanitizedErrorCategory ?? "none"}. No output report or feature report was sent.";
-        FooterStatusText.Text = result.Succeeded
-            ? "Real P-HPR HID open-check passed. No output report or feature report was sent."
-            : "Real P-HPR HID open-check failed safely. No output report or feature report was sent.";
+    private async void RunTestingPhprOpenCheckButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunSelectedRealPhprOpenCheckAsync();
     }
 
     private async void TestRealPhprBrakePulseButton_Click(object sender, RoutedEventArgs e)
@@ -622,14 +591,38 @@ internal sealed partial class AppRuntimeSession
 
     private void ClearRealPhprEmergencyStopButton_Click(object sender, RoutedEventArgs e)
     {
-        ConfigurePhprDirectRuntime();
-        _phprDirectRuntime.ClearEmergencyStop();
-        UpdateRealPhprDirectControlStatus();
-        UpdatePhprPedalsStatus();
-        UpdatePaddleGearBenchStatus();
-        UpdatePhprValidationStatus();
-        UpdateDiagnosticsStatus();
-        FooterStatusText.Text = "Real P-HPR emergency stop cleared; direct control still requires enable, selected device, and clear readiness checks.";
+        ClearRealPhprEmergencyStopForSession();
+    }
+
+    private void EnableTestingPhprDirectControlButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetRealPhprDirectControlForSession(
+            enabled: true,
+            armed: false,
+            "Real P-HPR direct control enabled for this session only. Arm remains required before manual pulses can run.");
+    }
+
+    private void ArmTestingPhprDirectControlButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetRealPhprDirectControlForSession(
+            enabled: true,
+            armed: true,
+            "Real P-HPR direct control enabled and armed for this session only.");
+    }
+
+    private void AuthorizeTestingPhprSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        AuthorizeRealPhprWrites(TestingPhprApprovalPhraseTextBox.Text);
+    }
+
+    private void ClearTestingPhprEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        ClearRealPhprEmergencyStopForSession();
+    }
+
+    private async void ResetTestingOutputInterlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        FooterStatusText.Text = await TryResetOutputInterlockAsync();
     }
 
     private void AdvancedDiagnosticsEnabledCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -746,6 +739,79 @@ internal sealed partial class AppRuntimeSession
     private async void TestPhprThrottlePulseButton_Click(object sender, RoutedEventArgs e)
     {
         await TriggerNormalPhprTestPulseAsync(PHprModuleId.Throttle);
+    }
+
+    private void AuthorizeRealPhprWrites(string approvalPhrase)
+    {
+        var authorized = _phprWriteAuthorization.TryAuthorize(approvalPhrase);
+        RealPhprApprovalPhraseTextBox.Text = string.Empty;
+        TestingPhprApprovalPhraseTextBox.Text = string.Empty;
+        var authorization = _phprWriteAuthorization.Current;
+        _diagnosticCorrelationContext.ObservePhprAuthorizationGeneration(authorization.Generation);
+        UpdatePhprWriteAuthorizationStatus();
+        UpdateRealPhprDirectControlStatus();
+        UpdatePhprPedalsStatus();
+        UpdateDiagnosticsStatus();
+        PublishDiagnosticEvent(
+            authorized ? "phpr.authorization-success" : "phpr.authorization-failure",
+            authorized ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
+            "PHpr",
+            authorized
+                ? "Controlled real P-HPR writes were authorized for the current session."
+                : "Controlled real P-HPR write authorization failed.",
+            _diagnosticCorrelationContext.Current.AppSessionId,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["authorizationGeneration"] = authorization.Generation.ToString()
+            });
+        FooterStatusText.Text = authorized
+            ? "Controlled real P-HPR writes authorized for this session."
+            : "Controlled real P-HPR write authorization failed.";
+    }
+
+    private async Task RunSelectedRealPhprOpenCheckAsync()
+    {
+        if (!ConfigureRealPhprOutputFromControls("Real P-HPR open-check prepared; no output report or feature report will be sent."))
+        {
+            return;
+        }
+
+        var result = await _phprHidOpenCheckRunner.RunAsync(
+            _realPhprOptions.Selector,
+            _realPhprOptions.CandidateHasOpenableHidPath,
+            _realPhprOptions.CandidateIsRawInputOnly,
+            allowHardwareAccess: true);
+        ApplyRealPhprOpenCheckResult(result);
+        UpdateRealPhprDirectControlStatus();
+        UpdatePhprPedalsStatus();
+        UpdatePhprValidationStatus();
+        UpdateDiagnosticsStatus();
+        RealPhprCandidatePickerStatusText.Text =
+            $"{result.Message} attempted {result.Attempted}; succeeded {result.Succeeded}; failed {result.Failed}; open {result.OpenStatus?.ToString() ?? "none"}; close {result.CloseStatus?.ToString() ?? "none"}; sanitized error {result.SanitizedErrorCategory ?? "none"}. No output report or feature report was sent.";
+        FooterStatusText.Text = result.Succeeded
+            ? "Real P-HPR HID open-check passed. No output report or feature report was sent."
+            : "Real P-HPR HID open-check failed safely. No output report or feature report was sent.";
+    }
+
+    private void SetRealPhprDirectControlForSession(bool enabled, bool armed, string footerMessage)
+    {
+        _updatingRealPhprDirectControlUi = true;
+        RealPhprDirectControlEnabledCheckBox.IsChecked = enabled;
+        RealPhprDirectControlArmCheckBox.IsChecked = enabled && armed;
+        _updatingRealPhprDirectControlUi = false;
+        ConfigureRealPhprOutputFromControls(footerMessage);
+    }
+
+    private void ClearRealPhprEmergencyStopForSession()
+    {
+        ConfigurePhprDirectRuntime();
+        _phprDirectRuntime.ClearEmergencyStop();
+        UpdateRealPhprDirectControlStatus();
+        UpdatePhprPedalsStatus();
+        UpdatePaddleGearBenchStatus();
+        UpdatePhprValidationStatus();
+        UpdateDiagnosticsStatus();
+        FooterStatusText.Text = "Real P-HPR emergency stop cleared; direct control still requires enable, selected device, and clear readiness checks.";
     }
 }
 

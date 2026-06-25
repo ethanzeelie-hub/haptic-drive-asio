@@ -13,6 +13,13 @@ public partial class TestingValidationView : UserControl
     internal event RoutedEventHandler? ManualAsioHardwareTestChannel0Clicked;
     internal event RoutedEventHandler? TestPhprBrakePulseClicked;
     internal event RoutedEventHandler? TestPhprThrottlePulseClicked;
+    internal event RoutedEventHandler? RefreshTestingPhprCandidateClicked;
+    internal event RoutedEventHandler? RunTestingPhprOpenCheckClicked;
+    internal event RoutedEventHandler? EnableTestingPhprDirectControlClicked;
+    internal event RoutedEventHandler? ArmTestingPhprDirectControlClicked;
+    internal event RoutedEventHandler? AuthorizeTestingPhprSessionClicked;
+    internal event RoutedEventHandler? ClearTestingPhprEmergencyStopClicked;
+    internal event RoutedEventHandler? ResetTestingOutputInterlockClicked;
     internal event RoutedEventHandler? LocalGearTestModeChanged;
     internal event RoutedEventHandler? StartGearTestListenerClicked;
     internal event RoutedEventHandler? PaddleGearBenchControlChanged;
@@ -62,6 +69,24 @@ public partial class TestingValidationView : UserControl
     internal TextBlock PhprPedalsStatusTextControl => PhprPedalsStatusText;
 
     internal TextBlock PhprPedalsDeviceStatusTextControl => PhprPedalsDeviceStatusText;
+
+    internal ItemsControl PhprPedalsChecklistItemsControlControl => PhprPedalsChecklistItemsControl;
+
+    internal Button RefreshTestingPhprCandidateButtonControl => RefreshTestingPhprCandidateButton;
+
+    internal Button RunTestingPhprOpenCheckButtonControl => RunTestingPhprOpenCheckButton;
+
+    internal Button EnableTestingPhprDirectControlButtonControl => EnableTestingPhprDirectControlButton;
+
+    internal Button ArmTestingPhprDirectControlButtonControl => ArmTestingPhprDirectControlButton;
+
+    internal Button ClearTestingPhprEmergencyStopButtonControl => ClearTestingPhprEmergencyStopButton;
+
+    internal Button ResetTestingOutputInterlockButtonControl => ResetTestingOutputInterlockButton;
+
+    internal TextBox TestingPhprApprovalPhraseTextBoxControl => TestingPhprApprovalPhraseTextBox;
+
+    internal Button AuthorizeTestingPhprSessionButtonControl => AuthorizeTestingPhprSessionButton;
 
     internal TextBlock PhprPedalsLastResultTextControl => PhprPedalsLastResultText;
 
@@ -177,6 +202,41 @@ public partial class TestingValidationView : UserControl
     private void TestPhprThrottlePulseButton_Click(object sender, RoutedEventArgs e)
     {
         TestPhprThrottlePulseClicked?.Invoke(sender, e);
+    }
+
+    private void RefreshTestingPhprCandidateButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshTestingPhprCandidateClicked?.Invoke(sender, e);
+    }
+
+    private void RunTestingPhprOpenCheckButton_Click(object sender, RoutedEventArgs e)
+    {
+        RunTestingPhprOpenCheckClicked?.Invoke(sender, e);
+    }
+
+    private void EnableTestingPhprDirectControlButton_Click(object sender, RoutedEventArgs e)
+    {
+        EnableTestingPhprDirectControlClicked?.Invoke(sender, e);
+    }
+
+    private void ArmTestingPhprDirectControlButton_Click(object sender, RoutedEventArgs e)
+    {
+        ArmTestingPhprDirectControlClicked?.Invoke(sender, e);
+    }
+
+    private void AuthorizeTestingPhprSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        AuthorizeTestingPhprSessionClicked?.Invoke(sender, e);
+    }
+
+    private void ClearTestingPhprEmergencyStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        ClearTestingPhprEmergencyStopClicked?.Invoke(sender, e);
+    }
+
+    private void ResetTestingOutputInterlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        ResetTestingOutputInterlockClicked?.Invoke(sender, e);
     }
 
     private void LocalGearTestModeCheckBox_Changed(object sender, RoutedEventArgs e)

@@ -1,5 +1,46 @@
 # Development Log
 
+## Stage 18r-J - Validated BST-1 Startup Defaults And P-HPR Readiness Workflow
+
+Date: 2026-06-25
+
+Status: Complete.
+
+Goal: Make clean local startup come up output-enabled without auto-starting live haptics, preserve the validated BST-1 channel 1 local-pulse workflow, and surface a normal-user P-HPR readiness checklist/actions in Testing / Validation without weakening any direct-write safety gates.
+
+Notes:
+
+- Switched clean startup from a permanently latched `StartupSafeDefault` posture to a planned readiness decision:
+  - startup now evaluates the shared interlock plus P-HPR unclean-shutdown state after the normal no-output startup readiness work completes,
+  - if the startup-safe latch can clear safely, the app resets the shared interlock automatically and shows `Safety: Output enabled` without starting live haptics or emitting startup output,
+  - if a real recovery condition still exists, such as a P-HPR unclean-shutdown marker or another reset blocker, startup keeps the latch in place and surfaces the recovery message instead of silently enabling output.
+- Preserved the validated BST-1 startup path for local manual testing:
+  - the existing startup ASIO planner still drives the actual runtime/manual pulse selection, so the preferred M-Audio driver continues to default to validated BST-1 channel 1 with Arm ASIO ready,
+  - no change reintroduced auto-started live haptics, startup output, or any bypass around the shared output interlock or emergency mute path,
+  - channel 0 remains available as an explicit optional diagnostic action instead of the default.
+- Added a normal-user P-HPR readiness workflow directly on Testing / Validation:
+  - the tab now shows a concrete pass/fail checklist for candidate selection, no-write HID open-check, report shape, direct enable/arm, session authorization, output interlock, coexistence, emergency stop, and direct connection readiness,
+  - visible buttons now expose the safe next actions in-place: refresh/select candidate, run the no-write HID open-check, enable direct control, arm direct control, authorize the current session, clear the P-HPR emergency stop, and reset the output interlock,
+  - the session authorization phrase remains runtime-only, is available from Testing / Validation as well as Advanced, and is cleared after use instead of being persisted.
+- Added regression coverage and guardrails for the new startup/readiness behavior:
+  - new pure planner tests prove clean startup enables output only when no recovery blocker exists and stays latched when an unclean-shutdown recovery path is present,
+  - new P-HPR readiness presenter tests prove the checklist/action copy includes the required open-check, authorization, arm, interlock, coexistence, and emergency-stop items and only reports ready when the full checklist is satisfied,
+  - source guardrails keep the new startup planner and P-HPR readiness presenter free of WPF ownership and hardware-write execution.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild` launched a live `HapticDrive.Asio.App.exe` process with a real main window handle (`MainWindowHandle=20906590`).
+- Direct launch of `src\HapticDrive.Asio.App\bin\Release\net8.0-windows\HapticDrive.Asio.App.exe` stayed alive and created a real main window handle (`MainWindowHandle=3670042`, title `Haptic Drive ASIO`).
+
+Self-review:
+
+- The startup change stays inside the shared interlock/runtime orchestration and does not move ownership back into `MainWindow` or create a second hardware path.
+- Real P-HPR safeguards remain intact: startup still performs no direct write, no automatic authorization, no automatic open-check write path, and no persistence of runtime-only direct-control state.
+
 ## Stage 18r-I - Restore Physical BST-1 Manual ASIO Pulse
 
 Date: 2026-06-25

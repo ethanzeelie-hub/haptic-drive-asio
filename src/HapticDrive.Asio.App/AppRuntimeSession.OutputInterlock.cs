@@ -64,6 +64,34 @@ internal sealed partial class AppRuntimeSession
         return FooterStatusText.Text;
     }
 
+    private async Task ApplyStartupOutputInterlockPlanAsync()
+    {
+        var snapshot = _phprDirectRuntime.GetSnapshot();
+        var canReset = !_applicationSafetyController.TryBuildResetBlockedMessage(
+            _outputInterlockSupervisor,
+            out var resetBlockedMessage);
+        var plan = StartupOutputInterlockPlanner.Build(new StartupOutputInterlockSnapshot(
+            InterlockIsLatched: _outputInterlock.Current.IsLatched,
+            InterlockReason: _outputInterlock.Current.Reason,
+            CanReset: canReset,
+            ResetBlocker: resetBlockedMessage,
+            UncleanShutdownMarkerExists: snapshot.UncleanShutdownMarkerExists,
+            DisabledAfterUncleanShutdown: snapshot.DisabledAfterUncleanShutdown));
+
+        if (plan.ShouldEnableOutput
+            && _outputInterlock.Current.IsLatched
+            && _outputInterlock.Reset("Startup readiness checks passed. Output enabled without starting live haptics or sending startup output."))
+        {
+            await ApplyOutputInterlockChangeAsync(plan.FooterMessage);
+            return;
+        }
+
+        SyncOutputInterlockState(_outputInterlock.Current, plan.StatusMessage);
+        UpdateManualAsioHardwareTestStatus();
+        UpdatePhprPedalsStatus();
+        FooterStatusText.Text = plan.FooterMessage;
+    }
+
     private async Task<string> TripEmergencyMuteAsync(string requestMessage)
     {
         if (_outputInterlock.Current.IsLatched

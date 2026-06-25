@@ -1710,11 +1710,26 @@ internal sealed partial class AppRuntimeSession
         TestPhprBrakePulseButton.ToolTip = BuildNormalPulseToolTip(PHprModuleId.Brake, mode);
         TestPhprThrottlePulseButton.ToolTip = BuildNormalPulseToolTip(PHprModuleId.Throttle, mode);
 
+        var readinessPresentation = PhprManualTestReadinessPresenter.Build(new PhprManualTestReadinessSnapshot(
+            CandidateSelected: realDiagnostics.Options.Selector.IsSelected,
+            OpenCheckPassed: realDiagnostics.Options.OpenCheckSucceeded,
+            ReportShapeValid: realDiagnostics.Options.AllowsDirectPulseReportShape,
+            DirectControlEnabled: realDiagnostics.Options.DirectControlEnabled,
+            DirectControlArmed: realDiagnostics.Options.DirectControlArmed,
+            SessionAuthorized: _phprWriteAuthorization.Current.IsAuthorized,
+            OutputInterlockClear: _outputInterlock.Current.AllowsOutput,
+            CoexistenceClear: _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear,
+            EmergencyStopClear: !realDiagnostics.Output.IsEmergencyStopActive,
+            DirectConnectionReadyOrOpenable: realDiagnostics.Connection.State != PHprHidConnectionState.Closed
+                || realDiagnostics.Options.CandidateHasOpenableHidPath,
+            DirectConnectionState: realDiagnostics.Connection.State.ToString(),
+            CoexistenceStatus: _phprSoftwareCoexistenceSnapshot.Status.ToString()));
+
         PhprPedalsModeBadgeText.Text = mode switch
         {
             PhprPedalsMode.Disabled => "Disabled",
             PhprPedalsMode.Mock => mockSnapshot.IsEmergencyStopActive ? "Mock stopped" : "Mock ready",
-            PhprPedalsMode.Direct => directReady ? "Direct ready" : "Direct not ready",
+            PhprPedalsMode.Direct => readinessPresentation.IsReady ? "Direct ready" : "Direct not ready",
             _ => "Unknown"
         };
         PhprPedalsStatusText.Text = mode switch
@@ -1724,12 +1739,12 @@ internal sealed partial class AppRuntimeSession
                 ? "Mock P-HPR emergency stop is active. Manual pedal test buttons still stay disabled until the full Direct checklist is satisfied."
                 : "Mock P-HPR mode is available for software-only routing, but manual pedal test buttons stay disabled until the full Direct checklist is satisfied.",
             PhprPedalsMode.Direct => directReady
-                ? "Direct P-HPR mode is ready for this session."
+                ? readinessPresentation.StatusText
                 : $"Direct P-HPR mode is selected but blocked: {directMessage}.",
             _ => "P-HPR pedal mode unavailable."
         };
-        PhprPedalsDeviceStatusText.Text =
-            $"Mock output {(mockSnapshot.IsEmergencyStopActive ? "stopped" : "ready")}; direct connection {realDiagnostics.Connection.State}; device {(realDiagnostics.Options.Selector.IsSelected ? "selected" : "not selected")}; direct checks {(realDiagnostics.Options.OpenCheckSucceeded && realDiagnostics.Options.ReportShapeValidationSucceeded ? "ready" : "still blocked")}; authorization {_phprWriteAuthorization.Current.IsAuthorized}; interlock {FormatOnOff(_outputInterlock.Current.AllowsOutput)}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {FormatOnOff(realDiagnostics.Output.IsEmergencyStopActive)}.";
+        PhprPedalsDeviceStatusText.Text = readinessPresentation.DeviceStatusText;
+        PhprPedalsChecklistItemsControl.ItemsSource = readinessPresentation.ChecklistItems;
         PhprPedalsLastResultText.Text = _lastPhprPedalsPulseMessage;
         UpdateDashboardStatus();
     }

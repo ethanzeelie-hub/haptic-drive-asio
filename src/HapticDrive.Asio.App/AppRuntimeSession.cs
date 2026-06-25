@@ -523,6 +523,13 @@ internal sealed partial class AppRuntimeSession
         TestingValidationViewControl.ManualAsioHardwareTestChannel0Clicked += ManualAsioHardwareTestChannel0Button_Click;
         TestingValidationViewControl.TestPhprBrakePulseClicked += TestPhprBrakePulseButton_Click;
         TestingValidationViewControl.TestPhprThrottlePulseClicked += TestPhprThrottlePulseButton_Click;
+        TestingValidationViewControl.RefreshTestingPhprCandidateClicked += RefreshTestingPhprCandidateButton_Click;
+        TestingValidationViewControl.RunTestingPhprOpenCheckClicked += RunTestingPhprOpenCheckButton_Click;
+        TestingValidationViewControl.EnableTestingPhprDirectControlClicked += EnableTestingPhprDirectControlButton_Click;
+        TestingValidationViewControl.ArmTestingPhprDirectControlClicked += ArmTestingPhprDirectControlButton_Click;
+        TestingValidationViewControl.AuthorizeTestingPhprSessionClicked += AuthorizeTestingPhprSessionButton_Click;
+        TestingValidationViewControl.ClearTestingPhprEmergencyStopClicked += ClearTestingPhprEmergencyStopButton_Click;
+        TestingValidationViewControl.ResetTestingOutputInterlockClicked += ResetTestingOutputInterlockButton_Click;
         TestingValidationViewControl.LocalGearTestModeChanged += LocalGearTestModeCheckBox_Changed;
         TestingValidationViewControl.StartGearTestListenerClicked += StartGearTestListenerButton_Click;
         TestingValidationViewControl.PaddleGearBenchControlChanged += PaddleGearBenchControl_Changed;
@@ -666,6 +673,7 @@ internal sealed partial class AppRuntimeSession
         ConfigurePhprDirectRuntime();
         await _phprDirectRuntime.InitializeStartupCleanupAsync();
         ApplyPaddleGearBenchRuntimeBlockToControls();
+        await ApplyStartupOutputInterlockPlanAsync();
 
         try
         {
