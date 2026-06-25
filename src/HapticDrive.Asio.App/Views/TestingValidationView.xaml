@@ -234,22 +234,6 @@
                                     Click="ResetTestingOutputInterlockButton_Click"
                                     Content="Reset Output Interlock" />
                         </WrapPanel>
-                        <WrapPanel Margin="0,4,0,0">
-                            <TextBlock Margin="0,4,8,8"
-                                       VerticalAlignment="Center"
-                                       Style="{StaticResource MutedTextBlockStyle}"
-                                       Text="Approval phrase" />
-                            <TextBox x:Name="TestingPhprApprovalPhraseTextBox"
-                                     Width="260"
-                                     Margin="0,0,8,8"
-                                     ToolTip="Session-only phrase for direct P-HPR writes. It is never saved."
-                                     Style="{StaticResource FieldTextBoxStyle}" />
-                            <Button x:Name="AuthorizeTestingPhprSessionButton"
-                                    Margin="0,0,8,8"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Click="AuthorizeTestingPhprSessionButton_Click"
-                                    Content="Authorize Session" />
-                        </WrapPanel>
                         <TextBlock x:Name="PhprPedalsLastResultText"
                                    Margin="0,6,0,0"
                                    Style="{StaticResource MutedTextBlockStyle}" />

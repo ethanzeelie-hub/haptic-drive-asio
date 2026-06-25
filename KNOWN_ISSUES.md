@@ -15,7 +15,6 @@ This file tracks active issues only. Historical stage-by-stage issue notes are a
 ## Hardware-later tuning and validation
 
 - Physical shaker feel, safe gain, physical latency, and final frequency tuning are still unvalidated in this codebase and must not be claimed complete until local hardware testing is finished.
-- Real Simagic P-HPR writes still require fresh session authorization plus clear interlock/direct-mode gates before any non-stop hardware output can occur.
 
 ## Owner and legal decisions
 

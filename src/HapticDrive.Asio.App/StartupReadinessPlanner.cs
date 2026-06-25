@@ -71,11 +71,9 @@ internal static class StartupReadinessPlanner
     {
         ArgumentNullException.ThrowIfNull(candidates);
 
-        // Startup may auto-select a preferred candidate for no-output readiness checks,
-        // but it must not enable or arm direct control.
         return PhprDirectAutoReadySelector.Select(
             candidates,
             currentOptions,
-            enableWhenPreferredPresent: false);
+            enableWhenPreferredPresent: true);
     }
 }

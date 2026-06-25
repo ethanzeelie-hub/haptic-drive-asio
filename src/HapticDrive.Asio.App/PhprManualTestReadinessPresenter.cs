@@ -49,10 +49,6 @@ internal static class PhprManualTestReadinessPresenter
                 snapshot.DirectControlArmed,
                 "Use Arm Direct Control."),
             FormatChecklistItem(
-                "Session authorization true",
-                snapshot.SessionAuthorized,
-                "Use Authorize Session."),
-            FormatChecklistItem(
                 "Output interlock clear",
                 snapshot.OutputInterlockClear,
                 "Use Reset Output Interlock."),
@@ -71,10 +67,12 @@ internal static class PhprManualTestReadinessPresenter
         };
 
         var actions = BuildActions(snapshot);
-        var ready = actions.Count == 0;
+        var ready = snapshot.SessionAuthorized && actions.Count == 0;
         var deviceStatusText = ready
             ? $"Direct connection {snapshot.DirectConnectionState}; coexistence {snapshot.CoexistenceStatus}; checklist complete. Brake and throttle test buttons may run only when you press them."
-            : $"Direct connection {snapshot.DirectConnectionState}; coexistence {snapshot.CoexistenceStatus}; next step: {string.Join("; ", actions)}.";
+            : actions.Count == 0
+                ? $"Direct connection {snapshot.DirectConnectionState}; coexistence {snapshot.CoexistenceStatus}; owner-local authorization is paused while safety recovery is active."
+                : $"Direct connection {snapshot.DirectConnectionState}; coexistence {snapshot.CoexistenceStatus}; next step: {string.Join("; ", actions)}.";
 
         return new PhprManualTestReadinessPresentation(
             IsReady: ready,
@@ -101,7 +99,6 @@ internal static class PhprManualTestReadinessPresenter
         AddWhenMissing(actions, snapshot.ReportShapeValid, "Review the selected report shape");
         AddWhenMissing(actions, snapshot.DirectControlEnabled, "Enable Direct Control");
         AddWhenMissing(actions, snapshot.DirectControlArmed, "Arm Direct Control");
-        AddWhenMissing(actions, snapshot.SessionAuthorized, "Authorize Session");
         AddWhenMissing(actions, snapshot.OutputInterlockClear, "Reset Output Interlock");
         AddWhenMissing(actions, snapshot.CoexistenceClear, "Close SimPro / SimHub");
         AddWhenMissing(actions, snapshot.EmergencyStopClear, "Clear P-HPR Emergency Stop");

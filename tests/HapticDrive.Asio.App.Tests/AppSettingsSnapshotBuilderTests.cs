@@ -340,8 +340,8 @@ public sealed class AppSettingsSnapshotBuilderTests
             }
         });
 
-        Assert.False(snapshot.PhprPedalsEnabledPreference);
-        Assert.Equal(PhprPedalsModePreference.Disabled, snapshot.PhprPedalsModePreference);
+        Assert.True(snapshot.PhprPedalsEnabledPreference);
+        Assert.Equal(PhprPedalsModePreference.Direct, snapshot.PhprPedalsModePreference);
         Assert.False(snapshot.RealPhprOutputOptions.DirectControlEnabled);
         Assert.False(snapshot.RealPhprOutputOptions.DirectControlArmed);
     }

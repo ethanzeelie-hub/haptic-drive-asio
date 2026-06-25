@@ -82,8 +82,6 @@ internal sealed partial class AppRuntimeSession
     private TextBox RealPhprReportIdTextBox => AdvancedDiagnosticsViewControl.RealPhprReportIdTextBoxControl;
     private TextBox RealPhprReportLengthTextBox => AdvancedDiagnosticsViewControl.RealPhprReportLengthTextBoxControl;
     private ComboBox RealPhprReportTransportComboBox => AdvancedDiagnosticsViewControl.RealPhprReportTransportComboBoxControl;
-    private TextBox RealPhprApprovalPhraseTextBox => AdvancedDiagnosticsViewControl.RealPhprApprovalPhraseTextBoxControl;
-    private Button AuthorizeRealPhprWritesButton => AdvancedDiagnosticsViewControl.AuthorizeRealPhprWritesButtonControl;
     private TextBlock RealPhprAuthorizationStatusText => AdvancedDiagnosticsViewControl.RealPhprAuthorizationStatusTextControl;
     private CheckBox RealPhprBrakeEnabledCheckBox => AdvancedDiagnosticsViewControl.RealPhprBrakeEnabledCheckBoxControl;
     private TextBox RealPhprBrakeStrengthTextBox => AdvancedDiagnosticsViewControl.RealPhprBrakeStrengthTextBoxControl;
@@ -175,8 +173,6 @@ internal sealed partial class AppRuntimeSession
     private Button ArmTestingPhprDirectControlButton => TestingValidationViewControl.ArmTestingPhprDirectControlButtonControl;
     private Button ClearTestingPhprEmergencyStopButton => TestingValidationViewControl.ClearTestingPhprEmergencyStopButtonControl;
     private Button ResetTestingOutputInterlockButton => TestingValidationViewControl.ResetTestingOutputInterlockButtonControl;
-    private TextBox TestingPhprApprovalPhraseTextBox => TestingValidationViewControl.TestingPhprApprovalPhraseTextBoxControl;
-    private Button AuthorizeTestingPhprSessionButton => TestingValidationViewControl.AuthorizeTestingPhprSessionButtonControl;
     private TextBlock PhprPedalsLastResultText => TestingValidationViewControl.PhprPedalsLastResultTextControl;
     private Button TestPhprBrakePulseButton => TestingValidationViewControl.TestPhprBrakePulseButtonControl;
     private Button TestPhprThrottlePulseButton => TestingValidationViewControl.TestPhprThrottlePulseButtonControl;

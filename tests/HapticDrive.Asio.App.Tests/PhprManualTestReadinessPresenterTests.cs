@@ -5,7 +5,7 @@ namespace HapticDrive.Asio.App.Tests;
 public sealed class PhprManualTestReadinessPresenterTests
 {
     [Fact]
-    public void PhprReadinessChecklist_ShowsOpenCheckAuthorizationArmInterlockCoexistenceEmergencyStop()
+    public void PhprReadinessChecklist_ShowsOpenCheckArmInterlockCoexistenceEmergencyStopWithoutPhraseStep()
     {
         var presentation = PhprManualTestReadinessPresenter.Build(new PhprManualTestReadinessSnapshot(
             CandidateSelected: true,
@@ -26,10 +26,10 @@ public sealed class PhprManualTestReadinessPresenterTests
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("HID no-write open-check passed", StringComparison.Ordinal));
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Direct control enabled", StringComparison.Ordinal));
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Direct control armed", StringComparison.Ordinal));
-        Assert.Contains(presentation.ChecklistItems, item => item.Contains("Session authorization true", StringComparison.Ordinal));
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Output interlock clear", StringComparison.Ordinal));
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Coexistence clear", StringComparison.Ordinal));
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Emergency stop clear", StringComparison.Ordinal));
+        Assert.DoesNotContain(presentation.ChecklistItems, item => item.Contains("authorization", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("next step", presentation.DeviceStatusText, StringComparison.OrdinalIgnoreCase);
     }
 

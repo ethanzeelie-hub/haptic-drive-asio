@@ -422,7 +422,7 @@ internal static class AppSettingsSnapshotBuilder
 
         return settings.MockGearPulseRouting.IsEnabled || settings.MockPedalEffectsRouting.IsEnabled
             ? PhprPedalsModePreference.Mock
-            : PhprPedalsModePreference.Disabled;
+            : PhprPedalsModePreference.Direct;
     }
 
     private static bool ResolvePhprPedalsEnabledPreference(
@@ -460,7 +460,7 @@ internal static class PersistedSettingsStatusPresenter
             SelectedGameDisplayName: GameTelemetryCatalog.GetDisplayName(GameTelemetryCatalog.DefaultGameId),
             SelectedOutputKind: AudioOutputDeviceKind.Null,
             PhprPedalsEnabledPreference: true,
-            PhprPedalsModePreference: PhprPedalsModePreference.Mock,
+            PhprPedalsModePreference: PhprPedalsModePreference.Direct,
             ReplayTimingLabel: "Real time",
             ForwardingDestinationCount: 0,
             SelectedAsioDriverName: null,

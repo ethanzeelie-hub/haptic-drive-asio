@@ -44,7 +44,7 @@ public sealed class StartupReadinessPlannerTests
     }
 
     [Fact]
-    public void BuildStartupPhprAutoReadySelection_SelectsPreferredCandidateButKeepsDirectControlDisabled()
+    public void BuildStartupPhprAutoReadySelection_SelectsPreferredCandidateAndEnablesOwnerLocalDirectReadiness()
     {
         var selection = StartupReadinessPlanner.BuildStartupPhprAutoReadySelection(
             [
@@ -57,8 +57,8 @@ public sealed class StartupReadinessPlannerTests
         Assert.Equal("preferred-second", selection.Candidate?.CandidateId);
         Assert.True(selection.Selector.IsSelected);
         Assert.Equal(PHprHidReportTransport.FeatureReport, selection.Selector.Transport);
-        Assert.False(selection.Options.DirectControlEnabled);
-        Assert.False(selection.Options.DirectControlArmed);
+        Assert.True(selection.Options.DirectControlEnabled);
+        Assert.True(selection.Options.DirectControlArmed);
         Assert.True(selection.Options.ReportShapeValidationSucceeded);
         Assert.Contains("no-output readiness checks", selection.Message, StringComparison.OrdinalIgnoreCase);
     }

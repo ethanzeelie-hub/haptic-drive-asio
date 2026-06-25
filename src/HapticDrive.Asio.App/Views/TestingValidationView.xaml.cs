@@ -17,7 +17,6 @@ public partial class TestingValidationView : UserControl
     internal event RoutedEventHandler? RunTestingPhprOpenCheckClicked;
     internal event RoutedEventHandler? EnableTestingPhprDirectControlClicked;
     internal event RoutedEventHandler? ArmTestingPhprDirectControlClicked;
-    internal event RoutedEventHandler? AuthorizeTestingPhprSessionClicked;
     internal event RoutedEventHandler? ClearTestingPhprEmergencyStopClicked;
     internal event RoutedEventHandler? ResetTestingOutputInterlockClicked;
     internal event RoutedEventHandler? LocalGearTestModeChanged;
@@ -83,10 +82,6 @@ public partial class TestingValidationView : UserControl
     internal Button ClearTestingPhprEmergencyStopButtonControl => ClearTestingPhprEmergencyStopButton;
 
     internal Button ResetTestingOutputInterlockButtonControl => ResetTestingOutputInterlockButton;
-
-    internal TextBox TestingPhprApprovalPhraseTextBoxControl => TestingPhprApprovalPhraseTextBox;
-
-    internal Button AuthorizeTestingPhprSessionButtonControl => AuthorizeTestingPhprSessionButton;
 
     internal TextBlock PhprPedalsLastResultTextControl => PhprPedalsLastResultText;
 
@@ -222,11 +217,6 @@ public partial class TestingValidationView : UserControl
     private void ArmTestingPhprDirectControlButton_Click(object sender, RoutedEventArgs e)
     {
         ArmTestingPhprDirectControlClicked?.Invoke(sender, e);
-    }
-
-    private void AuthorizeTestingPhprSessionButton_Click(object sender, RoutedEventArgs e)
-    {
-        AuthorizeTestingPhprSessionClicked?.Invoke(sender, e);
     }
 
     private void ClearTestingPhprEmergencyStopButton_Click(object sender, RoutedEventArgs e)

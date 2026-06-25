@@ -32,7 +32,7 @@ The repo now has:
 - Local driver/channel convenience selection does not start the stream or emit output.
 - WASAPI debug output remains manual/experimental only and is not a production streaming path.
 - LAN telemetry is opt-in; loopback is the default bind mode.
-- Real Simagic P-HPR non-stop writes require session-only authorization, direct enable/arm, a clear global interlock, and explicit manual operator action at the physical write boundary.
+- Real Simagic P-HPR non-stop writes still pass through a session-only authorization seam at the physical write boundary; in this private owner-local app that session is restored automatically when safety gates are clear, while direct enable/arm, a clear global interlock, and explicit manual operator action still remain required.
 
 ## Current architecture
 

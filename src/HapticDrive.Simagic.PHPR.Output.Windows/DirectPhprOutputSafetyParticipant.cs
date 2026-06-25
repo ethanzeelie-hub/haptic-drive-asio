@@ -46,7 +46,8 @@ internal sealed class DirectPhprOutputSafetyParticipant : IOutputSafetyParticipa
     public void OnInterlockReset(OutputInterlockSnapshot interlock)
     {
         _runtime.ClearEmergencyStop();
-        _current = CreateSnapshot(IsSilent(), hasFault: false, "Direct P-HPR output interlock reset observed; reauthorization is still required.");
+        _writeAuthorization.TryAuthorize("output interlock reset");
+        _current = CreateSnapshot(IsSilent(), hasFault: false, "Direct P-HPR output interlock reset observed; authorization restored when runtime policy allows.");
     }
 
     private bool IsSilent()

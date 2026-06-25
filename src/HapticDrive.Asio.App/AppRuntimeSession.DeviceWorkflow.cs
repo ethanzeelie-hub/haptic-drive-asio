@@ -526,11 +526,6 @@ internal sealed partial class AppRuntimeSession
         ConfigureRealPhprOutputFromControls("Real P-HPR manual selection applied for this session only.");
     }
 
-    private void AuthorizeRealPhprWritesButton_Click(object sender, RoutedEventArgs e)
-    {
-        AuthorizeRealPhprWrites(RealPhprApprovalPhraseTextBox.Text);
-    }
-
     private void DryRunRealPhprSelectionButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfigureRealPhprOutputFromControls("Real P-HPR direct-output dry run prepared; no HID writer was opened."))
@@ -608,11 +603,6 @@ internal sealed partial class AppRuntimeSession
             enabled: true,
             armed: true,
             "Real P-HPR direct control enabled and armed for this session only.");
-    }
-
-    private void AuthorizeTestingPhprSessionButton_Click(object sender, RoutedEventArgs e)
-    {
-        AuthorizeRealPhprWrites(TestingPhprApprovalPhraseTextBox.Text);
     }
 
     private void ClearTestingPhprEmergencyStopButton_Click(object sender, RoutedEventArgs e)
@@ -706,6 +696,11 @@ internal sealed partial class AppRuntimeSession
         _mockPedalEffectsRouter.ClearEmergencyStop();
         ConfigurePhprDirectRuntime();
         _phprDirectRuntime.ClearEmergencyStop();
+        if (_outputInterlock.Current.AllowsOutput)
+        {
+            RestoreOwnerLocalPhprWriteAuthorization("normal P-HPR emergency stop cleared");
+        }
+
         UpdateMockGearPulseStatus();
         UpdateMockPedalEffectsStatus();
         UpdateRealPhprDirectControlStatus();
@@ -713,7 +708,7 @@ internal sealed partial class AppRuntimeSession
         UpdatePaddleGearBenchStatus();
         UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
-        FooterStatusText.Text = "P-HPR emergency stop cleared. Direct output still requires enable, selected device, and clear coexistence.";
+        FooterStatusText.Text = "P-HPR emergency stop cleared. Owner-local authorization was restored when safe; direct output still requires enable, selected device, and clear coexistence.";
     }
 
     private async void PhprPedalsStopAllClearDeviceStateButton_Click(object sender, RoutedEventArgs e)
@@ -741,34 +736,6 @@ internal sealed partial class AppRuntimeSession
         await TriggerNormalPhprTestPulseAsync(PHprModuleId.Throttle);
     }
 
-    private void AuthorizeRealPhprWrites(string approvalPhrase)
-    {
-        var authorized = _phprWriteAuthorization.TryAuthorize(approvalPhrase);
-        RealPhprApprovalPhraseTextBox.Text = string.Empty;
-        TestingPhprApprovalPhraseTextBox.Text = string.Empty;
-        var authorization = _phprWriteAuthorization.Current;
-        _diagnosticCorrelationContext.ObservePhprAuthorizationGeneration(authorization.Generation);
-        UpdatePhprWriteAuthorizationStatus();
-        UpdateRealPhprDirectControlStatus();
-        UpdatePhprPedalsStatus();
-        UpdateDiagnosticsStatus();
-        PublishDiagnosticEvent(
-            authorized ? "phpr.authorization-success" : "phpr.authorization-failure",
-            authorized ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
-            "PHpr",
-            authorized
-                ? "Controlled real P-HPR writes were authorized for the current session."
-                : "Controlled real P-HPR write authorization failed.",
-            _diagnosticCorrelationContext.Current.AppSessionId,
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["authorizationGeneration"] = authorization.Generation.ToString()
-            });
-        FooterStatusText.Text = authorized
-            ? "Controlled real P-HPR writes authorized for this session."
-            : "Controlled real P-HPR write authorization failed.";
-    }
-
     private async Task RunSelectedRealPhprOpenCheckAsync()
     {
         if (!ConfigureRealPhprOutputFromControls("Real P-HPR open-check prepared; no output report or feature report will be sent."))
@@ -782,6 +749,13 @@ internal sealed partial class AppRuntimeSession
             _realPhprOptions.CandidateIsRawInputOnly,
             allowHardwareAccess: true);
         ApplyRealPhprOpenCheckResult(result);
+        if (result.Succeeded
+            && _outputInterlock.Current.AllowsOutput
+            && !_realPhprOutput.GetDiagnostics().Output.IsEmergencyStopActive)
+        {
+            RestoreOwnerLocalPhprWriteAuthorization("manual open-check passed");
+        }
+
         UpdateRealPhprDirectControlStatus();
         UpdatePhprPedalsStatus();
         UpdatePhprValidationStatus();
@@ -800,18 +774,27 @@ internal sealed partial class AppRuntimeSession
         RealPhprDirectControlArmCheckBox.IsChecked = enabled && armed;
         _updatingRealPhprDirectControlUi = false;
         ConfigureRealPhprOutputFromControls(footerMessage);
+        if (enabled && armed)
+        {
+            RestoreOwnerLocalPhprWriteAuthorization("direct control enabled and armed");
+        }
     }
 
     private void ClearRealPhprEmergencyStopForSession()
     {
         ConfigurePhprDirectRuntime();
         _phprDirectRuntime.ClearEmergencyStop();
+        if (_outputInterlock.Current.AllowsOutput)
+        {
+            RestoreOwnerLocalPhprWriteAuthorization("emergency stop cleared");
+        }
+
         UpdateRealPhprDirectControlStatus();
         UpdatePhprPedalsStatus();
         UpdatePaddleGearBenchStatus();
         UpdatePhprValidationStatus();
         UpdateDiagnosticsStatus();
-        FooterStatusText.Text = "Real P-HPR emergency stop cleared; direct control still requires enable, selected device, and clear readiness checks.";
+        FooterStatusText.Text = "Real P-HPR emergency stop cleared; owner-local authorization was restored when safe and direct control still requires a selected device plus clear readiness checks.";
     }
 }
 

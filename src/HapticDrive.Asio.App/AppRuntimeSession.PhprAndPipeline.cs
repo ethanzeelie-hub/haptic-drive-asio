@@ -220,7 +220,8 @@ internal sealed partial class AppRuntimeSession
         }
 
         _realPhprOptions = options;
-        if (HasRealPhprAuthorizationInvalidation(previousOptions, _realPhprOptions))
+        if (!UsesOwnerLocalPhprWriteAuthorization()
+            && HasRealPhprAuthorizationInvalidation(previousOptions, _realPhprOptions))
         {
             RevokePhprWriteAuthorization("Real P-HPR direct-control selection changed.");
         }
@@ -264,12 +265,55 @@ internal sealed partial class AppRuntimeSession
         UpdatePhprWriteAuthorizationStatus();
     }
 
+    private bool UsesOwnerLocalPhprWriteAuthorization()
+    {
+        return _phprWriteAuthorization is PHprOwnerLocalWriteAuthorization;
+    }
+
+    private bool RestoreOwnerLocalPhprWriteAuthorization(string reason)
+    {
+        if (!UsesOwnerLocalPhprWriteAuthorization())
+        {
+            UpdatePhprWriteAuthorizationStatus();
+            return _phprWriteAuthorization.Current.IsAuthorized;
+        }
+
+        var before = _phprWriteAuthorization.Current;
+        var restored = _phprWriteAuthorization.TryAuthorize(reason);
+        var after = _phprWriteAuthorization.Current;
+        if (restored && after.Generation != before.Generation)
+        {
+            _diagnosticCorrelationContext.ObservePhprAuthorizationGeneration(after.Generation);
+            PublishDiagnosticEvent(
+                "phpr.authorization-restored",
+                DiagnosticSeverity.Information,
+                "PHpr",
+                after.Reason,
+                _diagnosticCorrelationContext.Current.AppSessionId,
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["authorizationGeneration"] = after.Generation.ToString()
+                });
+        }
+
+        UpdatePhprWriteAuthorizationStatus();
+        return after.IsAuthorized;
+    }
+
+    private string BuildPhprAuthorizationStatusText(PHprWriteAuthorizationSnapshot authorization)
+    {
+        return UsesOwnerLocalPhprWriteAuthorization()
+            ? authorization.IsAuthorized
+                ? $"Owner-local authorization: active since {authorization.AuthorizedAtUtc?.ToString("O") ?? "unknown"}."
+                : $"Owner-local authorization: paused. {authorization.Reason}."
+            : authorization.IsAuthorized
+                ? $"Session authorization: authorized at {authorization.AuthorizedAtUtc?.ToString("O") ?? "unknown"}."
+                : $"Session authorization: unauthorized. {authorization.Reason}.";
+    }
+
     private void UpdatePhprWriteAuthorizationStatus()
     {
-        var authorization = _phprWriteAuthorization.Current;
-        RealPhprAuthorizationStatusText.Text = authorization.IsAuthorized
-            ? $"Session authorization: authorized at {authorization.AuthorizedAtUtc:O}."
-            : $"Session authorization: unauthorized. {authorization.Reason}.";
+        RealPhprAuthorizationStatusText.Text = BuildPhprAuthorizationStatusText(_phprWriteAuthorization.Current);
     }
 
     private bool HasRealPhprAuthorizationInvalidation(PHprRealOutputOptions previous, PHprRealOutputOptions current)
@@ -748,6 +792,11 @@ internal sealed partial class AppRuntimeSession
                     candidates,
                     _realPhprOptions);
                 _realPhprOptions = autoSelection.Options;
+                if (autoSelection.HasPreferredCandidate && UsesOwnerLocalPhprWriteAuthorization())
+                {
+                    _phprPedalsEnabledPreference = true;
+                    _phprPedalsModePreference = PhprPedalsModePreference.Direct;
+                }
             }
 
             RealPhprCandidateComboBox.SelectedItem = autoSelection?.Candidate is not null
@@ -796,8 +845,21 @@ internal sealed partial class AppRuntimeSession
         }
     }
 
-    private Task RunAutomaticRealPhprReadinessChecksAsync(PhprDirectAutoReadySelection selection)
+    private async Task RunAutomaticRealPhprReadinessChecksAsync(PhprDirectAutoReadySelection selection)
     {
+        var openCheck = await _phprHidOpenCheckRunner.RunAsync(
+            _realPhprOptions.Selector,
+            _realPhprOptions.CandidateHasOpenableHidPath,
+            _realPhprOptions.CandidateIsRawInputOnly,
+            allowHardwareAccess: true);
+        ApplyRealPhprOpenCheckResult(openCheck);
+        if (openCheck.Succeeded
+            && _outputInterlock.Current.AllowsOutput
+            && !_realPhprOutput.GetDiagnostics().Output.IsEmergencyStopActive)
+        {
+            RestoreOwnerLocalPhprWriteAuthorization("startup direct-readiness checks passed");
+        }
+
         var dryRun = PHprDirectOutputDryRunValidator.Validate(
             _realPhprOptions,
             _phprSoftwareCoexistenceSnapshot.Status,
@@ -805,8 +867,7 @@ internal sealed partial class AppRuntimeSession
             _realPhprOutput.GetDiagnostics().Output.IsEmergencyStopActive,
             _phprWriteAuthorization.Current);
         RealPhprCandidatePickerStatusText.Text =
-            $"{selection.Message} Automatic open-check was skipped because open-check is manual hardware access. Dry-run can pulse {dryRun.CanPulse}; blockers {(dryRun.Issues.Count == 0 ? "none" : string.Join("; ", dryRun.Issues))}. No output report or feature report was sent.";
-        return Task.CompletedTask;
+            $"{selection.Message} Automatic HID open-check {(openCheck.Succeeded ? "passed" : "failed safely")}; blockers {(dryRun.Issues.Count == 0 ? "none" : string.Join("; ", dryRun.Issues))}. No output report or feature report was sent.";
     }
 
     private void ApplySelectedRealPhprCandidateToControls()
@@ -1191,7 +1252,6 @@ internal sealed partial class AppRuntimeSession
         RealPhprReportLengthTextBox.Text = values.ReportLengthText;
         RealPhprReportTransportComboBox.ItemsSource = _realPhprReportTransportOptions;
         RealPhprReportTransportComboBox.SelectedItem = values.ReportTransport;
-        RealPhprApprovalPhraseTextBox.Text = string.Empty;
         UpdatePhprWriteAuthorizationStatus();
         RealPhprCandidatePickerStatusText.Text = "Direct-output candidates have not been refreshed. Private HID paths are kept in memory only after refresh.";
         RealPhprBrakeEnabledCheckBox.IsChecked = values.BrakeGearPulse.IsEnabled;
@@ -1324,7 +1384,8 @@ internal sealed partial class AppRuntimeSession
             BrakeGearPulse = brake,
             ThrottleGearPulse = throttle
         };
-        if (mode != PhprPedalsMode.Direct)
+        if (mode != PhprPedalsMode.Direct
+            && !UsesOwnerLocalPhprWriteAuthorization())
         {
             RevokePhprWriteAuthorization("Switched away from Direct P-HPR mode.");
         }
@@ -1478,7 +1539,8 @@ internal sealed partial class AppRuntimeSession
             DirectControlEnabled = mode == PhprPedalsMode.Direct,
             DirectControlArmed = mode == PhprPedalsMode.Direct
         };
-        if (mode != PhprPedalsMode.Direct)
+        if (mode != PhprPedalsMode.Direct
+            && !UsesOwnerLocalPhprWriteAuthorization())
         {
             RevokePhprWriteAuthorization("Switched away from Direct P-HPR mode.");
         }
@@ -1679,9 +1741,13 @@ internal sealed partial class AppRuntimeSession
             blockers.Add("emergency stop is active");
         }
 
-        if (!_phprWriteAuthorization.Current.IsAuthorized)
+        if (!_phprWriteAuthorization.Current.IsAuthorized
+            && _outputInterlock.Current.AllowsOutput
+            && !diagnostics.Output.IsEmergencyStopActive)
         {
-            blockers.Add("session authorization is required");
+            blockers.Add(UsesOwnerLocalPhprWriteAuthorization()
+                ? $"owner-local authorization is paused: {_phprWriteAuthorization.Current.Reason}"
+                : "session authorization is required");
         }
 
         var settings = moduleId == PHprModuleId.Throttle

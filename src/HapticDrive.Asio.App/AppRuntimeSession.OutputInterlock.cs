@@ -196,5 +196,6 @@ internal sealed partial class AppRuntimeSession
         _mockGearPulseRouter.ClearEmergencyStop();
         _mockPedalEffectsRouter.ClearEmergencyStop();
         _phprDirectRuntime.ClearEmergencyStop();
+        RestoreOwnerLocalPhprWriteAuthorization("global output interlock cleared");
     }
 }

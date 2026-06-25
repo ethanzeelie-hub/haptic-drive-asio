@@ -18,14 +18,30 @@ public sealed class OutputSafetyParticipantAppTests
     public async Task DirectPhprParticipant_RevokesAuthorizationOnTrip()
     {
         var runtime = new FakeDirectRuntime();
-        var authorization = new PHprSessionWriteAuthorization();
-        Assert.True(authorization.TryAuthorize(PHprControlledWriteApproval.Phrase));
+        var authorization = new PHprOwnerLocalWriteAuthorization();
         var participant = new DirectPhprOutputSafetyParticipant(runtime, authorization);
 
         await participant.SilenceAsync(TripSnapshot(), CancellationToken.None);
 
         Assert.False(authorization.Current.IsAuthorized);
         Assert.Equal(1, runtime.EmergencyStopCallCount);
+    }
+
+    [Fact]
+    public void DirectPhprParticipant_RestoresOwnerLocalAuthorizationOnReset()
+    {
+        var runtime = new FakeDirectRuntime();
+        var authorization = new PHprOwnerLocalWriteAuthorization();
+        authorization.Revoke("latched for reset test");
+        var participant = new DirectPhprOutputSafetyParticipant(runtime, authorization);
+
+        participant.OnInterlockReset(TripSnapshot() with
+        {
+            IsLatched = false,
+            Message = "reset"
+        });
+
+        Assert.True(authorization.Current.IsAuthorized);
     }
 
     [Fact]

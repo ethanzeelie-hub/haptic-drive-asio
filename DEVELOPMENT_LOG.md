@@ -1,5 +1,44 @@
 # Development Log
 
+## Stage 18r-K - Enable Owner-Local Validation Defaults
+
+Date: 2026-06-25
+
+Status: Complete.
+
+Goal: Switch the private local app from phrase-driven P-HPR startup gating to an owner-local default-ready workflow so BST-1 and manual P-HPR validation can come up ready after a clean launch without reintroducing startup output or weakening the physical write boundary.
+
+Notes:
+
+- Replaced the app’s direct-write authorization policy with an owner-local runtime authorization seam:
+  - `AppCompositionRoot` now uses `PHprOwnerLocalWriteAuthorization` instead of the phrase-driven session implementation,
+  - the safety seam still exists at the physical direct-write boundary and can still be revoked on interlock/emergency events,
+  - the private local app now restores that authorization automatically after safe recovery points instead of exposing an approval phrase workflow.
+- Moved startup behavior to a true owner-local default-ready posture without sending startup output:
+  - startup preferred-candidate selection now enables and arms direct control when a valid P-HPR candidate exists,
+  - startup now performs the real no-write HID open-check automatically for the preferred candidate and keeps report-shape validation in the same readiness path,
+  - clean interlock reset and emergency-stop clear paths now restore owner-local authorization automatically when safety recovery is complete.
+- Aligned defaults and UI around the owner-local validation flow:
+  - missing/invalid persisted P-HPR mode preferences now repair to Direct instead of Disabled so a clean local install does not default away from the intended validation path,
+  - Testing / Validation and Advanced no longer expose the approval phrase text boxes/buttons in the normal flow,
+  - normal manual P-HPR readiness copy now shows only real operator blockers such as candidate/open-check/interlock/coexistence/emergency-stop state instead of telling the owner to authorize the session manually.
+- Added regression coverage for the new policy and startup defaults:
+  - new `PHprOwnerLocalWriteAuthorizationTests` prove the owner-local seam starts active and can be revoked/restored without a phrase,
+  - startup planner tests now prove preferred P-HPR startup selection enables and arms the ready path,
+  - app-facing readiness/participant/settings tests now cover the owner-local default mode and automatic authorization restore behavior.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild` passed.
+
+Self-review:
+
+- The owner-local change stays app-local: the lower-level physical write boundary still requires an authorization snapshot, and research/tests that use the phrase-driven implementation remain intact.
+- Startup still emits no BST-1 or P-HPR output automatically; it only restores ready state, validates selectors/report shape, and runs the no-write HID open-check path.
+
 ## Stage 18r-J - Validated BST-1 Startup Defaults And P-HPR Readiness Workflow
 
 Date: 2026-06-25

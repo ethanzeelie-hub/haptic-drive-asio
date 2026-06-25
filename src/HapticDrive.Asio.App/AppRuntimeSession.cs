@@ -527,7 +527,6 @@ internal sealed partial class AppRuntimeSession
         TestingValidationViewControl.RunTestingPhprOpenCheckClicked += RunTestingPhprOpenCheckButton_Click;
         TestingValidationViewControl.EnableTestingPhprDirectControlClicked += EnableTestingPhprDirectControlButton_Click;
         TestingValidationViewControl.ArmTestingPhprDirectControlClicked += ArmTestingPhprDirectControlButton_Click;
-        TestingValidationViewControl.AuthorizeTestingPhprSessionClicked += AuthorizeTestingPhprSessionButton_Click;
         TestingValidationViewControl.ClearTestingPhprEmergencyStopClicked += ClearTestingPhprEmergencyStopButton_Click;
         TestingValidationViewControl.ResetTestingOutputInterlockClicked += ResetTestingOutputInterlockButton_Click;
         TestingValidationViewControl.LocalGearTestModeChanged += LocalGearTestModeCheckBox_Changed;
@@ -548,7 +547,6 @@ internal sealed partial class AppRuntimeSession
         AdvancedDiagnosticsViewControl.OpenCheckRealPhprSelectionClicked += OpenCheckRealPhprSelectionButton_Click;
         AdvancedDiagnosticsViewControl.RealPhprCandidateSelectionChanged += RealPhprCandidateComboBox_SelectionChanged;
         AdvancedDiagnosticsViewControl.ApplyRealPhprSelectionClicked += ApplyRealPhprSelectionButton_Click;
-        AdvancedDiagnosticsViewControl.AuthorizeRealPhprWritesClicked += AuthorizeRealPhprWritesButton_Click;
         AdvancedDiagnosticsViewControl.RealPhprDirectControlLostFocus += RealPhprDirectControl_LostFocus;
         AdvancedDiagnosticsViewControl.TestRealPhprBrakePulseClicked += TestRealPhprBrakePulseButton_Click;
         AdvancedDiagnosticsViewControl.TestRealPhprThrottlePulseClicked += TestRealPhprThrottlePulseButton_Click;

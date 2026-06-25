@@ -38,7 +38,7 @@ internal sealed class AppCompositionRoot
         var settingsHydrationSnapshot = AppSettingsSnapshotBuilder.BuildHydrationSnapshot(settingsStore.Load());
         var asioDriverCatalog = new WindowsRegistryAsioDriverCatalog();
         var outputInterlock = new OutputInterlock();
-        var phprWriteAuthorization = new PHprSessionWriteAuthorization();
+        var phprWriteAuthorization = new PHprOwnerLocalWriteAuthorization();
         var testBench = new AudioTestBench();
         var drivingArmedStateService = new DrivingArmedStateService();
         var diagnosticSink = new InMemoryDiagnosticSink();
