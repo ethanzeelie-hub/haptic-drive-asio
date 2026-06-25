@@ -39,6 +39,7 @@ public sealed class ShutdownCleanupPlannerGuardrailTests
         Assert.Contains("var plan = ShutdownCleanupPlanner.BuildAppShutdownPlan();", runtimeSource, StringComparison.Ordinal);
         Assert.Contains("switch (step.Kind)", runtimeSource, StringComparison.Ordinal);
         Assert.Contains("await _realPhprContinuousEffectsRuntime", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("await _phprDirectRuntime.StopAllAsync(\"Application shutdown requested.\")", runtimeSource, StringComparison.Ordinal);
         Assert.Contains("_hapticPipeline.StopManualAsioHardwareTest(", runtimeSource, StringComparison.Ordinal);
         Assert.Contains("await _realPhprOutput.DisposeAsync()", runtimeSource, StringComparison.Ordinal);
         Assert.Contains("await _hapticPipeline.DisposeAsync()", runtimeSource, StringComparison.Ordinal);

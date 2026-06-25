@@ -1431,7 +1431,15 @@ internal sealed partial class AppRuntimeSession
 
                         await _mockGearPulseRouter.EmergencyStopAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                         await _mockPedalEffectsRouter.EmergencyStopAsync().AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-                        await _phprDirectRuntime.EmergencyStopAsync("Application shutdown requested.").AsTask().WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                        var directStopResult = await _phprDirectRuntime.StopAllAsync("Application shutdown requested.")
+                            .AsTask()
+                            .WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2))
+                            .ConfigureAwait(false);
+                        if (!directStopResult.Succeeded)
+                        {
+                            shutdownExceptions.Add($"phprDirectStop:InvalidOperationException:{directStopResult.Message}");
+                        }
+
                         await _realRoadVibrationRouter.StopAsync("App shutdown stopped P-HPR road output.")
                             .AsTask()
                             .WaitAsync(step.Timeout ?? TimeSpan.FromSeconds(2))

@@ -1,5 +1,43 @@
 # Development Log
 
+## Stage 18r-L - Restore Owner-Local P-HPR Pulse Output And Clean Startup Safety
+
+Date: 2026-06-25
+
+Status: Complete.
+
+Goal: Restore the real owner-local manual P-HPR pulse workflow after Stage 18r-K by making the UI honor direct-runtime recovery state, clearing stale recovery markers on clean shutdown, and surfacing startup safety holds with operator-meaningful status text.
+
+Notes:
+
+- Fixed the manual P-HPR readiness mismatch between the UI and the physical write path:
+  - Testing / Validation and Advanced manual pulse enablement now consult the direct runtime snapshot before advertising readiness,
+  - startup cleanup, unclean-shutdown marker state, and runtime fault/busy state now block the real manual pulse buttons before a start write can be attempted,
+  - the normal P-HPR readiness checklist now shows startup-cleanup and recovery-hold items so the operator sees `P-HPR Stop All / Clear Device State` as an explicit next step instead of getting clickable buttons with no physical output.
+- Restored clean-startup behavior after a normal app exit:
+  - app shutdown now uses `_phprDirectRuntime.StopAllAsync("Application shutdown requested.")` during actuator cleanup instead of leaving direct runtime shutdown at emergency-stop only,
+  - that stop-only cleanup path clears the direct runtime's unclean-shutdown marker on a clean exit, so the next launch can return to `Safety: Output enabled` when no real recovery fault remains.
+- Improved startup safety visibility without changing ownership boundaries:
+  - the thin `MainWindow` plus `AppRuntimeSession` architecture remains intact,
+  - `ApplicationSafetyController` now reports `Latched: Startup recovery required` when startup intentionally keeps the `StartupSafeDefault` latch because a concrete recovery blocker/message exists, instead of surfacing only the raw enum text.
+- Added regression and guardrail coverage for the owner-local recovery flow:
+  - readiness presenter tests now cover startup-cleanup and recovery-hold checklist items plus the explicit Stop All / Clear Device State recovery message,
+  - application safety controller tests now prove startup latch messaging distinguishes generic construction-time state from post-startup recovery holds,
+  - guardrails now assert the app source feeds runtime recovery state into the readiness presenter and uses direct-runtime `StopAllAsync` during shutdown cleanup.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild` passed.
+- Direct launch of `src\HapticDrive.Asio.App\bin\Release\net8.0-windows\HapticDrive.Asio.App.exe` stayed alive after 3 seconds and exposed a real main window handle (`MainWindowHandle=197014`, `Responding=True`).
+
+Self-review:
+
+- This stage fixes the real regression without moving runtime ownership back into the shell: the shared direct runtime remains the authority for startup cleanup, stop-only recovery, and physical pulse eligibility.
+- The manual P-HPR workflow is now honest again: if the runtime still requires recovery, the operator sees that before pressing anything; if the app exits cleanly, the next launch no longer inherits a stale marker from shutdown cleanup.
+
 ## Stage 18r-K - Enable Owner-Local Validation Defaults
 
 Date: 2026-06-25

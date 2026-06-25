@@ -18,6 +18,9 @@ public sealed class PhprManualTestReadinessPresenterTests
             CoexistenceClear: false,
             EmergencyStopClear: false,
             DirectConnectionReadyOrOpenable: false,
+            StartupCleanupReady: false,
+            RecoveryStateClear: false,
+            RuntimeRecoveryStatus: "Use P-HPR Stop All / Clear Device State.",
             DirectConnectionState: "Closed",
             CoexistenceStatus: "BlockedBySimPro"));
 
@@ -29,6 +32,8 @@ public sealed class PhprManualTestReadinessPresenterTests
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Output interlock clear", StringComparison.Ordinal));
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Coexistence clear", StringComparison.Ordinal));
         Assert.Contains(presentation.ChecklistItems, item => item.Contains("Emergency stop clear", StringComparison.Ordinal));
+        Assert.Contains(presentation.ChecklistItems, item => item.Contains("Startup cleanup passed", StringComparison.Ordinal));
+        Assert.Contains(presentation.ChecklistItems, item => item.Contains("Recovery hold clear", StringComparison.Ordinal));
         Assert.DoesNotContain(presentation.ChecklistItems, item => item.Contains("authorization", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("next step", presentation.DeviceStatusText, StringComparison.OrdinalIgnoreCase);
     }
@@ -47,6 +52,9 @@ public sealed class PhprManualTestReadinessPresenterTests
             CoexistenceClear: true,
             EmergencyStopClear: true,
             DirectConnectionReadyOrOpenable: true,
+            StartupCleanupReady: true,
+            RecoveryStateClear: true,
+            RuntimeRecoveryStatus: "Runtime recovery clear.",
             DirectConnectionState: "Closed",
             CoexistenceStatus: "Clear"));
 
@@ -54,5 +62,32 @@ public sealed class PhprManualTestReadinessPresenterTests
         Assert.Contains("ready for this session", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("next step", presentation.DeviceStatusText, StringComparison.OrdinalIgnoreCase);
         Assert.All(presentation.ChecklistItems, item => Assert.Contains(": YES.", item, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PhprReadinessChecklist_ShowsStopAllRecoveryStepWhenMarkerBlocksDirectOutput()
+    {
+        var presentation = PhprManualTestReadinessPresenter.Build(new PhprManualTestReadinessSnapshot(
+            CandidateSelected: true,
+            OpenCheckPassed: true,
+            ReportShapeValid: true,
+            DirectControlEnabled: true,
+            DirectControlArmed: true,
+            SessionAuthorized: true,
+            OutputInterlockClear: true,
+            CoexistenceClear: true,
+            EmergencyStopClear: true,
+            DirectConnectionReadyOrOpenable: true,
+            StartupCleanupReady: true,
+            RecoveryStateClear: false,
+            RuntimeRecoveryStatus: "Use P-HPR Stop All / Clear Device State.",
+            DirectConnectionState: "Closed",
+            CoexistenceStatus: "Clear"));
+
+        Assert.False(presentation.IsReady);
+        Assert.Contains(
+            presentation.ChecklistItems,
+            item => item.Contains("Recovery hold clear: NO. Use P-HPR Stop All / Clear Device State.", StringComparison.Ordinal));
+        Assert.Contains("Stop All / Clear Device State", presentation.DeviceStatusText, StringComparison.Ordinal);
     }
 }

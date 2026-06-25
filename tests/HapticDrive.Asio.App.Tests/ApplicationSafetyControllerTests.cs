@@ -41,7 +41,24 @@ public sealed class ApplicationSafetyControllerTests
             Generation: 7),
             "Output interlock reset blocked: audio participant still faulted.");
 
-        Assert.Equal("Latched: StartupSafeDefault", viewModel.StatusText);
+        Assert.Equal("Latched: Startup recovery required", viewModel.StatusText);
         Assert.Equal("Output interlock reset blocked: audio participant still faulted.", viewModel.Message);
+    }
+
+    [Fact]
+    public void Publish_KeepsGenericStartupReasonWhenNoSpecificRecoveryOverrideExists()
+    {
+        var viewModel = new SafetyStateViewModel();
+        var controller = new ApplicationSafetyController(viewModel);
+
+        controller.Publish(new OutputInterlockSnapshot(
+            IsLatched: true,
+            Reason: OutputInterlockReason.StartupSafeDefault,
+            Message: "startup default",
+            ChangedAtUtc: DateTimeOffset.UtcNow,
+            Generation: 8));
+
+        Assert.Equal("Latched: StartupSafeDefault", viewModel.StatusText);
+        Assert.Equal("startup default", viewModel.Message);
     }
 }

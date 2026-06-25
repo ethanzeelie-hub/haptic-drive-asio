@@ -11,6 +11,9 @@ internal sealed record PhprManualTestReadinessSnapshot(
     bool CoexistenceClear,
     bool EmergencyStopClear,
     bool DirectConnectionReadyOrOpenable,
+    bool StartupCleanupReady,
+    bool RecoveryStateClear,
+    string RuntimeRecoveryStatus,
     string DirectConnectionState,
     string CoexistenceStatus);
 
@@ -61,6 +64,14 @@ internal static class PhprManualTestReadinessPresenter
                 snapshot.EmergencyStopClear,
                 "Use Clear P-HPR Emergency Stop."),
             FormatChecklistItem(
+                "Startup cleanup passed",
+                snapshot.StartupCleanupReady,
+                "Restart the app or review startup recovery diagnostics."),
+            FormatChecklistItem(
+                "Recovery hold clear",
+                snapshot.RecoveryStateClear,
+                snapshot.RuntimeRecoveryStatus),
+            FormatChecklistItem(
                 "Direct connection ready or openable",
                 snapshot.DirectConnectionReadyOrOpenable,
                 "Refresh / Select P-HPR Candidate or run the HID open-check.")
@@ -102,6 +113,8 @@ internal static class PhprManualTestReadinessPresenter
         AddWhenMissing(actions, snapshot.OutputInterlockClear, "Reset Output Interlock");
         AddWhenMissing(actions, snapshot.CoexistenceClear, "Close SimPro / SimHub");
         AddWhenMissing(actions, snapshot.EmergencyStopClear, "Clear P-HPR Emergency Stop");
+        AddWhenMissing(actions, snapshot.StartupCleanupReady, "Restart the app or review startup recovery diagnostics");
+        AddWhenMissing(actions, snapshot.RecoveryStateClear, snapshot.RuntimeRecoveryStatus);
         AddWhenMissing(actions, snapshot.DirectConnectionReadyOrOpenable, "Refresh the selected candidate or rerun open-check");
 
         return actions;

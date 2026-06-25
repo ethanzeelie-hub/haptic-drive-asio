@@ -1691,8 +1691,38 @@ internal sealed partial class AppRuntimeSession
 
     private IReadOnlyList<string> GetDirectPhprPulseBlockers(PHprModuleId moduleId)
     {
+        ConfigurePhprDirectRuntime();
         var blockers = new List<string>();
         var diagnostics = _realPhprOutput.GetDiagnostics();
+        var runtime = _phprDirectRuntime.GetSnapshot();
+
+        if (!runtime.StartupCleanupAttempted)
+        {
+            blockers.Add("startup cleanup has not run yet");
+        }
+        else if (!runtime.StartupCleanupSucceeded)
+        {
+            blockers.Add(string.IsNullOrWhiteSpace(runtime.LastErrorMessage)
+                ? "startup cleanup did not complete safely"
+                : $"startup cleanup did not complete safely: {runtime.LastErrorMessage}");
+        }
+
+        if (runtime.DisabledAfterUncleanShutdown || runtime.UncleanShutdownMarkerExists)
+        {
+            blockers.Add("P-HPR Stop All / Clear Device State is required after the previous unclean shutdown");
+        }
+
+        if (runtime.State is PHprDirectRuntimeState.Starting or PHprDirectRuntimeState.Active or PHprDirectRuntimeState.Stopping)
+        {
+            blockers.Add($"direct runtime is busy: {runtime.State}");
+        }
+
+        if (runtime.State == PHprDirectRuntimeState.Faulted)
+        {
+            blockers.Add(string.IsNullOrWhiteSpace(runtime.LastErrorMessage)
+                ? "direct runtime is faulted"
+                : $"direct runtime is faulted: {runtime.LastErrorMessage}");
+        }
 
         if (!_realPhprOptions.DirectControlEnabled)
         {
@@ -1763,9 +1793,11 @@ internal sealed partial class AppRuntimeSession
 
     private void UpdatePhprPedalsStatus()
     {
+        ConfigurePhprDirectRuntime();
         var mode = GetSelectedPhprPedalsMode();
         var mockSnapshot = _mockPhprSafetyOutput.GetSnapshot();
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
+        var runtime = _phprDirectRuntime.GetSnapshot();
         var directReady = TryGetDirectPhprPulseReady(PHprModuleId.Brake, out var directMessage)
             || TryGetDirectPhprPulseReady(PHprModuleId.Throttle, out directMessage);
         var brakeCanPulse = TryGetDirectPhprPulseReady(PHprModuleId.Brake, out _);
@@ -1788,6 +1820,15 @@ internal sealed partial class AppRuntimeSession
             EmergencyStopClear: !realDiagnostics.Output.IsEmergencyStopActive,
             DirectConnectionReadyOrOpenable: realDiagnostics.Connection.State != PHprHidConnectionState.Closed
                 || realDiagnostics.Options.CandidateHasOpenableHidPath,
+            StartupCleanupReady: runtime.StartupCleanupAttempted && runtime.StartupCleanupSucceeded,
+            RecoveryStateClear: !runtime.UncleanShutdownMarkerExists && !runtime.DisabledAfterUncleanShutdown,
+            RuntimeRecoveryStatus: runtime.DisabledAfterUncleanShutdown || runtime.UncleanShutdownMarkerExists
+                ? "Use P-HPR Stop All / Clear Device State."
+                : !runtime.StartupCleanupAttempted
+                    ? "Wait for startup cleanup to run."
+                    : !runtime.StartupCleanupSucceeded
+                        ? $"Resolve startup cleanup failure: {runtime.LastErrorMessage ?? "unknown direct-runtime recovery error"}."
+                        : "Runtime recovery clear.",
             DirectConnectionState: realDiagnostics.Connection.State.ToString(),
             CoexistenceStatus: _phprSoftwareCoexistenceSnapshot.Status.ToString()));
 

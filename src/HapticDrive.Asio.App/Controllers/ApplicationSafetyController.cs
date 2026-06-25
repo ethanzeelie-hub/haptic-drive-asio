@@ -23,9 +23,7 @@ internal sealed class ApplicationSafetyController
             ? snapshot.Message
             : messageOverride.Trim();
         ViewModel.Generation = snapshot.Generation;
-        ViewModel.StatusText = snapshot.IsLatched
-            ? $"Latched: {snapshot.Reason}"
-            : "Output enabled";
+        ViewModel.StatusText = BuildStatusText(snapshot, ViewModel.Message);
     }
 
     public bool TryBuildResetBlockedMessage(
@@ -43,5 +41,22 @@ internal sealed class ApplicationSafetyController
         message = $"Output interlock reset blocked: {blocker}";
         ViewModel.Message = message;
         return true;
+    }
+
+    private static string BuildStatusText(OutputInterlockSnapshot snapshot, string? message)
+    {
+        if (!snapshot.IsLatched)
+        {
+            return "Output enabled";
+        }
+
+        if (snapshot.Reason == OutputInterlockReason.StartupSafeDefault
+            && !string.IsNullOrWhiteSpace(message)
+            && !string.Equals(message.Trim(), snapshot.Message, StringComparison.Ordinal))
+        {
+            return "Latched: Startup recovery required";
+        }
+
+        return $"Latched: {snapshot.Reason}";
     }
 }

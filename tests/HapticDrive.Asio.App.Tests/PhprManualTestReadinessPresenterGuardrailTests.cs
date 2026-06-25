@@ -29,5 +29,7 @@ public sealed class PhprManualTestReadinessPresenterGuardrailTests
 
         Assert.Contains("PhprManualTestReadinessPresenter.Build(new PhprManualTestReadinessSnapshot(", source, StringComparison.Ordinal);
         Assert.Contains("PhprPedalsChecklistItemsControl.ItemsSource = readinessPresentation.ChecklistItems;", source, StringComparison.Ordinal);
+        Assert.Contains("runtime.StartupCleanupAttempted && runtime.StartupCleanupSucceeded", source, StringComparison.Ordinal);
+        Assert.Contains("!runtime.UncleanShutdownMarkerExists && !runtime.DisabledAfterUncleanShutdown", source, StringComparison.Ordinal);
     }
 }

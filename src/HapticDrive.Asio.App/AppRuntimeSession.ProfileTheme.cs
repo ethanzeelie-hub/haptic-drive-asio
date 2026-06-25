@@ -1289,27 +1289,23 @@ internal sealed partial class AppRuntimeSession
             return;
         }
 
+        ConfigurePhprDirectRuntime();
         var diagnostics = _realPhprOutput.GetDiagnostics();
         var options = diagnostics.Options;
         var selector = options.Selector;
-        var coexistenceClear = _phprSoftwareCoexistenceSnapshot.Status == PHprSoftwareConflictStatus.Clear;
         var authorization = _phprWriteAuthorization.Current;
-        var canPulse = options.DirectControlEnabled
-            && options.DirectControlArmed
-            && !options.CandidateIsRawInputOnly
-            && options.CandidateHasOpenableHidPath
-            && options.OpenCheckSucceeded
-            && options.AllowsDirectPulseReportShape
-            && selector.IsSelected
-            && coexistenceClear
-            && _outputInterlock.Current.AllowsOutput
-            && authorization.IsAuthorized
-            && !diagnostics.Output.IsEmergencyStopActive;
-        TestRealPhprBrakePulseButton.IsEnabled = canPulse && options.BrakeGearPulse.IsEnabled;
-        TestRealPhprThrottlePulseButton.IsEnabled = canPulse && options.ThrottleGearPulse.IsEnabled;
+        var brakeCanPulse = TryGetDirectPhprPulseReady(PHprModuleId.Brake, out _);
+        var throttleCanPulse = TryGetDirectPhprPulseReady(PHprModuleId.Throttle, out _);
+        var canPulse = brakeCanPulse || throttleCanPulse;
+        var directBlockers = GetDirectPhprPulseBlockers(PHprModuleId.Brake)
+            .Concat(GetDirectPhprPulseBlockers(PHprModuleId.Throttle))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        TestRealPhprBrakePulseButton.IsEnabled = brakeCanPulse;
+        TestRealPhprThrottlePulseButton.IsEnabled = throttleCanPulse;
         RealPhprAuthorizationStatusText.Text = BuildPhprAuthorizationStatusText(authorization);
         RealPhprDirectStatusText.Text =
-            $"Real direct control: {(options.DirectControlEnabled ? "enabled" : "disabled")}; arm {(options.DirectControlArmed ? "armed" : "not armed")}; authorization {(authorization.IsAuthorized ? "active" : "paused")}; {(canPulse ? "Direct ready" : "Direct blocked")}; device {(selector.IsSelected ? "selected" : "not selected")}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; connection {diagnostics.Connection.State}; interlock {_outputInterlock.Current.AllowsOutput}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {diagnostics.Output.IsEmergencyStopActive}; report writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}.";
+            $"Real direct control: {(options.DirectControlEnabled ? "enabled" : "disabled")}; arm {(options.DirectControlArmed ? "armed" : "not armed")}; authorization {(authorization.IsAuthorized ? "active" : "paused")}; {(canPulse ? "Direct ready" : $"Direct blocked: {string.Join("; ", directBlockers)}")}; device {(selector.IsSelected ? "selected" : "not selected")}; road {(_realRoadVibrationOptions.IsEnabled ? "enabled" : "disabled")}; slip/lock {(_realSlipLockOptions.IsEnabled ? "enabled" : "disabled")}; connection {diagnostics.Connection.State}; interlock {_outputInterlock.Current.AllowsOutput}; coexistence {_phprSoftwareCoexistenceSnapshot.Status}; emergency stop {diagnostics.Output.IsEmergencyStopActive}; report writes {diagnostics.ReportWriteCount:N0}; failures {diagnostics.FailedReportWriteCount:N0}.";
         RealPhprDirectItemsControl.ItemsSource = new[]
         {
             "Safety: write-capable direct path. Direct enable, arm state, selected private device path, owner-local authorization state, emergency stop, and write history are runtime-only and are not persisted.",
