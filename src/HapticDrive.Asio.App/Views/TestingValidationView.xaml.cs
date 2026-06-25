@@ -51,6 +51,8 @@ public partial class TestingValidationView : UserControl
 
     internal TextBox ManualBst1DurationTextBoxControl => ManualBst1DurationTextBox;
 
+    internal Button ManualBst1PulseButtonControl => ManualBst1PulseButton;
+
     internal TextBlock ManualAsioHardwareStatusTextControl => ManualAsioHardwareStatusText;
 
     internal TextBlock ManualAsioHardwareBlockedReasonTextControl => ManualAsioHardwareBlockedReasonText;

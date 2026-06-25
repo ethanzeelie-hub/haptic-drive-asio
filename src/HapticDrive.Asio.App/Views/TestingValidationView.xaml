@@ -137,7 +137,8 @@
                                      Margin="0,0,12,8"
                                      Style="{StaticResource FieldTextBoxStyle}"
                                      LostFocus="ManualBst1Control_LostFocus" />
-                            <Button Width="150"
+                            <Button x:Name="ManualBst1PulseButton"
+                                    Width="150"
                                     Margin="0,0,8,8"
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     Click="ManualBst1PulseButton_Click"

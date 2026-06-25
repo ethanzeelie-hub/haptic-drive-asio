@@ -26,4 +26,22 @@ public sealed class ApplicationSafetyControllerTests
         Assert.Equal(42, viewModel.Generation);
         Assert.Equal("Latched: UserEmergencyMute", viewModel.StatusText);
     }
+
+    [Fact]
+    public void Publish_UsesOverrideMessageForVisibleResetBlocker()
+    {
+        var viewModel = new SafetyStateViewModel();
+        var controller = new ApplicationSafetyController(viewModel);
+
+        controller.Publish(new OutputInterlockSnapshot(
+            IsLatched: true,
+            Reason: OutputInterlockReason.StartupSafeDefault,
+            Message: "startup default",
+            ChangedAtUtc: DateTimeOffset.UtcNow,
+            Generation: 7),
+            "Output interlock reset blocked: audio participant still faulted.");
+
+        Assert.Equal("Latched: StartupSafeDefault", viewModel.StatusText);
+        Assert.Equal("Output interlock reset blocked: audio participant still faulted.", viewModel.Message);
+    }
 }

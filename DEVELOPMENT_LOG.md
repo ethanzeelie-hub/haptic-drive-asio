@@ -1,5 +1,47 @@
 # Development Log
 
+## Stage 18r-H - Manual BST-1 Interlock Reset And Validation Workflow Hotfix
+
+Date: 2026-06-25
+
+Status: Complete.
+
+Goal: Restore the standalone BST-1 manual pulse workflow after the startup-safe global interlock changes so users can clear `StartupSafeDefault`, understand reset blockers, and safely exercise manual validation without weakening the global interlock or real P-HPR write gates.
+
+Notes:
+
+- Restored the intended standalone BST-1 manual validation path without coupling it back to telemetry or `Start Haptics`:
+  - `TryResetOutputInterlockAsync()` no longer requires the live haptics runtime to be started before `StartupSafeDefault` can be cleared,
+  - the reset path now reports the exact participant blocker when reset is denied instead of a generic "start haptics first" message,
+  - the shared pipeline/manual-test interlock instance remains single-owned through composition and runtime wiring.
+- Tightened the operator-facing interlock workflow so the UI explains the new one-way emergency posture clearly:
+  - emergency mute now behaves as a one-way trip and no longer acts like a toggle,
+  - a repeated emergency action reports that reset is required instead of trying to silently unlatch,
+  - safety presentation now surfaces explicit reset-required messaging on the emergency control, reset workflow, and visible status/footer text.
+- Recovered the Testing / Validation tab behavior while preserving all real P-HPR gates:
+  - the manual BST-1 pulse button is disabled while the interlock is latched and shows a clear tooltip explaining what must be reset first,
+  - manual BST-1 pulsing remains independent from live telemetry, replay, `VehicleState`, and `DrivingArmed`,
+  - Testing / Validation P-HPR brake/throttle buttons now stay disabled until the full direct-control checklist is satisfied, with clearer missing-requirement messaging even in mock/disabled modes.
+- Added regression coverage and guardrails for the recovered workflow:
+  - runtime tests now prove manual BST-1 pulsing is blocked while `StartupSafeDefault` is latched and becomes available again after a successful reset,
+  - safety-participant integration tests now prove idle/silent BST-1 and audio-output participants do not block an otherwise-safe reset,
+  - app tests now prove startup construction reaches a latched-but-stable state, the reset flow clears the shared interlock instance, emergency mute remains one-way, and the BST-1/P-HPR controls reflect the correct safety posture,
+  - source guardrails now keep the BST-1 button path independent from live telemetry/driving-state ownership and prevent automated tests from constructing real HID writers.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild` launched a live `HapticDrive.Asio.App.exe` process with a real main window handle (`MainWindowHandle=3213364`).
+- Direct launch of `src\HapticDrive.Asio.App\bin\Release\net8.0-windows\HapticDrive.Asio.App.exe` also stayed alive and created a real main window handle (`MainWindowHandle=9963488`).
+
+Self-review:
+
+- The hotfix stays inside the existing thin-shell/runtime-session architecture and does not move runtime ownership back into `MainWindow`.
+- Real P-HPR hardware safety boundaries remain intact: direct buttons are still checklist-gated, automated tests still avoid real HID writers, and no hardware-present requirement was introduced into normal builds or CI.
+
 ## Stage 18r-G - Startup Navigation Construction Crash Hotfix
 
 Date: 2026-06-24

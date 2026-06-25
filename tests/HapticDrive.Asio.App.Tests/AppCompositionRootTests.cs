@@ -41,4 +41,27 @@ public sealed class AppCompositionRootTests
         Assert.Contains("_compositionRoot = new AppCompositionRoot();", appSource, StringComparison.Ordinal);
         Assert.Contains("MainWindow = _compositionRoot.CreateMainWindow();", appSource, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void OutputInterlock_RemainsSingleSharedInstanceAcrossAppAndPipelineCreation()
+    {
+        var compositionRootSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppCompositionRoot.cs");
+        var runtimeSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppRuntimeSession.cs");
+        var pipelineSource = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppRuntimeSession.PhprAndPipeline.cs");
+
+        Assert.Contains("var outputInterlock = new OutputInterlock();", compositionRootSource, StringComparison.Ordinal);
+        Assert.Contains("outputInterlock,", compositionRootSource, StringComparison.Ordinal);
+        Assert.Contains("_outputInterlock = services.OutputInterlock;", runtimeSource, StringComparison.Ordinal);
+        Assert.Contains("outputInterlock: _outputInterlock,", pipelineSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new OutputInterlock()", pipelineSource, StringComparison.Ordinal);
+    }
 }

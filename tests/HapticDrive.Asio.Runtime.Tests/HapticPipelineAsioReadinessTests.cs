@@ -116,7 +116,49 @@ public sealed class HapticPipelineAsioReadinessTests
             TimeSpan.FromMilliseconds(250)));
 
         Assert.False(result.Succeeded);
-        Assert.Contains("Emergency mute", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("UserEmergencyMute", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ManualAsioHardwareTest_BlockedWhileStartupSafeDefaultLatched()
+    {
+        var backend = new FakeAsioOutputBackend();
+        var interlock = new HapticDrive.Asio.Core.Safety.OutputInterlock();
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
+            options: HapticPipelineOptions.ManualRendering,
+            outputInterlock: interlock);
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            40f,
+            TimeSpan.FromMilliseconds(45)));
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("StartupSafeDefault", result.Message, StringComparison.Ordinal);
+        Assert.Equal(0, backend.StartCount);
+        Assert.Equal(0, backend.SubmitCount);
+    }
+
+    [Fact]
+    public async Task ManualAsioHardwareTest_AllowedAfterStartupSafeDefaultReset_WhenAsioReady()
+    {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2);
+        var interlock = new HapticDrive.Asio.Core.Safety.OutputInterlock();
+        Assert.True(interlock.Reset("Runtime test cleared startup latch."));
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend),
+            options: HapticPipelineOptions.ManualRendering,
+            outputInterlock: interlock);
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45)));
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(1, backend.StartCount);
+        Assert.True(backend.SubmitCount > 0);
     }
 
     [Fact]

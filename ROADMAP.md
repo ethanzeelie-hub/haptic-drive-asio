@@ -79,6 +79,7 @@
 - Stage 18r-C: BST-1 road speed/frequency/grain tuning controls and Devices-tab persistence hotfix complete.
 - Stage 18r-D: BST-1 wheel slip / wheel lock tuning controls and diagnostics complete.
 - Stage 18r-G: Startup navigation construction crash hotfix complete.
+- Stage 18r-H: Manual BST-1 interlock reset and validation workflow hotfix complete.
 - Stage 18r-E/F: P-HPR wheel slip / wheel lock continuous texture model and targeted priority validation complete.
 - Stage 19A: Runtime ownership guardrails and extraction plan complete.
 - Stage 19B: Runtime ownership dependency inversion and safe extraction complete.

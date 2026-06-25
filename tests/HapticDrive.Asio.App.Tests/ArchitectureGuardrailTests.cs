@@ -74,4 +74,43 @@ public sealed class ArchitectureGuardrailTests
         Assert.Contains("Command=\"{Binding ResetToDefaultsCommand}\"", effectsViewMarkup, StringComparison.Ordinal);
         Assert.Equal(typeof(ICommand), typeof(EffectSettingsItemViewModel).GetProperty(nameof(EffectSettingsItemViewModel.ResetToDefaultsCommand))!.PropertyType);
     }
+
+    [Fact]
+    public void TestSources_DoNotInstantiateRealPhprHidWriters()
+    {
+        var testsDirectory = Path.Combine(
+            MainWindowSourceTestHelper.FindRepositoryRoot(),
+            "tests");
+        var windowsWriter = "new Windows" + "HidReportWriter";
+        var deferredWriter = "new DeferredWindows" + "HidReportWriter";
+
+        foreach (var path in Directory.GetFiles(testsDirectory, "*.cs", SearchOption.AllDirectories))
+        {
+            var source = File.ReadAllText(path);
+
+            Assert.DoesNotContain(windowsWriter, source, StringComparison.Ordinal);
+            Assert.DoesNotContain(deferredWriter, source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ManualBst1PulsePath_RemainsIndependentFromLiveTelemetryAndDrivingState()
+    {
+        var source = MainWindowSourceTestHelper.ReadRepositoryFile(
+            "src",
+            "HapticDrive.Asio.App",
+            "AppRuntimeSession.ProfileTheme.cs");
+        var methodStart = source.IndexOf("private async void ManualBst1PulseButton_Click", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("private void ManualAsioHardwareTestChannel0Button_Click", StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0);
+        Assert.True(methodEnd > methodStart);
+
+        var methodSource = source[methodStart..methodEnd];
+
+        Assert.Contains("await StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(", methodSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("DrivingArmed", methodSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("VehicleState", methodSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("TelemetryReceiver", methodSource, StringComparison.Ordinal);
+    }
 }

@@ -62,6 +62,9 @@ internal sealed partial class AppRuntimeSession
             OutputStatus: pipelineSnapshot.Output));
         StartStopButton.Content = presentation.StartStopButtonText;
         EmergencyMuteButton.Content = presentation.EmergencyMuteButtonText;
+        EmergencyMuteButton.ToolTip = pipelineSnapshot.OutputInterlock.IsLatched
+            ? "Emergency mute is already active. Use Reset Output Interlock after outputs are silent and safe."
+            : "Trip the global output interlock immediately. Reset is required before output can resume.";
         ResetOutputInterlockButton.IsEnabled = pipelineSnapshot.OutputInterlock.IsLatched;
         UpdateDashboardStatus(pipelineSnapshot);
     }

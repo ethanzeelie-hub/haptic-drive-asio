@@ -10,11 +10,7 @@ internal sealed partial class AppRuntimeSession
 {
     internal async void EmergencyMuteButton_Click(object sender, RoutedEventArgs e)
     {
-        _outputInterlock.Trip(
-            OutputInterlockReason.UserEmergencyMute,
-            "Emergency mute requested from the main window.");
-        await ApplyOutputInterlockChangeAsync(
-            "Global output interlock latched across ASIO, test bench, and P-HPR routing.");
+        FooterStatusText.Text = await TripEmergencyMuteAsync("Emergency mute requested from the main window.");
     }
 
     internal async void ResetOutputInterlockButton_Click(object sender, RoutedEventArgs e)
@@ -33,11 +29,7 @@ internal sealed partial class AppRuntimeSession
         if (e.Key == Key.M)
         {
             e.Handled = true;
-            _outputInterlock.Trip(
-                OutputInterlockReason.UserEmergencyMute,
-                "Emergency mute requested from the keyboard shortcut.");
-            await ApplyOutputInterlockChangeAsync(
-                "Global output interlock latched across ASIO, test bench, and P-HPR routing.");
+            FooterStatusText.Text = await TripEmergencyMuteAsync("Emergency mute requested from the keyboard shortcut.");
             return;
         }
 
@@ -50,17 +42,6 @@ internal sealed partial class AppRuntimeSession
 
     private async Task<string> TryResetOutputInterlockAsync()
     {
-        var outputStatus = _hapticPipeline.GetSnapshot().Output;
-        if (!_hapticsStarted || !_hapticPipeline.GetSnapshot().IsRunning)
-        {
-            return PublishOutputInterlockResetFailure("Output interlock reset blocked: start haptics first so the runtime and safety path are active.");
-        }
-
-        if (!IsOutputConfigurationValidForInterlockReset(outputStatus))
-        {
-            return PublishOutputInterlockResetFailure("Output interlock reset blocked: select a valid output configuration before enabling output.");
-        }
-
         if (!_outputInterlock.Current.IsLatched)
         {
             return "Output interlock is already reset.";
@@ -80,6 +61,26 @@ internal sealed partial class AppRuntimeSession
 
         await ApplyOutputInterlockChangeAsync(
             "Global output interlock reset; output may resume when fresh signals and routing allow it.");
+        return FooterStatusText.Text;
+    }
+
+    private async Task<string> TripEmergencyMuteAsync(string requestMessage)
+    {
+        if (_outputInterlock.Current.IsLatched
+            && _outputInterlock.Current.Reason == OutputInterlockReason.UserEmergencyMute)
+        {
+            var alreadyActiveMessage = "Emergency mute is already active. Use Reset Output Interlock after outputs are silent and safe.";
+            SyncOutputInterlockState(_outputInterlock.Current, alreadyActiveMessage);
+            UpdateManualAsioHardwareTestStatus();
+            UpdatePhprPedalsStatus();
+            return alreadyActiveMessage;
+        }
+
+        _outputInterlock.Trip(
+            OutputInterlockReason.UserEmergencyMute,
+            requestMessage);
+        await ApplyOutputInterlockChangeAsync(
+            "Global output interlock latched across ASIO, test bench, and P-HPR routing. Use Reset Output Interlock after outputs are silent and safe.");
         return FooterStatusText.Text;
     }
 
@@ -119,6 +120,9 @@ internal sealed partial class AppRuntimeSession
 
     private string PublishOutputInterlockResetFailure(string message)
     {
+        SyncOutputInterlockState(_outputInterlock.Current, message);
+        UpdateManualAsioHardwareTestStatus();
+        UpdatePhprPedalsStatus();
         PublishDiagnosticEvent(
             "safety.interlock-reset-failure",
             DiagnosticSeverity.Warning,
@@ -132,9 +136,9 @@ internal sealed partial class AppRuntimeSession
         return message;
     }
 
-    private void SyncOutputInterlockState(OutputInterlockSnapshot snapshot)
+    private void SyncOutputInterlockState(OutputInterlockSnapshot snapshot, string? messageOverride = null)
     {
-        _applicationSafetyController.Publish(snapshot);
+        _applicationSafetyController.Publish(snapshot, messageOverride);
         _emergencyMuted = snapshot.IsLatched;
         _testBench.EmergencyMute = _emergencyMuted;
         SafetyStatusText.Text = $"Safety: {_safetyStateViewModel.StatusText}";
@@ -144,23 +148,10 @@ internal sealed partial class AppRuntimeSession
         if (ResetOutputInterlockButton is not null)
         {
             ResetOutputInterlockButton.IsEnabled = snapshot.IsLatched;
+            ResetOutputInterlockButton.ToolTip = snapshot.IsLatched
+                ? $"Reset the global output interlock. {_safetyStateViewModel.Message}"
+                : "Global output interlock is already clear.";
         }
-    }
-
-    private bool IsOutputConfigurationValidForInterlockReset(AudioOutputStatus outputStatus)
-    {
-        if (_selectedOutputKind == AudioOutputDeviceKind.Null)
-        {
-            return true;
-        }
-
-        if (_selectedOutputKind == AudioOutputDeviceKind.Asio)
-        {
-            return !string.IsNullOrWhiteSpace(_selectedAsioDriverName)
-                && outputStatus.State != AudioOutputDeviceState.Faulted;
-        }
-
-        return outputStatus.State != AudioOutputDeviceState.Faulted;
     }
 
     private async Task SyncGlobalPhprOutputInterlockAsync(OutputInterlockSnapshot snapshot)

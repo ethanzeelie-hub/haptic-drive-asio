@@ -1726,7 +1726,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
         if (IsEmergencyMuted)
         {
-            return "Emergency mute is active.";
+            return $"Output interlock is latched: {_outputInterlock.Current.Reason}.";
         }
 
         if (_normalMuted)

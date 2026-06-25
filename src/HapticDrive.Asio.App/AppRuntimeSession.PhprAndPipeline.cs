@@ -1616,67 +1616,72 @@ internal sealed partial class AppRuntimeSession
 
     private bool TryGetDirectPhprPulseReady(PHprModuleId moduleId, out string message)
     {
+        var blockers = GetDirectPhprPulseBlockers(moduleId);
+        if (blockers.Count == 0)
+        {
+            message = "direct control ready";
+            return true;
+        }
+
+        message = string.Join("; ", blockers);
+        return false;
+    }
+
+    private IReadOnlyList<string> GetDirectPhprPulseBlockers(PHprModuleId moduleId)
+    {
+        var blockers = new List<string>();
         var diagnostics = _realPhprOutput.GetDiagnostics();
+
         if (!_realPhprOptions.DirectControlEnabled)
         {
-            message = "direct control is disabled";
-            return false;
+            blockers.Add("direct control is disabled");
         }
 
         if (!_realPhprOptions.DirectControlArmed)
         {
-            message = "direct control is not armed";
-            return false;
+            blockers.Add("direct control is not armed");
         }
 
         if (!_realPhprOptions.Selector.IsSelected)
         {
-            message = "no P-HPR device/interface/report is selected";
-            return false;
+            blockers.Add("no P-HPR device/interface/report is selected");
         }
 
         if (_realPhprOptions.CandidateIsRawInputOnly || !_realPhprOptions.CandidateHasOpenableHidPath)
         {
-            message = "selected candidate is Raw Input metadata only or has no openable HID device-interface path";
-            return false;
+            blockers.Add("selected candidate is Raw Input metadata only or has no openable HID device-interface path");
         }
 
         if (!_realPhprOptions.OpenCheckSucceeded)
         {
-            message = "selected candidate has not passed HID open-check";
-            return false;
+            blockers.Add("selected candidate has not passed HID open-check");
         }
 
         if (!_realPhprOptions.AllowsDirectPulseReportShape)
         {
-            message = _realPhprOptions.ReportShapeValidationFailed
+            blockers.Add(_realPhprOptions.ReportShapeValidationFailed
                 ? $"selected candidate report shape is blocked: {_realPhprOptions.ReportShapeValidationMessage ?? "validation failed"}"
-                : "selected candidate report transport/capability/shape is unavailable";
-            return false;
+                : "selected candidate report transport/capability/shape is unavailable");
         }
 
         if (_phprSoftwareCoexistenceSnapshot.Status != PHprSoftwareConflictStatus.Clear)
         {
-            message = $"software coexistence is {_phprSoftwareCoexistenceSnapshot.Status}";
-            return false;
+            blockers.Add($"software coexistence is {_phprSoftwareCoexistenceSnapshot.Status}");
         }
 
         if (!_outputInterlock.Current.AllowsOutput)
         {
-            message = "global output interlock is latched";
-            return false;
+            blockers.Add("global output interlock is latched");
         }
 
         if (diagnostics.Output.IsEmergencyStopActive)
         {
-            message = "emergency stop is active";
-            return false;
+            blockers.Add("emergency stop is active");
         }
 
         if (!_phprWriteAuthorization.Current.IsAuthorized)
         {
-            message = "session authorization is required";
-            return false;
+            blockers.Add("session authorization is required");
         }
 
         var settings = moduleId == PHprModuleId.Throttle
@@ -1684,12 +1689,10 @@ internal sealed partial class AppRuntimeSession
             : _realPhprOptions.BrakeGearPulse;
         if (!settings.IsEnabled)
         {
-            message = $"{moduleId} pulse is disabled";
-            return false;
+            blockers.Add($"{moduleId} pulse is disabled");
         }
 
-        message = "direct control ready";
-        return true;
+        return blockers;
     }
 
     private void UpdatePhprPedalsStatus()
@@ -1699,17 +1702,13 @@ internal sealed partial class AppRuntimeSession
         var realDiagnostics = _realPhprOutput.GetDiagnostics();
         var directReady = TryGetDirectPhprPulseReady(PHprModuleId.Brake, out var directMessage)
             || TryGetDirectPhprPulseReady(PHprModuleId.Throttle, out directMessage);
-        var brakeEnabled = _realPhprOptions.BrakeGearPulse.IsEnabled;
-        var throttleEnabled = _realPhprOptions.ThrottleGearPulse.IsEnabled;
-        var brakeCanPulse = mode == PhprPedalsMode.Mock && brakeEnabled && !mockSnapshot.IsEmergencyStopActive
-            || mode == PhprPedalsMode.Direct && brakeEnabled && TryGetDirectPhprPulseReady(PHprModuleId.Brake, out _);
-        var throttleCanPulse = mode == PhprPedalsMode.Mock && throttleEnabled && !mockSnapshot.IsEmergencyStopActive
-            || mode == PhprPedalsMode.Direct && throttleEnabled && TryGetDirectPhprPulseReady(PHprModuleId.Throttle, out _);
+        var brakeCanPulse = TryGetDirectPhprPulseReady(PHprModuleId.Brake, out _);
+        var throttleCanPulse = TryGetDirectPhprPulseReady(PHprModuleId.Throttle, out _);
 
         TestPhprBrakePulseButton.IsEnabled = brakeCanPulse;
         TestPhprThrottlePulseButton.IsEnabled = throttleCanPulse;
-        TestPhprBrakePulseButton.ToolTip = BuildNormalPulseToolTip(PHprModuleId.Brake, mode, brakeEnabled, mockSnapshot.IsEmergencyStopActive);
-        TestPhprThrottlePulseButton.ToolTip = BuildNormalPulseToolTip(PHprModuleId.Throttle, mode, throttleEnabled, mockSnapshot.IsEmergencyStopActive);
+        TestPhprBrakePulseButton.ToolTip = BuildNormalPulseToolTip(PHprModuleId.Brake, mode);
+        TestPhprThrottlePulseButton.ToolTip = BuildNormalPulseToolTip(PHprModuleId.Throttle, mode);
 
         PhprPedalsModeBadgeText.Text = mode switch
         {
@@ -1720,10 +1719,10 @@ internal sealed partial class AppRuntimeSession
         };
         PhprPedalsStatusText.Text = mode switch
         {
-            PhprPedalsMode.Disabled => "P-HPR pedals disabled. Emergency stop remains available.",
+            PhprPedalsMode.Disabled => "P-HPR pedals disabled. Manual pedal test buttons stay disabled until the full Direct checklist is satisfied.",
             PhprPedalsMode.Mock => mockSnapshot.IsEmergencyStopActive
-                ? "Mock P-HPR emergency stop is active; clear it before mock test pulses."
-                : "Mock P-HPR pedals are ready for software-only test pulses.",
+                ? "Mock P-HPR emergency stop is active. Manual pedal test buttons still stay disabled until the full Direct checklist is satisfied."
+                : "Mock P-HPR mode is available for software-only routing, but manual pedal test buttons stay disabled until the full Direct checklist is satisfied.",
             PhprPedalsMode.Direct => directReady
                 ? "Direct P-HPR mode is ready for this session."
                 : $"Direct P-HPR mode is selected but blocked: {directMessage}.",
@@ -1737,30 +1736,15 @@ internal sealed partial class AppRuntimeSession
 
     private string BuildNormalPulseToolTip(
         PHprModuleId moduleId,
-        PhprPedalsMode mode,
-        bool moduleEnabled,
-        bool mockEmergencyStopActive)
+        PhprPedalsMode mode)
     {
-        if (mode == PhprPedalsMode.Disabled)
-        {
-            return "Enable P-HPR Pedals first.";
-        }
-
-        if (!moduleEnabled)
-        {
-            return $"{moduleId} pulse is disabled.";
-        }
-
-        if (mode == PhprPedalsMode.Mock)
-        {
-            return mockEmergencyStopActive
-                ? "Clear P-HPR emergency stop before sending mock pulses."
-                : "Send a safety-limited mock pulse without requiring haptics to be running.";
-        }
-
         return TryGetDirectPhprPulseReady(moduleId, out var message)
             ? "Send a manually gated direct P-HPR pulse."
-            : $"Direct mode blocked: {message}.";
+            : mode == PhprPedalsMode.Mock
+                ? $"Mock mode does not unlock manual pedal pulses. Direct checklist missing: {message}."
+                : mode == PhprPedalsMode.Disabled
+                    ? $"Enable Direct P-HPR mode and satisfy the full checklist: {message}."
+                    : $"Direct mode blocked: {message}.";
     }
 
     private void SaveAppSettings()

@@ -1291,11 +1291,12 @@ public sealed class PHprRealOutputTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var testsDirectory = Path.Combine(repositoryRoot, "tests");
+        var windowsWriterConstructor = "new Windows" + "HidReportWriter(";
         var matches = Directory.GetFiles(testsDirectory, "*.cs", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .Where(path => !path.EndsWith($"{Path.DirectorySeparatorChar}PHprRealOutputTests.cs", StringComparison.OrdinalIgnoreCase))
             .SelectMany(path => File.ReadLines(path).Select((line, index) => (path, line, index)))
-            .Where(match => match.line.Contains("new WindowsHidReportWriter(", StringComparison.Ordinal))
+            .Where(match => match.line.Contains(windowsWriterConstructor, StringComparison.Ordinal))
             .ToArray();
 
         Assert.Empty(matches);

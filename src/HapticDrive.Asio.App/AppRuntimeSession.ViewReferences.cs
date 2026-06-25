@@ -162,6 +162,7 @@ internal sealed partial class AppRuntimeSession
     private TextBox Bst1OutputTrimTextBox => TestingValidationViewControl.Bst1OutputTrimTextBoxControl;
     private TextBox ManualBst1FrequencyTextBox => TestingValidationViewControl.ManualBst1FrequencyTextBoxControl;
     private TextBox ManualBst1DurationTextBox => TestingValidationViewControl.ManualBst1DurationTextBoxControl;
+    private Button ManualBst1PulseButton => TestingValidationViewControl.ManualBst1PulseButtonControl;
     private TextBlock ManualAsioHardwareStatusText => TestingValidationViewControl.ManualAsioHardwareStatusTextControl;
     private TextBlock ManualAsioHardwareBlockedReasonText => TestingValidationViewControl.ManualAsioHardwareBlockedReasonTextControl;
     private TextBlock PhprPedalsModeBadgeText => TestingValidationViewControl.PhprPedalsModeBadgeTextControl;

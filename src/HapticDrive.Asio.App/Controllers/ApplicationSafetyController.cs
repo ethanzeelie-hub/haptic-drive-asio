@@ -13,13 +13,15 @@ internal sealed class ApplicationSafetyController
 
     public SafetyStateViewModel ViewModel { get; }
 
-    public void Publish(OutputInterlockSnapshot snapshot)
+    public void Publish(OutputInterlockSnapshot snapshot, string? messageOverride = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
         ViewModel.IsLatched = snapshot.IsLatched;
         ViewModel.Reason = snapshot.Reason.ToString();
-        ViewModel.Message = snapshot.Message;
+        ViewModel.Message = string.IsNullOrWhiteSpace(messageOverride)
+            ? snapshot.Message
+            : messageOverride.Trim();
         ViewModel.Generation = snapshot.Generation;
         ViewModel.StatusText = snapshot.IsLatched
             ? $"Latched: {snapshot.Reason}"

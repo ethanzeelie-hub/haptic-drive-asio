@@ -3,6 +3,8 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
 using HapticDrive.Asio.App;
+using HapticDrive.Asio.Core.Safety;
+using HapticDrive.Asio.Runtime.Pipeline;
 
 namespace HapticDrive.Asio.App.Tests;
 
@@ -31,6 +33,33 @@ public sealed class MainWindowStartupTests
                 Assert.Equal("Dashboard", window.PageTitleText.Text);
                 Assert.Equal("Viewing Dashboard", window.FooterStatusText.Text);
                 Assert.Equal(Visibility.Visible, window.DashboardViewControl.Visibility);
+                Assert.Equal("Safety: Latched: StartupSafeDefault", window.SafetyStatusTextControl.Text);
+                Assert.False(window.TestingValidationViewControlView.ManualBst1PulseButtonControl.IsEnabled);
+                Assert.Contains(
+                    "Reset Output Interlock before testing BST-1",
+                    window.TestingValidationViewControlView.ManualBst1PulseButtonControl.ToolTip?.ToString(),
+                    StringComparison.Ordinal);
+                Assert.False(window.TestingValidationViewControlView.TestPhprBrakePulseButtonControl.IsEnabled);
+                Assert.False(window.TestingValidationViewControlView.TestPhprThrottlePulseButtonControl.IsEnabled);
+
+                var interlock = GetRuntimeField<IOutputInterlock>(window, "_outputInterlock");
+                var pipeline = GetRuntimeField<HapticPipelineCoordinator>(window, "_hapticPipeline");
+                Assert.Same(interlock, pipeline.OutputInterlock);
+
+                var resetResult = InvokeRuntimeTask<string>(window, "TryResetOutputInterlockAsync");
+                Assert.Contains("reset", resetResult, StringComparison.OrdinalIgnoreCase);
+                Assert.Equal("Safety: Output enabled", window.SafetyStatusTextControl.Text);
+
+                var firstTrip = InvokeRuntimeTask<string>(window, "TripEmergencyMuteAsync", "Emergency mute requested from startup test.");
+                Assert.Contains("latched", firstTrip, StringComparison.OrdinalIgnoreCase);
+                var generationAfterFirstTrip = interlock.Current.Generation;
+                var secondTrip = InvokeRuntimeTask<string>(window, "TripEmergencyMuteAsync", "Emergency mute requested from startup test again.");
+                Assert.Contains("already active", secondTrip, StringComparison.OrdinalIgnoreCase);
+                Assert.Equal(generationAfterFirstTrip, interlock.Current.Generation);
+                Assert.Equal(OutputInterlockReason.UserEmergencyMute, interlock.Current.Reason);
+                Assert.Equal("Safety: Latched: UserEmergencyMute", window.SafetyStatusTextControl.Text);
+                Assert.Contains("Reset Required", window.EmergencyMuteButtonControl.Content?.ToString(), StringComparison.OrdinalIgnoreCase);
+                Assert.False(window.TestingValidationViewControlView.ManualBst1PulseButtonControl.IsEnabled);
             }
             finally
             {
@@ -105,13 +134,38 @@ public sealed class MainWindowStartupTests
         });
     }
 
-    private static void CloseWindowForTest(MainWindow window)
+    private static T GetRuntimeField<T>(MainWindow window, string fieldName)
+        where T : class
+    {
+        var runtime = GetRuntime(window);
+        var field = runtime.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        var value = field.GetValue(runtime);
+        return Assert.IsAssignableFrom<T>(value);
+    }
+
+    private static T InvokeRuntimeTask<T>(MainWindow window, string methodName, params object[] arguments)
+    {
+        var runtime = GetRuntime(window);
+        var method = runtime.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        var task = method.Invoke(runtime, arguments);
+        Assert.NotNull(task);
+        return Assert.IsAssignableFrom<Task<T>>(task).GetAwaiter().GetResult();
+    }
+
+    private static object GetRuntime(MainWindow window)
     {
         var runtimeField = typeof(MainWindow).GetField("_runtime", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(runtimeField);
         var runtime = runtimeField.GetValue(window);
         Assert.NotNull(runtime);
+        return runtime;
+    }
 
+    private static void CloseWindowForTest(MainWindow window)
+    {
+        var runtime = GetRuntime(window);
         var runtimeType = runtime.GetType();
         var cleanupMethod = runtimeType.GetMethod("RunShutdownCleanupBlocking", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(cleanupMethod);

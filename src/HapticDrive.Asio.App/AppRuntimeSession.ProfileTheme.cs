@@ -536,12 +536,43 @@ internal sealed partial class AppRuntimeSession
     private void UpdateManualAsioHardwareTestStatus()
     {
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
+        var actionBlocker = GetManualBst1PulseActionBlocker(snapshot);
         ManualAsioHardwareStatusText.Text =
             $"BST-1 channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; driver {snapshot.SelectedAsioDriver}; armed {snapshot.AsioArmed}; haptics {(snapshot.HapticsRunning ? "running" : "stopped")}; peak {snapshot.ManualPulsePeak:0.000}.";
-        ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason is null
-            ? $"{Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot)}; {_lastBst1PaddleGearPulseMessage}"
-            : Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot);
+        ManualBst1PulseButton.IsEnabled = actionBlocker is null;
+        ManualBst1PulseButton.ToolTip = actionBlocker ?? "Send a standalone BST-1 validation pulse through the selected ASIO channel without starting live haptics.";
+        ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason ?? actionBlocker ?? $"{Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot)}; {_lastBst1PaddleGearPulseMessage}";
         UpdateDevicesPresentation();
+    }
+
+    private string? GetManualBst1PulseActionBlocker(ManualAsioHardwareTestSnapshot snapshot)
+    {
+        if (_outputInterlock.Current.IsLatched)
+        {
+            return $"Reset Output Interlock before testing BST-1. Safety is latched: {_outputInterlock.Current.Reason}.";
+        }
+
+        if (_selectedOutputKind != AudioOutputDeviceKind.Asio)
+        {
+            return "Select ASIO output on Devices before testing BST-1.";
+        }
+
+        if (!_asioArmed || !snapshot.AsioArmed)
+        {
+            return "Arm ASIO before testing BST-1.";
+        }
+
+        if (string.IsNullOrWhiteSpace(_selectedAsioDriverName))
+        {
+            return "Select an ASIO driver before testing BST-1.";
+        }
+
+        if (snapshot.SelectedOutputChannel is null or < 0)
+        {
+            return "Select channel 0 or 1 before testing BST-1.";
+        }
+
+        return null;
     }
 
     private void ApplyBst1PulseSettingsToControls()
