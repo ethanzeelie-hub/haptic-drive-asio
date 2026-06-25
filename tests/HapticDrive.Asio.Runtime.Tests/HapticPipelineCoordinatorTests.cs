@@ -130,6 +130,9 @@ public sealed class HapticPipelineCoordinatorTests
         Assert.Equal(HapticPipelineInputSource.Replay, snapshot.InputSource);
         Assert.Equal(5, snapshot.ParserSuccessCount);
         Assert.Equal(5, snapshot.VehicleStateUpdateCount);
+        Assert.Equal(5, snapshot.HapticFrameUpdateCount);
+        Assert.NotNull(snapshot.HapticFrame);
+        Assert.False(snapshot.TelemetryTimedOutMuted);
         Assert.True(snapshot.NullOutput!.LastPeakLevel > 0f);
     }
 

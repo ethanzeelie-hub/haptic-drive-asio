@@ -82,6 +82,9 @@
 - Stage 18r-H: Manual BST-1 interlock reset and validation workflow hotfix complete.
 - Stage 18r-I: Restore physical BST-1 manual ASIO pulse complete.
 - Stage 18r-J: Validated BST-1 startup defaults and P-HPR readiness workflow complete.
+- Stage 18r-K: Enable owner-local validation defaults complete.
+- Stage 18r-L: Restore owner-local manual P-HPR pulse output and clean startup safety complete.
+- Stage 18r-M: Restore replay road vibration routing complete.
 - Stage 18r-E/F: P-HPR wheel slip / wheel lock continuous texture model and targeted priority validation complete.
 - Stage 19A: Runtime ownership guardrails and extraction plan complete.
 - Stage 19B: Runtime ownership dependency inversion and safe extraction complete.
@@ -148,6 +151,7 @@
 - Production-hardening software remediation is complete. Remaining blockers are manual hardware validation and owner/legal release decisions, not additional software-remediation stages.
 - Stage 18r-K complete: the private owner-local app now starts with output-enabled BST-1 validation defaults, auto-restores the P-HPR session authorization seam when safe, auto-runs no-write preferred-candidate open-check/readiness on startup, and removes the approval-phrase workflow from the normal local validation path without weakening the direct physical-write boundary, coexistence, interlock, or emergency-stop gates.
 - Stage 18r-L complete: owner-local manual P-HPR pulses now stay blocked until direct-runtime startup/recovery state is genuinely clear, clean shutdown uses stop-only direct-runtime cleanup so the next launch can return to output-enabled startup when safe, and startup safety now surfaces a specific recovery hold instead of only `StartupSafeDefault`.
+- Stage 18r-M complete: replay now auto-starts haptics when needed so replay road effects feed the normal BST-1 and continuous P-HPR runtime paths again, owner-local real-road defaults hydrate enabled, and replay-road diagnostics/status now show haptics running, canonical frame updates, and road route/ignore state explicitly instead of replaying packets silently with no physical road output.
 - Stage 26A complete: global output safety interlock now owns emergency stop/mute latching across BST-1 audio, manual test rendering, and P-HPR routing/runtime surfaces.
 - Stage 26B complete: telemetry now carries monotonic receive timestamps, F1 25 state resets on source/session/player identity changes, older same-session frames are ignored, per-signal freshness is centralized, and stale driving telemetry can latch the global output interlock.
 - Stage 26C complete: live UDP telemetry now flows through one bounded ingress worker with dedicated haptic/forwarding/recording channels, loopback remains the default bind, LAN telemetry is explicit opt-in, and diagnostics now surface ignored remotes, oversized datagrams, and ingress drop counts.

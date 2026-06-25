@@ -31,7 +31,8 @@ public sealed class RoadTextureDiagnosticsReportTests
     {
         var snapshot = CreateDiagnostics();
 
-        var line = snapshot.ToDiagnosticsLines()[0];
+        var replayLine = snapshot.ToDiagnosticsLines()[0];
+        var line = snapshot.ToDiagnosticsLines()[1];
 
         Assert.Contains("sharedRoadSignalEnabled", line);
         Assert.Contains("raw", line);
@@ -39,6 +40,9 @@ public sealed class RoadTextureDiagnosticsReportTests
         Assert.Contains("output", line);
         Assert.Contains("speed reference", line);
         Assert.Contains("grain/noise", line);
+        Assert.Contains("replayActive", replayLine);
+        Assert.Contains("vehicle updates", replayLine);
+        Assert.Contains("haptic frame updates", replayLine);
         Assert.True(snapshot.RawIntensity > 0f);
         Assert.True(snapshot.SmoothedIntensity > 0f);
         Assert.True(snapshot.OutputIntensity > 0f);
@@ -65,8 +69,9 @@ public sealed class RoadTextureDiagnosticsReportTests
 
         Assert.True(snapshot.SharedRoadSignalEnabled);
         Assert.False(snapshot.Bst1RoadEnabled);
-        Assert.Contains("sharedRoadSignalEnabled True", lines[0]);
-        Assert.Contains("bst1RoadOutputEnabled False", lines[1]);
+        Assert.Contains("shared road enabled True", lines[0]);
+        Assert.Contains("sharedRoadSignalEnabled True", lines[1]);
+        Assert.Contains("bst1RoadOutputEnabled False", lines[2]);
     }
 
     [Fact]
@@ -313,6 +318,7 @@ public sealed class RoadTextureDiagnosticsReportTests
             ParserIgnoredCount: 0,
             ParserFailureCount: 0,
             VehicleStateUpdateCount: 10,
+            HapticFrameUpdateCount: 10,
             RenderedBufferCount: 20,
             TelemetryAge: TimeSpan.FromMilliseconds(2),
             TelemetryMuteTimeout: TimeSpan.FromMilliseconds(500),

@@ -1,5 +1,46 @@
 # Development Log
 
+## Stage 18r-M - Restore Replay Road Vibration Routing
+
+Date: 2026-06-25
+
+Status: Complete.
+
+Goal: Restore replay-driven BST-1 and P-HPR road vibration after the owner-local manual-output repairs by making replay road output use the running haptics path again, repairing owner-local road defaults, and surfacing replay-road gating clearly in diagnostics.
+
+Notes:
+
+- Restored the replay workflow without reworking the already-fixed manual pulse paths:
+  - replay now auto-starts haptics when they are not already running, using the same output-owned runtime path as live haptics,
+  - replay only falls back to telemetry-only mode when haptics cannot be started safely, and the Telemetry / UDP status now says so explicitly instead of silently replaying packets with no physical road output,
+  - if replay had to start haptics for the session, it stops them again after replay finishes so the prior stopped state is restored deliberately.
+- Repaired replay-road defaults and hydration for owner-local validation:
+  - persisted/default owner-local real road vibration settings now hydrate with real road vibration enabled by default,
+  - the existing shared road signal plus BST-1 road defaults remain enabled through the audio profile path,
+  - brake/throttle P-HPR road settings stay non-zero and conservative without touching the manual brake/throttle pulse or paddle-shift routes.
+- Added clearer replay-road diagnostics on the app/runtime seam:
+  - `HapticPipelineSnapshot` now carries a `HapticFrameUpdateCount` so replay diagnostics can distinguish `VehicleState` updates from canonical frame updates,
+  - road diagnostics now include a dedicated replay-road line with replay active/state, replay packet count, haptics running, last packet summary, frame/update counts, shared road output, BST-1 proof values, and P-HPR route/ignore state,
+  - replay status text now makes the road-output gating visible directly on the Telemetry / UDP page.
+- Added regression coverage for the repaired replay path:
+  - telemetry presenter tests now prove replay warns when it is telemetry-only and advertises the running-haptics path when road output can route,
+  - app settings hydration tests now prove owner-local default road routing remains enabled,
+  - runtime/app diagnostics tests now cover the new replay-road line and canonical frame update count.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild` passed.
+- Direct launch of `src\HapticDrive.Asio.App\bin\Release\net8.0-windows\HapticDrive.Asio.App.exe` stayed alive after 3 seconds and exposed a real main window handle (`MainWindowHandle=18745310`, `Responding=True`).
+
+Self-review:
+
+- The fix stays inside the thin shell/runtime architecture: replay still feeds the same parser, `VehicleState`, canonical `HapticFrame`, effect engine, BST-1 render, and P-HPR continuous-runtime path rather than adding a replay-only bypass.
+- The repaired defaults and explicit replay messaging should make owner-local validation much less confusing, while still preserving the shared interlock, limiter, direct-output readiness, coexistence, and emergency-stop gates.
+
 ## Stage 18r-L - Restore Owner-Local P-HPR Pulse Output And Clean Startup Safety
 
 Date: 2026-06-25

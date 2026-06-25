@@ -474,7 +474,7 @@ internal static class PersistedSettingsStatusPresenter
             ShiftIntentEnabled: true,
             ShiftIntentMode: ShiftIntentMode.InstantPaddleOnly,
             RealDirectControlEnabled: false,
-            RealRoadVibrationEnabled: false,
+            RealRoadVibrationEnabled: true,
             RealSlipLockEnabled: false,
             MockGearRoutingEnabled: false,
             MockGearRoutingTarget: PHprGearPulseTarget.Brake,

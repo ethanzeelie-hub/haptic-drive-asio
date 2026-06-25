@@ -659,7 +659,7 @@ internal sealed record RealPhprGearPulseSetting
 
 internal sealed record RealPhprRoadVibrationRoutingSetting
 {
-    public bool IsEnabled { get; init; }
+    public bool IsEnabled { get; init; } = true;
 
     public RealPhprRoadVibrationPedalSetting Brake { get; init; } = RealPhprRoadVibrationPedalSetting.Default;
 

@@ -87,6 +87,7 @@ public sealed class RuntimeHealthMonitorTests
             ParserIgnoredCount: 0,
             ParserFailureCount: 0,
             VehicleStateUpdateCount: 5,
+            HapticFrameUpdateCount: 5,
             RenderedBufferCount: 20,
             TelemetryAge: telemetryStale ? TimeSpan.FromMilliseconds(750) : TimeSpan.FromMilliseconds(20),
             TelemetryMuteTimeout: TimeSpan.FromMilliseconds(250),

@@ -280,16 +280,137 @@ internal sealed partial class AppRuntimeSession
     private async Task ReplayRecordingAsync(string path)
     {
         var replayMode = GetSelectedReplayTimingMode();
+        var startedHapticsForReplay = false;
+        var replayWorkflowMessage = string.Empty;
+
+        (startedHapticsForReplay, replayWorkflowMessage) = await EnsureReplayHapticsRunningAsync(
+            Path.GetFileName(path),
+            replayMode.Label);
+        await Dispatcher.InvokeAsync(() =>
+        {
+            FooterStatusText.Text = replayWorkflowMessage;
+            UpdateRecordingStatus();
+            UpdateTelemetryStatus();
+            UpdateDiagnosticsStatus();
+        });
+
         var result = await _hapticPipeline.ReplayFileAsync(path, replayMode.Options);
+        var replayRestoreMessage = await RestoreReplayStartedHapticsAsync(startedHapticsForReplay);
         await Dispatcher.InvokeAsync(() =>
         {
             _replayError = result.Succeeded ? null : result.Message;
-            FooterStatusText.Text = $"{result.Message} Replay mode: {replayMode.Label}.";
+            FooterStatusText.Text = replayRestoreMessage is null
+                ? $"{result.Message} Replay mode: {replayMode.Label}."
+                : $"{result.Message} Replay mode: {replayMode.Label}. {replayRestoreMessage}";
             UpdateTelemetryStatus();
             UpdateRecordingStatus();
             UpdateEffectStatus();
             UpdateDiagnosticsStatus();
         });
+    }
+
+    private async Task<(bool StartedForReplay, string WorkflowMessage)> EnsureReplayHapticsRunningAsync(
+        string recordingName,
+        string replayModeLabel)
+    {
+        var pipelineSnapshot = _hapticPipeline.GetSnapshot();
+        if (_hapticsStarted || pipelineSnapshot.IsRunning)
+        {
+            return (
+                false,
+                $"Replaying {recordingName} in {replayModeLabel} mode with haptics already running.");
+        }
+
+        var startedForReplay = false;
+        var workflowMessage = $"Replaying {recordingName} in {replayModeLabel} mode. Replay is feeding telemetry only. Press Start Haptics to feel road effects.";
+
+        try
+        {
+            await _runtimeLifecycleCoordinator.RunSerializedAsync(
+                async (_, _) =>
+                {
+                    var result = await _hapticPipeline.StartAsync().ConfigureAwait(true);
+                    if (!result.Succeeded)
+                    {
+                        var failedSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+                        UpdateHapticsControlState(failedSnapshot);
+                        UpdateOutputStatus(result.OutputResult?.Status ?? failedSnapshot.Output);
+                        UpdateManualAsioHardwareTestStatus();
+                        UpdateEffectStatus();
+                        UpdateShiftIntentStatus();
+                        UpdateMockPedalEffectsStatus();
+                        UpdateDiagnosticsStatus();
+                        workflowMessage = $"{result.Message} Replay is feeding telemetry only. Press Start Haptics to feel road effects.";
+                        return;
+                    }
+
+                    _hapticsStarted = true;
+                    startedForReplay = true;
+                    var startedSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+                    UpdateHapticsControlState(startedSnapshot);
+                    UpdateOutputStatus(result.OutputResult?.Status ?? startedSnapshot.Output);
+                    UpdateManualAsioHardwareTestStatus();
+                    UpdateEffectStatus();
+                    UpdateShiftIntentStatus();
+                    UpdateMockPedalEffectsStatus();
+                    UpdateDiagnosticsStatus();
+                    workflowMessage = $"Replaying {recordingName} in {replayModeLabel} mode. Haptics auto-started for replay, and replay road effects now use the normal live output path.";
+                }).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            workflowMessage = $"Replay could not auto-start haptics: {ex.Message} Replay is feeding telemetry only. Press Start Haptics to feel road effects.";
+        }
+
+        return (startedForReplay, workflowMessage);
+    }
+
+    private async Task<string?> RestoreReplayStartedHapticsAsync(bool startedForReplay)
+    {
+        if (!startedForReplay)
+        {
+            return null;
+        }
+
+        var restoreMessage = "Replay finished; haptics returned to the stopped state.";
+
+        try
+        {
+            await _runtimeLifecycleCoordinator.RunSerializedAsync(
+                async (_, _) =>
+                {
+                    var result = await _hapticPipeline.StopAsync().ConfigureAwait(true);
+                    if (!result.Succeeded)
+                    {
+                        var failedSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+                        UpdateHapticsControlState(failedSnapshot);
+                        UpdateOutputStatus(result.OutputResult?.Status ?? failedSnapshot.Output);
+                        UpdateManualAsioHardwareTestStatus();
+                        UpdateEffectStatus();
+                        UpdateShiftIntentStatus();
+                        UpdateMockPedalEffectsStatus();
+                        UpdateDiagnosticsStatus();
+                        restoreMessage = $"Replay finished, but automatic haptics stop failed: {result.Message}";
+                        return;
+                    }
+
+                    _hapticsStarted = false;
+                    var stoppedSnapshot = RefreshDrivingArmedAndShiftIntentTelemetry();
+                    UpdateHapticsControlState(stoppedSnapshot);
+                    UpdateOutputStatus(result.OutputResult?.Status ?? stoppedSnapshot.Output);
+                    UpdateManualAsioHardwareTestStatus();
+                    UpdateEffectStatus();
+                    UpdateShiftIntentStatus();
+                    UpdateMockPedalEffectsStatus();
+                    UpdateDiagnosticsStatus();
+                }).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            restoreMessage = $"Replay finished, but automatic haptics stop failed: {ex.Message}";
+        }
+
+        return restoreMessage;
     }
 
     private async Task RefreshRecordingLibraryAsync(string? selectedPath = null)

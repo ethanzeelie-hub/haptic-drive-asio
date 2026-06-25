@@ -345,4 +345,16 @@ public sealed class AppSettingsSnapshotBuilderTests
         Assert.False(snapshot.RealPhprOutputOptions.DirectControlEnabled);
         Assert.False(snapshot.RealPhprOutputOptions.DirectControlArmed);
     }
+
+    [Fact]
+    public void BuildHydrationSnapshot_DefaultOwnerLocalRoadRoutingStaysEnabled()
+    {
+        var snapshot = AppSettingsSnapshotBuilder.BuildHydrationSnapshot(AppSettings.Default);
+
+        Assert.True(snapshot.RealRoadVibrationRouterOptions.IsEnabled);
+        Assert.True(snapshot.RealRoadVibrationRouterOptions.Brake.IsEnabled);
+        Assert.True(snapshot.RealRoadVibrationRouterOptions.Throttle.IsEnabled);
+        Assert.True(snapshot.RealRoadVibrationRouterOptions.Brake.Strength01 > 0d);
+        Assert.True(snapshot.RealRoadVibrationRouterOptions.Throttle.Strength01 > 0d);
+    }
 }

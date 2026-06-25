@@ -7,6 +7,7 @@ internal sealed record TelemetryUdpStatusSnapshot(
     TimeSpan? RecordingLastPacketRelativeTime,
     string? RecordingError,
     bool ReplayActive,
+    bool HapticsRunning,
     string ReplayModeLabel,
     string? ReplaySourceFileName,
     long ReplayPacketCount,
@@ -59,8 +60,8 @@ internal static class TelemetryUdpStatusPresenter
         var replayDetailText = snapshot.ReplayError is not null
             ? $"{snapshot.ReplayError} Replay mode: {snapshot.ReplayModeLabel}."
             : snapshot.ReplayActive
-                ? $"Replay active from {snapshot.ReplaySourceFileName}; mode {snapshot.ReplayModeLabel}; {snapshot.ReplayPacketCount:N0} packet(s)."
-                : $"Replay idle; mode {snapshot.ReplayModeLabel}; {snapshot.ReplayPacketCount:N0} packet(s) were replayed last time. {snapshot.ReplayStatusMessage}";
+                ? BuildActiveReplayDetailText(snapshot)
+                : BuildIdleReplayDetailText(snapshot);
 
         var forwardingDestinationsSummaryText = snapshot.ForwardingDestinationCount == 0
             ? "No forwarding destinations configured. Recording and parsing still work normally."
@@ -94,6 +95,22 @@ internal static class TelemetryUdpStatusPresenter
         }
 
         return detail;
+    }
+
+    private static string BuildActiveReplayDetailText(TelemetryUdpStatusSnapshot snapshot)
+    {
+        var baseText = $"Replay active from {snapshot.ReplaySourceFileName}; mode {snapshot.ReplayModeLabel}; {snapshot.ReplayPacketCount:N0} packet(s).";
+        return snapshot.HapticsRunning
+            ? $"{baseText} Haptics running; BST-1 and P-HPR road effects can route when their road settings and safety gates are clear."
+            : $"{baseText} Replay is feeding telemetry only. Press Start Haptics to feel road effects.";
+    }
+
+    private static string BuildIdleReplayDetailText(TelemetryUdpStatusSnapshot snapshot)
+    {
+        var baseText = $"Replay idle; mode {snapshot.ReplayModeLabel}; {snapshot.ReplayPacketCount:N0} packet(s) were replayed last time. {snapshot.ReplayStatusMessage}";
+        return snapshot.HapticsRunning
+            ? baseText
+            : $"{baseText} Replay road effects require Start Haptics unless replay can open the current output safely.";
     }
 
     private static string BuildListenerDetailText(TelemetryUdpStatusSnapshot snapshot)

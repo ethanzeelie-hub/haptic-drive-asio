@@ -89,6 +89,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private long _packetParseIgnoredCount;
     private long _packetParseFailureCount;
     private long _vehicleStateUpdateCount;
+    private long _hapticFrameUpdateCount;
     private long _renderedBufferCount;
     private long _renderOverrunCount;
     private long _staleFrameSilenceCount;
@@ -922,6 +923,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             Interlocked.Read(ref _packetParseIgnoredCount),
             Interlocked.Read(ref _packetParseFailureCount),
             Interlocked.Read(ref _vehicleStateUpdateCount),
+            Interlocked.Read(ref _hapticFrameUpdateCount),
             Interlocked.Read(ref _renderedBufferCount),
             telemetryAge,
             _options.TelemetryMuteTimeout,
@@ -1083,6 +1085,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             var normalizedFrame = NormalizeHapticFrame(vehicleStateUpdate.State, packet.ReceivedAtUtc, packet.ReceivedAtTimestamp, CreateTelemetryFreshnessPolicy());
             if (normalizedFrame is not null)
             {
+                Interlocked.Increment(ref _hapticFrameUpdateCount);
                 var renderFrame = new HapticRenderFrame(
                     normalizedFrame,
                     HapticFrameFreshnessEvaluator.Evaluate(normalizedFrame, TimeProvider.System, CreateTelemetryFreshnessPolicy()));

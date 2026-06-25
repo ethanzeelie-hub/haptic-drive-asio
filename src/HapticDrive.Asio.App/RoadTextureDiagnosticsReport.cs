@@ -29,6 +29,18 @@ internal sealed record RoadTextureDiagnosticSnapshot
 
     public string ReplaySource { get; init; } = "none";
 
+    public bool ReplayActive { get; init; }
+
+    public long ReplayPacketCount { get; init; }
+
+    public string LastPacketSummary { get; init; } = "none";
+
+    public uint? HapticFrameFrameIdentifier { get; init; }
+
+    public long VehicleStateUpdateCount { get; init; }
+
+    public long HapticFrameUpdateCount { get; init; }
+
     public double? TelemetryAgeMs { get; init; }
 
     public bool RoadTelemetryFresh { get; init; }
@@ -269,6 +281,12 @@ internal sealed record RoadTextureDiagnosticSnapshot
             ReplaySource = string.IsNullOrWhiteSpace(pipeline.Replay.SourceFilePath)
                 ? "none"
                 : Path.GetFileName(pipeline.Replay.SourceFilePath),
+            ReplayActive = pipeline.Replay.IsReplaying,
+            ReplayPacketCount = pipeline.Replay.PacketsReplayed,
+            LastPacketSummary = string.IsNullOrWhiteSpace(pipeline.LastPacketMessage) ? "none" : pipeline.LastPacketMessage,
+            HapticFrameFrameIdentifier = pipeline.HapticFrame?.Identity.FrameIdentifier,
+            VehicleStateUpdateCount = pipeline.VehicleStateUpdateCount,
+            HapticFrameUpdateCount = pipeline.HapticFrameUpdateCount,
             TelemetryAgeMs = pipeline.TelemetryAge?.TotalMilliseconds,
             RoadTelemetryFresh = signal.TelemetryFresh,
             RoadDrivingArmed = signal.DrivingArmed,
@@ -360,6 +378,7 @@ internal sealed record RoadTextureDiagnosticSnapshot
     {
         return
         [
+            $"Replay road path: replayActive {ReplayActive}; replay source {ReplaySource}; replay packets {ReplayPacketCount:N0}; haptics running {HapticsRunning}; last packet {LastPacketSummary}; haptic frame {(HapticFrameFrameIdentifier is null ? "none" : HapticFrameFrameIdentifier.Value.ToString("N0"))}; vehicle updates {VehicleStateUpdateCount:N0}; haptic frame updates {HapticFrameUpdateCount:N0}; telemetry age {(TelemetryAgeMs is null ? "none" : $"{TelemetryAgeMs:0} ms")}; telemetry fresh {RoadTelemetryFresh}; driving armed {RoadDrivingArmed}; shared road enabled {SharedRoadSignalEnabled}; shared road output {OutputIntensity:0.000}; surface {SurfaceClass}/{SurfaceName}; speed {SpeedKph} km/h; BST-1 enabled {Bst1RoadEnabled} gain {Bst1RoadGain:P0} freq {Bst1FrequencyHz:0.0} Hz grain {NoiseAmount:P0} peak {Bst1RoadPeakBeforeMixer:0.000} RMS {Bst1RoadRmsBeforeMixer:0.000}; P-HPR enabled {PHprRoadEnabled}; brake {BrakeRoadEnabled}; throttle {ThrottleRoadEnabled}; attempts {RouteAttempts:N0}; routed {RoutedCommands:N0}; ignored {IgnoredReason}.",
             $"Road signal: sharedRoadSignalEnabled {SharedRoadSignalEnabled}; telemetryFresh {RoadTelemetryFresh}; drivingArmed {RoadDrivingArmed}; speed {SpeedKph} km/h; speedScale {SpeedScale:0.000}; speed reference {Bst1SpeedReferenceKph:0} km/h; surfaces {SurfaceTypes}; {SurfaceClass}/{SurfaceName}; surface mix/base {SurfaceMix:0.000}; suspension {SuspensionAccelerationContribution:0.000}; wheel force {WheelVertForceContribution:0.000}; vertical G {VerticalGContribution:0.000}; roughness {RoughnessMetric:0.000}; raw {RawIntensity:0.000}; smoothed {SmoothedIntensity:0.000}; output {OutputIntensity:0.000}; BST-1 {Bst1FrequencyHz:0.0} Hz; P-HPR {PHprFrequencyHz:0.0} Hz; grain/noise {NoiseAmount:P0}; gear ducking {GearDuckingActive}; ducking gain {DuckingGain:0.000}; suppression {SuppressionReason}.",
             $"BST-1 road proof: bst1RoadOutputEnabled {Bst1RoadEnabled}; gain {Bst1RoadGain:P0}; pre-mixer peak {Bst1RoadPeakBeforeMixer:0.000}/RMS {Bst1RoadRmsBeforeMixer:0.000}; after-mixer peak {FormatNullable(Bst1RoadPeakAfterMixer)}/RMS {FormatNullable(Bst1RoadRmsAfterMixer)}; post-safety estimate peak {FormatNullable(Bst1RoadPeakAfterSafety)}/RMS {FormatNullable(Bst1RoadRmsAfterSafety)}; road-only post-safety proof {RoadOnlyPostSafetyProofAvailable}; note {RoadOnlyProofNote}; total mixer peak {TotalMixerPeak:0.000}; total output peak {TotalOutputPeak:0.000}; output scope {OutputPeakScope}; safety gain {SafetyOutputGain:P0}; ceiling {ConservativeCeiling:0.00}; limiter {LimiterEnabled}; limited {LimitedSamples:N0}; clipped {ClippedSamples:N0}.",
             $"P-HPR road proof: enabled {PHprRoadEnabled}; brake {BrakeRoadEnabled} scale {BrakeRoadOutputScale:P0}; throttle {ThrottleRoadEnabled} scale {ThrottleRoadOutputScale:P0}; runtime {PHprRoadRuntimeState}; cadence {UpdateCadenceMs:0} ms; hold {HoldTimeoutMs:0} ms; active modules {ActiveRoadModules}; attempts {RouteAttempts:N0} ({RouteAttemptsPerSecond:0.00}/s); routed commands {RoutedCommands:N0} ({RoutedCommandsPerSecond:0.00}/s); ignored {IgnoredCount:N0}; ignored reason {IgnoredReason}; interval suppressed {IntervalSuppressedCount:N0}; safety rejected {SafetyRejectedCount:N0}; stale telemetry {StaleTelemetrySuppressedCount:N0}; gear ducking suppressed {GearDuckingSuppressedCount:N0}; higher priority suppressed {HigherPriorityEffectSuppressedCount:N0}; in-flight suppressed {InFlightSuppressedCount:N0}; command-rate suppressed {CommandRateSuppressedCount:N0}; last target {LastCommandTarget}; age {FormatNullable(LastCommandAgeMs)} ms; strength {FormatNullable(LastCommandStrength)}; freq {FormatNullable(LastCommandFrequencyHz)} Hz; duration {LastCommandDurationMs?.ToString("N0") ?? "none"} ms; intensity {FormatNullable(LastCommandRoadIntensity)}; reason {LastCommandReason}; road start age {FormatNullable(LastRoadStartAgeMs)} ms; road update age {FormatNullable(LastRoadUpdateAgeMs)} ms; road stop age {FormatNullable(LastRoadStopAgeMs)} ms; road stop reason {LastRoadStopReason}; stop commands {RoadStopCommandCount:N0}; watchdog stops {WatchdogStopCount:N0}; stop {LastStopReason}; stop age {FormatNullable(LastStopAgeMs)} ms; stale historical {LastRoadRoutedIsStaleHistorical}.",

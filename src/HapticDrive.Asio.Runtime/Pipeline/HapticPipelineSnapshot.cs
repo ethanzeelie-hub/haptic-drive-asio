@@ -21,6 +21,7 @@ public sealed record HapticPipelineSnapshot(
     long ParserIgnoredCount,
     long ParserFailureCount,
     long VehicleStateUpdateCount,
+    long HapticFrameUpdateCount,
     long RenderedBufferCount,
     TimeSpan? TelemetryAge,
     TimeSpan TelemetryMuteTimeout,

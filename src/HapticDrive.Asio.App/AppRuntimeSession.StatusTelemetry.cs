@@ -672,6 +672,7 @@ internal sealed partial class AppRuntimeSession
             RecordingLastPacketRelativeTime: recordingSnapshot.LastPacketRelativeTime,
             RecordingError: _recordingError ?? recordingSnapshot.LastErrorMessage ?? ingressSnapshot.LastErrorMessage,
             ReplayActive: replaySnapshot.IsReplaying,
+            HapticsRunning: pipelineSnapshot.IsRunning,
             ReplayModeLabel: replayMode.Label,
             ReplaySourceFileName: replaySnapshot.SourceFilePath is null ? string.Empty : Path.GetFileName(replaySnapshot.SourceFilePath),
             ReplayPacketCount: replaySnapshot.PacketsReplayed,
