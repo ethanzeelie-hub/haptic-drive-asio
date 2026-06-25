@@ -67,9 +67,18 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     private bool _lastGearBst1PulseUsedAsio;
     private bool _lastManualAsioHardwareTestBlocked;
     private bool _lastManualAsioHardwareTestLimiterApplied;
+    private bool _lastManualAsioHardwareOpenedOutputForPulse;
+    private bool _lastManualAsioHardwareStartedOutputForPulse;
     private float _lastManualAsioHardwareTestPeak;
     private long _lastManualAsioHardwareSubmittedFrames;
     private long _lastManualAsioHardwareDroppedFrames;
+    private long _lastManualAsioHardwareUnderrunsDuringPulse;
+    private long _lastManualAsioHardwareRenderCallbacksDuringPulse;
+    private long _lastManualAsioHardwareBackendCallbacksDuringPulse;
+    private long _lastManualAsioHardwareSubmittedFramesDuringPulse;
+    private long _lastManualAsioHardwareDroppedFramesDuringPulse;
+    private string? _lastManualAsioHardwareCompletionReason;
+    private string? _lastManualAsioHardwareResultMessage;
     private bool _disposed;
     private bool _isRunning;
     private bool _outputOpened;
@@ -366,6 +375,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         var wasOutputStarted = outputStatus.State == AudioOutputDeviceState.Started;
         var wasOutputOpened = _outputOpened
             || outputStatus.State is AudioOutputDeviceState.Open or AudioOutputDeviceState.Started or AudioOutputDeviceState.Stopped;
+        var openedOutputForPulse = false;
+        ResetManualAsioHardwarePulseOutcome();
 
         if (!wasOutputOpened)
         {
@@ -376,6 +387,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             }
 
             _outputOpened = true;
+            openedOutputForPulse = true;
             outputStatus = OutputDevice.GetStatus();
             blockedReason = GetManualAsioHardwareTestBlockedReason(outputStatus);
             if (blockedReason is not null)
@@ -431,6 +443,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         _lastManualAsioHardwareTestPeak = 0f;
         Interlocked.Exchange(ref _lastManualAsioHardwareSubmittedFrames, 0);
         Interlocked.Exchange(ref _lastManualAsioHardwareDroppedFrames, 0);
+        _lastManualAsioHardwareOpenedOutputForPulse = openedOutputForPulse;
+        var transportBaseline = CaptureManualAsioTransportBaseline(outputStatus);
 
         if (supersededRun is not null && supersededRun.FramesRemaining > 0)
         {
@@ -453,6 +467,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
         if (_options.UseOutputOwnedRendering)
         {
+            var startedOutputForPulse = outputStatus.State != AudioOutputDeviceState.Started || !outputStatus.IsStreaming;
             try
             {
                 var callbackCountBeforePulse = GetCombinedAsioCallbackCount(OutputDevice.GetStatus());
@@ -463,8 +478,10 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                     return StoreBlockedManualAsioHardwareTest(streamResult.Message, normalized, OutputDevice.GetStatus());
                 }
 
-                await WaitForManualAsioHardwarePulseRenderedByCallbackAsync(
+                _lastManualAsioHardwareStartedOutputForPulse = startedOutputForPulse;
+                await WaitForManualAsioHardwarePulseTransportProofAsync(
                     run,
+                    transportBaseline,
                     cancellationToken,
                     callbackCountBeforePulse: callbackCountBeforePulse).ConfigureAwait(false);
             }
@@ -472,6 +489,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             {
                 TryClearManualAsioHardwareTestRun(run);
                 _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
+                _lastManualAsioHardwareCompletionReason = "failed";
+                _lastManualAsioHardwareResultMessage = _lastManualAsioHardwareTestError;
 
                 RecordManualAsioHardwareFlight(
                     "pulse-failed",
@@ -487,6 +506,19 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 return ManualAsioHardwareTestResult.Blocked(
                     $"Manual BST-1 pulse failed safely: {ex.Message}",
                     GetManualAsioHardwareTestSnapshot());
+            }
+            finally
+            {
+                if (!wasPipelineRunning)
+                {
+                    await DelayForStandaloneManualAsioDrainAsync(normalized, cancellationToken).ConfigureAwait(false);
+                    var stopResult = await OutputDevice.StopAsync(cancellationToken).ConfigureAwait(false);
+                    _localAsioPulseStreaming = false;
+                    if (!stopResult.Succeeded)
+                    {
+                        _lastManualAsioHardwareTestError = stopResult.Message;
+                    }
+                }
             }
         }
         else if (!wasPipelineRunning && !wasOutputStarted)
@@ -508,6 +540,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                     return StoreBlockedManualAsioHardwareTest(startResult.Message, normalized, OutputDevice.GetStatus());
                 }
 
+                _lastManualAsioHardwareStartedOutputForPulse = true;
                 var callbackActiveAtUtc = await WaitForStandaloneManualAsioCallbackActiveAsync(
                     callbackCountBeforePulse,
                     normalized,
@@ -524,6 +557,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
                 await RenderManualAsioHardwarePulseAsync(
                     run,
+                    transportBaseline,
                     cancellationToken,
                     paceSubmissions: true,
                     respectQueueCapacity: true,
@@ -534,6 +568,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             {
                 TryClearManualAsioHardwareTestRun(run);
                 _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
+                _lastManualAsioHardwareCompletionReason = "failed";
+                _lastManualAsioHardwareResultMessage = _lastManualAsioHardwareTestError;
 
                 RecordManualAsioHardwareFlight(
                     "pulse-failed",
@@ -567,6 +603,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                     return StoreBlockedManualAsioHardwareTest(startResult.Message, normalized, OutputDevice.GetStatus());
                 }
 
+                _lastManualAsioHardwareStartedOutputForPulse = true;
                 outputStatus = OutputDevice.GetStatus();
             }
 
@@ -574,6 +611,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             {
                 await RenderManualAsioHardwarePulseAsync(
                     run,
+                    transportBaseline,
                     cancellationToken,
                     respectQueueCapacity: true,
                     callbackCountBeforePulse: GetCombinedAsioCallbackCount(OutputDevice.GetStatus())).ConfigureAwait(false);
@@ -582,6 +620,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             {
                 TryClearManualAsioHardwareTestRun(run);
                 _lastManualAsioHardwareTestError = $"Manual BST-1 pulse failed safely: {ex.Message}";
+                _lastManualAsioHardwareCompletionReason = "failed";
+                _lastManualAsioHardwareResultMessage = _lastManualAsioHardwareTestError;
 
                 RecordManualAsioHardwareFlight(
                     "pulse-failed",
@@ -597,8 +637,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             }
         }
 
+        _lastManualAsioHardwareResultMessage = BuildManualAsioHardwareSuccessMessage(GetManualAsioHardwareTestSnapshot());
         return ManualAsioHardwareTestResult.Success(
-            $"Manual BST-1 pulse sent through ASIO channel {outputStatus.SelectedOutputChannel}; {normalized.SignalName}, {normalized.StrengthPercent:0}% strength, {normalized.Duration.TotalMilliseconds:0} ms.",
+            _lastManualAsioHardwareResultMessage,
             GetManualAsioHardwareTestSnapshot());
     }
 
@@ -672,7 +713,19 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             FlightRecorderPath: _manualAsioHardwareFlightRecorder?.LogPath ?? "disabled",
             LastError: lastError ?? outputStatus.LastError,
             QueueCapacityBuffers: outputStatus.QueueCapacityBuffers,
-            QueuedBufferCount: outputStatus.QueuedBufferCount);
+            QueuedBufferCount: outputStatus.QueuedBufferCount,
+            AsioOpen: outputStatus.Kind == AudioOutputDeviceKind.Asio
+                && outputStatus.State is AudioOutputDeviceState.Open or AudioOutputDeviceState.Started or AudioOutputDeviceState.Stopped,
+            UnderrunCount: outputStatus.UnderrunCount,
+            LastOpenedOutputForPulse: _lastManualAsioHardwareOpenedOutputForPulse,
+            LastStartedOutputForPulse: _lastManualAsioHardwareStartedOutputForPulse,
+            LastRenderCallbacksDuringPulse: _lastManualAsioHardwareRenderCallbacksDuringPulse,
+            LastBackendCallbacksDuringPulse: _lastManualAsioHardwareBackendCallbacksDuringPulse,
+            LastSubmittedFramesDuringPulse: _lastManualAsioHardwareSubmittedFramesDuringPulse,
+            LastDroppedFramesDuringPulse: _lastManualAsioHardwareDroppedFramesDuringPulse,
+            LastUnderrunsDuringPulse: _lastManualAsioHardwareUnderrunsDuringPulse,
+            LastCompletionReason: _lastManualAsioHardwareCompletionReason,
+            LastResultMessage: _lastManualAsioHardwareResultMessage);
     }
 
     public async ValueTask<HapticPipelinePacketResult> OfferLiveTelemetryPacketAsync(
@@ -1077,6 +1130,62 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         while (Interlocked.CompareExchange(ref target, candidate, current) != current);
     }
 
+    private void ResetManualAsioHardwarePulseOutcome()
+    {
+        _lastManualAsioHardwareOpenedOutputForPulse = false;
+        _lastManualAsioHardwareStartedOutputForPulse = false;
+        _lastManualAsioHardwareRenderCallbacksDuringPulse = 0;
+        _lastManualAsioHardwareBackendCallbacksDuringPulse = 0;
+        _lastManualAsioHardwareSubmittedFramesDuringPulse = 0;
+        _lastManualAsioHardwareDroppedFramesDuringPulse = 0;
+        _lastManualAsioHardwareUnderrunsDuringPulse = 0;
+        _lastManualAsioHardwareCompletionReason = null;
+        _lastManualAsioHardwareResultMessage = null;
+    }
+
+    private static ManualAsioTransportBaseline CaptureManualAsioTransportBaseline(AudioOutputStatus status)
+    {
+        return new ManualAsioTransportBaseline(
+            status.RenderCallbackCount,
+            status.BackendCallbackCount,
+            status.SubmittedBufferCount * Math.Max(0, status.BufferSize),
+            status.DroppedBufferCount * Math.Max(0, status.BufferSize),
+            status.UnderrunCount);
+    }
+
+    private void StoreManualAsioHardwareTransportOutcome(
+        ManualAsioTransportBaseline baseline,
+        AudioOutputStatus status,
+        string completionReason,
+        string resultMessage)
+    {
+        _lastManualAsioHardwareRenderCallbacksDuringPulse = Math.Max(0, status.RenderCallbackCount - baseline.RenderCallbackCount);
+        _lastManualAsioHardwareBackendCallbacksDuringPulse = Math.Max(0, status.BackendCallbackCount - baseline.BackendCallbackCount);
+        _lastManualAsioHardwareSubmittedFramesDuringPulse = Math.Max(
+            0,
+            (status.SubmittedBufferCount * Math.Max(0, status.BufferSize)) - baseline.SubmittedFrameCount);
+        _lastManualAsioHardwareDroppedFramesDuringPulse = Math.Max(
+            0,
+            (status.DroppedBufferCount * Math.Max(0, status.BufferSize)) - baseline.DroppedFrameCount);
+        _lastManualAsioHardwareUnderrunsDuringPulse = Math.Max(0, status.UnderrunCount - baseline.UnderrunCount);
+        _lastManualAsioHardwareCompletionReason = completionReason;
+        _lastManualAsioHardwareResultMessage = string.IsNullOrWhiteSpace(resultMessage)
+            ? BuildManualAsioHardwareSuccessMessage(GetManualAsioHardwareTestSnapshot())
+            : resultMessage;
+    }
+
+    private static string BuildManualAsioHardwareSuccessMessage(ManualAsioHardwareTestSnapshot snapshot)
+    {
+        var channel = snapshot.SelectedOutputChannel?.ToString() ?? "none";
+        var driver = snapshot.SelectedAsioDriver;
+        var durationText = snapshot.LastDurationMs is null ? "unknown" : $"{snapshot.LastDurationMs.Value:0} ms";
+        var frequencyText = snapshot.LastFrequencyHz is null ? "unknown" : $"{snapshot.LastFrequencyHz:0.#} Hz";
+        var peakText = $"{snapshot.ManualPulsePeak:0.000}";
+        var completionReason = snapshot.LastCompletionReason ?? "completed";
+
+        return $"BST-1 pulse completed on ASIO channel {channel}; driver {driver}; output opened {snapshot.LastOpenedOutputForPulse}; started {snapshot.LastStartedOutputForPulse}; render callbacks {snapshot.LastRenderCallbacksDuringPulse:N0}; backend callbacks {snapshot.LastBackendCallbacksDuringPulse:N0}; submitted frames {snapshot.LastSubmittedFramesDuringPulse:N0}; dropped frames {snapshot.LastDroppedFramesDuringPulse:N0}; underruns {snapshot.LastUnderrunsDuringPulse:N0}; peak {peakText}; {frequencyText}; {durationText}; result {completionReason}.";
+    }
+
     private AudioOutputRenderCallbackResult RenderOutputBuffer(
         AudioSampleBuffer destination,
         AudioOutputRenderContext context)
@@ -1271,6 +1380,7 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
 
     private async ValueTask RenderManualAsioHardwarePulseAsync(
         ManualAsioHardwareTestRun run,
+        ManualAsioTransportBaseline baseline,
         CancellationToken cancellationToken,
         int? maxBuffers = null,
         bool recordCompleted = true,
@@ -1424,6 +1534,12 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                     renderedFrameCount: run.PulseOwnedFramesConsumed,
                     completionReason: completionReason);
 
+                StoreManualAsioHardwareTransportOutcome(
+                    baseline,
+                    OutputDevice.GetStatus(),
+                    completionReason,
+                    completedFull ? string.Empty : $"Manual BST-1 pulse truncated: rendered {renderedFrameCount:N0} of {run.TotalFrameCount:N0} expected frame(s); accepted {acceptedFrameCount:N0} frame(s).");
+
                 if (!completedFull)
                 {
                     throw new InvalidOperationException(
@@ -1437,8 +1553,9 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         }
     }
 
-    private async ValueTask WaitForManualAsioHardwarePulseRenderedByCallbackAsync(
+    private async ValueTask WaitForManualAsioHardwarePulseTransportProofAsync(
         ManualAsioHardwareTestRun run,
+        ManualAsioTransportBaseline baseline,
         CancellationToken cancellationToken,
         long callbackCountBeforePulse)
     {
@@ -1448,20 +1565,44 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             var renderedFramesBeforePulse = 0L;
             var deadline = DateTimeOffset.UtcNow
                 + run.Request.Duration
-                + TimeSpan.FromMilliseconds(500);
+                + TimeSpan.FromMilliseconds(750);
             var buffersRequired = (int)Math.Ceiling((double)run.TotalFrameCount / Configuration.BufferSize);
 
             while (DateTimeOffset.UtcNow <= deadline)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var status = OutputDevice.GetStatus();
                 var renderedFramesAfterPulse = Interlocked.Read(ref _manualAsioHardwareTestRenderedFrameCount);
                 var renderedFrameCount = Math.Max(0, renderedFramesAfterPulse - renderedFramesBeforePulse);
-                if (renderedFrameCount >= run.TotalFrameCount && run.HasRequiredOutputEnergy)
+                var submittedFrameCount = Math.Max(
+                    0,
+                    (status.SubmittedBufferCount * Math.Max(0, status.BufferSize)) - baseline.SubmittedFrameCount);
+                var droppedFrameCount = Math.Max(
+                    0,
+                    (status.DroppedBufferCount * Math.Max(0, status.BufferSize)) - baseline.DroppedFrameCount);
+                var backendCallbackCount = Math.Max(0, status.BackendCallbackCount - baseline.BackendCallbackCount);
+                var completionReason = renderedFrameCount >= run.TotalFrameCount
+                    ? submittedFrameCount <= 0
+                        ? "no-submit-proof"
+                        : backendCallbackCount <= 0
+                            ? "no-backend-callback"
+                            : droppedFrameCount > 0
+                                ? "dropped-before-complete"
+                                : !run.HasRequiredOutputEnergy
+                                    ? "zero-output-proof"
+                                    : "completed-full"
+                    : "rendering";
+                if (completionReason == "completed-full")
                 {
+                    StoreManualAsioHardwareTransportOutcome(
+                        baseline,
+                        status,
+                        completionReason,
+                        string.Empty);
                     RecordManualAsioHardwareFlight(
                         "pulse-completed",
                         run.Request,
-                        OutputDevice.GetStatus(),
+                        status,
                         run.GenerationId,
                         generatedSampleCount: run.PulseOwnedFramesGenerated,
                         outputPeak: run.PulseOwnedPeakPostLimiter,
@@ -1469,11 +1610,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                         streamStartRequested: false,
                         run: run,
                         buffersRequiredForPulse: buffersRequired,
-                        buffersSubmitted: 0,
-                        buffersAccepted: 0,
+                        buffersSubmitted: (int)Math.Ceiling((double)submittedFrameCount / Math.Max(1, Configuration.BufferSize)),
+                        buffersAccepted: (int)Math.Ceiling((double)submittedFrameCount / Math.Max(1, Configuration.BufferSize)),
                         buffersDropped: 0,
                         callbackCountBeforePulse: callbackCountBeforePulse,
-                        callbackCountAfterPulse: GetCombinedAsioCallbackCount(OutputDevice.GetStatus()),
+                        callbackCountAfterPulse: GetCombinedAsioCallbackCount(status),
                         renderedFrameCountBeforePulse: renderedFramesBeforePulse,
                         renderedFrameCountAfterPulse: renderedFramesAfterPulse,
                         startTimestamp: run.StartedAtUtc,
@@ -1500,14 +1641,54 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 await Task.Delay(TimeSpan.FromMilliseconds(2), cancellationToken).ConfigureAwait(false);
             }
 
+            var finalStatus = OutputDevice.GetStatus();
             var finalRenderedFramesAfterPulse = Interlocked.Read(ref _manualAsioHardwareTestRenderedFrameCount);
             var finalRenderedFrameCount = Math.Max(0, finalRenderedFramesAfterPulse - renderedFramesBeforePulse);
+            var finalSubmittedFrameCount = Math.Max(
+                0,
+                (finalStatus.SubmittedBufferCount * Math.Max(0, finalStatus.BufferSize)) - baseline.SubmittedFrameCount);
+            var finalDroppedFrameCount = Math.Max(
+                0,
+                (finalStatus.DroppedBufferCount * Math.Max(0, finalStatus.BufferSize)) - baseline.DroppedFrameCount);
+            var finalUnderrunCount = Math.Max(0, finalStatus.UnderrunCount - baseline.UnderrunCount);
+            var finalBackendCallbackCount = Math.Max(0, finalStatus.BackendCallbackCount - baseline.BackendCallbackCount);
             TryClearManualAsioHardwareTestRun(run);
+            var failureReason = finalRenderedFrameCount <= 0
+                ? "Manual BST-1 pulse timed out before any render callback produced output."
+                : finalSubmittedFrameCount <= 0
+                    ? "Manual BST-1 pulse rendered locally but no safety-processed ASIO buffers were submitted to the backend."
+                    : finalBackendCallbackCount <= 0
+                        ? "Manual BST-1 pulse submitted buffers, but the native ASIO backend callback never consumed them."
+                        : finalDroppedFrameCount > 0
+                            ? $"Manual BST-1 pulse dropped {finalDroppedFrameCount:N0} frame(s) before completion."
+                            : finalUnderrunCount > 0
+                                ? $"Manual BST-1 pulse underrun detected {finalUnderrunCount:N0} time(s) before completion."
+                                : !run.HasRequiredOutputEnergy
+                                    ? "Manual BST-1 pulse did not produce non-zero post-safety output proof."
+                                    : $"Manual BST-1 pulse timed out after rendering {finalRenderedFrameCount:N0} of {run.TotalFrameCount:N0} expected frame(s).";
+            var failureCompletionReason = finalRenderedFrameCount <= 0
+                ? "no-render-callback"
+                : finalSubmittedFrameCount <= 0
+                    ? "no-submit-proof"
+                    : finalBackendCallbackCount <= 0
+                        ? "no-backend-callback"
+                        : finalDroppedFrameCount > 0
+                            ? "dropped-before-complete"
+                            : finalUnderrunCount > 0
+                                ? "underrun-before-complete"
+                                : !run.HasRequiredOutputEnergy
+                                    ? "zero-output-proof"
+                                    : "timed-out";
+            StoreManualAsioHardwareTransportOutcome(
+                baseline,
+                finalStatus,
+                failureCompletionReason,
+                failureReason);
 
             RecordManualAsioHardwareFlight(
                 "pulse-truncated",
                 run.Request,
-                OutputDevice.GetStatus(),
+                finalStatus,
                 run.GenerationId,
                 generatedSampleCount: run.PulseOwnedFramesGenerated,
                 outputPeak: run.PulseOwnedPeakPostLimiter,
@@ -1515,11 +1696,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 streamStartRequested: false,
                 run: run,
                 buffersRequiredForPulse: buffersRequired,
-                buffersSubmitted: 0,
-                buffersAccepted: 0,
-                buffersDropped: 0,
+                buffersSubmitted: (int)Math.Ceiling((double)finalSubmittedFrameCount / Math.Max(1, Configuration.BufferSize)),
+                buffersAccepted: (int)Math.Ceiling((double)finalSubmittedFrameCount / Math.Max(1, Configuration.BufferSize)),
+                buffersDropped: (int)Math.Ceiling((double)finalDroppedFrameCount / Math.Max(1, Configuration.BufferSize)),
                 callbackCountBeforePulse: callbackCountBeforePulse,
-                callbackCountAfterPulse: GetCombinedAsioCallbackCount(OutputDevice.GetStatus()),
+                callbackCountAfterPulse: GetCombinedAsioCallbackCount(finalStatus),
                 renderedFrameCountBeforePulse: renderedFramesBeforePulse,
                 renderedFrameCountAfterPulse: finalRenderedFramesAfterPulse,
                 startTimestamp: run.StartedAtUtc,
@@ -1527,14 +1708,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
                 stopTimestamp: DateTimeOffset.UtcNow,
                 pulseCompleted: false,
                 expectedFrameCount: run.TotalFrameCount,
-                acceptedFrameCount: run.PulseOwnedFramesConsumed,
+                acceptedFrameCount: finalSubmittedFrameCount,
                 renderedFrameCount: run.PulseOwnedFramesConsumed,
-                completionReason: finalRenderedFrameCount >= run.TotalFrameCount ? "zero-output-proof" : "truncated");
+                completionReason: failureCompletionReason);
 
-            throw new InvalidOperationException(
-                finalRenderedFrameCount >= run.TotalFrameCount
-                    ? "Manual BST-1 pulse did not produce non-zero pulse-owned post-limiter output proof."
-                    : $"Manual BST-1 pulse truncated: rendered {finalRenderedFrameCount:N0} of {run.TotalFrameCount:N0} expected frame(s) through the running ASIO callback.");
+            throw new InvalidOperationException(failureReason);
         }
         finally
         {
@@ -1664,10 +1842,11 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
             callbackCountBeforePulse: GetCombinedAsioCallbackCount(status),
             startTimestamp: startTimestamp);
 
+        _localAsioPulseStreaming = true;
         var startResult = await OutputDevice.StartStreamingAsync(RenderOutputBuffer, cancellationToken).ConfigureAwait(false);
-        if (startResult.Succeeded)
+        if (!startResult.Succeeded)
         {
-            _localAsioPulseStreaming = true;
+            _localAsioPulseStreaming = false;
         }
 
         return startResult;
@@ -1689,6 +1868,8 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
         _lastManualAsioHardwareTestError = null;
         _lastManualAsioHardwareTestUsedAsio = outputStatus?.Kind == AudioOutputDeviceKind.Asio;
         _lastManualAsioHardwareTestBlocked = true;
+        _lastManualAsioHardwareCompletionReason = "blocked";
+        _lastManualAsioHardwareResultMessage = reason;
 
         if (normalized is not null)
         {
@@ -1997,6 +2178,13 @@ public sealed class HapticPipelineCoordinator : IAsyncDisposable
     {
         return ReferenceEquals(Interlocked.CompareExchange(ref _manualAsioHardwareTestRun, null, run), run);
     }
+
+    private readonly record struct ManualAsioTransportBaseline(
+        long RenderCallbackCount,
+        long BackendCallbackCount,
+        long SubmittedFrameCount,
+        long DroppedFrameCount,
+        long UnderrunCount);
 
     private sealed record PacketProcessingResult(
         TelemetryPacketParseStatus ParseStatus,

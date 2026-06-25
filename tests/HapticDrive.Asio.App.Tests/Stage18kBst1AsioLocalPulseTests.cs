@@ -94,7 +94,7 @@ public sealed class Stage18kBst1AsioLocalPulseTests
             blocked: true,
             blockedReason: "Native ASIO backend queue is full; buffer dropped."));
 
-        Assert.Equal("Last BST-1 pulse: succeeded", success);
+        Assert.Equal("Last BST-1 pulse: completed-full", success);
         Assert.Equal("Last BST-1 pulse blocked: queue full", queueFull);
     }
 
@@ -148,6 +148,7 @@ public sealed class Stage18kBst1AsioLocalPulseTests
             LastDurationMode: "manual",
             ManualPulsePeak: effectivePostLimiterAmplitude ?? 0f,
             FlightRecorderPath: "disabled",
-            LastError: null);
+            LastError: null,
+            LastCompletionReason: lastPulseUsedAsio ? "completed-full" : null);
     }
 }

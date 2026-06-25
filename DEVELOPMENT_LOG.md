@@ -1,5 +1,46 @@
 # Development Log
 
+## Stage 18r-I - Restore Physical BST-1 Manual ASIO Pulse
+
+Date: 2026-06-25
+
+Status: Complete.
+
+Goal: Restore real standalone BST-1 manual pulse output from Testing / Validation after the Stage 18r-H interlock/UI recovery so a stopped live-haptics stream still opens, routes, proves, and reports a real ASIO hardware pulse without bypassing the shared interlock, limiter, trim, or output validation path.
+
+Notes:
+
+- Reworked the stopped-stream BST-1 pulse lifecycle to prove actual transport activity instead of only local render activity:
+  - the default output-owned ASIO path now starts the standalone pulse stream with the local callback flag already armed so the first callback cannot be dropped as a construction race,
+  - standalone BST-1 pulses now use a deliberate start/prove/stop flow when live haptics are not already running, rather than silently leaving a temporary stream behind,
+  - success now requires transport proof through the normal ASIO device/backend path: rendered pulse frames, submitted frames, non-zero post-safety output, and native backend callback consumption instead of only a local “rendered” counter.
+- Tightened false-success detection and operator diagnostics for the physical BST-1 path:
+  - the runtime now records whether output had to be opened/started for the pulse, render/backend callback deltas, submitted/dropped/underrun deltas, and a completion reason for the last BST-1 pulse,
+  - if a pulse renders locally but no safety-processed ASIO buffers are submitted, or if submitted buffers are never consumed by the native backend callback, the result is reported as a failure instead of success,
+  - Testing / Validation status text, detailed BST-1 diagnostics, and footer messages now surface the selected driver/channel plus started/running/submitted/peak/completion details after each pulse.
+- Preserved the safety boundaries while restoring the real manual path:
+  - no manual BST-1 bypass was added around the global interlock, ASIO arming, channel validation, limiter, trim, or safety processor,
+  - direct P-HPR checklist gates remain unchanged and manual P-HPR pedal buttons stay disabled until the full direct checklist is satisfied,
+  - Dashboard/Devices wording now distinguishes “Start Haptics opens the live stream” from the standalone BST-1 validation workflow.
+- Expanded runtime proof coverage beyond the earlier interlock-only hotfix:
+  - default output-owned BST-1 tests now fail if the path reports success without submitted buffers or without native backend callback consumption,
+  - success tests now prove routed non-zero samples reach the selected ASIO channel while the non-selected channel stays silent,
+  - output-owned stopped/live equivalence coverage now passes with the repaired first-callback lifecycle and the new transport-proof rules.
+
+Verification:
+
+- `.\.dotnet\dotnet.exe build HapticDrive.Asio.sln -c Release --no-restore` passed.
+- `.\.dotnet\dotnet.exe test HapticDrive.Asio.sln -c Release --no-build` passed.
+- `.\.dotnet\dotnet.exe format HapticDrive.Asio.sln --verify-no-changes --no-restore` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild -CheckOnly` passed.
+- `.\Run-HapticDrive.ps1 -Configuration Release -NoBuild` launched a live `HapticDrive.Asio.App.exe` process with a real main window handle (`MainWindowHandle=395352`).
+- Direct launch of `src\HapticDrive.Asio.App\bin\Release\net8.0-windows\HapticDrive.Asio.App.exe` also stayed alive and created a real main window handle (`MainWindowHandle=8325140`).
+
+Self-review:
+
+- The fix stays inside the shared ASIO output device/backend lifecycle and does not create a competing unmanaged output path or move runtime ownership back into `MainWindow`.
+- The remaining manual-local requirement is the real physical shaker confirmation itself; the software path now distinguishes accepted UI requests from proven ASIO render/submit/callback activity instead of claiming success prematurely.
+
 ## Stage 18r-H - Manual BST-1 Interlock Reset And Validation Workflow Hotfix
 
 Date: 2026-06-25

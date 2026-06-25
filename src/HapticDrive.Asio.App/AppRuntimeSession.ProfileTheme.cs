@@ -538,10 +538,13 @@ internal sealed partial class AppRuntimeSession
         var snapshot = _hapticPipeline.GetManualAsioHardwareTestSnapshot();
         var actionBlocker = GetManualBst1PulseActionBlocker(snapshot);
         ManualAsioHardwareStatusText.Text =
-            $"BST-1 channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; driver {snapshot.SelectedAsioDriver}; armed {snapshot.AsioArmed}; haptics {(snapshot.HapticsRunning ? "running" : "stopped")}; peak {snapshot.ManualPulsePeak:0.000}.";
+            $"BST-1 channel {(snapshot.SelectedOutputChannel is null ? "none" : snapshot.SelectedOutputChannel)}; driver {snapshot.SelectedAsioDriver}; opened {snapshot.AsioOpen}; started for pulse {snapshot.LastStartedOutputForPulse}; live haptics {(snapshot.HapticsRunning ? "running" : "stopped")}; render callbacks {snapshot.LastRenderCallbacksDuringPulse:N0}; backend callbacks {snapshot.LastBackendCallbacksDuringPulse:N0}; submitted {snapshot.LastSubmittedFramesDuringPulse:N0}; dropped {snapshot.LastDroppedFramesDuringPulse:N0}; underruns {snapshot.LastUnderrunsDuringPulse:N0}; peak {snapshot.ManualPulsePeak:0.000}; result {snapshot.LastCompletionReason ?? "idle"}.";
         ManualBst1PulseButton.IsEnabled = actionBlocker is null;
         ManualBst1PulseButton.ToolTip = actionBlocker ?? "Send a standalone BST-1 validation pulse through the selected ASIO channel without starting live haptics.";
-        ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason ?? actionBlocker ?? $"{Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot)}; {_lastBst1PaddleGearPulseMessage}";
+        ManualAsioHardwareBlockedReasonText.Text = snapshot.BlockedReason
+            ?? actionBlocker
+            ?? snapshot.LastResultMessage
+            ?? $"{Bst1AsioStatusFormatter.FormatLastPulseCompact(snapshot)}; {_lastBst1PaddleGearPulseMessage}";
         UpdateDevicesPresentation();
     }
 

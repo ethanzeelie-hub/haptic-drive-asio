@@ -62,8 +62,9 @@ internal static class Bst1AsioStatusFormatter
         var lastPulseText = snapshot.LastPulseUsedAsio
             ? "Last pulse: ASIO hardware path used"
             : "Last pulse: no successful ASIO hardware pulse recorded";
+        var completionText = snapshot.LastCompletionReason ?? "none";
 
-        return $"{readyText}; {activeText}; ASIO selected: {selectedText}; ASIO driver: {snapshot.SelectedAsioDriver}; ASIO armed: {armedText}; ASIO stream running: {runningText}; ASIO callback active: {callbackText}; rendered callbacks: {snapshot.RenderCallbackCount:N0}; submitted frames: {snapshot.SubmittedFrameCount:N0}; dropped frames: {snapshot.DroppedFrameCount:N0}; Last manual pulse used ASIO: {lastManualText}; Last gear pulse used ASIO: {lastGearText}; Selected channel: {channelText}; Last ASIO blocked reason: {snapshot.BlockedReason ?? "none"}; Last ASIO error: {snapshot.LastError ?? "none"}; requested strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; output trim {(snapshot.LastOutputTrimPercent is null ? "none" : $"{snapshot.LastOutputTrimPercent:0}%")}; effective pre-limiter amplitude {(snapshot.LastEffectivePreLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePreLimiterAmplitude:0.000}")}; effective post-limiter amplitude {(snapshot.LastEffectivePostLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePostLimiterAmplitude:0.000}")}; limiter applied {snapshot.LimiterApplied}; {lastPulseText}.";
+        return $"{readyText}; {activeText}; ASIO selected: {selectedText}; ASIO driver: {snapshot.SelectedAsioDriver}; ASIO armed: {armedText}; ASIO open: {FormatYesNo(snapshot.AsioOpen)}; ASIO stream running: {runningText}; ASIO callback active: {callbackText}; rendered callbacks total: {snapshot.RenderCallbackCount:N0}; backend callbacks total: {snapshot.BackendCallbackCount:N0}; rendered callbacks during pulse: {snapshot.LastRenderCallbacksDuringPulse:N0}; backend callbacks during pulse: {snapshot.LastBackendCallbacksDuringPulse:N0}; submitted frames total: {snapshot.SubmittedFrameCount:N0}; submitted frames during pulse: {snapshot.LastSubmittedFramesDuringPulse:N0}; dropped frames total: {snapshot.DroppedFrameCount:N0}; dropped frames during pulse: {snapshot.LastDroppedFramesDuringPulse:N0}; underruns total: {snapshot.UnderrunCount:N0}; underruns during pulse: {snapshot.LastUnderrunsDuringPulse:N0}; Last manual pulse used ASIO: {lastManualText}; Last gear pulse used ASIO: {lastGearText}; Selected channel: {channelText}; output opened for pulse: {FormatYesNo(snapshot.LastOpenedOutputForPulse)}; output started for pulse: {FormatYesNo(snapshot.LastStartedOutputForPulse)}; Last completion: {completionText}; Last ASIO blocked reason: {snapshot.BlockedReason ?? "none"}; Last ASIO error: {snapshot.LastError ?? "none"}; requested strength {(snapshot.LastStrengthPercent is null ? "none" : $"{snapshot.LastStrengthPercent:0}%")}; output trim {(snapshot.LastOutputTrimPercent is null ? "none" : $"{snapshot.LastOutputTrimPercent:0}%")}; effective pre-limiter amplitude {(snapshot.LastEffectivePreLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePreLimiterAmplitude:0.000}")}; effective post-limiter amplitude {(snapshot.LastEffectivePostLimiterAmplitude is null ? "none" : $"{snapshot.LastEffectivePostLimiterAmplitude:0.000}")}; limiter applied {snapshot.LimiterApplied}; {lastPulseText}.";
     }
 
     public static string FormatLastPulseCompact(ManualAsioHardwareTestSnapshot snapshot)
@@ -78,7 +79,7 @@ internal static class Bst1AsioStatusFormatter
 
         if (snapshot.LastPulseUsedAsio)
         {
-            return "Last BST-1 pulse: succeeded";
+            return $"Last BST-1 pulse: {snapshot.LastCompletionReason ?? "succeeded"}";
         }
 
         return "Last BST-1 pulse: none";

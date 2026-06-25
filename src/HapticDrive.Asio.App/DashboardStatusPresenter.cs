@@ -182,7 +182,7 @@ internal static class DashboardStatusPresenter
         return snapshot.HapticsStarted
             ? $"ASIO active on driver {Normalize(snapshot.SelectedAsioDriverName, "none")}; channel {(snapshot.SelectedOutputChannel is null ? "not selected" : snapshot.SelectedOutputChannel)}."
             : snapshot.OutputHardwareArmed
-                ? $"ASIO is selected and armed. Driver {Normalize(snapshot.SelectedAsioDriverName, "none")}; channel {(snapshot.SelectedOutputChannel is null ? "not selected" : snapshot.SelectedOutputChannel)}; press Start Haptics to open the stream."
+                ? $"ASIO is selected and armed. Driver {Normalize(snapshot.SelectedAsioDriverName, "none")}; channel {(snapshot.SelectedOutputChannel is null ? "not selected" : snapshot.SelectedOutputChannel)}; Start Haptics opens the live stream, but Testing / Validation can still run a standalone BST-1 pulse."
                 : $"ASIO is selected. Driver {Normalize(snapshot.SelectedAsioDriverName, "none")}; channel {(snapshot.SelectedOutputChannel is null ? "not selected" : snapshot.SelectedOutputChannel)}; arm it before starting haptics.";
     }
 

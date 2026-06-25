@@ -575,8 +575,8 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.Equal(expectedFrames, root.GetProperty("ExpectedFrameCount").GetInt64());
         Assert.Equal(expectedFrames, root.GetProperty("AcceptedFrameCount").GetInt64());
         Assert.Equal(expectedFrames, root.GetProperty("RenderedFrameCount").GetInt64());
-        Assert.Equal(0, root.GetProperty("BuffersSubmitted").GetInt32());
-        Assert.Equal(0, root.GetProperty("BuffersAccepted").GetInt32());
+        Assert.True(root.GetProperty("BuffersSubmitted").GetInt32() > 0);
+        Assert.True(root.GetProperty("BuffersAccepted").GetInt32() > 0);
         Assert.DoesNotContain(jsonl, line => line.Contains("\"EventName\":\"pulse-truncated\"", StringComparison.Ordinal));
     }
 
@@ -617,10 +617,94 @@ public sealed class HapticPipelineAsioReadinessTests
         Assert.False(root.GetProperty("CompletedFromGlobalCallbackOnly").GetBoolean());
         Assert.True(root.GetProperty("GlobalCallbackFramesDelta").GetInt64() > 0);
         Assert.False(root.GetProperty("HapticsRunningAtPulseStart").GetBoolean());
+        Assert.Equal("completed-full", coordinator.GetManualAsioHardwareTestSnapshot().LastCompletionReason);
+        Assert.True(coordinator.GetManualAsioHardwareTestSnapshot().LastSubmittedFramesDuringPulse > 0);
+        Assert.True(coordinator.GetManualAsioHardwareTestSnapshot().LastBackendCallbacksDuringPulse > 0);
         Assert.Equal(1, backend.StartCount);
-        Assert.Equal(0, backend.StopCount);
+        Assert.Equal(1, backend.StopCount);
         Assert.Equal(0, backend.SubmitBeforeStartCount);
         Assert.True(backend.MaxQueuedBufferCount <= 3);
+    }
+
+    [Fact]
+    public async Task LocalBst1Pulse_DefaultOutputOwnedPath_FailsWhenNoBuffersSubmit()
+    {
+        var backend = new FakeAsioOutputBackend(
+            outputChannelCount: 2,
+            failSubmit: true,
+            queueCapacity: 3,
+            reportCallbackOnStart: true);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            0.5f,
+            Source: "manual test"));
+        var snapshot = coordinator.GetManualAsioHardwareTestSnapshot();
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("no safety-processed ASIO buffers were submitted", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("failed", snapshot.LastCompletionReason);
+        Assert.Equal(0, snapshot.LastSubmittedFramesDuringPulse);
+        Assert.Equal(0, backend.SubmitBeforeStartCount);
+        Assert.True(snapshot.LastRenderCallbacksDuringPulse > 0);
+    }
+
+    [Fact]
+    public async Task LocalBst1Pulse_DefaultOutputOwnedPath_FailsWhenBackendNeverConsumesSubmittedBuffers()
+    {
+        var backend = new FakeAsioOutputBackend(
+            outputChannelCount: 2,
+            queueCapacity: 8,
+            autoDrainSubmittedBuffers: false,
+            reportCallbackOnStart: false);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            0.5f,
+            Source: "manual test"));
+        var snapshot = coordinator.GetManualAsioHardwareTestSnapshot();
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("native ASIO backend callback never consumed", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("failed", snapshot.LastCompletionReason);
+        Assert.True(snapshot.LastSubmittedFramesDuringPulse > 0);
+        Assert.Equal(0, snapshot.LastBackendCallbacksDuringPulse);
+    }
+
+    [Fact]
+    public async Task LocalBst1Pulse_DefaultOutputOwnedPath_RoutesSelectedChannelWithNonZeroSamples()
+    {
+        var backend = new FakeAsioOutputBackend(outputChannelCount: 2, queueCapacity: 3);
+        await using var coordinator = RuntimeTestPipelineFactory.Create(
+            ArmedConfiguration(channel: 1),
+            new AsioAudioOutputDevice(new FakeAsioDriverCatalog([AsioAudioOutputDevice.PreferredDriverName]), backend));
+
+        var result = await coordinator.StartManualAsioHardwareTestAsync(new ManualAsioHardwareTestRequest(
+            50f,
+            TimeSpan.FromMilliseconds(45),
+            0.5f,
+            Source: "manual test"));
+        var snapshot = coordinator.GetManualAsioHardwareTestSnapshot();
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.NotNull(backend.LastNonZeroSubmittedSamples);
+        Assert.Contains(
+            backend.LastNonZeroSubmittedSamples!.Where((_, index) => index % 2 == 1),
+            sample => Math.Abs(sample) > 0f);
+        Assert.All(
+            backend.LastNonZeroSubmittedSamples.Where((_, index) => index % 2 == 0),
+            sample => Assert.Equal(0f, sample, precision: 6));
+        Assert.True(snapshot.LastSubmittedFramesDuringPulse > 0);
+        Assert.True(snapshot.ManualPulsePeak > 0f);
+        Assert.Equal(1, snapshot.SelectedOutputChannel);
     }
 
     [Fact]
@@ -720,22 +804,29 @@ public sealed class HapticPipelineAsioReadinessTests
     {
         private readonly int _outputChannelCount;
         private readonly bool _failStart;
+        private readonly bool _failSubmit;
         private readonly int _queueCapacity;
         private readonly bool _autoDrainSubmittedBuffers;
+        private readonly bool _reportCallbackOnStart;
+        private long _callbackCount;
         private int _queuedBufferCount;
 
         public FakeAsioOutputBackend(
             int outputChannelCount = 2,
             bool failStart = false,
+            bool failSubmit = false,
             int queueCapacity = 0,
             int initialQueuedBufferCount = 0,
-            bool autoDrainSubmittedBuffers = true)
+            bool autoDrainSubmittedBuffers = true,
+            bool reportCallbackOnStart = true)
         {
             _outputChannelCount = outputChannelCount;
             _failStart = failStart;
+            _failSubmit = failSubmit;
             _queueCapacity = queueCapacity;
             _queuedBufferCount = initialQueuedBufferCount;
             _autoDrainSubmittedBuffers = autoDrainSubmittedBuffers;
+            _reportCallbackOnStart = reportCallbackOnStart;
         }
 
         public bool IsRunning { get; private set; }
@@ -756,6 +847,8 @@ public sealed class HapticPipelineAsioReadinessTests
 
         public float[]? LastSubmittedSamples { get; private set; }
 
+        public float[]? LastNonZeroSubmittedSamples { get; private set; }
+
         public AsioOutputBackendSnapshot GetSnapshot()
         {
             return new AsioOutputBackendSnapshot(
@@ -767,7 +860,7 @@ public sealed class HapticPipelineAsioReadinessTests
                 OutputChannelCount: _outputChannelCount,
                 SubmittedBufferCount: SubmitCount,
                 DroppedBufferCount: 0,
-                CallbackCount: IsRunning ? StartCount : 0,
+                CallbackCount: Interlocked.Read(ref _callbackCount),
                 UnderrunCount: 0,
                 QueuedBufferCount: _queuedBufferCount,
                 LastCallbackJitter: null,
@@ -799,6 +892,11 @@ public sealed class HapticPipelineAsioReadinessTests
             }
 
             IsRunning = true;
+            if (_reportCallbackOnStart)
+            {
+                Interlocked.Increment(ref _callbackCount);
+            }
+
             return ValueTask.FromResult(AsioOutputBackendOperationResult.Success("Started fake ASIO backend."));
         }
 
@@ -822,9 +920,14 @@ public sealed class HapticPipelineAsioReadinessTests
                 SubmitBeforeStartCount++;
             }
 
-            if (IsRunning && StartCount > 0)
+            if (IsRunning && Interlocked.Read(ref _callbackCount) > 0)
             {
                 FirstSubmitSawCallbackActive = true;
+            }
+
+            if (_failSubmit)
+            {
+                return AsioOutputBackendOperationResult.Failure("Fake submit failure.");
             }
 
             if (_queueCapacity > 0 && _queuedBufferCount >= _queueCapacity)
@@ -839,9 +942,15 @@ public sealed class HapticPipelineAsioReadinessTests
             }
 
             LastSubmittedSamples = interleavedSamples.ToArray();
+            if (LastSubmittedSamples.Any(sample => Math.Abs(sample) > 0f))
+            {
+                LastNonZeroSubmittedSamples = LastSubmittedSamples.ToArray();
+            }
+
             if (_autoDrainSubmittedBuffers && _queuedBufferCount > 0)
             {
                 _queuedBufferCount--;
+                Interlocked.Increment(ref _callbackCount);
             }
 
             return AsioOutputBackendOperationResult.Success("Submitted.");

@@ -124,7 +124,7 @@ internal sealed partial class AppRuntimeSession
                 (generation, cancellationToken) => RebuildHapticPipelineForOutputSelectionAsync(
                     generation,
                     _asioArmed
-                        ? "ASIO armed. Start Haptics is still required before output can run."
+                        ? "ASIO armed. Start Haptics is still required before live haptics can run; Testing / Validation can still run a standalone BST-1 pulse."
                         : "ASIO disarmed and haptics stopped.",
                     cancellationToken),
                 "ASIO arm state update failed");

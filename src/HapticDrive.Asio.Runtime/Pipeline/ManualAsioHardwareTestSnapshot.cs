@@ -41,4 +41,15 @@ public sealed record ManualAsioHardwareTestSnapshot(
     string FlightRecorderPath,
     string? LastError,
     int QueueCapacityBuffers = 0,
-    int QueuedBufferCount = 0);
+    int QueuedBufferCount = 0,
+    bool AsioOpen = false,
+    long UnderrunCount = 0,
+    bool LastOpenedOutputForPulse = false,
+    bool LastStartedOutputForPulse = false,
+    long LastRenderCallbacksDuringPulse = 0,
+    long LastBackendCallbacksDuringPulse = 0,
+    long LastSubmittedFramesDuringPulse = 0,
+    long LastDroppedFramesDuringPulse = 0,
+    long LastUnderrunsDuringPulse = 0,
+    string? LastCompletionReason = null,
+    string? LastResultMessage = null);
